@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import { getAutoPerformanceUserDefault } from '../lib/autoPerformanceDefault'
+import { applyAutoPerformanceDefaultToCanvasSettings } from './autoPerformanceDefaultReact'
 import { CANVAS_PRESET_BY_ID, CANVAS_PRESETS, CANVAS_VISIBLE_PRESETS, CANVAS_PRESET_SETTINGS_SCHEMA_VERSION, type CanvasMediaItem } from '../components/vyzualz/react/ReactTypes'
 import { resolveCanvasPresetProvenance } from '../components/vyzualz/react/canvasPerformance/CanvasPresetProvenance'
 import { DEFAULT_CANVAS_MUTAGEN_SETTINGS, normalizeCanvasMutagenSettings } from '../components/vyzualz/react/renderers/mutagen/MutagenSettings'
@@ -19,10 +21,10 @@ describe('MUTAGEN Phase 1 recipe and primary source', () => {
     useReactStore.setState({ activeCanvasMediaId: 'opaque-jpg' })
     store().selectCanvasPreset('canvas-mutagen')
     expect(store().activeCanvasMediaId).toBe('opaque-jpg')
-    expect(store().canvasPresetSettings.mutagen).toEqual(DEFAULT_CANVAS_MUTAGEN_SETTINGS)
+    expect(store().canvasPresetSettings.mutagen).toEqual({ ...DEFAULT_CANVAS_MUTAGEN_SETTINGS, autoPerformance: getAutoPerformanceUserDefault() ?? DEFAULT_CANVAS_MUTAGEN_SETTINGS.autoPerformance })
     store().selectCanvasPreset('canvas-clean-playback')
     expect(store().activeCanvasMediaId).toBe('opaque-jpg')
-    expect(store().canvasPresetSettings).toEqual(normalizeCanvasPresetSettings(CANVAS_PRESET_BY_ID['canvas-clean-playback'].settings))
+    expect(store().canvasPresetSettings).toEqual(applyAutoPerformanceDefaultToCanvasSettings(normalizeCanvasPresetSettings(CANVAS_PRESET_BY_ID['canvas-clean-playback'].settings), getAutoPerformanceUserDefault() ?? false))
   })
 
   it('strictly validates and strips everything except the authored recipe', () => {

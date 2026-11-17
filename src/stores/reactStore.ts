@@ -263,6 +263,8 @@ import {
   removeCanvasPoolTextItemState,
 } from '../components/vyzualz/react/canvasPerformance/CanvasAuthoringState'
 import { normalizeCanvasCutbankSettings } from '../components/vyzualz/react/renderers/cutbank/CutbankSettings'
+import { getAutoPerformanceUserDefault, subscribeAutoPerformanceUserDefault } from '../lib/autoPerformanceDefault'
+import { applyAutoPerformanceDefaultToReactState, applyAutoPerformanceDefaultToSoundDrawing } from './autoPerformanceDefaultReact'
 import { normalizeCanvasVhsSettings } from '../components/vyzualz/react/renderers/vhs/VhsSettings'
 import { normalizeCanvasDivinitySettings } from '../components/vyzualz/react/renderers/divinity/DivinitySettings'
 import { normalizeCanvasFluiditySettings } from '../components/vyzualz/react/renderers/fluidity/FluiditySettings'
@@ -13245,3 +13247,29 @@ export const useReactStore = create<ReactStoreState>()(
     },
   ),
 )
+
+// ── The user's Auto Performance default (Settings > System Settings) ──────────
+// The default decides every Auto Performance toggle the React view owns outside Cinema 2.0 when the app loads, when a preset or engine is
+// chosen, when Sound Drawing selects a show, and whenever the setting changes. A toggle flipped by hand lasts until the next of those.
+function applyUserAutoPerformanceDefault(value: boolean | null = getAutoPerformanceUserDefault()): void {
+  if (value === null) return
+  const state = useReactStore.getState()
+  const patch = applyAutoPerformanceDefaultToReactState(state, value)
+  const soundDrawing = applyAutoPerformanceDefaultToSoundDrawing(state.soundDrawingPerformanceSettings, value)
+  if (!patch && !soundDrawing) return
+  useReactStore.setState({
+    ...(patch ?? {}),
+    ...(soundDrawing ? { soundDrawingPerformanceSettings: soundDrawing as ReactStoreState['soundDrawingPerformanceSettings'] } : {}),
+  } as Partial<ReactStoreState>)
+}
+
+subscribeAutoPerformanceUserDefault(value => applyUserAutoPerformanceDefault(value))
+useReactStore.persist.onFinishHydration(() => applyUserAutoPerformanceDefault())
+if (useReactStore.persist.hasHydrated()) applyUserAutoPerformanceDefault()
+useReactStore.subscribe((state, previous) => {
+  const selectionChanged = state.activeReactPresetId !== previous.activeReactPresetId
+    || state.activeReactEngineId !== previous.activeReactEngineId
+    || state.selectedCanvasPresetId !== previous.selectedCanvasPresetId
+  const showChosen = previous.soundDrawingPerformanceSettings.selectedShowId == null && state.soundDrawingPerformanceSettings.selectedShowId != null
+  if (selectionChanged || showChosen) applyUserAutoPerformanceDefault()
+})

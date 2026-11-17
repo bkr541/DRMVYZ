@@ -5,6 +5,7 @@ import { Cinema2ParameterState } from '../parameters/Cinema2ParameterState'
 import { compileCinema2NativePreset } from '../presets/Cinema2PresetCompiler'
 import { CINEMA2_IFRIT_PRESET_MANIFEST } from '../presets/Cinema2IfritPreset'
 import { CINEMA2_STARTERS_PRESET_MANIFEST } from '../presets/Cinema2StartersPreset'
+import { cinema2NativePresetRegistry } from '../presets/Cinema2PresetRegistry'
 import { MOOD_CAPABILITIES } from './support/MoodMigrationHarness'
 
 const IFRIT_AP = 'ifrit-auto-performance' as Cinema2ParameterId
@@ -66,5 +67,21 @@ describe('the user\'s Auto Performance default (System Settings)', () => {
     unsubscribe()
     setCinema2AutoPerformanceUserDefault(true)
     expect(state.getValue(IFRIT_AP)).toBe(false)
+  })
+
+  it('reaches every registered preset that has an Auto Performance toggle, migrated or not', () => {
+    const toggles: string[] = []
+    for (const manifest of cinema2NativePresetRegistry.list()) {
+      const compiled = cinema2NativePresetRegistry.compile(manifest.id, { availableCapabilities: MOOD_CAPABILITIES as never })
+      if (!compiled.ok) continue
+      const ids = compiled.plan.parameters.definitions.filter(definition => definition.type === 'boolean' && definition.label.trim().toLowerCase() === 'auto performance').map(definition => definition.id)
+      for (const value of [true, false]) {
+        setCinema2AutoPerformanceUserDefault(value)
+        const state = new Cinema2ParameterState(compiled.plan.parameters)
+        for (const id of ids) expect([manifest.id, id, state.getValue(id)]).toEqual([manifest.id, id, value])
+      }
+      toggles.push(...ids)
+    }
+    expect(toggles.length).toBeGreaterThan(35)
   })
 })

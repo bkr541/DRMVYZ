@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import { getAutoPerformanceUserDefault } from '../../../../../lib/autoPerformanceDefault'
+import { applyAutoPerformanceDefaultToCanvasSettings } from '../../../../../stores/autoPerformanceDefaultReact'
 import { CANVAS_PRESETS, CANVAS_PRESET_BY_ID, CANVAS_VISIBLE_PRESETS, CANVAS_PRESET_SETTINGS_SCHEMA_VERSION } from '../../ReactTypes'
 import { resolveCanvasPresetProvenance } from '../../canvasPerformance/CanvasPresetProvenance'
 import { mergeReactStoreState, migrateReactStore, normalizeCanvasPresetSettings, reactStorePartialize, useReactStore } from '../../../../../stores/reactStore'
@@ -17,7 +19,7 @@ describe('Data Bleed catalog and durable settings', () => {
     expect(state().selectedCanvasPresetId).toBe('canvas-data-bleed')
     state().selectCanvasPreset('canvas-clean-playback')
     expect(state().activeCanvasMediaId).toBe('user-source')
-    expect(state().canvasPresetSettings).toEqual(normalizeCanvasPresetSettings(CANVAS_PRESET_BY_ID['canvas-clean-playback'].settings))
+    expect(state().canvasPresetSettings).toEqual(applyAutoPerformanceDefaultToCanvasSettings(normalizeCanvasPresetSettings(CANVAS_PRESET_BY_ID['canvas-clean-playback'].settings), getAutoPerformanceUserDefault() ?? false))
     expect(CANVAS_PRESET_BY_ID['canvas-mutagen'].rendererKind).toBe('imageMutation')
     expect(CANVAS_PRESET_BY_ID['canvas-shiftgrid'].rendererKind).toBe('shiftgrid')
   })

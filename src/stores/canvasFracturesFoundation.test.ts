@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import { getAutoPerformanceUserDefault } from '../lib/autoPerformanceDefault'
+import { applyAutoPerformanceDefaultToCanvasSettings } from './autoPerformanceDefaultReact'
 import {
   CANVAS_PRESET_BY_ID,
   CANVAS_PRESETS,
@@ -61,7 +63,8 @@ describe('Fractures CANVAS foundation', () => {
     useReactStore.getState().selectCanvasPreset('canvas-fractures')
 
     expect(useReactStore.getState().selectedCanvasPresetId).toBe('canvas-fractures')
-    expect(useReactStore.getState().canvasPresetSettings).toMatchObject(fractures.settings)
+    // The user's Auto Performance default decides every renderer's toggle when a preset is chosen.
+    expect(useReactStore.getState().canvasPresetSettings).toMatchObject(applyAutoPerformanceDefaultToCanvasSettings(fractures.settings as Parameters<typeof applyAutoPerformanceDefaultToCanvasSettings>[0], getAutoPerformanceUserDefault() ?? false))
     expect(useReactStore.getState().canvasPresetOverride).toMatchObject({
       source: 'manual',
       presetId: 'canvas-fractures',

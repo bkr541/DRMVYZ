@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import { getAutoPerformanceUserDefault } from '../lib/autoPerformanceDefault'
+import { applyAutoPerformanceDefaultToXyScopeSettings } from './autoPerformanceDefaultReact'
 import {
   mergeReactStoreState,
   migrateReactStore,
@@ -18,7 +20,7 @@ describe('Sound Drawing XY store and persistence contract', () => {
     const state = useReactStore.getState()
     expect(state.activeReactEngineId).toBe('xyScope')
     expect(state.activeReactPresetId).toBeNull()
-    expect(state.xyScopeSettings).toEqual(DEFAULT_XY_SCOPE_SETTINGS)
+    expect(state.xyScopeSettings).toEqual(applyAutoPerformanceDefaultToXyScopeSettings(DEFAULT_XY_SCOPE_SETTINGS, getAutoPerformanceUserDefault() ?? false))
   })
 
   it('normalizes every mutation, so a corrupt patch cannot reach the renderer', () => {

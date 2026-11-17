@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { supabaseConfigured } from '../lib/supabase'
-import { setCinema2AutoPerformanceUserDefault } from '../components/vyzualz/cinema2/parameters/Cinema2AutoPerformanceDefault'
+import { setAutoPerformanceUserDefault } from '../lib/autoPerformanceDefault'
 import {
   dbCreateSession,
   dbUpdateSession,
@@ -1618,6 +1618,6 @@ export const useVisualStore = create<VisualState>()(
   )
 )
 
-// Cinema 2.0 presets read the user's Auto Performance default through this tiny module, so the runtime never imports the store.
-setCinema2AutoPerformanceUserDefault(useVisualStore.getState().autoPerformanceDefault)
-useVisualStore.subscribe(state => setCinema2AutoPerformanceUserDefault(state.autoPerformanceDefault))
+// Every engine with an Auto Performance toggle reads the user's default through this tiny module, so none of them imports the store.
+setAutoPerformanceUserDefault(useVisualStore.getState().autoPerformanceDefault)
+useVisualStore.subscribe(state => setAutoPerformanceUserDefault(state.autoPerformanceDefault))

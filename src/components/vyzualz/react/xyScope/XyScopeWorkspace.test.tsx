@@ -240,7 +240,8 @@ describe('Sound Drawing XY source, presets and React tab', () => {
   })
 
   it('offers compact Text V2 performance controls and restores manual audio style when Auto is off', async () => {
-    useReactStore.getState().setXyScopeSettings({ sourceMode: 'textV2' })
+    // The app's Auto Performance default is off; this test starts with Text V2's Auto on.
+    useReactStore.getState().setXyScopeSettings({ sourceMode: 'textV2', textV2: { ...useReactStore.getState().xyScopeSettings.textV2, autoPerformance: true } })
     const manualParameters = { ...useReactStore.getState().xyScopeSettings.parameters }
     await act(async () => root.render(<XyScopeDesignPanel />))
     expect(container.querySelector('[data-text-v2-design]')).not.toBeNull()

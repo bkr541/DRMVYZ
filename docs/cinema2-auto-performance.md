@@ -75,11 +75,11 @@ The preset revision is **not** bumped: saved parameter state is bound to the rev
 
 ## The user's Auto Performance default (System Settings)
 
-Settings > System Settings > **Auto Performance** has one toggle: the default every preset's Auto Performance toggle starts with. It is stored in `visualStore.autoPerformanceDefault` (off for a new install) and mirrored into `parameters/Cinema2AutoPerformanceDefault.ts`, so the runtime never imports a store.
+Settings > System Settings > **Auto Performance** has one toggle: the default for every Auto Performance toggle in the app. It is stored in `visualStore.autoPerformanceDefault` (off for a new install), synced to the account with the other System Settings, and published through `src/lib/autoPerformanceDefault.ts` so no engine imports a store. The setting wins on load: a toggle flipped by hand lasts until the app, preset or engine is loaded again.
 
-- `Cinema2ParameterState` replaces the authored default of every boolean tagged `moodPolicy: 'autoPerformance'` with the user's value. That covers a new preset state, Reset, and Reset All. The preset's own authored default (on for 16 presets) is therefore only used when no setting exists (tests, hosts that never set it).
-- `restore()` skips the saved value of that toggle, so a workspace saved before the setting existed follows the setting too. Every other saved value is untouched. A toggle you flip in the Inspector lasts until that preset is loaded again.
-- A running preset follows a change right away: `Cinema2Runtime` subscribes and calls `applyAutoPerformanceDefault`.
+- **Cinema 2.0:** `Cinema2ParameterState` replaces the authored default of every boolean tagged `moodPolicy: 'autoPerformance'`, or labelled "Auto Performance" (presets not migrated yet), with the user's value. That covers a new state, Reset and Reset All; `restore()` skips the saved value of that toggle, and a running preset follows a change through its `Cinema2Runtime` subscription.
+- **CANVAS renderers and XY Scope:** `reactStore` applies it (`stores/autoPerformanceDefaultReact.ts`) to the ten CANVAS renderers, the six XY Scope instruments and the XY Scope parameter when the app hydrates, when a preset or engine is chosen, and when the setting changes.
+- **Sound Drawing:** its toggle only works while a show is selected, so the default is applied when a show is chosen and when the setting changes while one is.
 
 ## Adding Auto Performance to a new preset
 
