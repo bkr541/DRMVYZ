@@ -1,3 +1,4 @@
+import { validateCinema2MoodPolicyParameters } from '../conductor/Cinema2MoodPolicy'
 import {
   CINEMA2_CAPABILITY_IDS,
   CINEMA2_SHARED_LIGHT_LIMIT,
@@ -173,6 +174,7 @@ export function compileCinema2NativePreset(
   const index = buildManifestIndex(manifest, diagnostics)
   validateCapabilities(manifest, compileOptions, diagnostics)
   diagnostics.push(...validateCinema2ParameterDefinitions(manifest).map(diagnostic => ({ ...diagnostic, severity: 'error' as const })))
+  diagnostics.push(...validateCinema2MoodPolicyParameters(Array.isArray(manifest.parameters) ? manifest.parameters : []).map(diagnostic => ({ ...diagnostic, severity: 'error' as const })))
   validateReferencesAndCombinations(manifest, index, diagnostics)
   const sceneCompilation = compileCinema2SceneGraph(manifest)
   diagnostics.push(...sceneCompilation.diagnostics.map(diagnostic => ({ ...diagnostic, severity: 'error' as const })))

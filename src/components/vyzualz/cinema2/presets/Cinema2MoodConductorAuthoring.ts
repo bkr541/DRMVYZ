@@ -9,6 +9,7 @@ import {
   type Cinema2ChoreographyActionManifest,
 } from '../contracts/Cinema2NativePresetManifest'
 import type { Cinema2MoodPath } from '../conductor/Cinema2MoodConductor'
+import { CINEMA2_MOOD_POLICY_METADATA_KEY, type Cinema2MoodPolicy } from '../conductor/Cinema2MoodPolicy'
 
 /**
  * Authoring for the shared Mood Conductor: continuous "drives" that move a preset's own targets by the passage's mood, gated by the preset's
@@ -38,6 +39,12 @@ export interface Cinema2MoodDriveSpec {
   /** The preset's own reactivity or intensity control: the drives scale by it, so a control set to zero silences them. */
   readonly strengthParameter?: Cinema2ParameterId
   readonly drives: readonly Cinema2MoodDrive[]
+  /**
+   * Opt in to "the music chooses Pattern Change and the Trigger while Auto Performance is on": the preset's own Pattern Change and Trigger
+   * parameters (the Auto Performance toggle is `enabledParameter`). They are tagged for the compiler, the inspector's live "choosing" line and
+   * the module, which reads the choice with `Cinema2PatternControlResolver`.
+   */
+  readonly patternControls?: Readonly<{ patternChange: Cinema2ParameterId; trigger: Cinema2ParameterId }>
 }
 
 export const CINEMA2_MOOD_RULE_PRIORITY = 64
@@ -72,10 +79,17 @@ export function createCinema2MoodRules(spec: Readonly<Cinema2MoodDriveSpec>): re
  */
 export function withCinema2MoodDrives(manifest: Readonly<Cinema2NativePresetManifest>, spec: Readonly<Cinema2MoodDriveSpec>): Readonly<Cinema2NativePresetManifest> {
   const rules = createCinema2MoodRules(spec)
-  if (rules.length === 0) return manifest
+  const tagged = spec.patternControls
+    ? tagCinema2MoodPolicies(manifest, {
+      [String(spec.patternControls.patternChange)]: 'patternChange',
+      [String(spec.patternControls.trigger)]: 'trigger',
+      [String(spec.enabledParameter)]: 'autoPerformance',
+    })
+    : manifest
+  if (rules.length === 0) return tagged
   const declared = (manifest.capabilities ?? []).some(capability => capability.id === 'visual-director.significance')
   return Object.freeze({
-    ...manifest,
+    ...tagged,
     revision: manifest.revision,
     capabilities: Object.freeze([
       ...(manifest.capabilities ?? []),
@@ -83,4 +97,20 @@ export function withCinema2MoodDrives(manifest: Readonly<Cinema2NativePresetMani
     ]),
     choreography: Object.freeze({ ...(manifest.choreography ?? {}), rules: Object.freeze([...(manifest.choreography?.rules ?? []), ...rules]) }),
   })
+}
+
+/**
+ * Tags parameters with `metadata.moodPolicy`, keeping whatever metadata they already have (Depth's `userEditSetParameters`, for example). A
+ * parameter id that is not in the manifest throws: a typo would otherwise leave the preset silently untagged.
+ */
+export function tagCinema2MoodPolicies(manifest: Readonly<Cinema2NativePresetManifest>, tags: Readonly<Record<string, Cinema2MoodPolicy>>): Readonly<Cinema2NativePresetManifest> {
+  const remaining = new Set(Object.keys(tags))
+  const parameters = (manifest.parameters ?? []).map(parameter => {
+    const policy = tags[String(parameter.id)]
+    if (!policy) return parameter
+    remaining.delete(String(parameter.id))
+    return Object.freeze({ ...parameter, metadata: Object.freeze({ ...(parameter.metadata ?? {}), [CINEMA2_MOOD_POLICY_METADATA_KEY]: policy }) })
+  })
+  if (remaining.size > 0) throw new Error(`Cannot tag moodPolicy: no parameter with id ${[...remaining].join(', ')} in preset ${String(manifest.id)}.`)
+  return Object.freeze({ ...manifest, parameters: Object.freeze(parameters) }) as Readonly<Cinema2NativePresetManifest>
 }

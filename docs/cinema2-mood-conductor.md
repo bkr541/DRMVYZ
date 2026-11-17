@@ -66,9 +66,19 @@ With Auto Performance on, the **music** chooses whether the preset changes patte
 
 **Pattern Change** is on while there is sound, and **off in a silent stop** (silence of 0.5 or more), which holds the current pattern until the music returns.
 
-Depth advances through its rotation (Sparse, Chase, Orbit, Gate Pulse, Alternating Frames, Portal Relay) on the chosen trigger, only while the music has Pattern Change on, with the special programs (discharge for drops and builds, full pulse in a quiet moment, portal relay at a high level) taking over for their moments. Without a mood frame it keeps its old 16-beat rotation. Mainframe feeds the effective values to its trigger identity, pattern controller and Auto Performance chooser. Its `inspect()` reports `effectivePatternChange`, `effectiveTrigger` and `patternControlsAutomatic`. Other pattern presets (Backstreet and the rest) do not use it yet.
+Depth advances through its rotation (Sparse, Chase, Orbit, Gate Pulse, Alternating Frames, Portal Relay) on the chosen trigger, only while the music has Pattern Change on, with the special programs (discharge for drops and builds, full pulse in a quiet moment, portal relay at a high level) taking over for their moments. Without a mood frame it keeps its old 16-beat rotation. Mainframe feeds the effective values to its trigger identity, pattern controller and Auto Performance chooser. Both modules get them from the shared `Cinema2PatternControlResolver` (see "Adopting it in a preset"). Mainframe's `inspect()` reports `effectivePatternChange`, `effectiveTrigger` and `patternControlsAutomatic`. Other pattern presets (Backstreet and the rest) do not use it yet; they adopt it with the three steps below.
 
 The inspector shows the choice under the two controls ("Auto Performance is choosing: On, Every 4 Bars for a driving passage"), polled like the live slider values. The saved toggle and dropdown keep showing what the user saved. The ladder's thresholds are a first guess for tuning on real tracks.
+
+### Adopting it in a preset (three steps)
+
+1. **Manifest.** Add `patternControls: { patternChange, trigger }` to the preset's `withCinema2MoodDrives({ ... })` spec (the Auto Performance toggle is the spec's `enabledParameter`). This tags the three parameters with `metadata.moodPolicy` (`patternChange`, `trigger`, `autoPerformance`), keeping any metadata they already had, and works even with an empty `drives` list. Never write the tags by hand: `tagCinema2MoodPolicies` throws on an id that is not in the manifest.
+2. **Module.** Own a `Cinema2PatternControlResolver<MyTriggerId>`, call `update({ saved: { patternChange, trigger }, mood: frame.mood, autoPerformance })` once per frame before the usual trigger-event logic, act on the returned `patternChange` and `trigger` instead of the saved ones, add `...resolver.inspect()` to `inspect()`, and `reset()` it with the module. `autoPerformance` is the toggle, already combined with anything else that must hold (Mainframe adds "is playing"). The module keeps its own event identity, debounce and pattern logic; only the two inputs change.
+3. **Nothing in the inspector.** The "Auto Performance is choosing" line finds the tagged controls by their tags (`findCinema2PolicyControls`), so no panel code is needed.
+
+The compiler enforces it (`validateCinema2MoodPolicyParameters`): each tag sits on the right kind of control (`patternChange` and `autoPerformance` on booleans, `trigger` on an enum), the Trigger offers every value the music may choose (`bar8, bar4, bar, beat2, beat`, all in the canonical Trigger list), each tag is used once, and the three are tagged together. A preset that fails any of these does not compile, so it cannot half-adopt and silently never show or use the choice. A preset that tags nothing is unaffected.
+
+A preset's pattern-by-feel lists (Mainframe's `Cinema2PatternAutoPerformance` `mood: { options }`) are separate and optional: they pick among the preset's own patterns, so each preset supplies its own.
 
 ## Seeing what Auto Performance is doing
 
@@ -80,12 +90,12 @@ A note on Depth: **choosing a Light Program (or turning Pattern Change on) turns
 
 1. Pick the targets that should move with the passage and a baseline-relative drive for each (`add` or `multiply`, a source, a value).
 2. For a preset with `withCinema2AutoPerformance`, add a `mood: [...]` list to the spec. For one with its own toggle (Depth, Mainframe), wrap its manifest with `withCinema2MoodDrives({ idPrefix, enabledParameter, strengthParameter?, drives })`.
-3. For a preset with a pattern controller, give `Cinema2PatternAutoPerformance` a `mood: { options }` config and pass `mood`, `deltaTimeSec`, `basePattern`, `patternChange` and `seed` from the module frame (see the Mainframe module).
+3. For a preset with Pattern Change and a Trigger, add `patternControls` to that spec and use the resolver in the module (see "Adopting it in a preset"). For a preset with a pattern controller, also give `Cinema2PatternAutoPerformance` a `mood: { options }` config and pass `mood`, `deltaTimeSec`, `basePattern`, `patternChange` and `seed` from the module frame (see the Mainframe module).
 4. Keep the revision; add tests in the style of `Cinema2MoodConductorPresets.test.ts` (the twin-engine differential: the same music into the preset with the toggle on and off).
 
 ## Tests
 
-`Cinema2MoodConductor.test.ts` (the conductor against the real audio bridge and director, and the chooser) and `Cinema2MoodConductorPresets.test.ts` (the authoring, and Electric Storm, Depth and Mainframe against their real choreography runtimes: calm and peak, a drop's shock and its decay, off, no music, reactivity zero, and the Mainframe pattern chooser), plus the Pattern Change and Trigger blocks in `Cinema2MoodConductor.test.ts`, `Cinema2DepthPreset.test.ts` and `Cinema2PatternAutoPerformance.test.ts`, and `react/__tests__/Cinema2LiveValueDisplay.test.tsx` for the inspector readout. The existing Auto Performance rule and inventory tests pass unchanged except that Depth and Mainframe's authored rule lists now include the mood rules.
+`Cinema2MoodConductor.test.ts` (the conductor against the real audio bridge and director, and the chooser) and `Cinema2MoodConductorPresets.test.ts` (the authoring, and Electric Storm, Depth and Mainframe against their real choreography runtimes: calm and peak, a drop's shock and its decay, off, no music, reactivity zero, and the Mainframe pattern chooser), plus the Pattern Change and Trigger blocks in `Cinema2MoodConductor.test.ts`, `Cinema2DepthPreset.test.ts` and `Cinema2PatternAutoPerformance.test.ts`, and `Cinema2PatternControlPolicy.test.ts` (the tagging, the compiler checks and the resolver), and `react/__tests__/Cinema2LiveValueDisplay.test.tsx` for the inspector readout. The existing Auto Performance rule and inventory tests pass unchanged except that Depth and Mainframe's authored rule lists now include the mood rules.
 
 ## Not done
 

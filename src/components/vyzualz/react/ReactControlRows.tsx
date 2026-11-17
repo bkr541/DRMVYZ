@@ -85,7 +85,7 @@ export function SliderRow({
         </span>
       </div>
       {live != null ? (
-        <div className="rv-ctrl-slider-wrap" style={{ position: 'relative' }}>
+        <div className="rv-ctrl-slider-wrap">
           <span className="rv-ctrl-live-mark" data-live-mark="true" aria-hidden="true" style={{ left: livePct }} />
           {slider}
         </div>

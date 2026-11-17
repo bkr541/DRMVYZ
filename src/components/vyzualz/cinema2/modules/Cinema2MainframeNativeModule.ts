@@ -44,7 +44,7 @@ import {
   type Cinema2MainframeTriggerId,
 } from './mainframe/Cinema2MainframePatternController'
 import { Cinema2PatternAutoPerformance } from './mainframe/Cinema2PatternAutoPerformance'
-import { resolveCinema2PatternControls } from '../conductor/Cinema2MoodConductor'
+import { Cinema2PatternControlResolver } from '../conductor/Cinema2PatternControls'
 import {
   resolveCinema2MainframeQualityProfile,
   type Cinema2MainframeQualityProfile,
@@ -346,7 +346,7 @@ export const cinema2MainframeNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
       },
     })
     let previousAuthoredPattern: Cinema2MainframePatternId | null = null
-    let effectiveControl: ReturnType<typeof resolveCinema2PatternControls<string>> = { patternChange: false, trigger: 'bar4', automatic: false }
+    const patternControls = new Cinema2PatternControlResolver<Cinema2MainframeTriggerId>()
     let performance: Readonly<ReturnType<typeof autoPerformance.update>> = autoPerformance.update({ enabled: false, absoluteBeat: 0, buildCharge: 0, dropEventId: null, patternEdited: false, reset: true })
     const patternController = new Cinema2MainframePatternController(
       createCinema2MainframePatternCycle(index => context.randomness.sample('mainframe-pattern-cycle', index)),
@@ -506,9 +506,8 @@ export const cinema2MainframeNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
           if (triggerReset) beatClock.reset()
           const timing = beatClock.resolve(acceptedFrame, frame.bpmSync)
           // With Auto Performance on, Pattern Change and the Trigger are the music's choice (the saved values are never written to).
-          const control = resolveCinema2PatternControls({ patternChange: frame.patternChange, trigger: frame.trigger }, updateFrame.mood, frame.autoPerformance && playback === 'playing')
-          effectiveControl = control
-          const effectiveTrigger = control.trigger as Cinema2MainframeTriggerId
+          const control = patternControls.update({ saved: { patternChange: frame.patternChange, trigger: frame.trigger }, mood: updateFrame.mood, autoPerformance: frame.autoPerformance && playback === 'playing' })
+          const effectiveTrigger = control.trigger
           const triggerEventId = triggerReset
             ? null
             : resolveCinema2MainframeTriggerEventIdentity(acceptedFrame, effectiveTrigger, triggerPreviousTimeSec, coordinated.dropEventId, {
@@ -634,9 +633,7 @@ export const cinema2MainframeNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
         activePattern: selection.activePattern,
         patternChange: frame.patternChange,
         trigger: frame.trigger,
-        effectivePatternChange: effectiveControl.patternChange,
-        effectiveTrigger: effectiveControl.trigger,
-        patternControlsAutomatic: effectiveControl.automatic,
+        ...patternControls.inspect(),
         autoPerformance: frame.autoPerformance,
         performance,
         onStage: performance.pattern ?? selection.activePattern,

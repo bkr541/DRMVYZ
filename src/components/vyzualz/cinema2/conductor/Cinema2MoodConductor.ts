@@ -31,6 +31,7 @@
  *     what it chose, never repeats the current choice, and is a pure function of the seed, the track and the boundary.
  */
 
+import { CINEMA2_MOOD_TRIGGER_LADDER, type Cinema2MoodTrigger } from './Cinema2MoodPolicy'
 import { cinema2CanonicalDropEvents, cinema2CanonicalPhraseEvents } from '../choreography/Cinema2ChoreographyRuntime'
 import type { Cinema2AudioIntelligenceFrame, Cinema2AudioSignal } from '../audio/Cinema2AudioIntelligenceBridge'
 import type { Cinema2VisualDirectorFrame } from '../director/Cinema2VisualDirector'
@@ -41,8 +42,7 @@ const clamp01 = (v: number) => Math.max(0, Math.min(1, Number.isFinite(v) ? v : 
 export type Cinema2MoodFeel = 'calm' | 'driving' | 'tense' | 'peak'
 
 /** The Triggers the conductor chooses between, slowest to fastest. Every preset with a Trigger control offers all of them. */
-export const CINEMA2_MOOD_TRIGGER_LADDER = Object.freeze(['bar8', 'bar4', 'bar', 'beat2', 'beat'] as const)
-export type Cinema2MoodTrigger = typeof CINEMA2_MOOD_TRIGGER_LADDER[number]
+export { CINEMA2_MOOD_TRIGGER_LADDER, type Cinema2MoodTrigger }
 
 /** What the music wants Pattern Change and the Trigger to be right now. */
 export interface Cinema2MoodPatternChoice {

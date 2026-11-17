@@ -1,3 +1,4 @@
+import { readCinema2MoodPolicy } from '../cinema2/conductor/Cinema2MoodPolicy'
 import { createContext, useContext, useEffect, useState } from 'react'
 import type { Cinema2JsonValue } from '../cinema2/contracts/Cinema2NativePresetManifest'
 import type { Cinema2FinalValueResolver } from '../cinema2/parameters/Cinema2TargetRuntime'
@@ -93,6 +94,20 @@ export interface Cinema2PolicyControl {
   readonly id: string
   readonly policy: 'patternChange' | 'trigger'
   readonly options?: readonly { readonly value: string; readonly label: string }[]
+}
+
+/** Finds the controls a preset tagged for the music's choice (see `moodPolicy`) among an inspector's controls, and its Auto Performance toggle. */
+export function findCinema2PolicyControls(
+  controls: readonly Readonly<{ definition: Readonly<{ id: string; metadata?: unknown; options?: readonly { value: string; label: string }[] }> }>[],
+): Readonly<{ controls: readonly Cinema2PolicyControl[]; autoId: string | null }> {
+  const found: Cinema2PolicyControl[] = []
+  let autoId: string | null = null
+  for (const { definition } of controls) {
+    const policy = readCinema2MoodPolicy(definition.metadata)
+    if (policy === 'patternChange' || policy === 'trigger') found.push({ id: definition.id, policy, options: definition.options })
+    if (policy === 'autoPerformance') autoId = definition.id
+  }
+  return { controls: found, autoId }
 }
 
 /**

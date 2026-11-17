@@ -1123,12 +1123,18 @@
   color: var(--accent, #4ac7db);
   font-variant-numeric: tabular-nums;
 }
-.rv-ctrl-slider-wrap { width: 100%; }
+.rv-ctrl-slider-wrap {
+  /* Flex, not block: a block wrapper puts the range input on a line box whose strut adds ~18px, so the row would grow
+     every time the live marker appeared. As a flex container its height is exactly the input's, same as a bare slider. */
+  position: relative;
+  display: flex;
+  width: 100%;
+}
 .rv-ctrl-live-mark {
   position: absolute;
   top: 50%;
   width: 3px;
-  height: 11px;
+  height: 9px;
   margin-left: -1.5px;
   transform: translateY(-50%);
   border-radius: 1px;

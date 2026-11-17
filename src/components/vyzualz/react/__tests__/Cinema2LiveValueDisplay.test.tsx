@@ -5,7 +5,7 @@ import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { Cinema2SchemaControl } from '../Cinema2InspectorPanel'
-import { Cinema2LivePolicyProvider, Cinema2LiveValuesProvider, resolveCinema2LivePolicy, resolveCinema2LiveValues } from '../Cinema2LiveValues'
+import { findCinema2PolicyControls, Cinema2LivePolicyProvider, Cinema2LiveValuesProvider, resolveCinema2LivePolicy, resolveCinema2LiveValues } from '../Cinema2LiveValues'
 import { CINEMA2_DEPTH_PRESET_MANIFEST } from '../../cinema2/presets/Cinema2DepthPreset'
 import { SliderRow } from '../ReactControlRows'
 import type { Cinema2InspectorControlModel } from '../../cinema2/parameters/Cinema2InspectorModel'
@@ -132,5 +132,20 @@ describe('Pattern Change and Trigger: what Auto Performance is choosing', () => 
     const find = (id: string) => CINEMA2_DEPTH_PRESET_MANIFEST.parameters!.find(parameter => parameter.id === id) as unknown as { metadata?: Record<string, unknown> }
     expect(find('depth-pattern-change').metadata).toMatchObject({ moodPolicy: 'patternChange', userEditSetParameters: { 'depth-auto-performance': false } })
     expect(find('depth-trigger').metadata).toMatchObject({ moodPolicy: 'trigger' })
+  })
+
+  it('finds the tagged controls and the Auto Performance toggle by their tags, not by label', () => {
+    const controls = [
+      { definition: { id: 'pc', metadata: { moodPolicy: 'patternChange' } } },
+      { definition: { id: 'tr', metadata: { moodPolicy: 'trigger' }, options } },
+      { definition: { id: 'ap', metadata: { moodPolicy: 'autoPerformance' } } },
+      { definition: { id: 'decoy', label: 'Auto Performance', metadata: {} } },
+      { definition: { id: 'plain' } },
+    ]
+    const found = findCinema2PolicyControls(controls)
+    expect(found.autoId).toBe('ap')
+    expect(found.controls.map(control => [control.id, control.policy])).toEqual([['pc', 'patternChange'], ['tr', 'trigger']])
+    expect(found.controls[1]!.options).toBe(options)
+    expect(findCinema2PolicyControls([{ definition: { id: 'plain' } }])).toEqual({ controls: [], autoId: null })
   })
 })

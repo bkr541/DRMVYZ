@@ -329,8 +329,7 @@ const CINEMA2_DEPTH_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       description: 'Advances through all eight geometry-aware programs when the selected Trigger occurs. Enabling it turns Auto Performance off.',
       type: 'boolean' as const,
       defaultValue: false,
-      // The music chooses Pattern Change and the Trigger while Auto Performance is on; the inspector shows the live choice.
-      metadata: Object.freeze({ userEditSetParameters: Object.freeze({ [CINEMA2_DEPTH_AUTO_PERFORMANCE_ID]: false }), moodPolicy: 'patternChange' }),
+      metadata: Object.freeze({ userEditSetParameters: Object.freeze({ [CINEMA2_DEPTH_AUTO_PERFORMANCE_ID]: false }) }),
       designParentGroup: 'design' as const,
       order: 2,
       group: 'Light Program',
@@ -344,7 +343,6 @@ const CINEMA2_DEPTH_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       defaultValue: 'bar4',
       options: Object.freeze(CINEMA2_DEPTH_TRIGGER_IDS.map(value => Object.freeze({ value, label: TRIGGER_LABELS[value] }))),
       visibleWhen: Object.freeze([Object.freeze({ kind: 'parameter-equals' as const, parameterId: CINEMA2_DEPTH_PATTERN_CHANGE_ID, value: true })]),
-      metadata: Object.freeze({ moodPolicy: 'trigger' }),
       designParentGroup: 'design' as const,
       order: 3,
       group: 'Light Program',
@@ -676,6 +674,8 @@ export const CINEMA2_DEPTH_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest
   idPrefix: 'depth-auto',
   enabledParameter: CINEMA2_DEPTH_AUTO_PERFORMANCE_ID,
   strengthParameter: CINEMA2_DEPTH_INTENSITY_ID,
+  // With Auto Performance on, the music chooses Pattern Change and the Trigger (the orchestration reads it through Cinema2PatternControlResolver).
+  patternControls: { patternChange: CINEMA2_DEPTH_PATTERN_CHANGE_ID, trigger: CINEMA2_DEPTH_TRIGGER_ID },
   drives: [
     // Design › Light Program: Rate 1.1 (0..4) and Active Span 4 (1..8).
     depthDrive('rate', depthModule('rate'), 'mood.activity', 1.0),

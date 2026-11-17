@@ -221,8 +221,6 @@ const PARAMETERS = Object.freeze([
     description: 'When enabled, each qualified Trigger advances through a deterministic shuffled cycle with no immediate repeat.',
     type: 'boolean' as const,
     defaultValue: false,
-    // With Auto Performance on, the music chooses whether the pattern changes and on which Trigger; the inspector shows the live choice.
-    metadata: Object.freeze({ moodPolicy: 'patternChange' }),
     designParentGroup: 'effects' as const,
     group: 'Pattern',
     order: 2,
@@ -236,7 +234,6 @@ const PARAMETERS = Object.freeze([
     defaultValue: 'bar4',
     options: CINEMA2_AFTERHOURS_TRIGGER_OPTIONS,
     visibleWhen: Object.freeze([Object.freeze({ kind: 'parameter-equals' as const, parameterId: CINEMA2_MAINFRAME_PATTERN_CHANGE_ID, value: true })]),
-    metadata: Object.freeze({ moodPolicy: 'trigger' }),
     designParentGroup: 'effects' as const,
     group: 'Pattern',
     order: 3,
@@ -497,6 +494,8 @@ const CINEMA2_MAINFRAME_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetMa
 export const CINEMA2_MAINFRAME_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = withCinema2MoodDrives(CINEMA2_MAINFRAME_AUTHORED_PRESET_MANIFEST, {
   idPrefix: 'mainframe-auto',
   enabledParameter: CINEMA2_MAINFRAME_AUTO_PERFORMANCE_ID,
+  // With Auto Performance on, the music chooses Pattern Change and the Trigger (the module reads it through Cinema2PatternControlResolver).
+  patternControls: { patternChange: CINEMA2_MAINFRAME_PATTERN_CHANGE_ID, trigger: CINEMA2_MAINFRAME_TRIGGER_ID },
   drives: [
     { id: 'intensity-activity', target: cinema2AutoTargets.module(CINEMA2_MAINFRAME_MODULE_ID as string, 'masterIntensity'), source: 'mood.activity', operation: 'add', value: 0.12 },
     { id: 'intensity-calm', target: cinema2AutoTargets.module(CINEMA2_MAINFRAME_MODULE_ID as string, 'masterIntensity'), source: 'mood.calm', operation: 'add', value: -0.1 },

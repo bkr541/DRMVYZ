@@ -1,4 +1,4 @@
-import { resolveCinema2PatternControls } from '../../conductor/Cinema2MoodConductor'
+import { Cinema2PatternControlResolver } from '../../conductor/Cinema2PatternControls'
 import type { Cinema2AudioIntelligenceFrame } from '../../audio/Cinema2AudioIntelligenceBridge'
 import { Cinema2BeatClock, resolveCinema2EffectiveBpm } from '../Cinema2BeatClock'
 import type { Cinema2ModuleFrameReadContext } from '../Cinema2ModuleContracts'
@@ -61,6 +61,7 @@ export class Cinema2DepthOrchestration {
   private lastPatternTriggerId: string | null = null
   private autoRotationIndex = 0
   private autoTriggerId: string | null = null
+  private readonly patternControls = new Cinema2PatternControlResolver<Cinema2DepthTriggerId>()
   private relayGroup = 0
   private dropElapsed = Number.POSITIVE_INFINITY
   private fallbackCountdownStartBeat: number | null = null
@@ -87,6 +88,7 @@ export class Cinema2DepthOrchestration {
     this.lastPatternTriggerId = null
     this.autoRotationIndex = 0
     this.autoTriggerId = null
+    this.patternControls.reset()
     this.relayGroup = 0
     this.dropElapsed = Number.POSITIVE_INFINITY
     this.fallbackCountdownStartBeat = null
@@ -160,14 +162,14 @@ export class Cinema2DepthOrchestration {
     }
     // Auto Performance chooses Pattern Change and the Trigger from the music (how the passage feels, a build climbing, a drop, a section about to end,
     // silence), so they are the music's, not the saved ones, while it is on. The saved values are never written to.
-    const control = resolveCinema2PatternControls({ patternChange: inputs.patternChange, trigger: inputs.trigger }, frame.mood, inputs.auto)
+    const control = this.patternControls.update({ saved: { patternChange: inputs.patternChange, trigger: inputs.trigger }, mood: frame.mood, autoPerformance: inputs.auto })
     if (inputs.auto) {
       const special = autoSpecialPattern(patterns, build, this.quiet, this.level, countdown > 0, dropped || this.dropElapsed < 2.2)
       const rotation = AUTO_ROTATION.filter(program => patterns.includes(program))
       if (control.automatic && rotation.length > 0) {
         // The pattern advances on the music's Trigger while the music wants it to change, and holds otherwise (a silent stop, for instance).
         if (control.patternChange) {
-          const triggerEvent = resolveTriggerEvent(control.trigger as Cinema2DepthTriggerId, delivered, beats, this.lastBeats)
+          const triggerEvent = resolveTriggerEvent(control.trigger, delivered, beats, this.lastBeats)
           if (triggerEvent && triggerEvent !== this.autoTriggerId) { this.autoRotationIndex = (this.autoRotationIndex + 1) % rotation.length; this.autoTriggerId = triggerEvent }
         }
         this.activePattern = special ?? rotation[this.autoRotationIndex % rotation.length]!

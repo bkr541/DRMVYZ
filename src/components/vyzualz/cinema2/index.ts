@@ -45,10 +45,26 @@ export {
 export {
   CINEMA2_MOOD_RULE_PRIORITY,
   createCinema2MoodRules,
+  tagCinema2MoodPolicies,
   withCinema2MoodDrives,
   type Cinema2MoodDrive,
   type Cinema2MoodDriveSpec,
 } from './presets/Cinema2MoodConductorAuthoring'
+export {
+  CINEMA2_MOOD_POLICIES,
+  CINEMA2_MOOD_POLICY_METADATA_KEY,
+  CINEMA2_MOOD_TRIGGER_LADDER,
+  readCinema2MoodPolicy,
+  validateCinema2MoodPolicyParameters,
+  type Cinema2MoodPolicy,
+  type Cinema2MoodPolicyDiagnostic,
+  type Cinema2MoodTrigger,
+} from './conductor/Cinema2MoodPolicy'
+export {
+  Cinema2PatternControlResolver,
+  type Cinema2PatternControlsInput,
+  type Cinema2PatternControlsState,
+} from './conductor/Cinema2PatternControls'
 
 export {
   CINEMA2_CAPABILITY_IDS,

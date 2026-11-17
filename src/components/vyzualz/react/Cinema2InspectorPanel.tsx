@@ -16,7 +16,7 @@ import type { Cinema2JsonValue } from '../cinema2/contracts/Cinema2NativePresetM
 import type { Cinema2Runtime } from '../cinema2/runtime/Cinema2Runtime'
 import { Collapsible, ColorRow, CtrlSection, NumberInputRow, PaletteColorRow, SelectRow, SliderRow, TextInputRow, ToggleRow } from './ReactControlRows'
 import { IconChipButton } from './controls/IconChipButton'
-import { Cinema2LivePolicyProvider, Cinema2LiveValuesProvider, resolveCinema2LivePolicy, resolveCinema2LiveValues, useCinema2LivePolicies, useCinema2LivePolicy, useCinema2LiveValue, useCinema2LiveValues, type Cinema2PolicyControl } from './Cinema2LiveValues'
+import { findCinema2PolicyControls, Cinema2LivePolicyProvider, Cinema2LiveValuesProvider, resolveCinema2LivePolicy, resolveCinema2LiveValues, useCinema2LivePolicies, useCinema2LivePolicy, useCinema2LiveValue, useCinema2LiveValues, } from './Cinema2LiveValues'
 import { PanelSubtabs } from './PanelSubtabs'
 import { ReactAudioPanel } from './ReactAudioPanel'
 
@@ -87,18 +87,10 @@ export function Cinema2InspectorPanel({ runtime, surface, sharedAudioAnalysis = 
   ), [runtime, plan, liveRanges])
   const liveValues = useCinema2LiveValues(surface === 'design' && runtime != null && liveRanges.size > 0, readLiveValues)
   // Pattern Change and the Trigger: with Auto Performance on, the music chooses them, so the inspector says what it chose.
-  const policyControls = useMemo(() => {
-    const found: Cinema2PolicyControl[] = []
-    let autoId: string | null = null
-    for (const parent of designParentGroups) {
-      for (const control of [...parent.controls, ...parent.groups.flatMap(group => group.controls)]) {
-        const policy = (control.definition.metadata as { moodPolicy?: unknown } | undefined)?.moodPolicy
-        if (policy === 'patternChange' || policy === 'trigger') found.push({ id: control.definition.id, policy, options: control.definition.options })
-        if (control.definition.label === 'Auto Performance' && control.definition.type === 'boolean') autoId = control.definition.id
-      }
-    }
-    return { controls: found, autoId }
-  }, [designParentGroups])
+  const policyControls = useMemo(
+    () => findCinema2PolicyControls(designParentGroups.flatMap(parent => [...parent.controls, ...parent.groups.flatMap(group => group.controls)])),
+    [designParentGroups],
+  )
   const readPolicies = useCallback(() => {
     if (!runtime || policyControls.controls.length === 0 || !policyControls.autoId) return new Map<string, string>()
     const autoOn = runtime.getParameterState().getSnapshot().persistentValues[policyControls.autoId] === true
