@@ -2,8 +2,8 @@
  * The shared vocabulary for "the music chooses Pattern Change and the Trigger while Auto Performance is on". It has no imports, so the preset
  * compiler, the authoring helpers, the modules and the inspector can all depend on it without a cycle.
  *
- * A preset opts in by tagging three of its own parameters with `metadata.moodPolicy` (authoring does this for it, see
- * `withCinema2MoodDrives({ patternControls })`):
+ * A preset opts in by tagging its own parameters with `metadata.moodPolicy` (authoring does this for it, see
+ * `withCinema2MoodDrives({ patternControls })`). A preset with patterns tags all three; a preset without patterns may tag `autoPerformance` alone:
  *
  *   'patternChange'    the Pattern Change toggle (boolean)
  *   'trigger'          the Trigger dropdown (enum; its options must include every rung of CINEMA2_MOOD_TRIGGER_LADDER)
@@ -38,8 +38,8 @@ interface PolicyParameter {
 
 /**
  * Checks a manifest's tagged parameters: each tag is known and sits on the right kind of control, the Trigger can hold every value the music
- * may choose, and a preset that tags Pattern Change and Trigger tags each exactly once and also tags the Auto Performance toggle (the inspector
- * and the runtime need all three; a half-tagged preset would silently never show or use the choice).
+ * may choose, and a preset that tags Pattern Change or Trigger tags both, each exactly once, and also tags the Auto Performance toggle (the inspector
+ * and the runtime need all three; a half-tagged preset would silently never show or use the choice). `autoPerformance` alone is valid.
  */
 export function validateCinema2MoodPolicyParameters(parameters: readonly PolicyParameter[]): readonly Cinema2MoodPolicyDiagnostic[] {
   const diagnostics: Cinema2MoodPolicyDiagnostic[] = []
@@ -72,11 +72,13 @@ export function validateCinema2MoodPolicyParameters(parameters: readonly PolicyP
   for (const [policy, indexes] of seen) {
     if (indexes.length > 1) diagnostics.push({ code: 'CINEMA2_PRESET_MOOD_POLICY_DUPLICATE', message: `moodPolicy "${policy}" may be used by one parameter only.`, path: `$.parameters[${indexes[1]}].metadata.${CINEMA2_MOOD_POLICY_METADATA_KEY}` })
   }
-  if (seen.size > 0) {
-    for (const policy of CINEMA2_MOOD_POLICIES) {
-      if (!seen.has(policy)) {
-        diagnostics.push({ code: 'CINEMA2_PRESET_MOOD_POLICY_INCOMPLETE', message: `A preset that tags moodPolicy must tag ${CINEMA2_MOOD_POLICIES.join(', ')} together; "${policy}" is missing.`, path: '$.parameters' })
-      }
+  // Pattern Change and Trigger belong together (the music's choice needs both) and need the Auto Performance toggle that switches it on. The
+  // Auto Performance tag alone is valid: a preset with no patterns (Electric Storm, for example) still has Auto Performance.
+  const needed: Cinema2MoodPolicy[] = []
+  if (seen.has('patternChange') || seen.has('trigger')) needed.push('patternChange', 'trigger', 'autoPerformance')
+  for (const policy of needed) {
+    if (!seen.has(policy)) {
+      diagnostics.push({ code: 'CINEMA2_PRESET_MOOD_POLICY_INCOMPLETE', message: `moodPolicy "patternChange" and "trigger" must be tagged together with "autoPerformance"; "${policy}" is missing.`, path: '$.parameters' })
     }
   }
   return diagnostics

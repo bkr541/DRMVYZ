@@ -102,6 +102,33 @@ It does not directly render anything and must not directly own preset parameters
 
 ---
 
+## Mood Conductor
+
+The Mood Conductor is the shared, **engine-level** reading of how the current passage *feels*, and of what an automatic performance should therefore do. It sits between the Visual Director and Choreography and is built once for the whole engine (`cinema2/conductor/Cinema2MoodConductor.ts`, owned by `Cinema2Runtime`). Every module receives the same result on its frame as `mood` (also `runtime.getMoodFrame()`).
+
+It reads Audio Intelligence and the Visual Director. It converts them into:
+
+- smoothed continuous weights: energy, tension, build, momentum, complexity, brightness
+- a feel, as four weights that sum to one: **calm**, **drive**, **tense**, **peak** (from the section type when known, otherwise from the signal)
+- **activity** (how much is going on) and **shock** (a drop's impact, decaying over about 1.7 seconds)
+- a **silence gate** (see Section 15)
+- a **boundary** (drop, then section, then phrase) on which discrete choices may change
+- the music's **Pattern Change and Trigger choice** (see Section 9), or null when there is no beat grid
+
+It answers:
+
+> "How does this passage feel, and how should an automatic performance behave?"
+
+It is deliberately preset-agnostic. It must not know what a preset renders. It does not render, does not own preset parameters, and writes nothing to the parameter state.
+
+Rules:
+
+- A preset must consume the shared Mood Conductor. It must **not** create a preset-local mood, energy-tier, section-feel, silence or "intensity" analyzer, a second build/drop/phrase detector, or its own Trigger ladder.
+- With no analysed track or live features the frame is null and every consumer must behave exactly as if the conductor did not exist.
+- The conductor's thresholds and smoothing live in the conductor. A preset tunes only its own drives and pattern lists (Section 15), never the conductor.
+
+---
+
 ## Choreography
 
 Choreography translates shared musical meaning into preset-specific temporary behavior.
@@ -245,6 +272,8 @@ If the user manually changes that property, the user must immediately reclaim co
 **By default, a manual edit to an auto-owned property must disable automation for that property or its clearly defined domain.**
 
 The mandatory **Pattern / Pattern Change / Trigger** controls in Section 9 have one explicitly defined exception: selecting a Pattern while Pattern Change is ON immediately establishes the user's chosen base pattern **without turning Pattern Change OFF**. The selected pattern remains the base until the next *new, qualifying* Trigger; any authorized Auto Performance build/drop override must remain temporary and must not overwrite the authored Pattern or Pattern Change setting.
+
+While Auto Performance is on, the **effective** Pattern Change and Trigger a preset acts on are Auto Performance-owned under the shared policy in Section 9; the **saved** values stay user-owned, are never written by automation, and apply again when Auto Performance is off. More generally, the properties Auto Performance owns are **locked** in the Inspector while it is on (the Auto Performance lock, Section 15): the manual edit cannot happen, and the user takes control by turning Auto Performance off.
 
 Other automatic domains continue to follow the manual-takeover rule unless their authority is explicitly specified otherwise. No automation may instantly cancel a manual Pattern edit using the same already-active musical event.
 
@@ -532,7 +561,9 @@ Examples:
 - movement speed
 - density
 - segment program
-- Pattern / Pattern Change / Trigger ownership and any temporary Auto Performance build/drop override
+- Pattern / Pattern Change / Trigger ownership, the music's choice of Pattern Change and Trigger while Auto Performance is on, and any temporary Auto Performance build/drop override
+- every property moved by a Mood Conductor drive (Section 15), with its baseline, drive source, direction and bound
+- the Auto Performance lock (Section 15): the Manual Edit Behavior column reads "locked while Auto Performance is on" for everything in Design, Effects and Master Controls except the Auto Performance toggle and BPM Sync, and "editable" for Palette
 - color
 - camera
 - trails
@@ -642,10 +673,32 @@ Every newly created or newly ported first-party Cinema 2.0 preset **must expose 
 #### Pattern selection authority and Auto Performance interaction
 
 - **Pattern Change and Auto Performance are distinct controls.** Enabling Pattern Change does **not** automatically disable Auto Performance, and manually choosing a Pattern does **not** turn Pattern Change OFF.
-- If the preset has Auto Performance, it **may temporarily override the currently performing pattern during an authorized build or drop**, even while Pattern Change is ON. Such an override must be explicitly scoped to the musical moment, visually purposeful, and bounded. It must **not** permanently replace the user's authored Pattern, disable Pattern Change, mutate the saved Trigger, or take indefinite ownership of the pattern domain.
+- If the preset has Auto Performance, it **may temporarily override the currently performing pattern during an authorized build or drop**, even while Pattern Change is ON. Such an override must be explicitly scoped to the musical moment, visually purposeful, and bounded. It must **not** permanently replace the user's authored Pattern, disable Pattern Change, mutate the saved Trigger, or take indefinite ownership of the pattern domain. (Choosing the *effective* Pattern Change and Trigger while Auto Performance is on is a different, declared mechanism that never writes the saved values; see "Shared Auto Performance policy" below.)
 - While a temporary override is visible, keep the underlying Pattern Change controller's scheduled progression well-defined. When the override ends, render the current underlying base pattern, including any valid Trigger-driven advancement that occurred during the override.
 - A manual Pattern edit must not be instantly undone by an already-active build/drop event. The edit must take visible effect; another temporary override can begin only on a subsequent separately qualifying Auto Performance event. This is the express pattern-specific exception to the default manual-takeover conventions in Sections 3 and 15.
-- The preset must document this precedence clearly in its authority matrix: **manual selection establishes base Pattern -> selected Trigger may advance the base while Pattern Change is ON -> Auto Performance may temporarily substitute a build/drop performance pattern -> underlying base resumes afterward**.
+- The preset must document this precedence clearly in its authority matrix: **manual selection establishes base Pattern -> the effective Trigger (the saved one, or the music's while Auto Performance is on) may advance the base while the effective Pattern Change is ON -> Auto Performance may temporarily substitute a build/drop performance pattern -> underlying base resumes afterward**.
+
+#### Shared Auto Performance policy for Pattern Change and Trigger
+
+**Applies to** every Cinema 2.0 preset that has Auto Performance together with Pattern Change and Trigger: new presets from the start, and every existing preset, which must be migrated. Do not build a preset-local version.
+
+**What it is.** With Auto Performance on, the **music** (the Mood Conductor, Section 2) chooses whether the preset changes pattern and how often, from how the passage feels, a build climbing, a drop landing, a section about to end, and silence. The preset acts on these **effective** values instead of the saved ones. The saved Pattern Change and Trigger are **never rewritten**: the user's toggle and dropdown keep showing what they set, and the saved values apply again, exactly, the moment Auto Performance is off, there is no mood frame, or there is no beat grid to count.
+
+**The Trigger ladder** (slowest to fastest; every value is a canonical Trigger option): `bar8`, `bar4`, `bar`, `beat2`, `beat`. The starting rung is set by feel (calm slowest, driving one faster, tense or peak two faster). It moves faster while a build climbs (hysteresis prevents flutter), after a drop's impact, and near the end of a non-calm section. Changes are debounced (they must persist about half a second and be at least about three seconds apart), except a drop, which moves it at once. The music turns Pattern Change **on** while there is sound and **off in a silent stop**, which holds the current pattern until the music returns. The ladder values and these semantics are the contract; the numeric thresholds live in the conductor and are tuned there, never per preset.
+
+**Mandatory adoption, in three parts** (use these names exactly; they are exported from `cinema2/index.ts`):
+
+1. **Manifest.** Wrap the manifest with `withCinema2MoodDrives({ idPrefix, enabledParameter, drives, patternControls: { patternChange, trigger } })`, where `enabledParameter` is the preset's Auto Performance toggle. For a preset with patterns, this tags the three parameters with `metadata.moodPolicy` (`patternChange`, `trigger`, `autoPerformance`) and keeps any metadata they already had. A preset with no patterns omits `patternControls` and tags only its Auto Performance toggle. `drives` may be empty. Never hand-write the tags; `tagCinema2MoodPolicies` throws on an unknown parameter id.
+2. **Module.** Own one `Cinema2PatternControlResolver<MyTriggerId>`. Once per frame, before the preset's trigger-event logic, call `update({ saved: { patternChange, trigger }, mood: frame.mood, autoPerformance })`, then act on the returned `patternChange` and `trigger` instead of the saved ones (including the Trigger event identity, the pattern controller and any Auto Performance chooser). `autoPerformance` is the toggle already combined with anything else that must hold (for example "is playing"). Add `...resolver.inspect()` to the module's `inspect()` (`effectivePatternChange`, `effectiveTrigger`, `patternControlsAutomatic`) and `reset()` it with the module. The preset keeps its own pattern logic, event identity, duplicate suppression and deterministic playback handling; only the two inputs change. It must not write the saved parameters, add a second Trigger clock, or re-implement the ladder.
+3. **Inspector.** Nothing preset-specific. The inspector finds the tagged controls by their tags and shows the music's choice under them (Section 15, Live display).
+
+**Compiler enforcement** (`validateCinema2MoodPolicyParameters`, run by the preset compiler). A preset does not compile unless: every `moodPolicy` value is one of `patternChange`, `trigger`, `autoPerformance`; `patternChange` and `autoPerformance` are on boolean parameters; `trigger` is on an enum that offers every ladder value; each tag is used by one parameter only; `patternChange` and `trigger` are tagged together; and when they are tagged, `autoPerformance` is tagged too. The `autoPerformance` tag **alone is valid**: a preset with no Pattern, Pattern Change or Trigger (because its visual does not need patterns) still has Auto Performance, uses the Mood Conductor and its drives, and tags only its toggle. A preset that has Auto Performance together with Pattern Change and Trigger and tags nothing is not compliant with this section.
+
+**Manual edits while Auto Performance is on.** There are none: Pattern, Pattern Change and Trigger are disabled and grayed with the rest of the Design group while Auto Performance is on (the Auto Performance lock, Section 15). To edit them the user turns Auto Performance off, and the saved values, which automation never touched, are exactly what they last set. A preset therefore needs no per-preset "turn Auto Performance off on edit" rule for these controls. With Auto Performance **off**, the rules above are unchanged: a manual Pattern edit takes effect immediately, holds until the next fresh qualifying Trigger, and an already-active build/drop event must not undo it.
+
+**Trigger visibility** still follows the **saved** Pattern Change value (the Trigger control is shown only when the saved Pattern Change is ON). The live "choosing" line is shown under whichever tagged control is visible.
+
+**Optional: choosing among the preset's own patterns by feel.** A preset with a pattern controller may also give `Cinema2PatternAutoPerformance` a `mood: { options }` map (calm, driving, tense, peak, each a list of that preset's own pattern ids). It changes the pattern only on a musical boundary, holds a choice at least about four seconds unless a drop lands, never repeats the current pattern, picks by a hash of the track and boundary (the same track gives the same show), acts only while the effective Pattern Change is off, is cancelled at once by a manual Pattern edit, and never overrides a build/drop performance pattern. The pattern lists are preset-specific design (Section 9 imposes no names); the mechanism is shared.
 
 **Completion condition:** a preset fails this mandatory control requirement if the three controls merely appear in the Inspector, fewer than six meaningful native patterns exist, the Trigger options differ from the canonical list, manual Pattern selection wrongly disables Pattern Change, or the specified musical switching and temporary-override behavior is not demonstrated in the real production render.
 
@@ -859,7 +912,63 @@ If a user manually edits a property that Auto Performance owns, the default resp
 
 The result must be immediate and visible.
 
-**Exception for the required Pattern control:** while Pattern Change is enabled, a manual Pattern choice must immediately take effect as the base pattern **without disabling Pattern Change**, and the next new qualifying Trigger may advance it. Auto Performance may still provide **temporary build/drop overrides** under the explicit precedence, restoration, and non-interference rules in Section 9. This exception does not authorize silent overrides of other manual controls.
+**With the Auto Performance lock (below), the default response is the lock itself:** while Auto Performance is on the owned properties cannot be edited, so there is no edit to take over from. The user takes control by turning Auto Performance off.
+
+**Exception for the required Pattern control (Auto Performance off):** while Pattern Change is enabled, a manual Pattern choice must immediately take effect as the base pattern **without disabling Pattern Change**, and the next new qualifying Trigger may advance it. Auto Performance may still provide **temporary build/drop overrides** under the explicit precedence, restoration, and non-interference rules in Section 9. This exception does not authorize silent overrides of other manual controls.
+
+---
+
+## Shared Mood Conductor in Auto Performance
+
+**Every Cinema 2.0 preset that offers Auto Performance must use the shared Mood Conductor (Section 2) for passage-level behavior whenever Auto Performance is on. There is no opt-out.** This applies to new presets from the start and to every existing preset, which must be migrated; an existing preset that has not been migrated is non-compliant with this contract until it is.
+
+### Mood drives (continuous)
+
+A **drive** moves one of the preset's own targets by one conductor weight while Auto Performance is on. The authored value is the baseline and is never rewritten; the drive is a transient contribution on top of it (Section 3.B).
+
+- Sources are the continuous `mood.*` paths: `mood.energy`, `.tension`, `.build`, `.momentum`, `.complexity`, `.brightness`, `.activity`, `.calm`, `.drive`, `.tense`, `.peak`, `.shock`, `.silence`.
+- A drive is `{ id, target, source, operation: 'add' | 'multiply', value }`. `add` contributes `value x source` (a negative value takes away); `multiply` scales from x1 to x`value`. The result is clamped to the control's own range.
+- Author drives with `withCinema2MoodDrives` (a manifest with its own Auto Performance toggle), or the `mood` list of a `withCinema2AutoPerformance` spec. Both produce rules gated by the preset's own Auto Performance toggle and scaled by its reactivity/intensity control (`strengthParameter`), so a control set to zero silences them and toggle-off removes them completely: with Auto Performance off the preset must be identical to one without the conductor.
+- Drives must **span the preset's Design and Effects groups** where the preset has controls for the character of the show (rate, extent or density, light or glow, tone, bloom or atmosphere, master intensity), not only brightness. A high-energy passage must visibly differ from a calm one in more than one control. Bound every drive in the authority matrix.
+- The drive's target must be a module or effect target **bound to the user-facing control** it moves, so the inspector can show the live value (below). A drive on a property no control is bound to is invisible to the user and is not acceptable for a user-facing property.
+- Do not bump the preset revision for adding drives (saved state is bound to the revision); adding a parameter changes the serialized state the deterministic seed is derived from, so tests with a fixed seed may need another.
+
+### Silence
+
+A stop in the music must quiet the show ("nearly off"). The conductor gates itself on the real signal level (not the director's "silence" marker, which is deliberately an impact). While `mood.silence` is up, the drives are pulled out by about 90% and calm takes over, so values go below the authored ones, not merely back to them.
+
+- Beat-grid accents keep arriving in time through a silent stop, so rules on beat, downbeat, phrase and build accents must carry the `not-silent` condition. A drop is never gated and ends a stop at once.
+- While silent, the music turns Pattern Change off and the pattern holds (Section 9).
+- A preset must not invent its own silence detector.
+
+### moodPolicy tags
+
+`metadata.moodPolicy` on a parameter marks it for the shared Pattern Change / Trigger policy (Section 9) and tells the inspector which controls to annotate: `patternChange`, `trigger`, `autoPerformance` (a preset with no patterns uses `autoPerformance` alone). The values, the placement rules and the compiler checks are defined in Section 9; no other `moodPolicy` value is valid, and tags are never added by label matching in shared code.
+
+### Auto Performance lock (Inspector)
+
+While Auto Performance is on, the Design tab shows what the music is doing and does not let the user fight it:
+
+- **Locked (disabled and grayed, in place):** every control in the **Design** and **Effects** parent groups, and every **Master Controls** control except the two named below. This includes sliders, toggles, dropdowns, number inputs, Pattern, Pattern Change and Trigger.
+- **Still editable:** the **Auto Performance** toggle (so the user can leave it), **BPM Sync**, and every control in the **Palette** parent group (the user can still choose the preset's colors).
+- **No collapse.** The groups stay open and in place, grayed, so the live readouts and yellow markers (below) remain visible while the music drives the controls. Group, row and window sizes must not change when the lock turns on or off.
+- **Reset Parameters is disabled** while the lock is on (it would change locked controls). Any reset that applies only to unlocked controls stays enabled.
+- A locked control keeps showing its **saved** value, with the live readout and marker where the music is moving it. Nothing about the lock rewrites a saved value.
+- **Releasing.** Turning Auto Performance off re-enables everything at once, and every control shows and uses exactly the saved value it had. A control that was changed before Auto Performance was turned on is unchanged by having been locked.
+- A locked control exposes its disabled state to assistive technology (`disabled`/`aria-disabled`) and a reason ("Auto Performance is on") wherever a disabled reason is shown elsewhere in the Inspector.
+- **Generic mechanism.** The lock is one shared Inspector projection driven by the preset's declared Auto Performance toggle and the parent-group placement (Section 9). It must not match labels, parameter names or preset names, and a preset adds nothing preset-specific to get it.
+
+*Rollout status:* this lock is a shared Inspector feature that is **not built yet**. It becomes the required behavior for every Cinema 2.0 preset as each preset is migrated to the shared enhancements. Until it ships, presets keep their existing interim behavior (for example Depth turning Auto Performance off when its Light Program or Pattern Change is edited), and neither the lock tests nor the lock stop-ship items below can be satisfied.
+
+### Live value display in the Inspector
+
+Because automation never rewrites a saved value, a slider's thumb and number keep showing what the user saved, which is also what dragging edits. Without more, the user could not see that Auto Performance is moving the control. Every Cinema 2.0 preset therefore gets the shared **live display**, and no preset or panel may build its own:
+
+- **What it shows.** For a numeric control (float or integer with a range) whose **live** value differs from the saved value by more than 0.4% of its range, the row header shows the live value in the accent colour followed by an arrow before the saved value (for example `1.48 → 1.10`), and a **yellow marker** sits on the slider track at the live position. The live value is what the renderer reads: the final value resolved from the module or effect targets bound to the control (the parameter's own target is the saved value). It is polled about eight times a second and re-rendered only when something changes.
+- **The marker must never change layout.** It is absolutely positioned (about 3 px wide and 9 px tall, `#ffd75f`, slightly glowing, `pointer-events: none`) inside a wrapper whose height equals the slider's own. The wrapper is `display: flex`, never a block (a block puts the range input on a text line and grows the row by about 11 px whenever the marker appears). Row, group and window heights must be identical with and without the readout and marker. Any new live element must be absolutely positioned or reuse space the row already has.
+- **Where it lives.** Inside the shared `SliderRow` through its optional `liveValue` prop (the saved-value number and the slider are unchanged without it), fed by `Cinema2LiveValues.tsx` (`resolveCinema2LiveValues`, polled by `useCinema2LiveValues`). Presets get it automatically from their bound drives; they add nothing. Do not add a separate "modulated" row, pill, badge or panel-local readout for the same purpose in the Cinema 2.0 inspector.
+- **The music's Pattern Change / Trigger choice.** Under the tagged Pattern Change toggle and Trigger dropdown a one-line note (the shared `rv-ctrl-info` style, `data-live-policy`) reads, while Auto Performance is on and the music has a choice: `Auto Performance is choosing: On, Every 4 Bars for a driving passage`, or `Off (holding the pattern)` and `(holding the pattern)` on the Trigger. The saved toggle and dropdown keep showing the saved values. Nothing is shown with Auto Performance off or when there is no choice (no beat grid), because the saved values then stand.
+- **Hooks for tests.** `data-live-value` (the readout), `data-live-mark` (the marker), `.rv-ctrl-slider-wrap` (the wrapper), `data-live-policy` (the note).
 
 ---
 
@@ -980,6 +1089,7 @@ Every preset must additionally prove on the production path that:
 - manually choosing a Pattern while Pattern Change is ON immediately displays the chosen base, **leaves Pattern Change ON**, and holds that selection until the next fresh qualifying Trigger
 - if Auto Performance is supported, a build/drop override is temporary, does not immediately cancel a manual edit, and restores the correctly advanced underlying pattern when it ends
 - all pattern/toggle/trigger behavior remains correct through pause, resume, seek, loop, track change, preset re-entry, and control changes
+- with Auto Performance on and a beat grid, the **effective** Pattern Change and Trigger are the music's and the **saved** ones are unchanged; with it off, with no mood frame, or with no beat grid, the effective values are exactly the saved ones (see "Shared Auto Performance tests")
 
 ---
 
@@ -1008,12 +1118,31 @@ Prove that:
 
 ## Manual-authority test
 
-With Auto Performance enabled:
+With Auto Performance enabled (the Auto Performance lock, Section 15):
 
-1. identify an auto-owned property
-2. manually edit it
-3. verify the user takes control according to the preset contract
-4. verify automation stops overriding that property
+1. verify every Design and Effects control, and every Master Controls control except Auto Performance and BPM Sync, is disabled and grayed, and that an attempted edit changes nothing (no value change, no visible change)
+2. verify Palette colors, the Auto Performance toggle and BPM Sync are still editable
+3. verify Reset Parameters is disabled, and that group, row and window sizes do not change when the lock turns on or off
+4. turn Auto Performance off and verify every control is enabled again, shows the saved value it had before, and that a manual edit takes effect immediately
+5. with Auto Performance off, verify manual takeover of the properties it owns behaves as the preset's contract states (Section 9 for Pattern)
+
+---
+
+## Shared Auto Performance tests
+
+For every preset that offers Auto Performance, prove with a deterministic Audio Intelligence fixture (one persistent audio bridge, director and conductor feeding both staged presets, so on and off see identical music):
+
+- **Differential.** The same music into the preset with Auto Performance on and off. On, a high-energy passage differs measurably from a calm one in the driven controls (and in more than one group); off, it matches a preset without the conductor.
+- **Bounds.** Driven values stay inside each control's range, are baseline-relative, and never rewrite the saved value.
+- **Strength control.** Setting the reactivity/intensity control to zero silences the drives.
+- **Drop.** A drop produces a shock that decays, and is never silence-gated.
+- **Silence.** A silent stop pulls the drives out (values go below authored), beat-grid accents wait for sound, and the music's Pattern Change turns off and holds the pattern; a drop or returning music restores them.
+- **No music.** With no analysed track or live features the preset behaves as if the conductor did not exist.
+- **Pattern Change and Trigger.** The effective values follow the ladder with feel, build, impact and section progress; debounce and the drop exception hold; saved values are never written; Auto Performance off, no mood and no beat grid all give exactly the saved values. The module reports `effectivePatternChange`, `effectiveTrigger` and `patternControlsAutomatic`.
+- **Compiler.** The preset compiles; removing a ladder value from its Trigger options, mistyping a tag, or tagging only some of the three makes it fail with the matching `CINEMA2_PRESET_MOOD_POLICY_*` code.
+- **Lock.** The Auto Performance lock behaves as in the Manual-authority test: Pattern, Pattern Change and Trigger are disabled and grayed while Auto Performance is on, and with it off a manual Pattern edit is not undone by an active event.
+- **Inspector live display.** The readout and marker appear only when the live value differs from the saved value by more than 0.4% of range, the marker is at the live position, and the "choosing" note appears under exactly the tagged controls.
+- **No layout shift.** In a **real browser** (not jsdom, which has no layout), measure the row height of a driven slider with and without the readout and marker: it must be identical, and group and window heights must not move when the marker appears or disappears.
 
 ---
 
@@ -1107,13 +1236,21 @@ A preset must not be marked complete, merged as production-ready, or exposed as 
 - Trigger omits or alters any of the 11 canonical options, is not conditional on Pattern Change, or does not advance patterns at qualified shared musical events
 - manually selecting a Pattern incorrectly disables Pattern Change, or a stale/duplicate Trigger causes an immediate unwanted switch
 - Auto Performance permanently steals pattern ownership, cancels a manual edit using an already-active build/drop event, or fails to restore the underlying pattern after a temporary override
+- a preset with Auto Performance, Pattern Change and Trigger does not use the shared Pattern Change / Trigger policy (missing `patternControls`, the `moodPolicy` tags, or the `Cinema2PatternControlResolver` in its module), or acts on the saved values while the music is choosing
+- Auto Performance writes or mutates the saved Pattern Change, Trigger or any other saved value, or leaves them changed after it is turned off
+- a preset builds its own mood, silence, build/drop, section-feel or Trigger-ladder logic instead of the shared Mood Conductor
+- an Auto Performance drive moves a user-facing control that has no live display, or its target is not bound to that control
+- the live readout or yellow marker changes the height or width of a row, group or window, or a preset or panel adds its own live-value readout for the same purpose
+- Auto Performance on a silent stop does not quiet the show, or beat-grid accents keep firing through silence
 - fewer than four independently configurable user-facing color controls exist under Design > Palette
 - any required Palette color is visually inert, unconsumed, or only aliases the same undifferentiated target as another required color
 - user-facing control has no visible result
 - multiple unrelated controls change the same thing accidentally
 - music plays but the intended visual does not react
 - only brightness changes when richer behavior is required
-- Auto Performance prevents manual edits from taking effect
+- Auto Performance prevents manual edits from taking effect while it is **off**, or the Auto Performance lock does not release when it is turned off
+- while Auto Performance is on, any Design, Effects or Master Controls control other than Auto Performance and BPM Sync can still be edited, or Palette, the Auto Performance toggle or BPM Sync is locked, or the lock changes group, row or window sizes (once the shared lock ships)
+- a preset with Auto Performance does not use the shared Mood Conductor
 - automation re-enables something the user explicitly disabled
 - movement exists only in code values but not visibly on canvas
 - generic motion replaced authored pattern-specific motion
@@ -1238,6 +1375,16 @@ Declare exactly which domains it owns.
 
 Add manual takeover behavior, respecting the Section 9 exception for Pattern selection while Pattern Change stays enabled. Prove temporary build/drop overrides return to the current base pattern without clobbering authored choices.
 
+Then adopt the shared enhancements, in this order, and prove each with the Section 19 "Shared Auto Performance tests":
+
+1. Write the Mood drive table (Section 15): baseline, source, direction and bound for each driven control, spanning Design and Effects; bind each drive to the user-facing control it moves; add `not-silent` to beat-grid accent rules.
+2. Wrap the manifest with `withCinema2MoodDrives({ ..., patternControls })` so the `moodPolicy` tags are applied (all three for a preset with patterns; only `autoPerformance` for one without), and confirm the preset compiles.
+3. In the native module, own a `Cinema2PatternControlResolver`, act on the effective Pattern Change and Trigger, and expose `inspect()` and `reset()`.
+4. Mark each property's Manual Edit Behavior in the authority matrix ("locked while Auto Performance is on", Palette "editable") and confirm the Auto Performance lock applies to the preset.
+5. Confirm in the real Inspector that live readouts and markers appear on the driven controls, that the "choosing" note appears under Pattern Change and Trigger, and that nothing shifts size when they appear.
+
+Do not start these until the base preset and its manual controls are correct (Steps 1 to 5).
+
 ---
 
 ## Step 7: Add effects/depth enhancements
@@ -1274,6 +1421,8 @@ Every implementation must produce or update:
 16. Visual acceptance captures or checkpoints
 17. Legacy A/B comparison when porting
 18. Known intentional differences from legacy, if any
+19. Mood drive table (control, baseline, source, direction, bound) and the preset's declared Auto Performance domains, including the music's Pattern Change / Trigger choice and the declared manual-edit behavior for those controls
+20. Shared Auto Performance tests (differential, silence, Pattern Change / Trigger, compiler, inspector live display, real-browser no-layout-shift)
 
 ---
 
@@ -1329,6 +1478,11 @@ A Cinema 2.0 preset is complete only when all of the following are true.
 - [ ] Manually selecting a Pattern while Pattern Change is ON updates the base immediately, leaves Pattern Change ON, and holds until the next fresh qualifying Trigger.
 - [ ] If Auto Performance supports build/drop pattern overrides, those overrides are bounded and temporary and resume the correctly maintained base selection afterward.
 - [ ] Auto Performance cannot silently fight the user.
+- [ ] The preset uses the shared Mood Conductor: drives are baseline-relative, bounded, span Design and Effects, bound to user-facing controls, gated by the Auto Performance toggle and scaled by the preset's reactivity/intensity control; Auto Performance off is identical to no conductor.
+- [ ] Silence quiets the show, beat-grid accents carry `not-silent`, and drops are never gated.
+- [ ] The `moodPolicy` tags are applied (all three through `withCinema2MoodDrives({ patternControls })` for a preset with patterns; `autoPerformance` alone for one without), the module acts on the effective values from `Cinema2PatternControlResolver` where it has patterns, the saved Pattern Change and Trigger are never written, and the preset compiles.
+- [ ] While Auto Performance is on, the Auto Performance lock applies: Design, Effects and Master Controls (except Auto Performance and BPM Sync) are disabled and grayed in place, Palette, Auto Performance and BPM Sync stay editable, Reset Parameters is disabled, nothing changes size, and turning Auto Performance off releases everything to the saved values.
+- [ ] The Inspector shows live readouts and the yellow marker on driven controls and the "Auto Performance is choosing" note under Pattern Change and Trigger, using the shared `SliderRow` live display, and nothing changes size when they appear.
 - [ ] Hard-disable controls are respected.
 - [ ] Automation returns cleanly to authored values.
 

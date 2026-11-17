@@ -90,8 +90,8 @@ describe('Mainframe Stage 5 preset', () => {
       .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
       .map(parameter => parameter.label)
     expect(inGroup('master-controls')).toEqual(['Master Intensity', 'BPM Sync', 'Auto Performance'])
-    expect(inGroup('design')).toEqual(['Enable Radar Circuit', 'Enable Chip', 'Scale'])
-    expect(inGroup('effects')).toEqual(['Pattern', 'Pattern Change', 'Trigger'])
+    expect(inGroup('design')).toEqual(['Enable Radar Circuit', 'Enable Chip', 'Scale', 'Pattern', 'Pattern Change', 'Trigger'])
+    expect(inGroup('effects')).toEqual([])
     expect(inGroup('palette')).toEqual(['Background', 'Logo', 'Circuits', 'Indicators'])
     expect(parameters.find(parameter => parameter.id === CINEMA2_MAINFRAME_SCALE_ID)).toMatchObject({ defaultValue: 1, min: 0.45, max: 1.35 })
     expect(parameters.find(parameter => parameter.id === CINEMA2_MAINFRAME_PATTERN_ID)).toMatchObject({
@@ -105,16 +105,17 @@ describe('Mainframe Stage 5 preset', () => {
 
     const plan = compileMainframe()
     const state = new Cinema2ParameterState(plan.parameters)
-    const effectLabels = () => {
-      const effects = createCinema2DesignParentGroupModel(plan, state.getSnapshot()).find(parent => parent.label === 'Effects')
-      return [
-        ...(effects?.controls.map(control => control.definition.label) ?? []),
-        ...(effects?.groups.flatMap(group => group.controls.map(control => control.definition.label)) ?? []),
+    const patternLabels = () => {
+      const design = createCinema2DesignParentGroupModel(plan, state.getSnapshot()).find(parent => parent.label === 'Design')
+      const labels = [
+        ...(design?.controls.map(control => control.definition.label) ?? []),
+        ...(design?.groups.flatMap(group => group.controls.map(control => control.definition.label)) ?? []),
       ]
+      return labels.filter(label => ['Pattern', 'Pattern Change', 'Trigger'].includes(label))
     }
-    expect(effectLabels()).toEqual(['Pattern', 'Pattern Change'])
+    expect(patternLabels()).toEqual(['Pattern', 'Pattern Change'])
     expect(state.setPersistentValue(CINEMA2_MAINFRAME_PATTERN_CHANGE_ID, true)).toMatchObject({ ok: true })
-    expect(effectLabels()).toEqual(['Pattern', 'Pattern Change', 'Trigger'])
+    expect(patternLabels()).toEqual(['Pattern', 'Pattern Change', 'Trigger'])
   })
 
   it('binds every static control to the native module', () => {

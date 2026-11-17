@@ -82,6 +82,11 @@ describe('the shared Pattern Change / Trigger policy', () => {
       expect(codes([...baseline(), { type: 'boolean', metadata: { moodPolicy: 'patternChange' } }])).toEqual(['CINEMA2_PRESET_MOOD_POLICY_DUPLICATE'])
       expect(codes([...baseline(), { type: 'boolean', metadata: { moodPolicy: 'bogus' } }])).toEqual(['CINEMA2_PRESET_MOOD_POLICY_UNKNOWN'])
       expect(codes(baseline().slice(0, 2))).toEqual(['CINEMA2_PRESET_MOOD_POLICY_INCOMPLETE'])
+      expect(codes([baseline()[0]!, baseline()[2]!])).toEqual(['CINEMA2_PRESET_MOOD_POLICY_INCOMPLETE'])
+    })
+
+    it('accepts the Auto Performance tag alone, for presets with no patterns (Electric Storm, for example)', () => {
+      expect(codes([baseline()[2]!])).toEqual([])
     })
 
     it('stops a real preset compiling when its tagged Trigger is missing a rung of the ladder', () => {
