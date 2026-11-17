@@ -80,3 +80,12 @@ Use the pattern controller approach if the preset has Pattern, Pattern Change an
 ## Tests
 
 `Cinema2PatternAutoPerformance.test.ts` (controller and the Mainframe and Backstreet modules), `Cinema2UserModelAutoPerformance.test.ts` (the six previews), `Cinema2AutoPerformanceRules.test.ts` (the six rule-based presets, differentially against the preset without the toggle) and `Cinema2AutoPerformanceInventory.test.ts` (catalog guard, inspector placement, persistence and reset).
+
+## The Auto Performance lock (Inspector)
+
+While Auto Performance is on, a preset that has tagged its toggle (`moodPolicy: 'autoPerformance'`, done by `withCinema2AutoPerformance`, `withCinema2MoodDrives` and by hand in Depth, Mainframe and Ifrit) shows what the music is doing and does not let the user fight it. In the Design tab every control in Master Controls, Design and Effects is disabled and grayed in place, except the Auto Performance toggle and BPM Sync; the Palette stays editable; Reset Parameters is disabled; group headers still open and close. Saved values are shown unchanged, and where the music is moving a control its live readout and yellow marker stay visible. Turning Auto Performance off re-enables everything exactly as it was. Nothing changes size or position (checked in the real Inspector), and no visible text is added (the reason is a tooltip).
+
+It is generic: `resolveCinema2AutoPerformanceLock` in `Cinema2InspectorModel.ts` decides, the panel (`Cinema2InspectorPanel.tsx`) renders it (`.rv-ctrl-lock`, `display: contents`) and also ignores edits to locked controls. BPM Sync is the preset's declared `choreography.tempoSyncParameter`, or the standard boolean Master Controls control of that label. A preset that has not tagged its toggle is not locked, so the lock reaches each preset as it is migrated (`docs/cinema2-mood-migration-plan.md`).
+
+Tests: `Cinema2AutoPerformanceLock.test.ts` (the model for six tagged presets, opt-in and identification), `Cinema2AutoPerformanceLockUi.test.tsx` (the rendered control), and `node scripts/run-cinema2-lock-browser.mjs` (the real Inspector: what is disabled and editable, every control's position and size identical locked or not, and exact restoration).
+

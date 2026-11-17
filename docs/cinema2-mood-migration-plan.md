@@ -19,7 +19,7 @@ Audit of every first-party preset (50 declarations: 4 internal references with n
 
 ## Prerequisites (Batch 0)
 
-1. **Build the Auto Performance lock** (Design and Effects disabled and grayed while Auto Performance is on; Palette, Auto Performance and BPM Sync stay editable; no collapse; Reset Parameters disabled). The contract requires it and every migrated preset needs it for its tests.
+1. **Auto Performance lock: DONE** (built and verified in the real Inspector; opt-in by tagging the toggle, which the migrated presets already do). (Design and Effects disabled and grayed while Auto Performance is on; Palette, Auto Performance and BPM Sync stay editable; no collapse; Reset Parameters disabled). The contract requires it and every migrated preset needs it for its tests.
 2. **Decide the default** for the 16 presets that default Auto Performance on.
 3. **Allow the Auto Performance tag alone** in the authoring helper `withCinema2AutoPerformance` (done for the compiler; the helper itself should tag the toggle), so rule-based presets are identified by the lock without Pattern controls.
 4. **A reusable migration test**: a parameterized twin test (Auto Performance on and off on the same music) that checks drives, silence, bounds, saved values never rewritten, tags compile, and the live readout.

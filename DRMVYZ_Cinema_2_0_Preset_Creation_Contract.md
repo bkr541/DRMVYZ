@@ -956,9 +956,10 @@ While Auto Performance is on, the Design tab shows what the music is doing and d
 - A locked control keeps showing its **saved** value, with the live readout and marker where the music is moving it. Nothing about the lock rewrites a saved value.
 - **Releasing.** Turning Auto Performance off re-enables everything at once, and every control shows and uses exactly the saved value it had. A control that was changed before Auto Performance was turned on is unchanged by having been locked.
 - A locked control exposes its disabled state to assistive technology (`disabled`/`aria-disabled`) and a reason ("Auto Performance is on") wherever a disabled reason is shown elsewhere in the Inspector.
-- **Generic mechanism.** The lock is one shared Inspector projection driven by the preset's declared Auto Performance toggle and the parent-group placement (Section 9). It must not match labels, parameter names or preset names, and a preset adds nothing preset-specific to get it.
-
-*Rollout status:* this lock is a shared Inspector feature that is **not built yet**. It becomes the required behavior for every Cinema 2.0 preset as each preset is migrated to the shared enhancements. Until it ships, presets keep their existing interim behavior (for example Depth turning Auto Performance off when its Pattern or Pattern Change is edited), and neither the lock tests nor the lock stop-ship items below can be satisfied.
+- **Generic mechanism (built).** The lock is one shared Inspector projection (`resolveCinema2AutoPerformanceLock` in `Cinema2InspectorModel.ts`) that marks each affected control `locked` (and `enabled: false`) in the Design model; the panel renders it, so a preset adds nothing preset-specific. A preset **opts in by tagging its Auto Performance toggle** `moodPolicy: 'autoPerformance'` (the authoring helpers do this); it never matches preset names or parameter names. The toggle is the tagged control. **BPM Sync** is the preset's declared `choreography.tempoSyncParameter`, or else the standard boolean control the shared Inspector already presents in Master Controls under that label.
+- **Where it shows.** Locked rows dim together (label, saved value, description and the control), while the live readout and the yellow marker keep their colour so the music's movement stays visible. A locked control carries a tooltip with the reason ("Auto Performance is on. Turn it off to edit this control."); no visible text is added. Group headers still open and close.
+- **Edits are refused as well as disabled:** the panel ignores a change to a locked control, and Reset Parameters does nothing while locked.
+- A preset that has not been migrated (not yet tagged) is not locked; the lock reaches each preset as its migration tags it. Until a preset is migrated it keeps its existing interim behavior (for example Depth's rule that editing its Pattern turns Auto Performance off).
 
 ### Live value display in the Inspector
 
@@ -1249,7 +1250,7 @@ A preset must not be marked complete, merged as production-ready, or exposed as 
 - music plays but the intended visual does not react
 - only brightness changes when richer behavior is required
 - Auto Performance prevents manual edits from taking effect while it is **off**, or the Auto Performance lock does not release when it is turned off
-- while Auto Performance is on, any Design, Effects or Master Controls control other than Auto Performance and BPM Sync can still be edited, or Palette, the Auto Performance toggle or BPM Sync is locked, or the lock changes group, row or window sizes (once the shared lock ships)
+- while Auto Performance is on, any Design, Effects or Master Controls control other than Auto Performance and BPM Sync can still be edited, or Palette, the Auto Performance toggle or BPM Sync is locked, or the lock changes group, row or window sizes
 - a preset with Auto Performance does not use the shared Mood Conductor
 - automation re-enables something the user explicitly disabled
 - movement exists only in code values but not visibly on canvas

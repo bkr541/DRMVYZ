@@ -2,6 +2,7 @@ import { Cinema2ModelSelector, Cinema2ModelSelectorContext } from '../cinema2/mo
 import { AppIcon, type AppIconKind } from '../../shared/icons/AppIcon'
 import { useCallback, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import {
+  CINEMA2_AUTO_PERFORMANCE_LOCK_REASON,
   createCinema2DesignParentGroupModel,
   createCinema2InspectorModel,
   type Cinema2DesignParentGroupModel,
@@ -106,6 +107,8 @@ export function Cinema2InspectorPanel({ runtime, surface, sharedAudioAnalysis = 
 
   const parameterState = runtime.getParameterState()
   const commit = (control: Readonly<Cinema2InspectorControlModel>, candidate: unknown) => {
+    // Auto Performance owns a locked control; a stray edit (a keyboard event, a stale handler) must not change it either.
+    if (control.locked) return
     const result = parameterState.setPersistentValue(control.definition.id, candidate)
     if (result.ok) {
       if (control.definition.type === 'string' || control.definition.type === 'text') onTextChange?.()
@@ -177,10 +180,15 @@ export function Cinema2InspectorPanel({ runtime, surface, sharedAudioAnalysis = 
       </>
     )
 
+  // Reset Parameters would change locked controls, so it waits for Auto Performance to be turned off.
+  const autoPerformanceLocked = designParentGroups.some(parent => parent.controls.some(control => control.locked) || parent.groups.some(group => group.controls.some(control => control.locked)))
   const resetParametersButton = hasResettablePersistentValue && (
     <div className="rv-ctrl-group" data-cinema2-inspector-actions="true">
       <IconChipButton
+        disabled={autoPerformanceLocked}
+        title={autoPerformanceLocked ? CINEMA2_AUTO_PERFORMANCE_LOCK_REASON : undefined}
         onClick={() => {
+          if (autoPerformanceLocked) return
           parameterState.resetAll()
           refresh()
         }}
@@ -467,7 +475,20 @@ function Cinema2InspectorControls({
   )
 }
 
-export function Cinema2SchemaControl({
+export function Cinema2SchemaControl(props: {
+  control: Readonly<Cinema2InspectorControlModel>
+  onChange: (value: Cinema2JsonValue) => void
+  onTrigger: () => void
+  idPrefix?: string
+}) {
+  const body = <Cinema2SchemaControlBody {...props} />
+  // A control locked by Auto Performance keeps its place and size: the wrapper adds only a tooltip (it is `display: contents`).
+  return props.control.locked
+    ? <div className="rv-ctrl-lock" data-auto-performance-locked="true" title={props.control.lockReason}>{body}</div>
+    : body
+}
+
+function Cinema2SchemaControlBody({
   control,
   onChange,
   onTrigger,

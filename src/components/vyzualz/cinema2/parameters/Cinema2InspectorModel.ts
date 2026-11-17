@@ -5,6 +5,7 @@ import {
   type Cinema2ParameterConditionManifest,
   type Cinema2ParameterId,
 } from '../contracts/Cinema2NativePresetManifest'
+import { readCinema2MoodPolicy } from '../conductor/Cinema2MoodPolicy'
 import type { Cinema2CompiledPresetPlan } from '../presets/Cinema2PresetCompiler'
 import type { Cinema2CompiledParameterDefinition } from './Cinema2ParameterSchema'
 import type { Cinema2ParameterStateSnapshot } from './Cinema2ParameterState'
@@ -28,6 +29,46 @@ export interface Cinema2InspectorControlModel {
   value: Cinema2JsonValue | undefined
   enabled: boolean
   disabledReason: string | null
+  /**
+   * True when the control is disabled by the Auto Performance lock (below). Its saved value is still shown and, where the music is moving it, so is the
+   * live readout. `disabledReason` stays null on purpose: the reason is carried here and shown as a tooltip, so locking adds no visible text and changes no size.
+   */
+  locked?: boolean
+  lockReason?: string
+}
+
+/**
+ * The Auto Performance lock. While a preset's Auto Performance is on, the music owns the show, so the Design tab shows it and does not let the user
+ * fight it: every control in Master Controls, Design and Effects is disabled (grayed, in place, still showing its saved value), except the Auto Performance
+ * toggle itself (to leave it) and BPM Sync. Palette stays editable. Nothing is rewritten: the saved values are exactly what they were, and turning
+ * Auto Performance off re-enables everything at once.
+ *
+ * It is generic and opt-in: a preset takes part by tagging its Auto Performance toggle `moodPolicy: 'autoPerformance'` (authoring does this), not by
+ * name. BPM Sync is the preset's declared `choreography.tempoSyncParameter`, or else the standard boolean control the shared Inspector already
+ * presents in Master Controls under that label.
+ */
+export const CINEMA2_AUTO_PERFORMANCE_LOCK_REASON = 'Auto Performance is on. Turn it off to edit this control.'
+const LOCKED_PARENT_GROUPS: ReadonlySet<Cinema2DesignParentGroup> = new Set<Cinema2DesignParentGroup>(['master-controls', 'design', 'effects'])
+export interface Cinema2AutoPerformanceLock {
+  readonly active: boolean
+  readonly autoParameterId: string | null
+  /** Controls that stay editable while locked (the toggle and BPM Sync). */
+  readonly exempt: ReadonlySet<string>
+}
+const NO_LOCK: Cinema2AutoPerformanceLock = Object.freeze({ active: false, autoParameterId: null, exempt: new Set<string>() })
+export function resolveCinema2AutoPerformanceLock(
+  plan: Readonly<Cinema2CompiledPresetPlan>,
+  values: Readonly<Record<string, Cinema2JsonValue>>,
+): Readonly<Cinema2AutoPerformanceLock> {
+  const toggle = plan.parameters.definitions.find(definition => readCinema2MoodPolicy(definition.metadata) === 'autoPerformance')
+  if (!toggle) return NO_LOCK
+  const exempt = new Set<string>([toggle.id])
+  const tempo = (plan.manifest.choreography as { tempoSyncParameter?: { $ref?: string } } | undefined)?.tempoSyncParameter?.$ref
+  if (tempo) exempt.add(tempo)
+  for (const definition of plan.parameters.definitions) {
+    if (definition.designParentGroup === 'master-controls' && definition.type === 'boolean' && definition.label === 'BPM Sync') exempt.add(definition.id)
+  }
+  return { active: values[toggle.id] === true, autoParameterId: toggle.id, exempt }
 }
 
 export interface Cinema2InspectorGroupModel {
@@ -264,6 +305,7 @@ export function createCinema2DesignParentGroupModel(
   const values = { ...state.persistentValues, ...state.runtimeOnlyValues }
   const instanceOwners = collectInspectorInstanceOwners(plan)
   const inactiveCameraParameters = collectInactiveCameraParameterIds(plan)
+  const lock = resolveCinema2AutoPerformanceLock(plan, values)
   const parents = new Map<Cinema2DesignParentGroup, MutableDesignParentGroup>()
 
   for (const [authoredIndex, definition] of plan.parameters.definitions.entries()) {
@@ -284,7 +326,7 @@ export function createCinema2DesignParentGroupModel(
     }
 
     const item: ProjectedControl = {
-      control: createControlModel(definition, values, availableCapabilities),
+      control: createControlModel(definition, values, availableCapabilities, lock, parentId),
       sectionId,
       // Secondary grouping is intentionally preserved only inside Design.
       // Master Controls, Effects, and Palette stay flat, matching the current
@@ -312,6 +354,18 @@ export function createCinema2DesignParentGroupModel(
 }
 
 function createControlModel(
+  definition: Readonly<Cinema2CompiledParameterDefinition>,
+  values: Readonly<Record<string, Cinema2JsonValue>>,
+  availableCapabilities: ReadonlySet<string>,
+  lock: Readonly<Cinema2AutoPerformanceLock> = NO_LOCK,
+  parentId: Cinema2DesignParentGroup | null = null,
+): Cinema2InspectorControlModel {
+  const model = createBaseControlModel(definition, values, availableCapabilities)
+  if (!lock.active || parentId == null || !LOCKED_PARENT_GROUPS.has(parentId) || lock.exempt.has(definition.id)) return model
+  return { ...model, enabled: false, locked: true, lockReason: CINEMA2_AUTO_PERFORMANCE_LOCK_REASON }
+}
+
+function createBaseControlModel(
   definition: Readonly<Cinema2CompiledParameterDefinition>,
   values: Readonly<Record<string, Cinema2JsonValue>>,
   availableCapabilities: ReadonlySet<string>,

@@ -23853,3 +23853,11 @@ button.llhr-chip { cursor: pointer; }
     --rv-floating-rail-width: var(--fw-performance-rail-width);
   }
 }
+
+/* A control locked by Auto Performance keeps its exact place and size: the wrapper only carries the tooltip. */
+.rv-ctrl-lock { display: contents; }
+/* Gray the whole row, not just the control (toggle rows already dim themselves): label, saved value and description dim together, while the live readout and the yellow marker (which show what the
+   music is doing to the control) keep their colour. Colour and opacity only, so nothing changes size. */
+.rv-ctrl-lock .rv-ctrl-row .rv-ctrl-label,
+.rv-ctrl-lock .rv-ctrl-row .rv-ctrl-description { opacity: 0.4; }
+.rv-ctrl-lock .rv-ctrl-val { color: rgba(196, 207, 211, 0.32); }
