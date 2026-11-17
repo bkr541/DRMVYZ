@@ -53,7 +53,8 @@ describe('Cinema 2.0 Sixfold preset', () => {
     })
     expect(byId(CINEMA2_SIXFOLD_PATTERN_CHANGE_ID)).toMatchObject({ type: 'boolean', defaultValue: false })
     expect(byId(CINEMA2_SIXFOLD_TRIGGER_ID)).toMatchObject({ type: 'enum', options: CINEMA2_AFTERHOURS_TRIGGER_OPTIONS, visibleWhen: [{ parameterId: CINEMA2_SIXFOLD_PATTERN_CHANGE_ID, value: true }] })
-    expect(CINEMA2_SIXFOLD_PRESET_MANIFEST.choreography?.rules.every(rule => rule.enabledParameter == null)).toBe(true)
+    // The authored rules are ungated; only the shared mood rules (which Auto Performance gates) have an enabling parameter.
+    expect(CINEMA2_SIXFOLD_PRESET_MANIFEST.choreography?.rules.filter(rule => !String(rule.id).includes('-mood-')).every(rule => rule.enabledParameter == null)).toBe(true)
   })
 
   it('routes different musical intelligence into six independent component lanes', () => {

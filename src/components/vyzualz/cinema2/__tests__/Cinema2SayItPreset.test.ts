@@ -47,7 +47,7 @@ describe('Cinema 2.0 SAY IT preset', () => {
       'motionAmount', 'motionProgram', 'motionDirection', 'motionSafety', 'glyphDelay', 'axisX', 'axisY', 'axisZ', 'randomSeed',
       'bpmSync', 'cycleSeconds', 'spread', 'materialStyle', 'roughness', 'environmentIntensity', 'highlightSweep', 'color',
       'ledOutline', 'outlineColor',
-      'pattern', 'patternChange', 'trigger',
+      'pattern', 'patternChange', 'trigger', 'autoPerformance',
       'intensity', 'mix', 'backgroundColor',
     ]))
   })
@@ -83,12 +83,12 @@ describe('Cinema 2.0 SAY IT preset', () => {
     expect(outline).toMatchObject({ label: 'Outline', type: 'color', designParentGroup: 'palette', group: 'Color' })
   })
 
-  it('offers Mainframe-compatible automatic pattern controls in Effects', () => {
+  it('offers Mainframe-compatible automatic pattern controls in Design', () => {
     const pattern = CINEMA2_SAY_IT_PRESET_MANIFEST.parameters?.find(parameter => parameter.id === CINEMA2_SAY_IT_PATTERN_ID)
     const change = CINEMA2_SAY_IT_PRESET_MANIFEST.parameters?.find(parameter => parameter.id === CINEMA2_SAY_IT_PATTERN_CHANGE_ID)
-    const trigger = CINEMA2_SAY_IT_PRESET_MANIFEST.parameters?.find(parameter => parameter.label === 'Trigger' && parameter.designParentGroup === 'effects')
-    expect(pattern).toMatchObject({ type: 'enum', defaultValue: 'solid', designParentGroup: 'effects', group: 'Pattern' })
-    expect(change).toMatchObject({ type: 'boolean', defaultValue: false, designParentGroup: 'effects', group: 'Pattern' })
+    const trigger = CINEMA2_SAY_IT_PRESET_MANIFEST.parameters?.find(parameter => parameter.label === 'Trigger' && parameter.designParentGroup === 'design')
+    expect(pattern).toMatchObject({ type: 'enum', defaultValue: 'solid', designParentGroup: 'design', group: 'Pattern' })
+    expect(change).toMatchObject({ type: 'boolean', defaultValue: false, designParentGroup: 'design', group: 'Pattern' })
     expect(trigger).toMatchObject({ type: 'enum', defaultValue: 'bar4', options: CINEMA2_AFTERHOURS_TRIGGER_OPTIONS })
   })
 })

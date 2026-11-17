@@ -1,3 +1,4 @@
+import { Cinema2PatternControlResolver } from '../conductor/Cinema2PatternControls'
 import { cinema2StableId, type Cinema2Color, type Cinema2ModuleTypeId } from '../contracts/Cinema2NativePresetManifest'
 import type { Cinema2ModuleCreateContext, Cinema2ModuleFrameReadContext, Cinema2ModuleInstance, Cinema2ModuleTypeDefinition, Cinema2ModuleDiagnostic } from './Cinema2ModuleContracts'
 import { CINEMA2_BLOCKSHIFT_BLOCK_COUNT, CINEMA2_BLOCKSHIFT_PALETTE, CINEMA2_BLOCKSHIFT_PATTERN_IDS, type Cinema2BlockshiftPattern } from './blockshift/Cinema2BlockshiftDomain'
@@ -17,7 +18,7 @@ export const CINEMA2_BLOCKSHIFT_NATIVE_MODULE_TYPE_ID = cinema2StableId<Cinema2M
 export const CINEMA2_BLOCKSHIFT_NATIVE_MODULE_VERSION = 1
 
 export interface Cinema2BlockshiftModuleInstance extends Cinema2ModuleInstance {
-  inspect(): { blockIds: readonly string[]; instanceCount: number; drawCalls: number; estimatedGpuBytes: number; pattern: Cinema2BlockshiftPattern; phase: number; synced: boolean; modelState: string; transitionProgress: number; audio: ReturnType<Cinema2BlockshiftAudioRuntime['inspect']>; performance: ReturnType<Cinema2BlockshiftPerformance['inspect']> }
+  inspect(): { effectivePatternChange: boolean | null; effectiveTrigger: (typeof CINEMA2_AFTERHOURS_TRIGGER_IDS)[number] | null; patternControlsAutomatic: boolean; blockIds: readonly string[]; instanceCount: number; drawCalls: number; estimatedGpuBytes: number; pattern: Cinema2BlockshiftPattern; phase: number; synced: boolean; modelState: string; transitionProgress: number; audio: ReturnType<Cinema2BlockshiftAudioRuntime['inspect']>; performance: ReturnType<Cinema2BlockshiftPerformance['inspect']> }
 }
 type Renderer = Pick<Cinema2BlockshiftRenderer, 'draw' | 'dispose' | 'estimateGpuBytes' | 'updateInstances'>
 
@@ -57,6 +58,7 @@ export function createCinema2BlockshiftNativeModuleDefinition(
       const orchestration = new Cinema2BlockshiftOrchestration()
       let previousAuthored: Cinema2BlockshiftPattern | null = null
       const controller = new Cinema2MainframePatternController<Cinema2BlockshiftPattern>(CINEMA2_BLOCKSHIFT_PATTERN_IDS, 'stagger')
+      const patternControls = new Cinema2PatternControlResolver<(typeof CINEMA2_AFTERHOURS_TRIGGER_IDS)[number]>()
       let renderer: Renderer | null = null, disposed = false, lastFrameId = -1
       let models: readonly Cinema2BlockshiftModel[] | null = null
       let modelState: 'idle' | 'loading' | 'ready' | 'failed' = 'idle'
@@ -104,7 +106,10 @@ export function createCinema2BlockshiftNativeModuleDefinition(
         const authored = context.parameters.get('pattern')
         const authoredPattern = CINEMA2_BLOCKSHIFT_PATTERN_IDS.includes(authored as Cinema2BlockshiftPattern) ? authored as Cinema2BlockshiftPattern : 'stagger'
         const trigger = context.parameters.get('trigger')
-        const selectedTrigger = CINEMA2_AFTERHOURS_TRIGGER_IDS.find(value => value === trigger) ?? 'bar4'
+        const savedTrigger = CINEMA2_AFTERHOURS_TRIGGER_IDS.find(value => value === trigger) ?? 'bar4'
+        // With Auto Performance on and music playing, Pattern Change and the Trigger are the music's choice (the saved values are never written to).
+        const control = patternControls.update({ saved: { patternChange: flag(context, 'patternChange', false), trigger: savedTrigger }, mood: frame.mood, autoPerformance: flag(context, 'autoPerformance', false) && active })
+        const selectedTrigger = control.trigger
         // A structural crossing and its fixed-clock fallback must not become two triggers when
         // the same upstream publication is rendered again. Resolve it once per publication/trigger.
         const upstream = frame.audio?.upstream
@@ -118,7 +123,7 @@ export function createCinema2BlockshiftNativeModuleDefinition(
         if (active) { eventPublication = publication; publicationEvent = eventId }
         if (lastPaused && !paused) blockedResumeEvent = eventId
         const freshEventId = eventId === blockedResumeEvent ? null : eventId
-        pattern = controller.update({ authoredPattern, patternChange: flag(context, 'patternChange', false), trigger: selectedTrigger, triggerEventId: freshEventId, absoluteBeat: beat.beats, reset }).activePattern
+        pattern = controller.update({ authoredPattern, patternChange: control.patternChange, trigger: selectedTrigger, triggerEventId: freshEventId, absoluteBeat: beat.beats, reset }).activePattern
         const options = { pattern, phase,
           blockSize: number(context, 'blockSize', 1.35, 1.05, 6), spread: number(context, 'spread', 1, 0.5, 3),
           depth: number(context, 'depth', 0.45, 0, 1), rotationRange: number(context, 'rotationRange', 16, 0, 45),
@@ -160,7 +165,7 @@ export function createCinema2BlockshiftNativeModuleDefinition(
         lastTime = time; lastTrack = track; lastGeneration = frame.contextGeneration; lastPaused = paused
       }
       return {
-        lifecycle: { update: ({ frame }) => update(frame), dispose: () => { disposed = true; renderer = null; models = null; clock.reset(); controller.reset(); orchestration.reset(); audioRuntime.reset(); performance.reset(); cubeRotation.reset(); cues.splice(0) } },
+        lifecycle: { update: ({ frame }) => update(frame), dispose: () => { disposed = true; renderer = null; models = null; clock.reset(); controller.reset(); patternControls.reset(); orchestration.reset(); audioRuntime.reset(); performance.reset(); cubeRotation.reset(); cues.splice(0) } },
         handleAction: (action, event) => {
           if (disposed || action !== 'musicalCue' || !event.eventId || !event.payload || typeof event.payload !== 'object' || Array.isArray(event.payload)) return
           const kind = (event.payload as { kind?: unknown }).kind
@@ -184,7 +189,7 @@ export function createCinema2BlockshiftNativeModuleDefinition(
             renderer.draw(execution.camera.viewProjectionMatrix, body, intensity, leds)
           },
         }] },
-        inspect: () => ({ blockIds: layout.map(block => block.id), instanceCount: layout.length, drawCalls: 4, estimatedGpuBytes: renderer?.estimateGpuBytes() ?? 0, pattern, phase, synced, modelState, transitionProgress: orchestration.getProgress(), audio: audioRuntime.inspect(), performance: performance.inspect() }),
+        inspect: () => ({ ...patternControls.inspect(), blockIds: layout.map(block => block.id), instanceCount: layout.length, drawCalls: 4, estimatedGpuBytes: renderer?.estimateGpuBytes() ?? 0, pattern, phase, synced, modelState, transitionProgress: orchestration.getProgress(), audio: audioRuntime.inspect(), performance: performance.inspect() }),
         getDiagnostics: () => diagnostics,
       }
     },

@@ -1,3 +1,5 @@
+import { cinema2AutoTargets } from './Cinema2AutoPerformanceAuthoring'
+import { withCinema2MoodDrives } from './Cinema2MoodConductorAuthoring'
 import {
   CINEMA2_NATIVE_PRESET_SCHEMA_ID, CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   cinema2NamespacedId, cinema2Ref, cinema2StableId,
@@ -38,7 +40,7 @@ const parameters: Cinema2ParameterManifest[] = [
   ...Object.entries(TRIPPY_BRO_COLORS).map(([key, defaultValue], order) => ({ ...base, id: pid(key), label: ({ background: 'Background', cyan: 'Cyan Structure', blue: 'Blue Weave', magenta: 'Magenta Accent', amber: 'Amber Orbit', highlight: 'Highlight' } as Record<string, string>)[key], type: 'color' as const, defaultValue: [...defaultValue], designParentGroup: 'palette' as const, group: 'Colors', order })),
 ]
 
-export const CINEMA2_TRIPPY_BRO_PRESET_MANIFEST = Object.freeze<Cinema2NativePresetManifest>({
+const CINEMA2_TRIPPY_BRO_AUTHORED_PRESET_MANIFEST:Readonly<Cinema2NativePresetManifest> = Object.freeze<Cinema2NativePresetManifest>({
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID, schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_TRIPPY_BRO_PRESET_ID, revision: 4,
   metadata: { name: 'Trippy, Bro', description: 'Transforming neon lattices, articulated optical fans, luminous ribbons and mirrored woven lenses.', tags: ['geometric', 'neon', 'psychedelic', 'audio-reactive'] },
@@ -58,4 +60,33 @@ export const CINEMA2_TRIPPY_BRO_PRESET_MANIFEST = Object.freeze<Cinema2NativePre
     { id: NODE_ID, kind: 'module', parent: cinema2Ref(ROOT_ID), module: cinema2Ref(TRIPPY_BRO_MODULE_ID), visible: true },
   ] },
   layers: [{ id: cinema2StableId<Cinema2LayerId>('trippy-bro-hero'), label: 'Neon Instrument', source: cinema2Ref(ROOT_ID), visible: true, opacity: 1, blendMode: 'normal', depthPolicy: 'disabled', order: 0 }],
+})
+
+const moduleTarget = (property: string) => cinema2AutoTargets.module(TRIPPY_BRO_MODULE_ID as string, property)
+/**
+ * Trippy, Bro with the shared Mood Conductor and Auto Performance. With Auto Performance on, the passage's mood moves the instrument around its
+ * authored values and the music chooses Pattern Change and the Trigger for the Pattern. Motion Speed, Motion Amount and Secondary Detail follow
+ * how active the passage is (and settle in a calm one); Stroke Width, Chromatic Separation, Geometric Echo and Bloom flare on a peak and a drop.
+ * Master Intensity is at its maximum by default, so it only comes down. Composition Scale, Line Density, Trails and the colors stay the user's.
+ */
+export const CINEMA2_TRIPPY_BRO_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = withCinema2MoodDrives(CINEMA2_TRIPPY_BRO_AUTHORED_PRESET_MANIFEST, {
+  idPrefix: 'trippy-bro-auto',
+  enabledParameter: pid('auto-performance'),
+  strengthParameter: pid('reactivity'),
+  patternControls: { patternChange: pid('pattern-change'), trigger: pid('trigger') },
+  drives: [
+    { id: 'intensity-calm', target: moduleTarget('intensity'), source: 'mood.calm', operation: 'add', value: -0.12 },
+    { id: 'speed-activity', target: moduleTarget('speed'), source: 'mood.activity', operation: 'add', value: 0.25 },
+    { id: 'speed-calm', target: moduleTarget('speed'), source: 'mood.calm', operation: 'add', value: -0.15 },
+    { id: 'amount-activity', target: moduleTarget('amount'), source: 'mood.activity', operation: 'add', value: 0.2 },
+    { id: 'amount-calm', target: moduleTarget('amount'), source: 'mood.calm', operation: 'add', value: -0.1 },
+    { id: 'detail-activity', target: moduleTarget('detail'), source: 'mood.activity', operation: 'add', value: 0.1 },
+    { id: 'detail-peak', target: moduleTarget('detail'), source: 'mood.peak', operation: 'add', value: 0.25 },
+    { id: 'width-shock', target: moduleTarget('width'), source: 'mood.shock', operation: 'add', value: 0.3 },
+    { id: 'split-shock', target: moduleTarget('split'), source: 'mood.shock', operation: 'add', value: 0.35 },
+    { id: 'echo-peak', target: moduleTarget('echo'), source: 'mood.peak', operation: 'add', value: 0.25 },
+    { id: 'echo-shock', target: moduleTarget('echo'), source: 'mood.shock', operation: 'add', value: 0.3 },
+    { id: 'bloom-peak', target: cinema2AutoTargets.effect('trippy-bro-bloom', 'mix'), source: 'mood.peak', operation: 'add', value: 0.12 },
+    { id: 'bloom-shock', target: cinema2AutoTargets.effect('trippy-bro-bloom', 'mix'), source: 'mood.shock', operation: 'add', value: 0.25 },
+  ],
 })

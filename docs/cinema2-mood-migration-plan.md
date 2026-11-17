@@ -76,7 +76,9 @@ Use the Afterhours trigger helper plus a program controller. All four default Au
 | event-horizon | event-horizon | on | **DONE out of order (uncommitted), 2026-11-17** | 3 looks (kept: Horizon Look) | 12 | - | pattern controls moved to Design; galaxy (space.glb) replaces the procedural stars; Camera Mode Orbit / Fly Through / Deep Space; see docs/cinema2-event-horizon-galaxy.md |
 | constellation | constellation | on | effects; selector not named Pattern | 11 options | 9 | 17 | move to Design; look selector, check count and name; default on; camera controls |
 
-### Batch 3B: Afterhours-family patterns (4)
+### Batch 3B: Afterhours-family patterns (4) — DONE (uncommitted; awaiting your real-app check)
+
+Orbital and Submerge derive from Say It's manifest (a string rewrite), so they now derive from its authored manifest (before the mood migration) until Batch 5. Say It's own changes (Pattern controls to Design, the module reading the Auto Performance toggle) are applied as a transform on top of the authored manifest for that reason.
 
 Same trigger helper. Say It and Sixfold default on and have their controls in Effects; Blockshift and Trippy Bro default off.
 

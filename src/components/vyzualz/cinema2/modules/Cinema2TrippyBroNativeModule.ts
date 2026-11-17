@@ -1,3 +1,4 @@
+import { Cinema2PatternControlResolver } from '../conductor/Cinema2PatternControls'
 import { FULLSCREEN_VERT_SRC, FullscreenPass } from '../../react/shaders/runtime/FullscreenPass'
 import { ShaderCompiler } from '../../react/shaders/runtime/ShaderCompiler'
 import { ShaderProgram } from '../../react/shaders/runtime/ShaderProgram'
@@ -15,6 +16,7 @@ export const cinema2TrippyBroNativeModuleDefinition = Object.freeze<Cinema2Modul
   create(context) {
     const clock = new Cinema2BeatClock()
     const performance = new TrippyBroPerformance()
+    const patternControls = new Cinema2PatternControlResolver<Cinema2AfterhoursTriggerId>()
     let phase = 0, lastBeat = 0, previousTime: number | null = null, generation: number | null = null
     let track: string | null | undefined, contextGeneration = -1, analysisRevision = ''
     let selected = { base: 'prismLattice', performing: 'prismLattice', previous: 'prismLattice', transition: 1, overridden: false, changed: false } as ReturnType<TrippyBroPerformance['update']>
@@ -34,12 +36,14 @@ export const cinema2TrippyBroNativeModuleDefinition = Object.freeze<Cinema2Modul
           const significance = Math.max(number('energy',0),number('directorIntensity',0),number('directorMomentum',0))
           phase += dt*0.5*number('speed',1)*(1+Math.min(1,significance)*0.2)
           lastBeat = beat
-          const trigger = context.parameters.get('trigger') as Cinema2AfterhoursTriggerId
+          // With Auto Performance on and music playing, Pattern Change and the Trigger are the music's choice (the saved values are never written to).
+          const control = patternControls.update({ saved: { patternChange: context.parameters.get('pattern-change') === true, trigger: context.parameters.get('trigger') as Cinema2AfterhoursTriggerId }, mood: frame.mood, autoPerformance: context.parameters.get('auto-performance') === true && playing })
+          const trigger = control.trigger
           const section = frame.audio?.structure.section
           const buildEvent = section?.available && section.value?.type === 'build' ? section.value.id : null
           selected = performance.update({
             authored: context.parameters.get('pattern') as typeof TRIPPY_BRO_PATTERNS[number], editRevision: context.parameters.getEditRevision?.('pattern') ?? 0,
-            enabled: context.parameters.get('pattern-change') === true, trigger,
+            enabled: control.patternChange, trigger,
             event: resolveCinema2AfterhoursTriggerEventIdentity(frame,trigger,reset ? null : previousTime),
             auto: context.parameters.get('auto-performance') === true, buildEvent,
             dropEvent: resolveCinema2AfterhoursTriggerEventIdentity(frame,'drop',reset ? null : previousTime),
@@ -51,7 +55,7 @@ export const cinema2TrippyBroNativeModuleDefinition = Object.freeze<Cinema2Modul
           }
           previousTime = time
         },
-        dispose() { clock.reset(); performance.reset() },
+        dispose() { clock.reset(); performance.reset(); patternControls.reset() },
       },
       render: { providers: [{
         id: `${context.module.id}:neon-instrument`, moduleId: context.module.id, intent: 'fullscreen',
@@ -86,6 +90,7 @@ export const cinema2TrippyBroNativeModuleDefinition = Object.freeze<Cinema2Modul
           pass.run(program, target, width, height, [])
         },
       }] },
+      inspect: () => patternControls.inspect(),
     }
   },
 })

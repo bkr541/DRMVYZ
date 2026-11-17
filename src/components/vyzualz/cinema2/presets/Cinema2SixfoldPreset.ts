@@ -1,3 +1,5 @@
+import { cinema2AutoTargets } from './Cinema2AutoPerformanceAuthoring'
+import { withCinema2MoodDrives } from './Cinema2MoodConductorAuthoring'
 import { cinema2NamespacedId, cinema2Ref, cinema2StableId, type Cinema2CameraId, type Cinema2ChoreographyActionId, type Cinema2ChoreographyRuleId, type Cinema2LightId, type Cinema2ModuleId, type Cinema2NativePresetManifest, type Cinema2ParameterId, type Cinema2PresetId, type Cinema2SceneNodeId, type Cinema2Vector3 } from '../contracts/Cinema2NativePresetManifest'
 import { CINEMA2_SIXFOLD_NATIVE_MODULE_TYPE_ID, CINEMA2_SIXFOLD_PATTERNS } from '../modules/Cinema2SixfoldNativeModule'
 import { CINEMA2_CONSTELLATION_PRESET_ID, CINEMA2_CONSTELLATION_AUTHORED_PRESET_MANIFEST } from './Cinema2ConstellationPreset'
@@ -196,7 +198,7 @@ const lighting = Object.freeze({
  * shader with six independent Three.js architectural instruments and the full
  * shared Audio Intelligence vocabulary used by Mainframe and Conduit.
  */
-export const CINEMA2_SIXFOLD_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
+const CINEMA2_SIXFOLD_AUTHORED_PRESET_MANIFEST:Readonly<Cinema2NativePresetManifest> = Object.freeze({
   ...derived,
   revision: 2,
   metadata: Object.freeze({
@@ -216,4 +218,41 @@ export const CINEMA2_SIXFOLD_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
   defaults: Object.freeze({ camera: cinema2Ref(CINEMA2_SIXFOLD_CAMERA_ID) }),
   lighting,
   choreography,
+})
+
+const moduleTarget = (property: string) => cinema2AutoTargets.module(CINEMA2_SIXFOLD_MODULE_ID as string, property)
+/**
+ * SIXFOLD with the shared Mood Conductor and Auto Performance. With Auto Performance on, the passage's mood moves the chamber around its authored
+ * values and the music chooses Pattern Change and the Trigger for the Pattern. The chamber widens and travels on a peak and a drop and folds in
+ * tense passages; it rotates and drifts with activity; the light rails, the iris and the bloom flare with the passage. Mirror Facet Scale and
+ * Perspective Reveal stay the user's.
+ */
+export const CINEMA2_SIXFOLD_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = withCinema2MoodDrives(CINEMA2_SIXFOLD_AUTHORED_PRESET_MANIFEST, {
+  idPrefix: 'sixfold-auto',
+  enabledParameter: CINEMA2_SIXFOLD_AUTO_PERFORMANCE_ID,
+  strengthParameter: cinema2StableId<Cinema2ParameterId>('sixfold-reactivity'),
+  patternControls: { patternChange: CINEMA2_SIXFOLD_PATTERN_CHANGE_ID, trigger: CINEMA2_SIXFOLD_TRIGGER_ID },
+  drives: [
+    { id: 'intensity-activity', target: moduleTarget('intensity'), source: 'mood.activity', operation: 'add', value: 0.12 },
+    { id: 'intensity-calm', target: moduleTarget('intensity'), source: 'mood.calm', operation: 'add', value: -0.1 },
+    { id: 'intensity-shock', target: moduleTarget('intensity'), source: 'mood.shock', operation: 'add', value: 0.25 },
+    { id: 'detail-calm', target: moduleTarget('nodeDensity'), source: 'mood.calm', operation: 'add', value: -0.1 },
+    { id: 'radius-peak', target: moduleTarget('spread'), source: 'mood.peak', operation: 'add', value: 0.25 },
+    { id: 'radius-shock', target: moduleTarget('spread'), source: 'mood.shock', operation: 'add', value: 0.4 },
+    { id: 'depth-peak', target: moduleTarget('depthSpread'), source: 'mood.peak', operation: 'add', value: 0.2 },
+    { id: 'fold-tense', target: moduleTarget('collapse'), source: 'mood.tense', operation: 'add', value: 0.3 },
+    { id: 'travel-peak', target: moduleTarget('burst'), source: 'mood.peak', operation: 'add', value: 0.4 },
+    { id: 'travel-shock', target: moduleTarget('burst'), source: 'mood.shock', operation: 'add', value: 0.9 },
+    { id: 'drift-activity', target: moduleTarget('drift'), source: 'mood.activity', operation: 'add', value: 0.3 },
+    { id: 'rotation-activity', target: moduleTarget('spin'), source: 'mood.activity', operation: 'add', value: 0.4 },
+    { id: 'rotation-calm', target: moduleTarget('spin'), source: 'mood.calm', operation: 'add', value: -0.15 },
+    { id: 'rails-peak', target: moduleTarget('edgeGlow'), source: 'mood.peak', operation: 'add', value: 0.35 },
+    { id: 'rails-shock', target: moduleTarget('edgeGlow'), source: 'mood.shock', operation: 'add', value: 0.5 },
+    { id: 'iris-activity', target: moduleTarget('internalGlow'), source: 'mood.activity', operation: 'add', value: 0.3 },
+    { id: 'iris-shock', target: moduleTarget('internalGlow'), source: 'mood.shock', operation: 'add', value: 0.5 },
+    { id: 'fine-peak', target: moduleTarget('starDensity'), source: 'mood.peak', operation: 'add', value: 0.15 },
+    { id: 'trails-calm', target: cinema2AutoTargets.effect('sixfold-trails', 'mix'), source: 'mood.calm', operation: 'add', value: 0.2 },
+    { id: 'bloom-peak', target: cinema2AutoTargets.effect('sixfold-bloom', 'intensity'), source: 'mood.peak', operation: 'add', value: 0.2 },
+    { id: 'bloom-shock', target: cinema2AutoTargets.effect('sixfold-bloom', 'intensity'), source: 'mood.shock', operation: 'add', value: 0.6 },
+  ],
 })

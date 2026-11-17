@@ -1,3 +1,4 @@
+import { Cinema2PatternControlResolver } from '../conductor/Cinema2PatternControls'
 import {
   cinema2StableId,
   type Cinema2ModuleTypeId,
@@ -71,6 +72,10 @@ export interface Cinema2SayItPerformanceInspection {
 }
 
 export interface Cinema2SayItModuleInspection {
+  /** What the music is choosing for Pattern Change and the Trigger while Auto Performance is on (see Cinema2PatternControlResolver). */
+  effectivePatternChange: boolean | null
+  effectiveTrigger: Cinema2AfterhoursTriggerId | null
+  patternControlsAutomatic: boolean
   state: Cinema2SayItModuleState
   assetLoaded: boolean
   text: string
@@ -158,6 +163,7 @@ export function createCinema2SayItNativeModuleDefinition(options: {
         alignment: 'center', lineMode: 'two', tracking: 0.06, lineSpacing: 0.7, glyphScale: 1,
       })
       let layoutKey = ''
+      const patternControls = new Cinema2PatternControlResolver<Cinema2AfterhoursTriggerId>()
       const patternController = new Cinema2SayItPatternController(
         createCinema2SayItPatternCycle(index => typeof context.randomness.sample === 'function'
           ? context.randomness.sample('say-it-pattern-cycle', index)
@@ -397,9 +403,15 @@ export function createCinema2SayItNativeModuleDefinition(options: {
             const outlineColor = readColor(parameters.get('outlineColor')) ?? [0.16, 0.92, 1]
             const authoredPatternValue = parameters.get('pattern')
             const authoredPattern = isCinema2SayItPattern(authoredPatternValue) ? authoredPatternValue : CINEMA2_SAY_IT_DEFAULT_PATTERN
-            const patternChange = parameters.get('patternChange') === true
             const triggerValue = parameters.get('trigger')
-            const trigger = isSayItTrigger(triggerValue) ? triggerValue : 'bar4'
+            // With Auto Performance on and music playing, Pattern Change and the Trigger are the music's choice (the saved values are never written to).
+            const control = patternControls.update({
+              saved: { patternChange: parameters.get('patternChange') === true, trigger: isSayItTrigger(triggerValue) ? triggerValue : 'bar4' },
+              mood: frame.mood,
+              autoPerformance: parameters.get('autoPerformance') === true && frame.transport?.playing === true && !frame.transport.paused,
+            })
+            const patternChange = control.patternChange
+            const trigger = control.trigger
             const triggerEventId = triggerReset ? null : resolveSayItTriggerEventIdentity(
               frame, trigger, triggerPreviousTimeSec, triggerPreviousBeat, beatState.beats,
             )
@@ -451,6 +463,7 @@ export function createCinema2SayItNativeModuleDefinition(options: {
           dispose: () => {
             disposed = true
             beatClock.reset()
+            patternControls.reset()
             // When a bridge exists, the engine-owned resource disposer releases
             // the asset after disposing its material instances.
             if (!bridge) releaseAsset()
@@ -465,6 +478,7 @@ export function createCinema2SayItNativeModuleDefinition(options: {
           ...(performanceDiagnostic ? [performanceDiagnostic] : []),
         ]),
         inspect: (): Cinema2SayItModuleInspection => ({
+          ...patternControls.inspect(),
           state,
           assetLoaded: asset != null,
           text: layout.text,

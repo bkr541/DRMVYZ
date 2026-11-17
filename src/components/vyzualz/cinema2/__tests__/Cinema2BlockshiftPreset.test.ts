@@ -44,7 +44,8 @@ describe('BLOCKSHIFT native preview', () => {
     expect(manifest.effects?.map(effect => effect.typeId)).toEqual(['volumetric-atmosphere', 'hdr-bloom'])
     expect(manifest.effects?.[1]?.parameterBindings?.intensity?.$ref).toBe('blockshift-bloom')
     expect(manifest.render?.targets?.[0]?.descriptor).toMatchObject({ colorFormat: 'rgba16f', fallbackColorFormat: 'rgba8', depthFormat: 'depth24' })
-    expect(manifest.choreography?.rules).toHaveLength(20)
+    // Twenty authored rules, plus the shared mood rules (one per mood source, gated by Auto Performance).
+    expect(manifest.choreography?.rules.filter(rule => !String(rule.id).includes('-mood-'))).toHaveLength(20)
     expect(manifest.render?.passes[0]?.outputs?.map(output => output.attachment)).toEqual(['color', 'depth'])
   })
 

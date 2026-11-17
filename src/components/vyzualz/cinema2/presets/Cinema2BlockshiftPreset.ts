@@ -1,3 +1,5 @@
+import { cinema2AutoTargets } from './Cinema2AutoPerformanceAuthoring'
+import { withCinema2MoodDrives } from './Cinema2MoodConductorAuthoring'
 import {
   CINEMA2_NATIVE_PRESET_SCHEMA_ID, CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   cinema2NamespacedId, cinema2StableId, cinema2Ref,
@@ -55,7 +57,7 @@ const moduleValues = {
   rotationRange: 16, motionRate: 1, rotateCubes: false, transitionLength: '1', ...CINEMA2_BLOCKSHIFT_PALETTE,
 }
 /** Native surrounding field with shared audio, Director, camera and restrained engine-owned bloom. Reference preview pending final acceptance. */
-export const CINEMA2_BLOCKSHIFT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = {
+const CINEMA2_BLOCKSHIFT_AUTHORED_PRESET_MANIFEST:Readonly<Cinema2NativePresetManifest> = {
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID, schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_BLOCKSHIFT_PRESET_ID, revision: 17,
   metadata: { name: 'BLOCKSHIFT', description: 'Float inside a surrounding field of massive Hallow Cubes and a deeper Impossible Cube.', author: 'DVYDRM', tags: ['cinematic', 'prototype'] },
@@ -140,3 +142,29 @@ export const CINEMA2_BLOCKSHIFT_PRESET_MANIFEST: Readonly<Cinema2NativePresetMan
   defaults: { camera: cinema2Ref(camera) },
   output: { renderPass: cinema2Ref(bloomPass), colorSpace: 'srgb', alphaMode: 'opaque' },
 }
+
+const moduleTarget = (property: string) => cinema2AutoTargets.module(CINEMA2_BLOCKSHIFT_MODULE_ID as string, property)
+/**
+ * BLOCKSHIFT with the shared Mood Conductor and Auto Performance. With Auto Performance on, the passage's mood moves the sculpture around its authored
+ * values and the music chooses Pattern Change and the Trigger for the Pattern. Master Intensity follows the passage and flares on a drop; Motion
+ * Amount and Motion Rate follow how active it is; Bloom flares on a peak and a drop. The block geometry (Block Size, Spread, Depth, Rotation Range)
+ * is deliberately not driven: the module treats a change to it as a manual edit and ends Auto Performance's takeover. The camera controls stay the
+ * user's: they are bound to the camera, not to a target the music can move.
+ */
+export const CINEMA2_BLOCKSHIFT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = withCinema2MoodDrives(CINEMA2_BLOCKSHIFT_AUTHORED_PRESET_MANIFEST, {
+  idPrefix: 'blockshift-auto',
+  enabledParameter: cinema2StableId<Cinema2ParameterId>('blockshift-auto-performance'),
+  strengthParameter: cinema2StableId<Cinema2ParameterId>('blockshift-audio-reactivity'),
+  patternControls: { patternChange: cinema2StableId<Cinema2ParameterId>('blockshift-pattern-change'), trigger: cinema2StableId<Cinema2ParameterId>('blockshift-trigger') },
+  drives: [
+    { id: 'master-activity', target: moduleTarget('masterIntensity'), source: 'mood.activity', operation: 'add', value: 0.12 },
+    { id: 'master-calm', target: moduleTarget('masterIntensity'), source: 'mood.calm', operation: 'add', value: -0.1 },
+    { id: 'master-shock', target: moduleTarget('masterIntensity'), source: 'mood.shock', operation: 'add', value: 0.25 },
+    { id: 'motion-activity', target: moduleTarget('motionAmount'), source: 'mood.activity', operation: 'add', value: 0.2 },
+    { id: 'motion-calm', target: moduleTarget('motionAmount'), source: 'mood.calm', operation: 'add', value: -0.12 },
+    { id: 'rate-activity', target: moduleTarget('motionRate'), source: 'mood.activity', operation: 'add', value: 0.25 },
+    { id: 'rate-calm', target: moduleTarget('motionRate'), source: 'mood.calm', operation: 'add', value: -0.15 },
+    { id: 'bloom-peak', target: cinema2AutoTargets.effect('blockshift-bloom', 'intensity'), source: 'mood.peak', operation: 'add', value: 0.1 },
+    { id: 'bloom-shock', target: cinema2AutoTargets.effect('blockshift-bloom', 'intensity'), source: 'mood.shock', operation: 'add', value: 0.25 },
+  ],
+})

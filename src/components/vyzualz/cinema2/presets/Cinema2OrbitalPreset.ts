@@ -3,7 +3,7 @@ import {
   type Cinema2ChoreographyActionId, type Cinema2ChoreographyRuleId, type Cinema2ChoreographyRuleManifest,
   type Cinema2NativePresetManifest, type Cinema2ParameterManifest, type Cinema2ParameterId, type Cinema2PresetId,
 } from '../contracts/Cinema2NativePresetManifest'
-import { CINEMA2_SAY_IT_PRESET_MANIFEST } from './Cinema2SayItPreset'
+import { CINEMA2_SAY_IT_AUTHORED_PRESET_MANIFEST } from './Cinema2SayItPreset'
 import { CINEMA2_ORBITAL_MODULE_TYPE_ID } from '../modules/Cinema2OrbitalNativeModule'
 import { CINEMA2_ORBITAL_PATTERNS } from '../modules/orbital/Cinema2OrbitalMotion'
 
@@ -12,7 +12,7 @@ const id = (name: string) => cinema2StableId<Cinema2ParameterId>(`orbital-${name
 
 // Share the bounded glyph layout, camera, canonical trigger values and depth-aware render chain.
 // Remap authored IDs so ORBITAL owns its own saved settings, scene and effects.
-const template = JSON.parse(JSON.stringify(CINEMA2_SAY_IT_PRESET_MANIFEST)
+const template = JSON.parse(JSON.stringify(CINEMA2_SAY_IT_AUTHORED_PRESET_MANIFEST)
   .replaceAll('say-it', 'orbital').replaceAll('SAY IT', 'ORBITAL')) as Cinema2NativePresetManifest
 const removed = new Set(['motion-program', 'motion-direction', 'glyph-delay', 'axis-x', 'axis-y', 'axis-z', 'random-seed', 'spread'].map(id))
 const changes: Record<string, Partial<Cinema2ParameterManifest>> = {

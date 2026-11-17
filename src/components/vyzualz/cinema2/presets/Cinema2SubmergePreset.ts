@@ -1,5 +1,5 @@
 import { cinema2NamespacedId, cinema2Ref, cinema2StableId, type Cinema2ChoreographyActionId, type Cinema2ChoreographyRuleId, type Cinema2ChoreographyRuleManifest, type Cinema2NativePresetManifest, type Cinema2ParameterManifest, type Cinema2ParameterId, type Cinema2PresetId } from '../contracts/Cinema2NativePresetManifest'
-import { CINEMA2_SAY_IT_PRESET_MANIFEST } from './Cinema2SayItPreset'
+import { CINEMA2_SAY_IT_AUTHORED_PRESET_MANIFEST } from './Cinema2SayItPreset'
 import { CINEMA2_SUBMERGE_MODULE_TYPE_ID } from '../modules/Cinema2SubmergeNativeModule'
 import { CINEMA2_SUBMERGE_PATTERNS } from '../modules/submerge/Cinema2SubmergeMotion'
 
@@ -8,7 +8,7 @@ export const submergeParameterId = (name: string) => cinema2StableId<Cinema2Para
 
 // Compose the proven typography camera, depth-aware post chain and musical authority.
 // A private copy gives this preset independent, persistent identities for every node and control.
-const template = JSON.parse(JSON.stringify(CINEMA2_SAY_IT_PRESET_MANIFEST)
+const template = JSON.parse(JSON.stringify(CINEMA2_SAY_IT_AUTHORED_PRESET_MANIFEST)
   .replaceAll('say-it', 'submerge').replaceAll('SAY IT', 'SUBMERGE')) as Cinema2NativePresetManifest
 const removed = new Set(['motion-program', 'motion-direction', 'glyph-delay', 'axis-x', 'axis-y', 'axis-z', 'random-seed'].map(submergeParameterId))
 const changes: Record<string, Partial<Cinema2ParameterManifest>> = {

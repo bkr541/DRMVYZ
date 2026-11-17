@@ -1,3 +1,4 @@
+import { Cinema2PatternControlResolver } from '../conductor/Cinema2PatternControls'
 import { cinema2StableId, type Cinema2Color, type Cinema2ModuleManifest, type Cinema2ModuleTypeId } from '../contracts/Cinema2NativePresetManifest'
 import type { Cinema2ModuleCreateContext, Cinema2ModuleDiagnostic, Cinema2ModuleRenderExecutionContext, Cinema2ModuleTypeDefinition, Cinema2ModuleUpdateContext } from './Cinema2ModuleContracts'
 import { CINEMA2_AFTERHOURS_TRIGGER_IDS, resolveCinema2AfterhoursTriggerEventIdentity, type Cinema2AfterhoursTriggerId } from './Cinema2AfterhoursNativeModule'
@@ -102,6 +103,7 @@ export function createCinema2SixfoldNativeModuleDefinition(options: { loadLibrar
       let activePattern = readEnum(context.parameters, 'look', CINEMA2_SIXFOLD_PATTERNS, 'facetRelay')
       const cycle = shuffledCycle(index => context.randomness.sample('sixfold-pattern-cycle', index))
       const controller = new Cinema2SixfoldPatternController(cycle, activePattern)
+      const patternControls = new Cinema2PatternControlResolver<typeof CINEMA2_SIXFOLD_TRIGGER_IDS[number]>()
       const beatClock = new Cinema2MainframeBeatClockResolver()
       let previousTimeSec: number | null = null
       let previousBeat: number | null = null
@@ -181,11 +183,15 @@ export function createCinema2SixfoldNativeModuleDefinition(options: { loadLibrar
         lifecycle: {
           update({ parameters, frame }: Cinema2ModuleUpdateContext) {
             const authored = readEnum(parameters, 'look', CINEMA2_SIXFOLD_PATTERNS, 'facetRelay')
-            const enabled = readBoolean(parameters, 'patternChange', false)
-            const trigger = readEnum(parameters, 'trigger', CINEMA2_SIXFOLD_TRIGGER_IDS, 'bar4')
+            const savedPatternChange = readBoolean(parameters, 'patternChange', false)
+            const savedTrigger = readEnum(parameters, 'trigger', CINEMA2_SIXFOLD_TRIGGER_IDS, 'bar4')
             const audio = selectCinema2MainframeAudio(frame.audio, frame.transport?.trackId)
             const accepted = audio === frame.audio ? frame : { ...frame, audio }
             const playback = resolveCinema2MainframePlaybackState(accepted, audio)
+            // With Auto Performance on and music playing, Pattern Change and the Trigger are the music's choice (the saved values are never written to).
+            const control = patternControls.update({ saved: { patternChange: savedPatternChange, trigger: savedTrigger }, mood: frame.mood, autoPerformance: readBoolean(parameters, 'autoPerformance', true) && playback === 'playing' })
+            const enabled = control.patternChange
+            const trigger = control.trigger
             const timeSec = resolveCinema2MainframeTimeSec(accepted)
             const sourceIdentity = frame.transport?.paused && !audio && previousSourceIdentity != null && frame.transport.trackId === previousTrackId
               ? previousSourceIdentity
@@ -209,11 +215,13 @@ export function createCinema2SixfoldNativeModuleDefinition(options: { loadLibrar
             disposed = true
             controller.reset()
             beatClock.reset()
+            patternControls.reset()
             renderer = null
           },
         },
         render: { providers: Object.freeze([provider]) },
         getDiagnostics: () => Object.freeze([...diagnostics]),
+        inspect: () => patternControls.inspect(),
       }
     },
   })

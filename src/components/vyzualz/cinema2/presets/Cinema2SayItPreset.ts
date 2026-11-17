@@ -1,3 +1,5 @@
+import { cinema2AutoTargets } from './Cinema2AutoPerformanceAuthoring'
+import { withCinema2MoodDrives } from './Cinema2MoodConductorAuthoring'
 import {
   CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
@@ -224,7 +226,8 @@ const effectContinuousAddAction = (id: string, effect: Cinema2EffectId, property
  * Editable one/two-line kinetic 3D type backed by the versioned printable Basic
  * Latin glyph package. The preset name and authored default remain SAY IT.
  */
-export const CINEMA2_SAY_IT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
+/** Say It as authored, before the shared mood migration. ORBITAL derives from it and takes the migration in its own batch. */
+export const CINEMA2_SAY_IT_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_SAY_IT_PRESET_ID,
@@ -726,4 +729,49 @@ export const CINEMA2_SAY_IT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifes
   }),
   defaults: Object.freeze({ camera: cinema2Ref(CINEMA2_SAY_IT_CAMERA_ID) }),
   output: Object.freeze({ renderPass: cinema2Ref(FINISH_PASS_ID), colorSpace: 'srgb' as const, alphaMode: 'opaque' as const }),
+})
+
+const moduleTarget = (property: string) => cinema2AutoTargets.module(CINEMA2_SAY_IT_MODULE_ID as string, property)
+// The migration's own changes to the authored preset: the Pattern controls move to Design, and the module reads the Auto Performance toggle
+// (it needs it to know when the music chooses Pattern Change and the Trigger).
+const MOVED_TO_DESIGN: Readonly<Record<string, number>> = Object.freeze({
+  [CINEMA2_SAY_IT_PATTERN_ID]: 20, [CINEMA2_SAY_IT_PATTERN_CHANGE_ID]: 21, [CINEMA2_SAY_IT_TRIGGER_ID]: 22,
+})
+const CINEMA2_SAY_IT_MOOD_BASE_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
+  ...CINEMA2_SAY_IT_AUTHORED_PRESET_MANIFEST,
+  parameters: Object.freeze((CINEMA2_SAY_IT_AUTHORED_PRESET_MANIFEST.parameters ?? []).map(parameter => (
+    MOVED_TO_DESIGN[parameter.id] != null ? Object.freeze({ ...parameter, designParentGroup: 'design' as const, order: MOVED_TO_DESIGN[parameter.id] }) : parameter
+  ))),
+  modules: Object.freeze((CINEMA2_SAY_IT_AUTHORED_PRESET_MANIFEST.modules ?? []).map(module => Object.freeze({
+    ...module,
+    parameters: Object.freeze({ ...(module.parameters ?? {}), autoPerformance: true }),
+    parameterBindings: Object.freeze({ ...(module.parameterBindings ?? {}), autoPerformance: cinema2Ref(CINEMA2_SAY_IT_AUTO_PERFORMANCE_ID) }),
+  }))),
+})
+/**
+ * Say It with the shared Mood Conductor and Auto Performance. With Auto Performance on, the passage's mood moves the lettering around its authored
+ * values and the music chooses Pattern Change and the Trigger for the LED pattern. The letters spread and the cycle quickens as the passage gets
+ * active (and relaxes in a calm one); reflections, the highlight sweep and the LED bloom flare on a peak and a drop. Your text, layout, motion
+ * program and direction, material and colors stay yours, and Motion Amount scales every drive (zero silences them).
+ */
+export const CINEMA2_SAY_IT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = withCinema2MoodDrives(CINEMA2_SAY_IT_MOOD_BASE_MANIFEST, {
+  idPrefix: 'say-it-auto',
+  enabledParameter: CINEMA2_SAY_IT_AUTO_PERFORMANCE_ID,
+  strengthParameter: CINEMA2_SAY_IT_MOTION_ID,
+  patternControls: { patternChange: CINEMA2_SAY_IT_PATTERN_CHANGE_ID, trigger: CINEMA2_SAY_IT_TRIGGER_ID },
+  drives: [
+    { id: 'spread-peak', target: moduleTarget('spread'), source: 'mood.peak', operation: 'add', value: 0.4 },
+    { id: 'spread-shock', target: moduleTarget('spread'), source: 'mood.shock', operation: 'add', value: 0.6 },
+    { id: 'cycle-activity', target: moduleTarget('cycleSeconds'), source: 'mood.activity', operation: 'add', value: -2.5 },
+    { id: 'cycle-calm', target: moduleTarget('cycleSeconds'), source: 'mood.calm', operation: 'add', value: 2.5 },
+    { id: 'delay-peak', target: moduleTarget('glyphDelay'), source: 'mood.peak', operation: 'add', value: 0.004 },
+    { id: 'tracking-shock', target: moduleTarget('tracking'), source: 'mood.shock', operation: 'add', value: 0.08 },
+    { id: 'scale-shock', target: moduleTarget('glyphScale'), source: 'mood.shock', operation: 'add', value: 0.06 },
+    { id: 'reflection-peak', target: moduleTarget('environmentIntensity'), source: 'mood.peak', operation: 'add', value: 0.5 },
+    { id: 'reflection-shock', target: moduleTarget('environmentIntensity'), source: 'mood.shock', operation: 'add', value: 0.8 },
+    { id: 'sweep-activity', target: moduleTarget('highlightSweep'), source: 'mood.activity', operation: 'add', value: 0.4 },
+    { id: 'sweep-shock', target: moduleTarget('highlightSweep'), source: 'mood.shock', operation: 'add', value: 0.5 },
+    { id: 'bloom-peak', target: cinema2AutoTargets.effect('say-it-bloom-effect', 'intensity'), source: 'mood.peak', operation: 'add', value: 0.2 },
+    { id: 'bloom-shock', target: cinema2AutoTargets.effect('say-it-bloom-effect', 'intensity'), source: 'mood.shock', operation: 'add', value: 0.5 },
+  ],
 })
