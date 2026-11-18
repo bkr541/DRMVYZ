@@ -1,16 +1,39 @@
+import { useState } from 'react'
+import { AppIcon } from '../../components/shared/icons/AppIcon'
+import { RailWindowHeader } from '../../components/vyzualz/layout/RailWindowHeader'
 import { WorkspaceSurface } from '../../components/vyzualz/layout/FloatingWorkspace'
+import { UnderlineTabs } from '../../components/vyzualz/react/controls/UnderlineTabs'
 import { useAdminAccess } from '../../lib/adminAccess'
+import { MessagesTab } from './messages/MessagesTab'
+import { PresetsTab } from './presets/PresetsTab'
+import { UsersTab } from './users/UsersTab'
+import '../../styles/reactView.css'
+import './admin.css'
+
+type AdminTab = 'users' | 'presets' | 'messages'
+const TABS = [{ id: 'users', label: 'User Accounts' }, { id: 'presets', label: 'Preset Catalog' }, { id: 'messages', label: 'Message Center' }] as const
 
 /**
- * The Admin workspace. A blank canvas for now: it checks admin access itself (the sidebar button and the navigation also do), so a stale or forced
- * navigation to it shows nothing to anyone who is not an admin.
+ * The Admin Console. It checks admin access itself (the sidebar button and the navigation also do), so a stale or forced navigation to it shows nothing to
+ * anyone who is not an admin; the database enforces the same rule on every read and write.
  */
 export function AdminView() {
   const isAdmin = useAdminAccess()
+  const [tab, setTab] = useState<AdminTab>('users')
   return (
     <main className="vz-main admin-view" data-testid="admin-view" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', flex: 1 }}>
-      <WorkspaceSurface className="admin-view-canvas" style={{ flex: 1, minHeight: 0 }}>
-        {isAdmin ? null : null}
+      <WorkspaceSurface className="admin-view-canvas">
+        {isAdmin && (
+          <div className="adm">
+            <RailWindowHeader side="left" icon={<AppIcon kind="settings" size={15} color="currentColor" aria-hidden="true" />} label="Admin Console" />
+            <div className="adm-tabs"><UnderlineTabs ariaLabel="Admin Console sections" activeTab={tab} onChange={setTab} tabs={TABS} /></div>
+            <div className="adm-body" role="tabpanel" aria-label={TABS.find(entry => entry.id === tab)!.label}>
+              {tab === 'users' && <UsersTab />}
+              {tab === 'presets' && <PresetsTab />}
+              {tab === 'messages' && <MessagesTab />}
+            </div>
+          </div>
+        )}
       </WorkspaceSurface>
     </main>
   )

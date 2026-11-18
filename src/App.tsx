@@ -1,6 +1,7 @@
 import { lazy, Suspense, useState, useEffect } from 'react'
 import { supabase, supabaseConfigured } from './lib/supabase'
 import { peekCachedSessionUserId, isNetworkAuthError } from './lib/offlineSessionFallback'
+import { AnnouncementPopover } from './features/announcements/AnnouncementPopover'
 import { AudioEngineProvider } from './context/AudioEngineContext'
 import { AuthPage, ResetPasswordCompletionScreen } from './components/auth/AuthPage'
 import { VyzualzErrorBoundary } from './components/vyzualz/VyzualzErrorBoundary'
@@ -176,6 +177,7 @@ export default function App() {
   return (
     <AudioEngineProvider>
       <ActiveTrackLyricsBridge />
+      <AnnouncementPopover />
       <VyzualzErrorBoundary section="VyzualzView">
         <Suspense fallback={<div className="auth-loading" role="status" aria-label="Loading DRMVYZ" />}>
           <VyzualzView activeView="vyzualz" onNavigate={() => {}} />

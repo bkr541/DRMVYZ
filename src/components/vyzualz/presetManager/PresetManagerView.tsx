@@ -5,6 +5,8 @@ import { useShallow } from 'zustand/react/shallow'
 import { useRecorder } from '../../../hooks/useRecorder'
 import { EMPTY_PRESET_ORGANIZATION, usePresetOrganizationStore } from '../../../features/presetOrganization/presetOrganizationStore'
 import { usePresetCatalogStore, usePresetScopeFilter } from '../../../features/presetCatalog/presetCatalogStore'
+import { applyPresetMetadata } from '../../../features/presetCatalog/presetMetadata'
+import { usePresetMetadata } from '../../../features/presetCatalog/presetMetadataStore'
 import { useMediaStore } from '../../../stores/mediaStore'
 import { useReactStore } from '../../../stores/reactStore'
 import { ApplicationHeaderControls } from '../layout/ApplicationWorkspaceFrame'
@@ -153,9 +155,9 @@ function PresetInfoPanel({ preset }: { preset: PresetManagerRecord }) {
 
 const CAN_HOST_CINEMA2_STAGE = typeof window !== 'undefined' && 'WebGL2RenderingContext' in window
 
-const CATEGORY_OPTIONS = [
+const categoryOptions = (presets: readonly PresetManagerRecord[]) => [
   { value: 'all', label: 'All Categories' },
-  ...Array.from(new Set(PRESET_MANAGER_PRESETS.map(preset => preset.category)))
+  ...Array.from(new Set(presets.map(preset => preset.category)))
     .sort((left, right) => left.localeCompare(right))
     .map(category => ({ value: category.toLowerCase(), label: category })),
 ]
@@ -225,9 +227,12 @@ export function PresetManagerView() {
   const [outputCanvas, setOutputCanvas] = useState<HTMLCanvasElement | null>(null)
   const recorder = useRecorder()
 
+  // The shipped presets with the admin's metadata applied (name, description, category, tags and display order; see presetMetadata.ts).
+  const presetMetadata = usePresetMetadata()
+  const presetList = useMemo(() => applyPresetMetadata(PRESET_MANAGER_PRESETS, presetMetadata), [presetMetadata])
   const selectedPreset = useMemo(
-    () => PRESET_MANAGER_PRESETS.find(preset => preset.id === selectedId) ?? PRESET_MANAGER_PRESETS[0] ?? null,
-    [selectedId],
+    () => presetList.find(preset => preset.id === selectedId) ?? presetList[0] ?? null,
+    [presetList, selectedId],
   )
   const {
     activeReactEngineId,
@@ -269,13 +274,13 @@ export function PresetManagerView() {
 
   const visiblePresets = useMemo(() => {
     const needle = query.trim().toLowerCase()
-    return PRESET_MANAGER_PRESETS.filter(preset => {
+    return presetList.filter(preset => {
       if (tab === 'favorites' && !favoriteIds.has(preset.id)) return false
       if (tab === 'custom' && !preset.custom) return false
       if (category !== 'all' && preset.category.toLowerCase() !== category) return false
       return !needle || [preset.name, preset.description, preset.engineName, preset.category, ...preset.tags].some(value => value.toLowerCase().includes(needle))
     })
-  }, [category, favoriteIds, query, tab])
+  }, [category, favoriteIds, presetList, query, tab])
 
   const toggleFavorite = (id: string) => setFavoriteIds(current => {
     const next = new Set(current)
@@ -346,7 +351,7 @@ export function PresetManagerView() {
       activation = 'react'
     }
     if (!sourceId || !activation) return
-    const matchingPreset = PRESET_MANAGER_PRESETS.find(preset => (
+    const matchingPreset = presetList.find(preset => (
       preset.sourceId === sourceId && preset.activation === activation
     ))
     if (matchingPreset && matchingPreset.id !== selectedId) setSelectedId(matchingPreset.id)
@@ -359,6 +364,7 @@ export function PresetManagerView() {
     laserDmxBeamMatrixAuthoringMode,
     laserDmxShowDirectorPerformancePresetId,
     laserDmxShowDirectorSourceTemplateId,
+    presetList,
     selectedCanvasPresetId,
     selectedId,
   ])
@@ -450,7 +456,7 @@ export function PresetManagerView() {
                   <UnderlineDropdown
                     id="preset-manager-category"
                     value={category}
-                    options={CATEGORY_OPTIONS}
+                    options={categoryOptions(presetList)}
                     onChange={value => setCategory(value)}
                     ariaLabel="Preset category"
                     menuLabel="Preset category"

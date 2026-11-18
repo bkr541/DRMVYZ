@@ -7,6 +7,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const fixture = vi.hoisted(() => ({ admin: false }))
 vi.mock('../../context/AudioEngineContext', () => ({ useSharedAudio: () => ({ source: 'file' }) }))
+vi.mock('./users/usersApi', () => ({ loadAdminUsers: async () => [] }))
+vi.mock('./messages/messagesApi', () => ({ loadAnnouncements: async () => [], loadAnnouncementStats: async () => [] }))
+vi.mock('./presets/presetsApi', () => ({ loadPresetMetadata: async () => [], loadPacks: async () => [], loadPackMembers: async () => [] }))
 vi.mock('../../lib/adminAccess', () => ({ useAdminAccess: () => fixture.admin, hasAdminAccess: () => fixture.admin }))
 
 import { VyzualzSidebar } from '../../components/vyzualz/VyzualzSidebar'
@@ -41,11 +44,16 @@ describe('Admin entrance and workspace', () => {
     expect(container!.querySelector('[aria-label="Admin"]')?.getAttribute('aria-current')).toBe('page')
   })
 
-  it('renders the Admin workspace as a blank canvas', () => {
+  it('renders the Admin Console with its three sections for an admin, and nothing at all for anyone else', async () => {
     fixture.admin = true
     mount(<AdminView />)
+    await act(async () => { await Promise.resolve() })
     const view = container!.querySelector('[data-testid="admin-view"]')!
-    expect(view).not.toBeNull()
-    expect(view.textContent).toBe('')
+    expect([...view.querySelectorAll('[role="tab"]')].map(tab => tab.textContent)).toEqual(['User Accounts', 'Preset Catalog', 'Message Center'])
+    act(() => root?.unmount())
+    container!.remove()
+    fixture.admin = false
+    mount(<AdminView />)
+    expect(container!.querySelector('[data-testid="admin-view"]')!.textContent).toBe('')
   })
 })
