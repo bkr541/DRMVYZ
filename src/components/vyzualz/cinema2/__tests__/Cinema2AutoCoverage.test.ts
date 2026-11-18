@@ -89,6 +89,7 @@ describe('what Auto Performance does not move, and why', () => {
       'go-to': ['Master Intensity (authority)'],
       ifrit: ['Blade Count (structural)', 'Fragments Per Edge (structural)', 'Frame Count (structural)', 'Satellite Count (structural)'],
       'neon-forest': ['Fog Density (exempt)', 'Light Strength (exempt)'],
+      'open-decks': ['Camera Distance (exempt)', 'Camera Elevation (exempt)', 'Camera Heading (exempt)'],
       orbital: ['Camera Motion (authority)', 'Glyph Scale (exempt)', 'Line Spacing (exempt)', 'Tracking (exempt)'],
       psylo: ['Fog Density (exempt)', 'Light Strength (exempt)'],
       reactor: ['Reactivity (authority)'],

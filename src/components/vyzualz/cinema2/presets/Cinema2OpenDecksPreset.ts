@@ -1,7 +1,7 @@
 import {
   CINEMA2_NATIVE_PRESET_SCHEMA_ID, CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   cinema2NamespacedId, cinema2Ref, cinema2StableId,
-  type Cinema2CameraId, type Cinema2EffectId, type Cinema2LayerId, type Cinema2LightId,
+  type Cinema2CameraId, type Cinema2ChoreographyActionId, type Cinema2ChoreographyRuleId, type Cinema2EffectId, type Cinema2LayerId, type Cinema2LightId,
   type Cinema2ModuleId, type Cinema2ModuleTypeId, type Cinema2NativePresetManifest,
   type Cinema2ParameterId, type Cinema2ParameterManifest, type Cinema2PresetId,
   type Cinema2RenderPassId, type Cinema2RenderSlotId, type Cinema2RenderTargetId,
@@ -45,9 +45,10 @@ function spot(name: string, position: readonly [number, number, number], intensi
 /** Preview-only preset: the CDJ as a stepped 3D model textured with the supplied reference photograph, for framing and visual review. No invented musical behavior or material replacement. */
 const CINEMA2_OPEN_DECKS_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = {
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID, schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
-  // Revision 3. A saved parameter state only restores when its revision matches, so a workspace that saved an earlier framing (revision 1 opened at an
-  // 18-24 degree heading; revision 2 at 3.3 distance) restores these defaults instead: head on, 2.9 from the model.
-  id: CINEMA2_OPEN_DECKS_PRESET_ID, revision: 3,
+  // Revision 4. A saved parameter state only restores when its revision matches, so a workspace that saved an earlier framing (revision 1 opened at an
+  // 18-24 degree heading; revision 2 at 3.3 distance; revision 3 at 2.9) restores these defaults instead: head on, 3.18 from the model, which fills
+  // most of the width and lets the bottom of the device run just past the bottom of the Stage.
+  id: CINEMA2_OPEN_DECKS_PRESET_ID, revision: 4,
   metadata: {
     name: 'Open Decks',
     description: 'A 3D model of the Open Decks CDJ, textured with the reference photograph: the raised screen housing with its glass set back, the hot-cue pads, rotary and knobs are real volumes, so they have depth when the camera orbits. Preview only, for framing and visual review.',
@@ -63,7 +64,7 @@ const CINEMA2_OPEN_DECKS_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetM
   ],
   parameters: [
     number('exposure', 'Exposure', 'master-controls', 1, .1, 3, 0),
-    number('distance', 'Camera Distance', 'design', 2.9, 1.6, 6, 10),
+    number('distance', 'Camera Distance', 'design', 3.18, 1.6, 6, 10),
     number('heading', 'Camera Heading', 'design', 0, -60, 60, 11),
     number('elevation', 'Camera Elevation', 'design', 0, -30, 30, 12),
     number('contrast', 'Contrast', 'effects', 1, .5, 1.5, 20),
@@ -89,9 +90,12 @@ const CINEMA2_OPEN_DECKS_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetM
   ], roots: [cinema2Ref(root)] },
   layers: [{ id: layer, label: 'Open Decks', source: cinema2Ref(root), role: 'world', depthPolicy: 'read-write', order: 0 }],
   cameras: [{
-    id: camera, label: 'Scene Review', projection: 'perspective', fovDegrees: 40, minAspect: 16 / 9,
-    near: .05, far: 100, target: [0, 0, 0],
-    rig: { kind: 'orbit', radius: 2.9, azimuthDegrees: 0, elevationDegrees: 0, angularVelocityDegreesPerSecond: 0 },
+    // Composed for a Stage a little wider than square (the Stage this preview is judged in): the model fills most of the width, and the camera looks above
+    // its centre so the model's bottom edge sits just below the bottom of the frame. Wider Stages keep that bottom edge (the vertical view holds); minAspectAnchor 1
+    // pins it on narrower ones (the extra view goes above the device).
+    id: camera, label: 'Scene Review', projection: 'perspective', fovDegrees: 40, minAspect: 1.15, minAspectAnchor: 1,
+    near: .05, far: 100, target: [0, .335, 0],
+    rig: { kind: 'orbit', radius: 3.18, azimuthDegrees: 0, elevationDegrees: 0, angularVelocityDegreesPerSecond: 0 },
     controls: { orbitRadius: ref('distance'), orbitAzimuthDegrees: ref('heading'), orbitElevationDegrees: ref('elevation') },
   }],
   environment: { backgroundColor: [.016, .02, .028, 1] },
@@ -120,28 +124,44 @@ const CINEMA2_OPEN_DECKS_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetM
 }
 
 /**
- * Auto Performance (off by default). The scene is a static preview with no reactions of its own, so with it on the music directs only
- * the camera and exposure: a slow push-in as a build charges, an exposure lift on the last downbeats before a drop, a push-in and exposure flash on
- * each drop, and a gentle push on every fourth bar. Reference: Threshold's and Reliquary's camera push-in and drop-flash rules. The scene, its
- * materials and your framing, exposure and colour controls are never changed.
+ * Auto Performance (off by default). The scene is a static preview with no reactions of its own, so with it on the music directs only the camera's
+ * slight sway left and right (below) and the exposure: a lift on the last downbeats before a drop and a flash on each drop. The camera never zooms.
+ * The scene, its materials and your framing, exposure and colour controls are never changed.
  */
-export const CINEMA2_OPEN_DECKS_PRESET_MANIFEST = withCinema2AutoPerformance(CINEMA2_OPEN_DECKS_AUTHORED_PRESET_MANIFEST, {
+const CINEMA2_OPEN_DECKS_AUTO_MANIFEST = withCinema2AutoPerformance(CINEMA2_OPEN_DECKS_AUTHORED_PRESET_MANIFEST, {
   prefix: 'open-decks',
   group: 'Master',
   order: 1,
-  description: 'Lets the music direct the camera and exposure: a slow push-in as a build charges, an exposure lift on the last downbeats before a drop, a push-in and exposure flash on each drop, and a gentle push on every fourth bar. The scene and your framing, exposure and colour controls are never changed.',
+  description: 'Lets the music direct the camera and exposure: the camera sways slightly left and right with the music (it never zooms), the exposure lifts on the last downbeats before a drop, and flashes on each drop.',
   capabilities: [
-    { id: 'music.downbeat', purpose: 'Downbeats before a drop and on every fourth bar drive the exposure lift and camera push when Auto Performance is on.' },
-    { id: 'music.drop', purpose: 'Each drop pushes the camera in and flashes the exposure when Auto Performance is on.' },
-    { id: 'visual-director.significance', purpose: 'The Director build signal drives the slow push-in when Auto Performance is on.' },
+    { id: 'music.downbeat', purpose: 'Downbeats before a drop drive the exposure lift, and the bars of a phrase drive the camera sway, when Auto Performance is on.' },
+    { id: 'music.drop', purpose: 'Each drop flashes the exposure when Auto Performance is on.' },
   ],
   gestures: {
-    build: [{ id: 'push-in', target: cinema2AutoTargets.camera('open-decks-camera', 'fovDegrees'), operation: 'add', value: -4 }],
+    // The camera never zooms: no push-in, no change of distance or lens. The only camera movement is the slight sway below.
     peak: [{ id: 'exposure', target: cinema2AutoTargets.effect('open-decks-finish', 'exposure'), operation: 'envelope', value: 0.12, hold: 0.1, release: 0.8 }],
-    drop: [
-      { id: 'push-in', target: cinema2AutoTargets.camera('open-decks-camera', 'fovDegrees'), operation: 'envelope', value: -5, hold: 0.25, release: 1.5 },
-      { id: 'exposure', target: cinema2AutoTargets.effect('open-decks-finish', 'exposure'), operation: 'envelope', value: 0.35, hold: 0.1, release: 2 },
-    ],
-    lift: [{ id: 'push-in', target: cinema2AutoTargets.camera('open-decks-camera', 'fovDegrees'), operation: 'envelope', value: -3, hold: 0.5, release: 4 }],
+    drop: [{ id: 'exposure', target: cinema2AutoTargets.effect('open-decks-finish', 'exposure'), operation: 'envelope', value: 0.35, hold: 0.1, release: 2 }],
   },
+})
+
+/**
+ * The sway: with Auto Performance on the camera moves slightly left, then right, in time with the music. Every fourth bar starts a swing of four
+ * degrees of heading (one bar out, one bar back), to the left on bars 1 and 5 of the phrase and to the right on bars 3 and 7. The camera orbits its
+ * target, so the distance, the lens and the framing of the bottom edge are untouched.
+ */
+const swayTarget = cinema2AutoTargets.camera('open-decks-camera', 'control.orbitAzimuthDegrees')
+const swayRule = (name: string, phase: number, degrees: number) => Object.freeze({
+  id: cinema2StableId<Cinema2ChoreographyRuleId>(`open-decks-auto-sway-${name}`),
+  priority: 62,
+  enabledParameter: cinema2Ref(parameter('auto-performance')),
+  source: Object.freeze({ signal: 'downbeat' as const, capability: 'music.downbeat' as const }),
+  conditions: Object.freeze([{ kind: 'once-per-event' as const }, { kind: 'not-silent' as const }, { kind: 'beat-interval' as const, every: 2, phase, unit: 'bar' as const }]),
+  actions: Object.freeze([Object.freeze({
+    id: cinema2StableId<Cinema2ChoreographyActionId>(`open-decks-auto-sway-${name}-heading`), target: swayTarget, operation: 'envelope' as const, value: degrees,
+    composition: 'add' as const, envelope: Object.freeze({ attack: 4, hold: 0, release: 4, unit: 'beats' as const }),
+  })]),
+})
+export const CINEMA2_OPEN_DECKS_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
+  ...CINEMA2_OPEN_DECKS_AUTO_MANIFEST,
+  choreography: Object.freeze({ ...(CINEMA2_OPEN_DECKS_AUTO_MANIFEST.choreography ?? {}), rules: Object.freeze([...(CINEMA2_OPEN_DECKS_AUTO_MANIFEST.choreography?.rules ?? []), swayRule('left', 0, -4), swayRule('right', 1, 4)]) }),
 })

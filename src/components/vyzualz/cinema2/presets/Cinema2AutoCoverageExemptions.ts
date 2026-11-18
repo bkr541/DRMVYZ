@@ -10,6 +10,8 @@ const BLOCK_GEOMETRY = 'The module rebuilds the block layout whenever this chang
 
 const MAPPED_BY_RULE = 'The preset maps this saved value to its targets through a choreography rule, so it has no property of its own to add to; it needs a binding first.'
 
+const NEVER_ZOOMS = 'Open Decks never zooms or turns: its only camera movement is the slight left and right sway authored in the preset.'
+
 export const CINEMA2_AUTO_COVERAGE_EXEMPT: Readonly<Record<string, Readonly<Record<string, string>>>> = Object.freeze({
   blockshift: Object.freeze({
     'blockshift-block-size': BLOCK_GEOMETRY, 'blockshift-spread': BLOCK_GEOMETRY, 'blockshift-depth': BLOCK_GEOMETRY, 'blockshift-rotation-range': BLOCK_GEOMETRY,
@@ -20,6 +22,7 @@ export const CINEMA2_AUTO_COVERAGE_EXEMPT: Readonly<Record<string, Readonly<Reco
   'neon-forest': Object.freeze({ 'neon-forest-light-strength': MAPPED_BY_RULE, 'neon-forest-fog-density': MAPPED_BY_RULE }),
   psylo: Object.freeze({ 'psylo-light-strength': MAPPED_BY_RULE, 'psylo-fog-density': MAPPED_BY_RULE }),
   'atl-hoe': Object.freeze({ 'atl-hoe-city-atmosphere': MAPPED_BY_RULE }),
+  'open-decks': Object.freeze({ 'open-decks-distance': NEVER_ZOOMS, 'open-decks-heading': NEVER_ZOOMS, 'open-decks-elevation': NEVER_ZOOMS }),
   canopy: Object.freeze({
     'canopy-row-spacing': REBUILDS_STRUCTURE, 'canopy-column-spacing': REBUILDS_STRUCTURE, 'canopy-rod-length': REBUILDS_STRUCTURE, 'canopy-length-variation': REBUILDS_STRUCTURE,
   }),

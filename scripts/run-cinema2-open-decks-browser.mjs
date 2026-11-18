@@ -22,7 +22,7 @@ try {
   assert(ready, 'Vite preview did not start')
   browser = await chromium.launch({ headless: true, args: ['--enable-unsafe-swiftshader'] })
   const reports = []
-  for (const [quality, width, height] of [['high', 1280, 720], ['low', 1280, 720], ['high', 800, 720]]) {
+  for (const [quality, width, height] of [['high', 1280, 720], ['low', 1280, 720], ['high', 800, 720], ['high', 1000, 880]]) {
     const page = await browser.newPage({ viewport: { width, height } })
     const errors = []
     page.on('pageerror', error => errors.push(error.message))
