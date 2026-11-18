@@ -296,6 +296,30 @@ describe('Media Manager canonical workflows', () => {
     })
   })
 
+  it('saves tags in their canonical form, without repeats that differ only by case or spacing', async () => {
+    const item = mediaItem()
+    useMediaStore.setState({ items: [item] })
+    await useMediaStore.getState().saveMediaEdits(item.id, {
+      role: 'overlay', title: 'T', description: '', tags: ['Open Decks', 'open-decks', 'Bass!', '!!!'], collectionIds: [], metadata: {},
+    })
+    expect(mediaDbMocks.saveMediaItemAtomic).toHaveBeenCalledWith(expect.objectContaining({ tagNames: ['open-decks', 'bass'] }))
+  })
+
+  it('reuses a collection whose name matches ignoring case and spacing instead of creating a near-duplicate', async () => {
+    useMediaStore.setState({ collections: [{ id: 'collection-1', name: 'Open Decks' }] })
+    const id = await useMediaStore.getState().createCollection('  open   DECKS ')
+    expect(id).toBe('collection-1')
+    expect(mediaDbMocks.createMediaCollection).not.toHaveBeenCalled()
+  })
+
+  it('refuses to rename a collection to another collection\u2019s name, ignoring case', async () => {
+    useMediaStore.setState({ collections: [{ id: 'collection-1', name: 'Open Decks' }, { id: 'collection-2', name: 'Logos' }] })
+    const renamed = await useMediaStore.getState().updateCollection('collection-2', 'OPEN decks')
+    expect(renamed).toBe(false)
+    expect(mediaDbMocks.updateMediaCollection).not.toHaveBeenCalled()
+    expect(useMediaStore.getState().loadError).toContain('already exists')
+  })
+
   it('surfaces a stale revision conflict and preserves the attempted edit', async () => {
     const item = mediaItem()
     useMediaStore.setState({ items: [item] })

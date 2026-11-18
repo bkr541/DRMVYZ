@@ -6,14 +6,14 @@ import { LaserDmxRendererDiagnosticsPanel } from './LaserDmxRendererDiagnosticsP
 import { LaserDmxRuntimeCueInspectorPanel } from './LaserDmxRuntimeCueInspectorPanel'
 import { SharedPerformanceDiagnosticsPanel } from './SharedPerformanceDiagnosticsPanel'
 import { SliderRow } from './ReactControlRows'
-import { XyScopeWireIntelligencePanel } from './xyScope/XyScopeWireIntelligencePanel'
+import { XyScopeInstrumentIntelligencePanel } from './xyScope/XyScopeInstrumentIntelligencePanel'
 
 export function ReactAudioPanel() {
   const audio = useSharedAudio()
   const isLaserDmx = useReactStore(state => state.activeReactEngineId === 'laserDmx')
   const isCanvas = useReactStore(state => state.activeReactEngineId === 'canvas')
   const isSoundDrawing = useReactStore(state => state.activeReactEngineId === 'oscilloscope')
-  const isWireframe = useReactStore(state => state.activeReactEngineId === 'oscilloscope' && state.xyScopeSettings.sourceMode === 'wire')
+  const isXyScope = useReactStore(state => state.activeReactEngineId === 'xyScope')
   const liveInputActive = audio.source === 'microphone' && audio.liveInputActive
   return (
     <div className="rv-audio-analysis-panel">
@@ -46,7 +46,7 @@ export function ReactAudioPanel() {
       )}
       <MusicIntelligenceDiagnosticsPanel liveInputActive={liveInputActive} />
       {isCanvas && <SharedPerformanceDiagnosticsPanel engine="canvas" variant="audioIntelligence" />}
-      {isWireframe && <XyScopeWireIntelligencePanel />}
+      {isXyScope && <XyScopeInstrumentIntelligencePanel />}
       {isSoundDrawing && <SharedPerformanceDiagnosticsPanel engine="soundDrawing" />}
       {isLaserDmx && <SharedPerformanceDiagnosticsPanel engine="laserDmx" label="Shared Core Diagnostics" variant="audioIntelligence" twoColumn />}
       {isLaserDmx && <LaserDmxRuntimeCueInspectorPanel />}

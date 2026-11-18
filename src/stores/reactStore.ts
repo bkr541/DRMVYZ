@@ -433,6 +433,7 @@ import {
 import { useMediaStore } from './mediaStore'
 import { notify } from './notificationStore'
 import { createSignedMediaUrl } from '../lib/mediaDb'
+import { normalizeTags } from '../lib/mediaOrganization'
 import * as opentype from 'opentype.js'
 import {
   parseOpenTypeFontFromAsset,
@@ -10537,7 +10538,7 @@ export const useReactStore = create<ReactStoreState>()(
         if (!nextName || !useReactStore.getState().oscillatorFontAssets.some(asset => asset.id === id)) return false
         const nextPatch = {
           name: nextName,
-          tags: Array.from(new Set(patch.tags.map(tag => tag.trim()).filter(Boolean))),
+          tags: normalizeTags(patch.tags),
           collectionIds: Array.from(new Set(patch.collectionIds)),
         }
         const { error } = await updateFontAssetMetadata(id, nextPatch)
@@ -10744,7 +10745,7 @@ export const useReactStore = create<ReactStoreState>()(
           inspectedId = inspected.id
           // The caller may rename the font and file it under tags/collections; otherwise the name comes from the font itself.
           const displayName = details?.name?.trim().replace(/\s+/g, ' ').slice(0, 160) || inspected.name
-          const tags = Array.from(new Set((details?.tags ?? []).map(tag => tag.trim()).filter(Boolean)))
+          const tags = normalizeTags(details?.tags ?? [])
           const collectionIds = Array.from(new Set(details?.collectionIds ?? []))
 
           // 3. Build a safe storage path: userId/UUID/<normalized>.  file.name is

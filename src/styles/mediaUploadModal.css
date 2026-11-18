@@ -792,3 +792,7 @@
   font-weight: 700;
   color: rgba(245, 248, 250, 0.85);
 }
+
+/* Tags are stored as lowercase keys and shown in capitals everywhere, including while they are typed. */
+.mum-chip-input.dv-text-input, .mmi-chip-input.dv-text-input { text-transform: uppercase; }
+.mum-chip-input.dv-text-input::placeholder, .mmi-chip-input.dv-text-input::placeholder { text-transform: none; }

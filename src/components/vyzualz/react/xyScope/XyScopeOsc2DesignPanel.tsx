@@ -25,7 +25,6 @@ function formatControl(spec: Osc2ControlSpec): (value: number) => string {
   }
 }
 
-const SOURCE_LABELS = { stereo: 'LIVE STEREO', mono: 'LIVE MONO', shared: 'SHARED ANALYSIS', none: 'NO SIGNAL' } as const
 
 /**
  * OSC 2 inspector, under the four standard parent groups. With Auto Performance on every control shows the value
@@ -46,12 +45,6 @@ export function XyScopeOsc2DesignPanel() {
       resetValue={OSC2_DEFAULTS[spec.id]} formatValue={formatControl(spec)} description={spec.description}
       disabled={auto && spec.id !== 'layers'} onChange={value => setValue(spec.id, value)} />
   )
-  const kv = (label: string, value: string) => (
-    <div className="vz-mi-kv-row" key={label}>
-      <span className="vz-mi-kv-label">{label}</span>
-      <span className="vz-mi-kv-val vz-mi-kv-val--tag">{value}</span>
-    </div>
-  )
 
   return (
     <div className="rv-workspace-panel rv-xyscope-workspace-panel" data-xyscope-design="true" data-osc2-design="true">
@@ -63,11 +56,6 @@ export function XyScopeOsc2DesignPanel() {
                 description="On: the camera sweep and the terrain scroll run in the track's own beats, so they stay in step with the bar and stop when the music stops. Off: they run at a steady tempo." />
               <ToggleRow id="xyscope-osc2-auto" label="Auto Performance" value={auto} onChange={autoPerformance => patch({ autoPerformance })}
                 description="Audio intelligence conducts the camera, depth, terrain and beam together: builds pull the camera up and back, drops push it in and open the solid. Switching off restores your values." />
-              {auto && <>
-                {kv('State', live?.state ?? 'LISTENING')}
-                {kv('Evidence', `${live?.mapped ? 'TRACK + LIVE' : 'LIVE'} · ${Math.round((live?.confidence ?? 0) * 100)}%`)}
-                {kv('Signal', SOURCE_LABELS[live?.source ?? 'none'])}
-              </>}
               <ToggleRow id="xyscope-osc2-floor" label="Floor Grid" value={o.floor} onChange={floor => patch({ floor })} description="Shows the perspective floor the scene stands on." />
               <ToggleRow id="xyscope-osc2-hold" label="Hold Trace" value={o.hold} onChange={hold => patch({ hold })} description="Freezes the displayed trace while audio and analysis continue." />
             </div>

@@ -22,6 +22,7 @@ import {
 } from '../lib/mediaDb'
 import type { MediaMetadata, MediaDerivativePath, MediaCleanupJobRow, MediaUploadPhase } from '../types/database'
 import type { CanonicalMediaItem, MediaLibraryCursor, MediaLibraryQuery } from '../lib/mediaDb'
+import { findCollectionByName, normalizeCollectionName, normalizeTag, normalizeTags, sameCollectionName } from '../lib/mediaOrganization'
 import { suggestMediaRole, isAudioFile, isSvgFile, roleImpliesAlpha } from '../lib/mediaRoles'
 import type { MediaRole, MediaEnergy } from '../lib/mediaRoles'
 import { useAudioStore } from './audioStore'
@@ -2550,13 +2551,13 @@ export const useMediaStore = create<MediaState>((set, get) => ({
   async setMediaTags(mediaId, tags) {
     const item = get().items.find(candidate => candidate.id === mediaId)
     if (!item) return false
-    const normalized = Array.from(new Set(tags.map(tag => tag.trim()).filter(Boolean)))
+    const normalized = normalizeTags(tags)
     return get().persistMediaMutation(mediaId, 'tags', mediaAttemptFromItem(item, { tags: normalized }))
   },
 
   async addMediaTag(mediaId, tag) {
     const item = get().items.find(candidate => candidate.id === mediaId)
-    const cleanTag = tag.trim()
+    const cleanTag = normalizeTag(tag)
     if (!item || !cleanTag || item.tags.includes(cleanTag)) return false
     return get().setMediaTags(mediaId, [...item.tags, cleanTag])
   },
@@ -2571,7 +2572,7 @@ export const useMediaStore = create<MediaState>((set, get) => ({
     await mapWithConcurrency(mediaIds, MEDIA_BATCH_CONCURRENCY, async id => {
       const item = get().items.find(candidate => candidate.id === id)
       if (!item) return
-      const merged = Array.from(new Set([...item.tags, ...tags.map(tag => tag.trim()).filter(Boolean)]))
+      const merged = normalizeTags([...item.tags, ...tags])
       await get().setMediaTags(id, merged)
     })
   },
@@ -2583,7 +2584,7 @@ export const useMediaStore = create<MediaState>((set, get) => ({
       role: patch.role,
       title: patch.title,
       description: patch.description,
-      tags: [...patch.tags],
+      tags: normalizeTags(patch.tags),
       collectionIds: [...patch.collectionIds],
       metadata: mergeMediaMetadata(item.metadata, patch.metadata),
     }))
@@ -2618,11 +2619,14 @@ export const useMediaStore = create<MediaState>((set, get) => ({
   },
 
   async createCollection(name, description) {
-    const cleanName = name.trim()
+    const cleanName = normalizeCollectionName(name)
     if (!cleanName) {
       set({ loadError: 'Collection name is required.' })
       return null
     }
+    // A collection with this name already exists, ignoring case: use it instead of making a near-duplicate.
+    const existing = findCollectionByName(get().collections, cleanName)
+    if (existing) return existing.id
     if (!supabaseConfigured) {
       set({ loadError: 'Supabase is not configured. Collections cannot be synced.' })
       return null
@@ -2647,9 +2651,13 @@ export const useMediaStore = create<MediaState>((set, get) => ({
   },
 
   async updateCollection(id, name, description) {
-    const cleanName = name.trim()
+    const cleanName = normalizeCollectionName(name)
     if (!cleanName) {
       set({ loadError: 'Collection name is required.' })
+      return false
+    }
+    if (get().collections.some(collection => collection.id !== id && sameCollectionName(collection.name, cleanName))) {
+      set({ loadError: `A collection named "${cleanName}" already exists.` })
       return false
     }
     if (!supabaseConfigured) {

@@ -216,6 +216,34 @@ describe('Media Manager inspector header actions', () => {
   })
 })
 
+describe('Media Manager inspector: tags and collections are normalised', () => {
+  const typeTag = (input: HTMLInputElement, value: string) => act(() => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input, value)
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+  })
+  it('stores a tag as its lowercase hyphenated key, and never adds the same tag twice in another case or spacing', async () => {
+    const published: Array<MediaHeaderActions | null> = []
+    await renderInspector({ media: null, track: null, font, onHeaderActions: actions => { published.push(actions) } })
+    const tagInput = container!.querySelector<HTMLInputElement>('#mmi-tags')!
+    typeTag(tagInput, 'Open Decks')
+    typeTag(tagInput, 'OPEN-DECKS')
+    typeTag(tagInput, 'open   decks!')
+    typeTag(tagInput, '!!!')
+    await act(async () => { published[published.length - 1]?.onSave(); await Promise.resolve() })
+    expect(mocks.updateOscillatorFontAssetMetadata).toHaveBeenCalledWith('font-1', expect.objectContaining({ tags: ['headline', 'open-decks'] }))
+  })
+  it('shows a space as the hyphen it will be stored as while the tag is typed', async () => {
+    await renderInspector({ media: null, track: null, font })
+    const tagInput = container!.querySelector<HTMLInputElement>('#mmi-tags')!
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(tagInput, 'open decks')
+      tagInput.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    expect(tagInput.value).toBe('open-decks')
+  })
+})
+
 describe('Media Manager inspector: no success card when a save fails', () => {
   it('keeps the inline error and posts nothing for media, tracks and fonts', async () => {
     mocks.saveMediaEdits.mockResolvedValue(false)

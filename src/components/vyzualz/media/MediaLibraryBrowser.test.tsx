@@ -190,6 +190,10 @@ function findButton(text: string): HTMLButtonElement | null {
 function findButtonByTitle(title: string): HTMLButtonElement | null {
   return container?.querySelector<HTMLButtonElement>(`[title="${title}"]`) ?? null
 }
+/** The grid/list toggle inside one library group (Images, Videos). */
+function groupToggle(group: string, title: string): HTMLButtonElement | null {
+  return container?.querySelector<HTMLButtonElement>(`[aria-label="${group}"] [title="${title}"]`) ?? null
+}
 
 beforeEach(() => {
   resetMocks()
@@ -1042,9 +1046,34 @@ describe('MediaLibraryBrowser visual-media skeleton loader', () => {
     mocks.mediaState.items = []
     mocks.mediaState.loading = true
     await renderBrowser({ context: 'manager', capabilities: MEDIA_MANAGER_CAPABILITIES, activeMediaId: null, onSelect: vi.fn() })
-    await act(async () => findButtonByTitle('List view')!.click())
+    await act(async () => groupToggle('Images', 'List view')!.click())
+    await act(async () => groupToggle('Videos', 'List view')!.click())
     expect(container?.querySelectorAll('.vz-media-skeleton-row')).toHaveLength(16)
     expect(container?.querySelectorAll('.vz-media-card--skeleton')).toHaveLength(0)
+  })
+  it('keeps the grid/list choice of each group separate', async () => {
+    mocks.mediaState.items = []
+    mocks.mediaState.loading = true
+    await renderBrowser({ context: 'manager', capabilities: MEDIA_MANAGER_CAPABILITIES, activeMediaId: null, onSelect: vi.fn() })
+    await act(async () => groupToggle('Images', 'List view')!.click())
+    expect(container?.querySelectorAll('[aria-label="Images"] .vz-media-skeleton-row')).toHaveLength(8)
+    expect(container?.querySelectorAll('[aria-label="Images"] .vz-media-card--skeleton')).toHaveLength(0)
+    expect(container?.querySelectorAll('[aria-label="Videos"] .vz-media-skeleton-row')).toHaveLength(0)
+    expect(container?.querySelectorAll('[aria-label="Videos"] .vz-media-card--skeleton')).toHaveLength(8)
+    expect(groupToggle('Videos', 'List view')).not.toBeNull()
+    expect(groupToggle('Images', 'Grid view')).not.toBeNull()
+  })
+  it('does not let the 3D models toggle change images or videos', async () => {
+    mocks.mediaState.items = []
+    mocks.mediaState.loading = true
+    await renderBrowser({ context: 'manager', capabilities: MEDIA_MANAGER_CAPABILITIES, activeMediaId: null, onSelect: vi.fn(), onSelectModel: vi.fn() })
+    const models = container!.querySelector('.mm-library-group-search [title="List view"]') as HTMLButtonElement
+    expect(models).not.toBeNull()
+    await act(async () => models.click())
+    expect(container?.querySelector('[aria-label="Images"] .vz-media-skeleton-row')).toBeNull()
+    expect(container?.querySelectorAll('[aria-label="Images"] .vz-media-card--skeleton')).toHaveLength(8)
+    expect(groupToggle('Images', 'List view')).not.toBeNull()
+    expect(groupToggle('Videos', 'List view')).not.toBeNull()
   })
   it('shows skeletons during an empty refresh while retaining populated media during refresh', async () => {
     mocks.mediaState.items = []

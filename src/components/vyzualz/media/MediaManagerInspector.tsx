@@ -9,6 +9,7 @@ import { Badge } from '../react/controls/Badge'
 import { DrawerNotice } from '../shared/DrawerNotice'
 import { Dropdown } from '../../shared/Dropdown/Dropdown'
 import { useMediaStore } from '../../../stores/mediaStore'
+import { findCollectionByName, formatTagTyping, normalizeCollectionName, normalizeTag } from '../../../lib/mediaOrganization'
 import { RailWindowHeader } from '../layout/RailWindowHeader'
 import { RailTabs, type RailTabOption } from '../layout/RailTabs'
 import type { UploadedMedia } from '../../../stores/mediaStore'
@@ -60,16 +61,18 @@ export function TagsCollectionsGroup({
   const [collInput, setCollInput] = useState('')
 
   const addTag = (value: string) => {
-    const trimmed = value.trim()
-    if (trimmed && !tags.includes(trimmed)) onTagsChange([...tags, trimmed])
+    const tag = normalizeTag(value)
+    if (tag && !tags.includes(tag)) onTagsChange([...tags, tag])
     setTagInput('')
   }
   const filteredCollections = collections.filter(collection =>
     collection.name.toLowerCase().includes(collInput.toLowerCase()) && !collectionIds.includes(collection.id))
+  // "Create" is offered unless a collection with that exact name (ignoring case) already exists, selected or not.
   const collectionDropdownOptions = collInput.trim()
-    ? filteredCollections.length > 0
-      ? filteredCollections.map(collection => ({ value: collection.id, label: collection.name }))
-      : [{ value: '__create__', label: `+ Create "${collInput.trim()}"` }]
+    ? [
+        ...filteredCollections.map(collection => ({ value: collection.id, label: collection.name })),
+        ...(findCollectionByName(collections, collInput) ? [] : [{ value: '__create__', label: `+ Create "${normalizeCollectionName(collInput)}"` }]),
+      ]
     : []
   const addCollection = (id: string) => {
     onCollectionIdsChange([...collectionIds, id])
@@ -77,7 +80,7 @@ export function TagsCollectionsGroup({
   }
   const handleCollectionChange = async (value: string) => {
     if (value !== '__create__') { addCollection(value); return }
-    const newId = await createCollection(collInput.trim())
+    const newId = await createCollection(normalizeCollectionName(collInput))
     if (newId) addCollection(newId)
   }
 
@@ -92,7 +95,7 @@ export function TagsCollectionsGroup({
           className="mmi-chip-input"
           placeholder="Type to add tags…"
           value={tagInput}
-          onChange={event => setTagInput(event.target.value)}
+          onChange={event => setTagInput(formatTagTyping(event.target.value))}
           onKeyDown={event => {
             if (event.key === 'Enter' || event.key === ',') { event.preventDefault(); addTag(tagInput) }
           }}

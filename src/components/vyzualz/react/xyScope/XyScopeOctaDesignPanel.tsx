@@ -2,7 +2,6 @@ import { AppIcon } from '../../../shared/icons/AppIcon'
 import { useReactStore } from '../../../../stores/reactStore'
 import { Collapsible, PaletteColorRow, SliderRow, ToggleRow } from '../ReactControlRows'
 import { IconChipButton } from '../controls/IconChipButton'
-import { useOctaLive } from './XyScopeOctaLive'
 import {
   DEFAULT_OCTA_SETTINGS, OCTA_BEAM_CONTROLS, OCTA_DEFAULTS, OCTA_MASTER_CONTROLS, OCTA_REACT_CONTROLS, OCTA_SHAPE_CONTROLS, type OctaControlSpec, type OctaValues,
 } from './XyScopeOctaSettings'
@@ -18,13 +17,11 @@ function formatControl(spec: OctaControlSpec): (value: number) => string {
   }
 }
 
-const SOURCE_LABELS = { stereo: 'LIVE STEREO', mono: 'LIVE MONO', shared: 'SHARED ANALYSIS', none: 'NO SIGNAL' } as const
 
 /** OCTA inspector, under the four standard parent groups: Master Controls, Design, React and Palette. */
 export function XyScopeOctaDesignPanel() {
   const settings = useReactStore(state => state.xyScopeSettings)
   const setSettings = useReactStore(state => state.setXyScopeSettings)
-  const live = useOctaLive()
   const o = settings.octa
   const patch = (next: Partial<typeof o>) => setSettings({ octa: { ...o, ...next } })
   const setValue = (id: keyof OctaValues, value: number | string | boolean) => patch({ values: { ...o.values, [id]: value } })
@@ -32,12 +29,6 @@ export function XyScopeOctaDesignPanel() {
   const slider = (spec: OctaControlSpec) => (
     <SliderRow key={spec.id} id={`xyscope-octa-${spec.id}`} label={spec.label} value={o.values[spec.id]} min={spec.min} max={spec.max} step={spec.step}
       resetValue={OCTA_DEFAULTS[spec.id]} formatValue={formatControl(spec)} description={spec.description} onChange={value => setValue(spec.id, value)} />
-  )
-  const kv = (label: string, value: string) => (
-    <div className="vz-mi-kv-row" key={label}>
-      <span className="vz-mi-kv-label">{label}</span>
-      <span className="vz-mi-kv-val vz-mi-kv-val--tag">{value}</span>
-    </div>
   )
 
   return (
@@ -51,13 +42,6 @@ export function XyScopeOctaDesignPanel() {
                 description="On: the cluster's turn and tumble run in the track's own beats (and Energy Response follows its tempo), so it stays in step with the bar. Off: it moves at a steady tempo." />
               <ToggleRow id="xyscope-octa-auto" label="Auto Performance" value={o.autoPerformance} onChange={autoPerformance => patch({ autoPerformance })}
                 description="Audio intelligence adds to the energy on builds and drops, so the figure is pushed further through its distortions at the moments that call for it." />
-              {kv('Distortion', live?.state ?? 'CLEAN')}
-              {kv('Energy', `${Math.round((live?.energy ?? 0) * 100)}%`)}
-              {o.autoPerformance && <>
-                {kv('Conductor', live?.conductor ?? 'LISTENING')}
-                {kv('Evidence', `${live?.mapped ? 'TRACK + LIVE' : 'LIVE'} · ${Math.round((live?.confidence ?? 0) * 100)}%`)}
-              </>}
-              {kv('Signal', SOURCE_LABELS[live?.source ?? 'none'])}
               <ToggleRow id="xyscope-octa-hold" label="Hold Trace" value={o.hold} onChange={hold => patch({ hold })} description="Freezes the displayed trace while audio and analysis continue." />
             </div>
           </Collapsible>

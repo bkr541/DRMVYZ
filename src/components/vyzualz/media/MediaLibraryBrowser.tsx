@@ -43,6 +43,8 @@ import type { OscillatorFontAsset } from '../react/ReactTypes'
 
 type MediaLibraryFilter = 'all' | 'models' | 'tracks' | 'fonts' | 'collections' | 'pools' | 'images' | 'videos' | 'favorites' | 'backgrounds' | 'logos' | 'transparent' | 'overlays' | 'svg'
 type ViewMode = 'grid' | 'list'
+/** Where a grid/list choice applies: one named group, or `library` for every list that is not one of them. */
+type LibraryViewGroup = 'library' | 'models' | 'images' | 'videos'
 
 import { computeVirtualMediaWindow } from './mediaLibraryWindow'
 export { computeVirtualMediaWindow, MEDIA_SHEET_COLUMNS, MEDIA_SHEET_GAP } from './mediaLibraryWindow'
@@ -729,7 +731,10 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
   const [videoSearch, setVideoSearch] = useState('')
   const [modelSearch, setModelSearch] = useState('')
   const [debouncedModelSearch, setDebouncedModelSearch] = useState('')
-  const [viewMode, setViewMode] = useState<ViewMode>('grid')
+  // Each group (3D models, images, videos) keeps its own grid/list choice; `viewMode` is for the lists that are not one of those groups.
+  const [viewModes, setViewModes] = useState<Record<LibraryViewGroup, ViewMode>>({ library: 'grid', models: 'grid', images: 'grid', videos: 'grid' })
+  const viewMode = viewModes.library
+  const setViewMode = (mode: ViewMode, group: LibraryViewGroup = 'library') => setViewModes(current => current[group] === mode ? current : { ...current, [group]: mode })
   const [dragOver, setDragOver]       = useState(false)
   const [previewItem, setPreviewItem] = useState<UploadedMedia | null>(null)
   const [preserveQueuedFiles, setPreserveQueuedFiles] = useState(false)
@@ -1161,14 +1166,14 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
     if (deleted) notifyPage({ tone: 'success', title: 'Collection deleted', message: `"${name}" was deleted. Its media remains in your library.` })
   }, [notifyPage, removeCollection])
 
-  const renderMediaCard = useCallback((media: UploadedMedia) => {
+  const renderMediaCard = useCallback((media: UploadedMedia, mode: ViewMode) => {
     const disabledReason = getDisabledReason?.(media) ?? null
     return (
       <MediaCard
         key={media.id}
         m={media}
         isActive={activeMediaId === media.id}
-        viewMode={viewMode}
+        viewMode={mode}
         onSelect={anchor => { bulkSelectAnchorRef.current = media.id; lastShiftRangeIdsRef.current = new Set(); handleMediaCardAction(media, anchor) }}
         onContextMenu={
           onCardActionRequest
@@ -1197,7 +1202,9 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
         onShiftSelect={() => handleShiftSelect(media.id)}
       />
     )
-  }, [activeMediaId, canDragMedia, canFavorite, canMultiSelect, canPreview, canRemove, canSelect, context, getDisabledReason, handleCardContextMenu, handleMediaCardAction, handlePreviewMedia, handleShiftSelect, isManager, markMediaAssetLoaded, mutationStates, onCardActionRequest, retryMediaAsset, retryUpload, selectedForBulk, toggleBulkSelect, toggleFavorite, viewMode])
+  }, [activeMediaId, canDragMedia, canFavorite, canMultiSelect, canPreview, canRemove, canSelect, context, getDisabledReason, handleCardContextMenu, handleMediaCardAction, handlePreviewMedia, handleShiftSelect, isManager, markMediaAssetLoaded, mutationStates, onCardActionRequest, retryMediaAsset, retryUpload, selectedForBulk, toggleBulkSelect, toggleFavorite])
+  // Stable per-mode card renderers, so the virtualised lists are not handed a new function on every render.
+  const cardRenderers = useMemo<Record<ViewMode, (media: UploadedMedia) => ReactNode>>(() => ({ grid: media => renderMediaCard(media, 'grid'), list: media => renderMediaCard(media, 'list') }), [renderMediaCard])
 
   const handleEnsureSigned = useCallback((visibleIds: string[], nearIds: string[]) => {
     void ensureMediaSigned?.(visibleIds, 'visible')
@@ -1209,7 +1216,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
     void loadNextPage?.()
   }, [loadNextPage])
 
-  const renderGrid = (mediaList: UploadedMedia[], ownsSelectionOrder = true) => {
+  const renderGrid = (mediaList: UploadedMedia[], ownsSelectionOrder = true, mode: ViewMode = viewMode) => {
     // Written directly during render (not a dependency-tracked effect) so
     // shift-click range-select always resolves against whichever list is
     // actually on screen right now -- the flat filtered grid or one expanded
@@ -1219,11 +1226,11 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
     return (
       <VirtualizedMediaCards
         items={mediaList}
-        viewMode={viewMode}
+        viewMode={mode}
         manager={isManager}
         compact={isCanvasMode}
         scrollRef={scrollRef}
-        renderCard={renderMediaCard}
+        renderCard={cardRenderers[mode]}
         ensureSigned={handleEnsureSigned}
         onNearEnd={handleNearEnd}
         hasMore={hasMore ?? false}
@@ -1232,31 +1239,31 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
     )
   }
 
-  const renderGroupSearch = (query: string, onChange: (value: string) => void, label: string) => (
+  const renderGroupSearch = (query: string, onChange: (value: string) => void, label: string, group: LibraryViewGroup) => (
     <div className="vz-md-search-row mm-library-group-search">
       <div className="vz-md-search-wrap">
         <AppIcon kind="search" className="vz-md-search-icon" size={12} />
         <DreamVizTextInput className="vz-md-search-input" type="text" aria-label={label} placeholder={`${label}…`} value={query} onChange={event => onChange(event.target.value)} />
         {query && <button type="button" className="vz-md-search-clear" aria-label={`Clear ${label.toLowerCase()}`} onClick={() => onChange('')}><AppIcon kind="close" size={14} /></button>}
       </div>
-      <div className="vz-md-view-toggles"><LibraryViewToggle view={viewMode} onChange={setViewMode} /></div>
+      <div className="vz-md-view-toggles"><LibraryViewToggle view={viewModes[group]} onChange={mode => setViewMode(mode, group)} /></div>
     </div>
   )
 
   const renderVisualLibraryGroup = (content: ReactNode, enabled: boolean, mediaList = filtered) => {
     if (!enabled) return content
     const groups = [
-      { type: 'image', label: 'Images', icon: 'image', query: imageSearch, setQuery: setImageSearch },
-      { type: 'video', label: 'Videos', icon: 'play', query: videoSearch, setQuery: setVideoSearch },
+      { type: 'image', view: 'images', label: 'Images', icon: 'image', query: imageSearch, setQuery: setImageSearch },
+      { type: 'video', view: 'videos', label: 'Videos', icon: 'play', query: videoSearch, setQuery: setVideoSearch },
     ] as const
     const visibleGroups = groups.filter(group => libraryFilter !== 'images' && libraryFilter !== 'videos' || libraryFilter === `${group.type}s`)
       .map(group => ({ ...group, media: mediaList.filter(item => item.type === group.type && matchesSearch(item, group.query)) }))
     visibleOrderedIdsRef.current = visibleGroups.flatMap(group => group.media.map(item => item.id))
     return visibleGroups.map(group => <section key={group.type} className="mm-visual-library-group" aria-label={group.label}>
       <Collapsible label={group.label} icon={<AppIcon kind={group.icon} size={15} />}>
-        {renderGroupSearch(group.query, group.setQuery, `Search ${group.label.toLowerCase()}`)}
+        {renderGroupSearch(group.query, group.setQuery, `Search ${group.label.toLowerCase()}`, group.view)}
         {queryError ? <DrawerNotice tone="error" role="alert" title={`${group.label} unavailable`}>{queryError} <IconChipButton onClick={() => { void refreshLibrary?.() }}>Retry</IconChipButton></DrawerNotice> : null}
-        {(loading || refreshing) && !group.media.length ? <MediaLibrarySkeleton viewMode={viewMode} /> : group.media.length ? renderGrid(group.media, false) : <div className="vz-media-page-state">{group.query ? `No ${group.label.toLowerCase()} match "${group.query}".` : `No ${group.label.toLowerCase()} yet.`}</div>}
+        {(loading || refreshing) && !group.media.length ? <MediaLibrarySkeleton viewMode={viewModes[group.view]} /> : group.media.length ? renderGrid(group.media, false, viewModes[group.view]) : <div className="vz-media-page-state">{group.query ? `No ${group.label.toLowerCase()} match "${group.query}".` : `No ${group.label.toLowerCase()} yet.`}</div>}
         {hasMore && <IconChipButton disabled={nextPageLoading} onClick={() => { void loadNextPage?.() }}>{nextPageLoading ? 'Loading media…' : 'Load more media'}</IconChipButton>}
       </Collapsible>
     </section>)
@@ -1389,7 +1396,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
             <span className="vz-coll-breadcrumb-name">{openCollection.name}</span>
             <span className="vz-coll-folder-count">{openCollectionItems.length} {canBrowseModels ? 'images / videos' : openCollectionItems.length === 1 ? 'item' : 'items'}</span>
           </div>
-          {canBrowseModels && <ModelLibraryCards collectionId={openCollectionId} search={debouncedModelSearch} searchControl={renderGroupSearch(modelSearch, setModelSearch, 'Search 3D models')} favorites={false} viewMode={viewMode} activeId={activeModelId} onSelect={onSelectModel!} sectioned />}
+          {canBrowseModels && <ModelLibraryCards collectionId={openCollectionId} search={debouncedModelSearch} searchControl={renderGroupSearch(modelSearch, setModelSearch, 'Search 3D models', 'models')} favorites={false} viewMode={viewModes.models} activeId={activeModelId} onSelect={onSelectModel!} sectioned />}
           {renderVisualLibraryGroup((
             (loading || refreshing) && openCollectionItems.length === 0 ? <MediaLibrarySkeleton viewMode={viewMode} /> : openCollectionItems.length === 0 ? (
             <div className="vz-media-grid">
@@ -1616,14 +1623,14 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
           )}
         </div>
         {libraryFilter !== 'tracks' && libraryFilter !== 'fonts' && (
-          <div className="vz-md-view-toggles"><LibraryViewToggle view={viewMode} onChange={setViewMode} /></div>
+          <div className="vz-md-view-toggles"><LibraryViewToggle view={viewMode} onChange={mode => setViewMode(mode)} /></div>
         )}
       </div>)}
 
       <MediaStatusBar includeAudio={isManager} />
 
       <div className="vz-media-scroll" ref={scrollRef}>
-        {canBrowseModels && ['all', 'favorites', 'models'].includes(libraryFilter) && <ModelLibraryCards search={debouncedModelSearch} searchControl={renderGroupSearch(modelSearch, setModelSearch, 'Search 3D models')} favorites={libraryFilter === 'favorites'} viewMode={viewMode} activeId={activeModelId} onSelect={onSelectModel!} sectioned={libraryFilter !== 'models'} />}
+        {canBrowseModels && ['all', 'favorites', 'models'].includes(libraryFilter) && <ModelLibraryCards search={debouncedModelSearch} searchControl={renderGroupSearch(modelSearch, setModelSearch, 'Search 3D models', 'models')} favorites={libraryFilter === 'favorites'} viewMode={viewModes.models} activeId={activeModelId} onSelect={onSelectModel!} sectioned={libraryFilter !== 'models'} />}
 
         {renderVisualLibraryGroup((
           libraryFilter === 'models' ? null : libraryFilter === 'tracks' ? (

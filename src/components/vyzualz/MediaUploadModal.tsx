@@ -25,6 +25,7 @@ import {
   getMediaMetadataFields,
 } from '../../lib/mediaRoles'
 import type { MediaRole, MediaEnergy } from '../../lib/mediaRoles'
+import { findCollectionByName, formatTagTyping, normalizeCollectionName, normalizeTag } from '../../lib/mediaOrganization'
 import { useAudioStore } from '../../stores/audioStore'
 import type { SavedAudioTrack } from '../../stores/audioStore'
 import { analyzeSvgCapabilities } from './react/renderers/svgCapabilityAnalysis'
@@ -599,7 +600,7 @@ export function MediaUploadModal({
   const setCurrentCollectionIds = (ids: string[]) => { if (isFontQueue) patchActiveFont({ collectionIds: ids }); else setUploadDraftCollections(ids) }
 
   const addTag = (raw: string) => {
-    const tag = raw.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '-')
+    const tag = normalizeTag(raw)
     if (tag && !currentTags.includes(tag)) setCurrentTags([...currentTags, tag])
     setTagInput('')
   }
@@ -623,10 +624,12 @@ export function MediaUploadModal({
   const removeCollection = (id: string) =>
     setCurrentCollectionIds(currentCollectionIds.filter(x => x !== id))
 
+  // "Create" is offered unless a collection with that exact name (ignoring case) already exists, selected or not.
   const collectionDropdownOptions = collInput.trim()
-    ? filteredColls.length > 0
-      ? filteredColls.map(collection => ({ value: collection.id, label: collection.name }))
-      : [{ value: '__create_collection__', label: `+ Create "${collInput.trim()}"` }]
+    ? [
+        ...filteredColls.map(collection => ({ value: collection.id, label: collection.name })),
+        ...(findCollectionByName(collections, collInput) ? [] : [{ value: '__create_collection__', label: `+ Create "${normalizeCollectionName(collInput)}"` }]),
+      ]
     : []
 
   const handleCollectionDropdownChange = async (value: string) => {
@@ -634,7 +637,7 @@ export function MediaUploadModal({
       addCollection(value)
       return
     }
-    const newId = await createCollection(collInput.trim())
+    const newId = await createCollection(normalizeCollectionName(collInput))
     if (newId) addCollection(newId)
   }
 
@@ -929,7 +932,7 @@ export function MediaUploadModal({
         className="mum-chip-input"
         placeholder="Type to add tags…"
         value={tagInput}
-        onChange={e => setTagInput(e.target.value)}
+        onChange={e => setTagInput(formatTagTyping(e.target.value))}
         onKeyDown={handleTagKey}
         onBlur={() => { if (tagInput.trim()) addTag(tagInput) }}
       />

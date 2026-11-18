@@ -21,7 +21,6 @@ function formatControl(spec: Osc1ControlSpec): (value: number) => string {
   return value => `${value.toFixed(digits)}${spec.suffix}`
 }
 
-const SOURCE_LABELS = { stereo: 'LIVE STEREO', mono: 'LIVE MONO', shared: 'SHARED ANALYSIS', none: 'NO SIGNAL' } as const
 
 /**
  * OSC 1 inspector: the XY / Text Lab's controls under the standard four parent groups. Master Controls holds the
@@ -61,12 +60,6 @@ export function XyScopeOsc1DesignPanel() {
       onChange={value => setControl(spec.id, value)} />
   )
 
-  const kv = (label: string, value: string) => (
-    <div className="vz-mi-kv-row" key={label}>
-      <span className="vz-mi-kv-label">{label}</span>
-      <span className="vz-mi-kv-val vz-mi-kv-val--tag">{value}</span>
-    </div>
-  )
 
   return (
     <div className="rv-workspace-panel rv-xyscope-workspace-panel" data-xyscope-design="true" data-osc1-design="true">
@@ -78,12 +71,6 @@ export function XyScopeOsc1DesignPanel() {
                 description="On: Attack and Release follow the track's tempo when it has a beat grid, so a fast track reacts faster and a slow one more slowly. Off: they are exactly the times you set." />
               <ToggleRow id="xyscope-osc1-auto" label="Auto Performance" value={auto} onChange={autoPerformance => patch({ autoPerformance })}
                 description="Coordinates all sixteen visual controls, the phosphor colour and each letter’s gain, direction and focus from live audio and section evidence. Switching off restores your saved values." />
-              {auto && <>
-                {kv('State', live?.state ?? 'LISTENING')}
-                {kv('Dominant', live?.dominant ?? '—')}
-                {kv('Evidence', `${live?.mapped ? 'TRACK + LIVE' : 'LIVE'} · ${Math.round((live?.confidence ?? 0) * 100)}%`)}
-                {kv('Signal', SOURCE_LABELS[live?.source ?? 'none'])}
-              </>}
               <SelectRow id="xyscope-osc1-mode" label="Response System" value={String(o.mode)} menuBoundarySelector=".vz-inspector" placement="below"
                 options={OSC1_MODES.map((entry, i) => ({ value: String(i), label: `0${i + 1} / ${entry.name}` }))}
                 onChange={value => patch({ mode: Number(value) })}

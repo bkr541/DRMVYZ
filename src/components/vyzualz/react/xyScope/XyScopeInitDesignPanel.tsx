@@ -19,7 +19,6 @@ function formatControl(spec: InitControlSpec): (value: number) => string {
 
 /** Values Auto Performance drives; their sliders show the live value and are read-only while it runs. */
 const AUTO_DRIVEN = new Set<keyof InitValues>(['intensity', 'waveHeight', 'glow', 'trail', 'glide', 'width'])
-const SOURCE_LABELS = { stereo: 'LIVE STEREO', mono: 'LIVE MONO', shared: 'SHARED ANALYSIS', none: 'NO SIGNAL' } as const
 
 /** INIT inspector, under the four standard parent groups: Master Controls, Design, React and Palette. */
 export function XyScopeInitDesignPanel() {
@@ -37,12 +36,6 @@ export function XyScopeInitDesignPanel() {
       resetValue={INIT_DEFAULTS[spec.id]} formatValue={formatControl(spec)} description={spec.description}
       disabled={auto && AUTO_DRIVEN.has(spec.id)} onChange={value => setValue(spec.id, value)} />
   )
-  const kv = (label: string, value: string) => (
-    <div className="vz-mi-kv-row" key={label}>
-      <span className="vz-mi-kv-label">{label}</span>
-      <span className="vz-mi-kv-val vz-mi-kv-val--tag">{value}</span>
-    </div>
-  )
   const colors = [['color1', 'Oscillator 1 Color'], ['color2', 'Oscillator 2 Color'], ['color3', 'Oscillator 3 Color']] as const
 
   return (
@@ -56,11 +49,6 @@ export function XyScopeInitDesignPanel() {
                 description="Moves the oscillator lines on the track's beat grid. Off, they follow a free-running clock." />
               <ToggleRow id="xyscope-init-auto" label="Auto Performance" value={auto} onChange={autoPerformance => patch({ autoPerformance })}
                 description="Audio intelligence conducts height, glow, decay and line speed together: drops open and brighten the scene, breakdowns calm it. Switching off restores your values." />
-              {auto && <>
-                {kv('State', live?.state ?? 'LISTENING')}
-                {kv('Evidence', `${live?.mapped ? 'TRACK + LIVE' : 'LIVE'} · ${Math.round((live?.confidence ?? 0) * 100)}%`)}
-                {kv('Signal', SOURCE_LABELS[live?.source ?? 'none'])}
-              </>}
               <ToggleRow id="xyscope-init-hold" label="Hold Trace" value={o.hold} onChange={hold => patch({ hold })} description="Freezes the displayed traces while audio and analysis continue." />
             </div>
           </Collapsible>
