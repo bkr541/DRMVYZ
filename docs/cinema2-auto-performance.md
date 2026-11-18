@@ -97,3 +97,22 @@ It is generic: `resolveCinema2AutoPerformanceLock` in `Cinema2InspectorModel.ts`
 
 Tests: `Cinema2AutoPerformanceLock.test.ts` (the model for six tagged presets, opt-in and identification), `Cinema2AutoPerformanceLockUi.test.tsx` (the rendered control), and `node scripts/run-cinema2-lock-browser.mjs` (the real Inspector: what is disabled and editable, every control's position and size identical locked or not, and exact restoration).
 
+
+## Full coverage: every numeric control takes part (2026-11-18)
+
+With Auto Performance on, every numeric control in Master Controls, Design and Effects is moved by the music. The authored drives of each preset (above and in `cinema2-mood-conductor.md`) are the choreography; `presets/Cinema2AutoCoverage.ts` finishes the job for every control they did not reach. The catalog (`Cinema2FirstPartyPresetCatalog.ts`) passes every user-facing preset through it, so a new control is covered the moment it is added.
+
+- **A control counts as covered** only when a rule gated by the preset's Auto Performance toggle moves the property it is bound to from a *continuous* source (the mood or the build). A drive that fires on a kick or a downbeat moves a control for an instant, so a control with only those is still given a mood drive.
+- **Reach.** The drive goes to whatever the control is bound to: a module or effect property, a light's intensity, the environment's exposure and fog density, or a camera control (field of view, motion amount and speed, orbit radius, heading and elevation). The camera controls are new targets (`control.<name>` on the camera) that `Cinema2CameraRuntime` reads through the resolver, so the saved value is never rewritten and the inspector shows the live value like any other.
+- **Role by name.** A speed follows how active the passage is; a glow, haze or reflection flares on a peak and a drop; a size or spread swells with the energy and settles in a calm passage; a surface quality eases the other way; Cinematic Finish opens up on energy. Amounts are fractions of the control's own range.
+- **Zero stays off.** A control whose minimum is zero (a glow, a trail, a static layer, a camera lock-off) is *multiplied*, so a control the user set to zero is never switched on by the music. Everything else adds.
+- **Never out of range.** Each control's drives are kept inside the headroom its authored value has, and a control already near a limit moves the other way. A test checks every preset at the strongest peak and the calmest passage.
+- **Rule ids** are `<preset>-cover-drive-<source>`, so they are easy to tell from the mood drives (`-mood-`).
+
+### What is still not moved, and why
+
+`Cinema2AutoCoverage.test.ts` lists every numeric control left out, so nothing is skipped silently:
+
+- **Authority controls** (Music Reactivity, Camera Motion on Say It, Master Intensity on GO-TO and others): they set how strongly the choreography acts, so they are the scale of the drives, not something the drives move.
+- **Counts and seeds** (Frame, Blade, Satellite and Fragment counts on Ifrit, Laser Count, Element Count, Rows and Columns, Random Seed): changing them live would rebuild or reshuffle the scene.
+- **Module changes still to make** (`Cinema2AutoCoverageExemptions.ts`, each with its reason): Blockshift's Block Size, Spread, Depth and Rotation Range (the module rebuilds the layout and treats a change as a manual edit); Say It, Orbital and Submerge's Tracking, Line Spacing and Glyph Scale (the text layout is rebuilt on every change); Canopy's spacing and rod controls (the rod structure is rebuilt); Light Strength and Fog Density on Neon Forest and PSYLO and City Atmosphere on ATL HOE (a rule maps the saved value, so there is no property to add to).

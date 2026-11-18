@@ -40,6 +40,8 @@ const BLOOM = CINEMA2_HUMN_BLOOM_EFFECT_ID
 const TRAILS_EFFECT = CINEMA2_HUMN_TRAILS_EFFECT_ID
 
 const live: Harness[] = []
+/** The preset with Auto Performance off: for the tests that measure what Glow and Trails themselves map to (on, it adds the music's movement to them). */
+const manual = (options?: Parameters<typeof createHarness>[0]) => harness({ ...options, state: { [AUTO]: false, ...(options?.state ?? {}) } })
 function harness(options?: Parameters<typeof createHarness>[0]): Harness {
   const created = createHarness(options)
   live.push(created)
@@ -305,11 +307,11 @@ describe('Trails through the production Render Graph, Effect Runtime and History
   })
 
   it('maps one control to both mix and persistence at the approved values (0.5 and 1)', () => {
-    const half = harness({ state: { [TRAILS]: 0.5 } })
+    const half = manual({ state: { [TRAILS]: 0.5 } })
     half.step({ frames: 4 })
     within(effectValue(half, TRAILS_EFFECT, 'mix'), TRAILS_MIX.half)
     within(effectValue(half, TRAILS_EFFECT, 'persistence'), TRAILS_PERSISTENCE.half)
-    const full = harness({ state: { [TRAILS]: 1 } })
+    const full = manual({ state: { [TRAILS]: 1 } })
     full.step({ frames: 4 })
     within(effectValue(full, TRAILS_EFFECT, 'mix'), TRAILS_MIX.full)
     within(effectValue(full, TRAILS_EFFECT, 'persistence'), TRAILS_PERSISTENCE.full)

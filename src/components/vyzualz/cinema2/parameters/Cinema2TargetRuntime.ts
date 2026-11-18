@@ -178,6 +178,9 @@ type AddCinema2Target = (
   options?: Cinema2TargetDefinitionOptions,
 ) => Cinema2TargetHandle
 
+/** Numeric camera controls exposed as `control.<name>` targets. */
+export const CAMERA_CONTROL_TARGET_NAMES = ['motionAmount', 'motionSpeed', 'orbitMotionSpeed', 'orbitRadius', 'orbitAzimuthDegrees', 'orbitElevationDegrees'] as const
+
 export function compileCinema2TargetPlan(
   manifest: Readonly<Cinema2NativePresetManifest>,
   parameters: Readonly<Cinema2CompiledParameterPlan>,
@@ -278,8 +281,14 @@ export function compileCinema2TargetPlan(
     const entity = addEntity('camera', camera.id)
     addTransformTargets(entity, camera.transform, addTarget)
     addTarget(entity, 'target', 'vec3', camera.target ?? [0, 0, 0])
-    if (camera.projection === 'perspective') addTarget(entity, 'fovDegrees', 'number', camera.fovDegrees ?? 50, { min: 1, max: 179 })
+    if (camera.projection === 'perspective') addTarget(entity, 'fovDegrees', 'number', camera.fovDegrees ?? 50, { min: 1, max: 179, parameterId: camera.controls?.fovDegrees?.$ref ?? null })
     else addTarget(entity, 'orthographicHeight', 'number', camera.orthographicHeight ?? 5, { min: 0.0001 })
+    // The numeric camera controls the camera runtime reads through the resolver (so Auto Performance can add to them as it does to any other control).
+    for (const name of CAMERA_CONTROL_TARGET_NAMES) {
+      const ref = camera.controls?.[name]
+      const definition = ref ? parameters.definitions.find(candidate => candidate.id === ref.$ref) : undefined
+      if (ref && definition) addTarget(entity, `control.${name}`, 'number', parameters.authoredDefaults[definition.id], { parameterId: ref.$ref, min: definition.min ?? null, max: definition.max ?? null })
+    }
     addTarget(entity, 'near', 'number', camera.near ?? 0.1, { min: 0.0001 })
     addTarget(entity, 'far', 'number', camera.far ?? 1000, { min: 0.0001 })
     // Only cameras that author cinematic motion expose roll, so existing camera target sets are unchanged.

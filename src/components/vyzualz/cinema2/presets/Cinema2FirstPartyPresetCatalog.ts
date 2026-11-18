@@ -24,6 +24,8 @@ import { CINEMA2_ELECTRIC_STORM_PRESET_MANIFEST } from './Cinema2ElectricStormPr
 import { CINEMA2_GO_TO_PRESET_MANIFEST } from './Cinema2GoToPreset'
 import { CINEMA2_HUMN_PRESET_MANIFEST } from './Cinema2HumNPreset'
 import { defineCinema2FirstPartyPreset } from './Cinema2PresetAuthoring'
+import { withCinema2AutoCoverage } from './Cinema2AutoCoverage'
+import { CINEMA2_AUTO_COVERAGE_EXEMPT } from './Cinema2AutoCoverageExemptions'
 import { CINEMA2_REACTOR_PRESET_MANIFEST } from './Cinema2ReactorPreset'
 import { CINEMA2_RELIQUARY_PRESET_MANIFEST } from './Cinema2ReliquaryPreset'
 import { CINEMA2_REFERENCE_VISUAL_PRESET_MANIFEST } from './Cinema2ReferenceVisualPreset'
@@ -56,7 +58,7 @@ import { CINEMA2_TRIPPY_BRO_PRESET_MANIFEST } from './Cinema2TrippyBroPreset'
  * Adding a keeper here must pass the shared authoring gate and native compiler;
  * the runtime and schema-driven Inspector remain preset-agnostic.
  */
-export const CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS = Object.freeze([
+const AUTHORED_PRESET_DECLARATIONS = Object.freeze([
   // Explicitly reference previews; not promoted to keeper.
   defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_USER_MODEL_FORM_PRESET_MANIFEST }),
   defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_USER_MODEL_SHATTER_PRESET_MANIFEST }),
@@ -214,3 +216,13 @@ export const CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS = Object.freeze([
   }),
   defineCinema2FirstPartyPreset({ role: 'keeper', manifest: CINEMA2_ELEVHATE_PRESET_MANIFEST }),
 ])
+
+/**
+ * Every user-facing preset goes through the shared Auto Performance coverage step: a numeric control its authored drives did not reach gets a
+ * continuous mood drive, so with Auto Performance on no Design or Effects control is left for the user to move (see Cinema2AutoCoverage).
+ */
+export const CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS = Object.freeze(AUTHORED_PRESET_DECLARATIONS.map(declaration => (
+  declaration.manifest.metadata.tags?.includes('internal')
+    ? declaration
+    : defineCinema2FirstPartyPreset({ ...declaration, manifest: withCinema2AutoCoverage(declaration.manifest, { exempt: CINEMA2_AUTO_COVERAGE_EXEMPT[String(declaration.manifest.id).replace('drmvyz.cinema2.', '')] }) })
+)))

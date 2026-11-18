@@ -32,8 +32,9 @@ export interface Cinema2MoodDrive {
 }
 
 export interface Cinema2MoodDriveSpec {
-  /** Rule ids are `${idPrefix}-mood-${source}`. */
+  /** Rule ids are `${idPrefix}-${idInfix}-${source}` (the infix defaults to `mood`). */
   readonly idPrefix: string
+  readonly idInfix?: string
   /** The preset's Auto Performance toggle: the rules are enabled only while it is on. */
   readonly enabledParameter: Cinema2ParameterId
   /** The preset's own reactivity or intensity control: the drives scale by it, so a control set to zero silences them. */
@@ -56,7 +57,7 @@ export function createCinema2MoodRules(spec: Readonly<Cinema2MoodDriveSpec>): re
   const strengthParameter = spec.strengthParameter ? cinema2Ref(spec.strengthParameter) : undefined
   let priority = CINEMA2_MOOD_RULE_PRIORITY
   return Object.freeze([...bySource.entries()].map(([source, drives]) => {
-    const name = `${spec.idPrefix}-mood-${source.replace('mood.', '')}`
+    const name = `${spec.idPrefix}-${spec.idInfix ?? 'mood'}-${source.replace('mood.', '')}`
     return Object.freeze({
       id: cinema2StableId<Cinema2ChoreographyRuleId>(name),
       priority: priority++,

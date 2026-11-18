@@ -127,7 +127,7 @@ describe('Cinema 2.0 Reactor native rendering slice', () => {
     // all enabled only by its toggle.
     expect(manifest?.choreography?.rules.filter(rule => rule.enabledParameter == null)).toHaveLength(6)
     const gated = manifest?.choreography?.rules.filter(rule => rule.enabledParameter?.$ref === 'reactor-auto-performance') ?? []
-    expect(gated.filter(rule => !String(rule.id).includes('-mood-'))).toHaveLength(4)
+    expect(gated.filter(rule => !/-(mood|cover-drive)-/.test(String(rule.id)))).toHaveLength(4)
     expect(gated.filter(rule => String(rule.id).includes('-mood-'))).toHaveLength(5)
 
     const definitions = new Map((manifest?.parameters ?? []).map(definition => [definition.id, definition]))
@@ -162,8 +162,8 @@ describe('Cinema 2.0 Reactor native rendering slice', () => {
     expect(coreTarget?.parameterId).toBe(CINEMA2_REACTOR_CORE_SIZE_ID)
     expect(refractionTarget?.parameterId).toBe(CINEMA2_REACTOR_REFRACTION_ID)
     // Ten authored choreography targets, plus the seven Auto Performance gesture adds that are not already among them, plus the fifteen shared
-    // Mood Conductor drives (all gated by its toggle).
-    expect(compiled.plan.targets.choreographyTargets).toHaveLength(32)
+    // Mood Conductor drives (all gated by its toggle), plus the two drives the Auto Performance coverage step adds for the controls those left out.
+    expect(compiled.plan.targets.choreographyTargets).toHaveLength(34)
   })
 
   it('uses engine-owned quality scaling and namespaced randomness for production rendering', () => {

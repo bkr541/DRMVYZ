@@ -146,3 +146,7 @@ Runtime foundation, Reference Visual, Spatial Reference, Three Model Reference (
 ## Order and rationale
 
 1A and 1B first (one working example, no patterns, no module changes), then 2 (one controller class across five presets), then 3A and 3B (the Afterhours family, which also needs the naming decisions), then 4A and 4B (bespoke classes, one at a time), then 5 (special cases). A batch starts only after the previous one has been checked in the app. Batch 0 should finish before Batch 1B, because those two default Auto Performance on.
+
+## Follow-up: full Auto Performance coverage (2026-11-18)
+
+The migration drove the controls each preset's author chose (about half of the numeric controls). A catalog-wide step now gives every other numeric control in Master Controls, Design and Effects a mood drive, and the camera controls are movable too. See `cinema2-auto-performance.md` (Full coverage) for the rules and the short list of controls that are still not moved and why.

@@ -200,7 +200,7 @@ describe('HUM:N draws a 3D figure through the production runtime', () => {
 
   it('scales the whole figure about its framing point with Figure Scale, up to 2.5x', () => {
     for (const scale of [0.6, 1, 1.7, 2.5]) {
-      const h = harness({ state: { [P.scale]: scale } })
+      const h = harness({ state: { [P.scale]: scale, [P.auto]: false } })
       h.step({ ...CALM, frames: 2 })
       const model = h.matrix('u_model')
       expect(model[0]).toBeCloseTo(scale, 5)
@@ -351,7 +351,7 @@ describe('Flicker Amount and Fragment Jitter react to the rhythm', () => {
 
   it('Fragment Jitter throws triangles off the body on the kick, up to seven centimetres, and settles back', () => {
     const at = (value: number) => {
-      const h = harness({ state: { [P.jitter]: value } })
+      const h = harness({ state: { [P.jitter]: value, [P.auto]: false } })
       h.step({ ...CALM, frames: 5 })
       h.step(hit)
       const peak = h.uniform('u_jitter')

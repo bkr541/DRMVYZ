@@ -154,6 +154,8 @@ export class Cinema2CameraRuntime {
   private frameCount = 0
   private resetCount = 0
   private disposed = false
+  /** Camera control targets (`control.<name>`): the saved control plus whatever Auto Performance or the choreography adds to it. */
+  private readonly controlTargets = new Map<string, Cinema2TargetId>()
 
   constructor(
     plan: Readonly<Cinema2CompiledPresetPlan>,
@@ -163,7 +165,19 @@ export class Cinema2CameraRuntime {
   ) {
     this.authoredCamera = selectAuthoredCamera(plan)
     this.targets = indexCameraTargets(plan.targets.targets, this.authoredCamera?.id ?? null)
+    for (const target of plan.targets.targets) {
+      if (target.kind === 'camera' && target.ownerId === this.authoredCamera?.id && target.property.startsWith('control.')) this.controlTargets.set(target.property.slice('control.'.length), target.id)
+    }
     this.currentFrame = createImplicitSafeFrame(1)
+  }
+
+  /** A numeric camera control as the renderer should see it: the saved value with any transient contribution added (the saved value is never rewritten). */
+  private readControl(controls: Readonly<Cinema2CameraControlBindingsManifest> | undefined, name: keyof Cinema2CameraControlBindingsManifest): number | null {
+    const saved = readNumberControl(controls, name, this.parameters)
+    const id = this.controlTargets.get(name)
+    if (saved == null || !id) return saved
+    const resolved = this.resolver.resolve(id)
+    return resolved.ok && typeof resolved.value === 'number' && Number.isFinite(resolved.value) ? resolved.value : saved
   }
 
   update(frame: Readonly<Cinema2ModuleFrameReadContext>): Readonly<Cinema2CameraFrame> {
@@ -231,7 +245,7 @@ export class Cinema2CameraRuntime {
     const userPose = pose
     pose = blendPose(userPose, this.applyTargetContributions(userPose), motionEnabled ? motionSafety.motionScale * masterAmount : 0)
     const basePosition = pose.position
-    const motionAmount = clamp(finite(readNumberControl(camera.controls, 'motionAmount', this.parameters) ?? undefined, 1), 0, 2) * motionSafety.motionScale * masterAmount * (motionEnabled ? 1 : 0)
+    const motionAmount = clamp(finite(this.readControl(camera.controls, 'motionAmount') ?? undefined, 1), 0, 2) * motionSafety.motionScale * masterAmount * (motionEnabled ? 1 : 0)
     if (motion?.drift) pose = applyDrift(pose, motion.drift, motionTimeSec, motionAmount)
     // A bound Zoom on Kick toggle owns the kick zoom outright (full strength when on, none when off), independent of the motion amount.
     const kickZoom = camera.controls?.kickZoom
@@ -258,7 +272,7 @@ export class Cinema2CameraRuntime {
       else {
         const orbitEnabled = !camera.controls?.orbitMotionEnabled || readToggleControl(camera.controls, 'orbitMotionEnabled', this.parameters)
         if (motionActive && orbitEnabled && this.previousPose) {
-          const speed = clamp(readNumberControl(camera.controls, 'orbitMotionSpeed', this.parameters) ?? 1, 0, 1)
+          const speed = clamp(this.readControl(camera.controls, 'orbitMotionSpeed') ?? 1, 0, 1)
           this.orbitAngle = (this.orbitAngle + clamp(motionDeltaTimeSec, 0, 0.25) * motion.orbit.angularSpeedDegreesPerSecond * Math.PI / 180 * speed * motionSafety.travelScale) % (Math.PI * 2)
         }
         // Rotate the existing float and its look direction around the observer's base position.
@@ -340,7 +354,7 @@ export class Cinema2CameraRuntime {
     // Rendering may continue while transport animation is paused. Keep the authored camera clock and impact envelope frozen so resume is seamless.
     const motionActive = frame.transport == null || (frame.transport.playing && !frame.transport.paused && frame.transport.animationActive)
     const enabled = !camera.controls?.motionEnabled || readToggleControl(camera.controls, 'motionEnabled', this.parameters)
-    const amount = readNumberControl(camera.controls, 'motionAmount', this.parameters) ?? 1
+    const amount = this.readControl(camera.controls, 'motionAmount') ?? 1
     const master = readNumberControl(camera.controls, 'masterMotionAmount', this.parameters) ?? 1
     // Hard-gated motion is opt-in. Legacy cameras keep their independent kick envelope/flight clock
     // even when their general motion amount is zero (Zoom on Kick has its own authority).
@@ -353,7 +367,7 @@ export class Cinema2CameraRuntime {
     // The beat position is the shared beat clock: it follows the track's beat grid when locked and free-runs at the reference tempo otherwise.
     // A user-owned flight speed of zero also holds tempo sway at its current
     // phase. Native module light clocks remain independent of this camera hold.
-    const speed = readNumberControl(camera.controls, 'motionSpeed', this.parameters) ?? 1
+    const speed = this.readControl(camera.controls, 'motionSpeed') ?? 1
     const beats = this.beatClock.update(speed > 0 ? frame : { ...frame, deltaTimeSec: 0 }, syncControl, referenceBpm).beats
 
     if (!this.tempoInitialized) {
@@ -364,7 +378,7 @@ export class Cinema2CameraRuntime {
         ? clamp(bpm! / referenceBpm, finite(tempo.minRate, 0.7), Math.max(finite(tempo.minRate, 0.7), finite(tempo.maxRate, 1.5)))
         : 1
       this.flightRate += (rateTarget - this.flightRate) * (1 - Math.exp(-dt / 0.6))
-      this.flightTimeSec += dt * this.flightRate * clamp(readNumberControl(camera.controls, 'motionSpeed', this.parameters) ?? 1, 0, 4)
+      this.flightTimeSec += dt * this.flightRate * clamp(this.readControl(camera.controls, 'motionSpeed') ?? 1, 0, 4)
     }
 
     this.punchEnvelope *= Math.exp(-dt / 0.22)
@@ -477,10 +491,10 @@ export class Cinema2CameraRuntime {
     const rollDegrees = finite(camera.motion?.rollDegrees, 0)
 
     if (rig.kind === 'orbit') {
-      const radius = positive(readNumberControl(camera.controls, 'orbitRadius', this.parameters) ?? undefined, positive(rig.radius, distance(authoredPosition, authoredTarget) || 5))
-      const azimuth = finite(readNumberControl(camera.controls, 'orbitAzimuthDegrees', this.parameters) ?? undefined, finite(rig.azimuthDegrees, 0))
+      const radius = positive(this.readControl(camera.controls, 'orbitRadius') ?? undefined, positive(rig.radius, distance(authoredPosition, authoredTarget) || 5))
+      const azimuth = finite(this.readControl(camera.controls, 'orbitAzimuthDegrees') ?? undefined, finite(rig.azimuthDegrees, 0))
         + finite(rig.angularVelocityDegreesPerSecond, 0) * Math.max(0, camera.controls?.rigMode ? pathTimeSec : frame.elapsedTimeSec)
-      const elevation = clamp(finite(readNumberControl(camera.controls, 'orbitElevationDegrees', this.parameters) ?? undefined, finite(rig.elevationDegrees, 15)), -89.9, 89.9)
+      const elevation = clamp(finite(this.readControl(camera.controls, 'orbitElevationDegrees') ?? undefined, finite(rig.elevationDegrees, 15)), -89.9, 89.9)
       const azimuthRad = degreesToRadians(azimuth)
       const elevationRad = degreesToRadians(elevation)
       const horizontal = radius * Math.cos(elevationRad)

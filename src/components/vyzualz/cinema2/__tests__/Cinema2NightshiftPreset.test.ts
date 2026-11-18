@@ -124,9 +124,9 @@ describe('NIGHTSHIFT authorship and motion', () => {
     expect(declaration.manifest.metadata.tags).not.toContain('preview')
     expect(validateCinema2PresetAuthoringConventions(declaration).diagnostics).toEqual([])
     // Fourteen authored rules, plus the shared mood rules (one per mood source, gated by Auto Performance).
-    expect(declaration.manifest.choreography?.rules.filter(rule => !String(rule.id).includes('-mood-'))).toHaveLength(14)
+    expect(declaration.manifest.choreography?.rules.filter(rule => !/-(mood|cover-drive)-/.test(String(rule.id)))).toHaveLength(14)
     expect(declaration.manifest.choreography?.rules.filter(rule => rule.source.path?.startsWith('director.'))).toHaveLength(4)
-    expect(declaration.manifest.choreography?.rules.filter(rule => rule.source.signal !== 'parameter' && !String(rule.id).includes('-mood-')).every(rule => rule.source.signal === 'continuous' && rule.actions.every(a => a.target.kind === 'module'))).toBe(true)
+    expect(declaration.manifest.choreography?.rules.filter(rule => rule.source.signal !== 'parameter' && !/-(mood|cover-drive)-/.test(String(rule.id))).every(rule => rule.source.signal === 'continuous' && rule.actions.every(a => a.target.kind === 'module'))).toBe(true)
     expect(declaration.manifest.effects).toHaveLength(3)
     expect(declaration.manifest.cameras![0].rig!.kind).toBe('static')
   })

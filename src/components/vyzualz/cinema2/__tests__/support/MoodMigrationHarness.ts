@@ -77,9 +77,10 @@ export function moodTwin(manifest: Readonly<Cinema2NativePresetManifest>, autoId
   const on = moodStage(manifest), off = moodStage(manifest), stripped = moodStage(withoutMoodRules(manifest)), music = moodMusic()
   on.state.setPersistentValue(autoId, true); off.state.setPersistentValue(autoId, false); stripped.state.setPersistentValue(autoId, false)
   if (strengthId && strength != null) for (const s of [on, off, stripped]) s.state.setPersistentValue(strengthId, strength)
-  const update = (frame: Frame) => { on.choreography.update(frame); off.choreography.update(frame); stripped.choreography.update(frame) }
+  let latest: Frame | null = null
+  const update = (frame: Frame) => { latest = frame; on.choreography.update(frame); off.choreography.update(frame); stripped.choreography.update(frame) }
   const play = (seconds: number, options: MoodOptions = {}) => { for (let i = 0; i < seconds * 30; i++) update(music.next(options)) }
   const once = (options: MoodOptions) => update(music.next(options))
   const silent = (seconds: number) => { for (let i = 0; i < seconds * 30; i++) update(music.silent()) }
-  return { on, off, stripped, play, once, silent }
+  return { on, off, stripped, play, once, silent, frame: () => latest! }
 }
