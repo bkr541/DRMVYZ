@@ -36,18 +36,36 @@
 }
 
 /* Option E's three readout groups keep stable widths as live values change. */
-/* The cluster is exactly as wide as the Inspector below it (the same clamp as --rv-floating-rail-width, which the
-   portaled header cannot read) and ends at the Inspector's right edge, past the header's own 20px right padding. */
+/* The cluster is deliberately narrower than the Inspector below it. Its right edge sits 12px inside the header, the same
+   inset the logo has on the left: the header's 12px side padding, with the 8px the toolbar reserves on its right cancelled
+   by the -8px margin. Its three readouts use tighter side padding than a standalone readout. */
 .rv-header-status {
   display: grid;
   grid-template-columns: 1.4fr 1fr 1fr;
   flex: 0 0 auto;
   align-items: center;
   box-sizing: border-box;
-  width: clamp(210px, 22vw, 354px);
-  margin-right: -20px;
+  width: clamp(272px, 17vw, 296px);
+  margin-right: -8px;
 }
-.rv-header-status > .vz-header-readout { width: auto; }
+.rv-header-status > .vz-header-readout { width: auto; padding-inline: 8px; }
+/* The header search field: 124px wide, immediately left of the status group, separated by the toolbar's own 16px gap.
+   Its caption is the status readouts' caption (same role, colour and position); below it is a flat underlined input with no icon or placeholder for now. */
+.rv-header-search {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  box-sizing: border-box;
+  flex: 0 0 124px;
+  width: 124px;
+  height: 37px;
+  /* Top-aligned so the caption sits exactly where the status readouts' captions do (their content is centred in 37px). */
+  padding-top: 5px;
+}
+.rv-header-search .vz-header-readout-label { margin-bottom: 4px; white-space: nowrap; }
+.rv-header-search .dv-library-search-row .dv-library-search-input.dv-text-input { display: block; height: 13.8px; padding: 0 !important; line-height: 12.8px !important; }
+.rv-header-search .dv-library-search-row .dv-library-search-input.dv-text-input.has-clear { padding-right: 18px !important; }
+.rv-header-search .dv-library-search-clear { right: 0; top: 50%; }
 @media (max-width: 1100px) {
   .rv-header-status { width: clamp(190px, 24vw, 260px); }
 }

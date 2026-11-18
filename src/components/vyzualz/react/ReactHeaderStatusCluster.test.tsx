@@ -25,9 +25,16 @@ afterEach(async () => {
 })
 const render = () => act(async () => root.render(<ReactHeaderStatusCluster fps={67} frameTimeMs={15} qualityTier="high" />))
 describe('Option E React header readouts', () => {
+  it('places the header search field directly before the status group', async () => {
+    await render()
+    const search = container.querySelector('.rv-header-search')
+    expect(search?.querySelector('input[type="search"]')?.getAttribute('aria-label')).toBe('Search help')
+    expect(search?.querySelector('.dv-library-search-icon')).toBeNull()
+    expect(search?.nextElementSibling?.matches('[data-react-header-status]')).toBe(true)
+  })
   it.each(['preset-manager', 'show-manager', 'lyric-manager', 'media-manager'] as const)('uses the same three readouts in %s', async page => {
     await act(async () => root.render(<VyzualzHeaderActions page={page} />))
-    expect([...container.querySelectorAll('.vz-header-readout-label')].map(el => el.textContent)).toEqual(['LOAD / SAVE', 'RENDER / FPS', 'QUALITY / CPU'])
+    expect([...container.querySelectorAll('.rv-header-status .vz-header-readout-label')].map(el => el.textContent)).toEqual(['LOAD / SAVE', 'RENDER / FPS', 'QUALITY / CPU'])
     expect(container.querySelector('[data-performance-metric="fps"]')?.textContent).toBe('—')
     expect(container.querySelector('.vz-header-activity')).toBeNull()
   })
@@ -42,7 +49,7 @@ describe('Option E React header readouts', () => {
   })
   it('groups live values under three captions without header notification/profile actions', async () => {
     await render()
-    expect([...container.querySelectorAll('.vz-header-readout-label')].map(el => el.textContent)).toEqual(['LOAD / SAVE', 'RENDER / FPS', 'QUALITY / CPU'])
+    expect([...container.querySelectorAll('.rv-header-status .vz-header-readout-label')].map(el => el.textContent)).toEqual(['LOAD / SAVE', 'RENDER / FPS', 'QUALITY / CPU'])
     expect(container.querySelector('[data-performance-metric="fps"]')?.textContent).toBe('67')
     expect(container.querySelector('[data-performance-metric="frame-time"]')?.textContent).toBe('15.0ms')
     expect(container.querySelector('[data-performance-metric="quality"]')?.textContent).toBe('High')

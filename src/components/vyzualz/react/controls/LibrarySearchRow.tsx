@@ -11,6 +11,8 @@ interface LibrarySearchRowProps {
   children?: ReactNode
   className?: string
   clearable?: boolean
+  /** The leading magnifier; on by default. Hosts that show a caption instead can turn it off. */
+  showIcon?: boolean
   /** For hosts that manage focus and keyboard themselves (a searchable dropdown menu). */
   inputRef?: Ref<HTMLInputElement>
   onKeyDown?: KeyboardEventHandler<HTMLInputElement>
@@ -18,10 +20,10 @@ interface LibrarySearchRowProps {
 }
 
 /** Flat library search treatment shared by Lyric Manager and Cinema 2.0. */
-export function LibrarySearchRow({ value, onChange, placeholder, label, children, className = '', clearable = false, inputRef, onKeyDown, inputProps }: LibrarySearchRowProps) {
+export function LibrarySearchRow({ value, onChange, placeholder, label, children, className = '', clearable = false, showIcon = true, inputRef, onKeyDown, inputProps }: LibrarySearchRowProps) {
   return <div className={`dv-library-search-row${className ? ` ${className}` : ''}`}>
     <div className="dv-library-search-wrap">
-      <AppIcon kind="search" className="dv-library-search-icon" size={12} />
+      {showIcon && <AppIcon kind="search" className="dv-library-search-icon" size={12} />}
       <DreamVizTextInput
         {...inputProps}
         ref={inputRef}
