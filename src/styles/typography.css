@@ -368,7 +368,7 @@
 .auth-submit { font: var(--type-tab); letter-spacing: .06em; }
 
 /* Model metadata uses shared field roles; section headers use Collapsible. */
-.mm-model-card-name, .mm-model-stage-toolbar, .mm-model-inspector p, .mm-model-draft-card { font: var(--type-field-value); }
+.mm-model-card-name, .mm-model-inspector p, .mm-model-draft-card { font: var(--type-field-value); }
 .mm-model-card-type, .mm-model-count, .mm-model-navigation { font: var(--type-field-value); }
 .mm-model-count { text-transform: none; }
 

@@ -58,13 +58,13 @@ async function flush() {
   await act(async () => { await Promise.resolve(); await Promise.resolve() })
 }
 
-async function renderPanel(item: UploadedMedia = media()) {
+async function renderPanel(item: UploadedMedia = media(), onCreateModel?: (media: UploadedMedia) => void) {
   mocks.items = [item as unknown as Record<string, unknown>]
   useMediaEditStore.getState().beginSession(item.id)
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
-  await act(async () => { root?.render(<MediaEditPanel media={item} onMediaCreated={onMediaCreated} />) })
+  await act(async () => { root?.render(<MediaEditPanel media={item} onMediaCreated={onMediaCreated} onCreateModel={onCreateModel} />) })
 }
 
 const q = <T extends Element = HTMLElement>(selector: string) => container?.querySelector<T>(selector) ?? null
@@ -360,3 +360,53 @@ describe('unsupported media', () => {
     expect(button('Save')).toBeNull()
   })
 })
+
+describe('Create 3D Model in the Edit tab', () => {
+  const create = () => button('Create 3D Model')
+  /** A saved library image: the 3D flow needs the server record. */
+  const saved = (overrides: Partial<UploadedMedia> = {}) => media({ dbId: 'db-1', ...overrides })
+
+  it.each([
+    ['PNG', saved({ name: 'logo.png', mimeType: 'image/png' })],
+    ['JPEG', saved()],
+    ['WebP', saved({ name: 'logo.webp', mimeType: 'image/webp' })],
+    ['SVG', saved({ name: 'logo.svg', mimeType: 'image/svg+xml', mediaRole: 'svg' })],
+  ])('offers it for a %s, and starts 3D generation for that file when clicked', async (_kind, item) => {
+    const onCreateModel = vi.fn()
+    await renderPanel(item, onCreateModel)
+    expect(container!.textContent).toContain('3D Model')
+    expect(create()?.disabled).toBe(false)
+    await act(async () => { create()!.click() })
+    expect(onCreateModel).toHaveBeenCalledTimes(1)
+    expect(onCreateModel).toHaveBeenCalledWith(item)
+  })
+
+  it('is still offered for an SVG, whose own editing is unavailable', async () => {
+    await renderPanel(saved({ name: 'logo.svg', mimeType: 'image/svg+xml', mediaRole: 'svg' }), vi.fn())
+    expect(container!.textContent).toContain('Editing unavailable')
+    expect(create()).not.toBeNull()
+  })
+
+  it.each([
+    ['a GIF', saved({ name: 'anim.gif', mimeType: 'image/gif' })],
+    ['a video', saved({ type: 'video', name: 'clip.mp4', mimeType: 'video/mp4' })],
+  ])('is not offered for %s', async (_kind, item) => {
+    await renderPanel(item, vi.fn())
+    expect(create()).toBeNull()
+    expect(container!.textContent).not.toContain('3D Model')
+  })
+
+  it('waits for an image that is still uploading, or failed, or has no saved record', async () => {
+    for (const item of [saved({ uploading: true }), saved({ uploadError: 'failed' }), media({ dbId: undefined })]) {
+      await renderPanel(item, vi.fn())
+      expect(create()?.disabled).toBe(true)
+      act(() => root?.unmount()); container?.remove(); root = null; container = null
+    }
+  })
+
+  it('is not shown when no handler is given', async () => {
+    await renderPanel(saved())
+    expect(create()).toBeNull()
+  })
+})
+

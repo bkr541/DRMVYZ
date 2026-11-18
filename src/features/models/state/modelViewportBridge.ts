@@ -1,5 +1,5 @@
 import type { Group } from 'three'
-interface ViewportBridge { group: Group; capture(edge?: number, fit?: boolean): Promise<Blob> }
+interface ViewportBridge { group: Group; capture(edge?: number, fit?: boolean): Promise<Blob>; fit(): void; resetCamera(): void }
 let bridge: ViewportBridge | null = null
 const listeners = new Set<() => void>()
 export function registerModelViewport(value: ViewportBridge): () => void {
@@ -18,3 +18,8 @@ export async function captureModelPreview(group: Group, signal?: AbortSignal, ed
   if (!bridge || bridge.group !== group) throw new Error('The model viewport changed before capture.')
   return bridge.capture(edge, fit)
 }
+
+/** The camera actions of the model viewport that is showing now. They do nothing when there is no viewport, so a key that calls them
+ * needs no knowledge of the stage. */
+export function fitModelViewport(): void { bridge?.fit() }
+export function resetModelCamera(): void { bridge?.resetCamera() }

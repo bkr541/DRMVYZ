@@ -6,13 +6,11 @@ import { registerModelViewport } from '../../../features/models/state/modelViewp
 import { useModelEditorStore } from '../../../features/models/state/modelEditorStore'
 import { IconChipButton } from '../react/controls/IconChipButton'
 import { NoticeCard } from '../react/controls/NoticeCard'
-interface CameraActions { fit(): void; reset(): void }
 export function ModelEditorStage() {
   const model = useModelEditorStore(s => s.model), status = useModelEditorStore(s => s.status)
-  const asset = useModelEditorStore(s => s.asset), sessionKey = useModelEditorStore(s => s.sessionKey)
+  const sessionKey = useModelEditorStore(s => s.sessionKey)
   const cameraPose = useRef<{ session: number; position: Vector3; target: Vector3 } | null>(null)
-  const name = useModelEditorStore(s => s.name), dirty = useModelEditorStore(s => s.dirty)
-  const root = useRef<HTMLDivElement>(null), actions = useRef<CameraActions | null>(null)
+  const root = useRef<HTMLDivElement>(null)
   const [error, setError] = useState<string | null>(null), [epoch, setEpoch] = useState(0)
   useEffect(() => {
     if (!model || !root.current) return
@@ -51,7 +49,6 @@ export function ModelEditorStage() {
       controls.minDistance = extent * 0.15; controls.maxDistance = extent * 30
       camera.near = Math.max(0.001, extent / 1000); camera.far = extent * 100; camera.updateProjectionMatrix(); controls.update(); invalidate()
     }
-    actions.current = { fit, reset: fit }
     const resize = () => {
       const width = Math.max(1, host.clientWidth), height = Math.max(1, host.clientHeight)
       renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2)); renderer.setSize(width, height)
@@ -76,7 +73,7 @@ export function ModelEditorStage() {
     const unsubscribe = useModelEditorStore.subscribe((next, previous) => { if (next.recipe?.preview !== previous.recipe?.preview) applyPreview() })
     const stopTurntable = () => { const state = useModelEditorStore.getState(); if (state.recipe?.preview.turntable) state.setRecipe({ preview: { ...state.recipe.preview, turntable: false } }) }
     controls.addEventListener('start', stopTurntable)
-    const unregister = registerModelViewport({ group: model.group, capture: async (edge = 256, frameModel = true) => {
+    const unregister = registerModelViewport({ group: model.group, fit, resetCamera: fit, capture: async (edge = 256, frameModel = true) => {
       if (lost || disposed || renderer.getContext().isContextLost() || !model.group.children.length) throw new Error('Restore the 3D viewport before capturing a model preview.')
       const position = camera.position.clone(), target = controls.target.clone(), automatic = controls.autoRotate, helpersVisible = resources.visible
       controls.autoRotate = false
@@ -105,7 +102,7 @@ export function ModelEditorStage() {
     return () => {
       cameraPose.current = { session: sessionKey, position: camera.position.clone(), target: controls.target.clone() }
       unregister(); unsubscribe(); controls.removeEventListener('start', stopTurntable)
-      disposed = true; cancelAnimationFrame(frame); actions.current = null
+      disposed = true; cancelAnimationFrame(frame)
       observer.disconnect(); intersection?.disconnect(); controls.dispose(); document.removeEventListener('visibilitychange', visibility)
       canvas.removeEventListener('webglcontextlost', onLost); canvas.removeEventListener('webglcontextrestored', onRestored)
       scene.remove(model.group)
@@ -114,10 +111,6 @@ export function ModelEditorStage() {
     }
   }, [model, epoch, sessionKey])
   return <section className="mm-model-stage" aria-label="3D model editor">
-    <div className="mm-model-stage-toolbar"><span>{name || '3D Model'} · {dirty ? 'Draft / Unsaved' : asset?.currentVersion ? 'Saved model' : 'No published model'}</span>
-      <IconChipButton onClick={() => actions.current?.fit()} disabled={!model}>Fit model</IconChipButton>
-      <IconChipButton onClick={() => actions.current?.reset()} disabled={!model}>Reset camera</IconChipButton>
-    </div>
     <div className="mm-model-canvas" ref={root} />
     {!model && <div className="mm-model-stage-empty" role="status">{status === 'generating' ? 'Generating 3D geometry…' : status === 'loading-model' ? 'Loading saved model…' : status === 'error' ? 'Model unavailable. Retry loading or select another asset.' : 'Prepare the source, then generate a 3D model.'}</div>}
     {error && <div className="mm-model-stage-notice"><NoticeCard tone="error" role="alert" title="3D viewport unavailable">{error} <IconChipButton onClick={() => setEpoch(value => value + 1)}>Retry viewport</IconChipButton></NoticeCard></div>}

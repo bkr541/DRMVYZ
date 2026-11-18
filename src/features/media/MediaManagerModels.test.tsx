@@ -9,9 +9,10 @@ vi.mock('../../stores/audioStore', () => ({ useAudioStore: (selector: (state: un
 vi.mock('../../components/vyzualz/media/MediaLibraryBrowser', () => ({ MediaLibraryBrowser: (props: Record<string, unknown>) => { mocks.browser = props; return <div /> } }))
 vi.mock('../../components/vyzualz/media/MediaManagerStage', () => ({ MediaManagerStage: () => <div data-testid="image-stage" /> }))
 vi.mock('../../components/vyzualz/media/ModelEditorStage', () => ({ ModelEditorStage: () => <div data-testid="model-stage" /> }))
-vi.mock('../../components/vyzualz/media/MediaManagerInspector', () => ({ MediaManagerInspector: ({ onHeaderActions }: { onHeaderActions(actions: typeof mocks.actions): void }) => { React.useEffect(() => onHeaderActions(mocks.actions), [onHeaderActions]); return <div /> } }))
+vi.mock('../../components/vyzualz/media/MediaManagerInspector', () => ({ MediaManagerInspector: ({ media, onHeaderActions, onCreateModel }: { media: { id: string } | null; onHeaderActions(actions: typeof mocks.actions): void; onCreateModel(media: { id: string }): void }) => { React.useEffect(() => onHeaderActions(mocks.actions), [onHeaderActions]); return media ? <button type="button" aria-label="Create 3D Model" onClick={() => onCreateModel(media)} /> : <div /> } }))
 import { MediaManagerView } from './MediaManagerView'
 import { useModelEditorStore } from '../models/state/modelEditorStore'
+import { registerModelViewport } from '../models/state/modelViewportBridge'
 import { MEDIA_DECK_CAPABILITIES, MEDIA_MANAGER_CAPABILITIES } from '../../components/vyzualz/media/mediaLibraryCapabilities'
 import { useMediaEditStore } from '../../stores/mediaEditStore'
 let container: HTMLDivElement, root: ReturnType<typeof createRoot>
@@ -38,6 +39,44 @@ describe('model mode selection and guards', () => {
     expect(button('Delete Media').disabled).toBe(true)
     expect(mocks.actions.onSave).not.toHaveBeenCalled()
   })
+  it('puts Generate 3D Model in the header while a model is open: off until the source is prepared, then it generates', async () => {
+    expect(button('Generate 3D Model')).toBeUndefined()
+    await invoke('onSelect', 'image-1'); await act(async () => button('Create 3D Model').click())
+    expect(button('Generate 3D Model').disabled).toBe(true)
+    // The inspector shows the prepared preview through an object URL, which jsdom does not provide. It stays stubbed so the inspector's cleanup on unmount can revoke it.
+    URL.createObjectURL = vi.fn(() => 'blob:preview'); URL.revokeObjectURL = vi.fn()
+    const generate = vi.spyOn(useModelEditorStore.getState(), 'generate').mockResolvedValue(undefined)
+    await act(async () => { useModelEditorStore.setState({ source: new Blob(['x']) as never, preview: new Blob(['y']) as never, needsConfirmation: true, confirmed: false, status: 'idle' }) })
+    // An opaque raster needs its foreground confirmed first.
+    expect(button('Generate 3D Model').disabled).toBe(true)
+    await act(async () => { useModelEditorStore.setState({ confirmed: true }) })
+    expect(button('Generate 3D Model').disabled).toBe(false)
+    await act(async () => button('Generate 3D Model').click())
+    expect(generate).toHaveBeenCalledTimes(1)
+    // Once a model exists the same key regenerates it.
+    await act(async () => { useModelEditorStore.setState({ model: { group: {}, dispose: vi.fn(), stats: { triangles: 1, vertices: 1, meshes: 1, bounds: { min: [0, 0, 0], max: [1, 1, 1] } } } as never }) })
+    expect(button('Regenerate 3D Model')).toBeDefined()
+    expect(button('Generate 3D Model')).toBeUndefined()
+    await act(async () => { useModelEditorStore.setState({ model: null }) })
+  })
+  it('puts Fit Model and Reset Camera in the header only while a model is open, and they drive the viewport', async () => {
+    expect(button('Fit Model')).toBeUndefined()
+    expect(button('Reset Camera')).toBeUndefined()
+    await invoke('onSelect', 'image-1'); await act(async () => button('Create 3D Model').click())
+    expect(button('Fit Model').disabled).toBe(true)
+    expect(button('Reset Camera').disabled).toBe(true)
+    const fit = vi.fn(), resetCamera = vi.fn()
+    const unregister = registerModelViewport({ group: {} as never, capture: vi.fn(), fit, resetCamera })
+    const model = { group: {}, dispose: vi.fn(), stats: { triangles: 1, vertices: 1, meshes: 1, bounds: { min: [0, 0, 0], max: [1, 1, 1] } } } as never
+    await act(async () => { useModelEditorStore.setState({ model }) })
+    expect(button('Fit Model').disabled).toBe(false)
+    await act(async () => button('Fit Model').click())
+    await act(async () => button('Reset Camera').click())
+    expect(fit).toHaveBeenCalledTimes(1)
+    expect(resetCamera).toHaveBeenCalledTimes(1)
+    unregister()
+    await act(async () => { useModelEditorStore.setState({ model: null }) })
+  })
   it.each(['onSelect', 'onSelectTrack', 'onSelectFont', 'onSelectModel'])('guards an unsaved model on %s; Cancel keeps it and Discard proceeds', async callback => {
     await invoke('onSelect', 'image-1'); await act(async () => button('Create 3D Model').click())
     const value = callback === 'onSelect' ? 'image-1' : { id: callback === 'onSelectModel' ? 'image-1' : 'other', currentVersion: 0 }
@@ -51,11 +90,20 @@ describe('model mode selection and guards', () => {
     expect(useModelEditorStore.getState().dirty).toBe(false)
     expect(document.querySelector('[role="alertdialog"]')).toBeNull()
   })
-  it('uses the existing upload entry and creates only from a verified image result', async () => {
-    await act(async () => button('Import Image for 3D').click())
+  it('has one plus in the header, and no separate image import for 3D', async () => {
+    expect(button('Import Image for 3D')).toBeUndefined()
+    expect(button('New Media')).toBeDefined()
+    await act(async () => button('New Media').click())
     expect(mocks.import).toHaveBeenCalledTimes(1)
-    await invoke('onVisualUploaded', [{ id: 'new', dbId: 'new', type: 'image', name: 'New logo' }])
-    expect(useModelEditorStore.getState().begin).toHaveBeenCalledWith(expect.objectContaining({ id: 'new' }))
+    // The upload dialog no longer carries anything into model creation: no callback is handed to the library.
+    expect(mocks.browser.onVisualUploaded).toBeUndefined()
+    expect(useModelEditorStore.getState().begin).not.toHaveBeenCalled()
+  })
+  it('starts model creation only from an image already in the library, via the Edit tab\u2019s Create 3D Model', async () => {
+    expect(button('Create 3D Model')).toBeUndefined()
+    await invoke('onSelect', 'image-1')
+    await act(async () => button('Create 3D Model').click())
+    expect(useModelEditorStore.getState().begin).toHaveBeenCalledWith(expect.objectContaining({ id: 'image-1' }))
     expect(container.querySelector('[data-testid="model-stage"]')).not.toBeNull()
   })
 })

@@ -601,8 +601,6 @@ export interface MediaLibraryBrowserProps {
   activeMediaId: string | null
   activeModelId?: string | null
   onSelectModel?: (asset: ModelAsset) => void
-  onVisualUploaded?: (items: UploadedMedia[]) => void
-  onImportClosed?: () => void
   onSelect?: (id: string) => void
   /** Optional card-click interception for anchored action menus. When supplied,
    * it replaces immediate selection without changing the default behavior of
@@ -645,7 +643,7 @@ function AddMediaIcon({ size = 14 }: { size?: number }) {
 
 export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
   activeMediaId,
-  activeModelId = null, onSelectModel, onVisualUploaded, onImportClosed,
+  activeModelId = null, onSelectModel,
   onSelect,
   onCardActionRequest,
   onOpenMediaManager,
@@ -1685,7 +1683,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
 
   return (
     <>
-      {canUpload && importModalOpen && <MediaUploadModal onVisualUploaded={isManager ? onVisualUploaded : undefined} preserveQueuedFiles={preserveQueuedFiles} initialFiles={quickDropFonts ?? undefined} onClose={() => { setPreserveQueuedFiles(false); setQuickDropFonts(null); closeImportMediaModal(); onImportClosed?.() }} />}
+      {canUpload && importModalOpen && <MediaUploadModal preserveQueuedFiles={preserveQueuedFiles} initialFiles={quickDropFonts ?? undefined} onClose={() => { setPreserveQueuedFiles(false); setQuickDropFonts(null); closeImportMediaModal() }} />}
       {canPreview && !isManager && previewItem && <MediaPreviewModal media={previewItem} onClose={() => setPreviewItem(null)} />}
       {isManager && collectionEditorOpen && <CollectionEditorModal collection={collectionEditorTarget ?? undefined} onClose={closeCollectionEditor} />}
       {cardContextMenu && (

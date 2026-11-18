@@ -20,6 +20,7 @@ import { suggestEditedTitle } from '../../../features/media/edit/mediaEditOutput
 import { selectMediaEditDirty, useMediaEditStore } from '../../../stores/mediaEditStore'
 import type { UploadedMedia } from '../../../stores/mediaStore'
 import { notify } from '../../../stores/notificationStore'
+import { isModelSourceImage } from '../../../features/models/domain/modelSourceTypes'
 
 interface SliderSpec {
   key: MediaEditSliderKey
@@ -44,10 +45,33 @@ interface MediaEditPanelProps {
   media: UploadedMedia
   /** Called with the new item's id after a successful Save As so the view can select it. */
   onMediaCreated: (mediaId: string) => void
+  /** Starts the 3D model flow from this image. Offered for the image types a model can be generated from. */
+  onCreateModel?: (media: UploadedMedia) => void
+}
+
+/** The Edit tab's 3D Model group: one button that carries a valid library image into 3D model generation. */
+function CreateModelGroup({ media, onCreateModel }: { media: UploadedMedia; onCreateModel: (media: UploadedMedia) => void }) {
+  const notReady = !media.dbId || !!media.uploading || !!media.uploadError
+  return (
+    <Collapsible label="3D Model" defaultOpen>
+      <div className="rv-ctrl-info">Traces this image into a 3D model you can preview and adjust.</div>
+      <div className="mmi-actions mmi-actions--row">
+        <IconChipButton
+          tone="primary"
+          icon={<AppIcon kind="layers" size={13} color="currentColor" />}
+          disabled={notReady}
+          title={notReady ? 'Available once the image has finished uploading' : 'Create a 3D model from this image'}
+          onClick={() => onCreateModel(media)}
+        >
+          Create 3D Model
+        </IconChipButton>
+      </div>
+    </Collapsible>
+  )
 }
 
 /** The Edit tab for one image or video. All state lives in useMediaEditStore. */
-export function MediaEditPanel({ media, onMediaCreated }: MediaEditPanelProps) {
+export function MediaEditPanel({ media, onMediaCreated, onCreateModel }: MediaEditPanelProps) {
   const session = useMediaEditStore(state => state.mediaId === media.id ? state : null)
   const dirty = useMediaEditStore(selectMediaEditDirty)
   const busy = useMediaEditStore(state => state.busy)
@@ -57,10 +81,12 @@ export function MediaEditPanel({ media, onMediaCreated }: MediaEditPanelProps) {
 
   const displayName = media.title ?? media.name
   const unsupported = mediaEditUnsupportedReason(media)
+  const modelGroup = onCreateModel && isModelSourceImage(media) ? <CreateModelGroup media={media} onCreateModel={onCreateModel} /> : null
   if (unsupported) {
     return (
       <div className="mmi-body">
         <DrawerNotice tone="warning" role="status" title="Editing unavailable">{unsupported}</DrawerNotice>
+        {modelGroup}
       </div>
     )
   }
@@ -192,6 +218,8 @@ export function MediaEditPanel({ media, onMediaCreated }: MediaEditPanelProps) {
       <Collapsible label="Detail" defaultOpen>
         {DETAIL_SLIDERS.map(renderSlider)}
       </Collapsible>
+
+      {modelGroup}
 
       {error && <DrawerNotice tone="error" role="alert" title="Edit failed">{error}</DrawerNotice>}
       {progressLabel && <div className="mmi-edit-progress" role="status" aria-live="polite">{progressLabel}</div>}

@@ -43,6 +43,8 @@ const geometryKey = (recipe: ModelGeneratorRecipe) => JSON.stringify({ ...recipe
 const traceKey = (recipe: ModelGeneratorRecipe) => JSON.stringify([recipe.foreground, recipe.trace, recipe.quality])
 const busy = (state: ModelEditorState) => state.status === 'saving' || state.status === 'deleting'
 export const selectModelEditorNeedsGuard = (state: ModelEditorState) => state.dirty || busy(state)
+/** Whether Generate 3D Model (or Regenerate) can run now: a prepared preview exists, the foreground is confirmed where that is required, and the model is not busy, published or locked. */
+export const selectModelCanGenerate = (state: ModelEditorState) => !(busy(state) || !!state.publishedVersion || !!state.pendingOperationId || !state.source) && !!state.preview && !(state.needsConfirmation && !state.confirmed)
 export const selectModelCanSave = (state: ModelEditorState) => !!state.name.trim() && state.dirty && !busy(state) && !state.generationPending && !!state.model && !!state.recipe && (state.artifact ? geometryKey(state.artifact.recipe) === geometryKey(state.recipe) : JSON.stringify(state.recipe) === JSON.stringify(state.savedRecipe)) && (!state.needsConfirmation || state.confirmed) && (!state.error || state.saveFailure || !!state.saveTarget || !!state.pendingOperationId || !!state.publishedVersion)
 async function originalImage(media: UploadedMedia, signal: AbortSignal): Promise<Blob> {
   if (media.type !== 'image' || media.uploading || media.uploadError || !media.dbId) throw new Error('Select a successfully uploaded image to create a model.')

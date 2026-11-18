@@ -19,7 +19,8 @@ import { HeaderActionIcon } from '../../components/vyzualz/layout/HeaderActionIc
 import { SaveGlyph } from '../../components/vyzualz/layout/HeaderGlyphs'
 import { VyzualzHeaderActions } from '../../components/vyzualz/shared/VyzualzHeaderActions'
 import type { LyricManagerNavigationIntent } from '../lyrics/lyricNavigation'
-import { selectModelCanSave, selectModelEditorNeedsGuard, useModelEditorStore } from '../models/state/modelEditorStore'
+import { selectModelCanGenerate, selectModelCanSave, selectModelEditorNeedsGuard, useModelEditorStore } from '../models/state/modelEditorStore'
+import { fitModelViewport, resetModelCamera } from '../models/state/modelViewportBridge'
 import type { MediaManagerSelection, ModelAsset } from '../models/domain/modelAssetTypes'
 import type { UploadedMedia } from '../../stores/mediaStore'
 import { UnsavedModelChangesDialog } from '../../components/vyzualz/media/UnsavedModelChangesDialog'
@@ -47,6 +48,8 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
   const [pending, setPending] = useState<{ commit(): void } | null>(null)
   const needsMediaGuard = useMediaEditStore(selectMediaEditNeedsGuard)
   const modelCanSave = useModelEditorStore(selectModelCanSave)
+  const modelLoaded = useModelEditorStore(state => !!state.model)
+  const modelCanGenerate = useModelEditorStore(selectModelCanGenerate)
   const modelId = useModelEditorStore(state => state.id), modelStatus = useModelEditorStore(state => state.status), modelAsset = useModelEditorStore(state => state.asset)
   const modelPendingSave = useModelEditorStore(state => !!state.publishedVersion || !!state.pendingOperationId || (!!state.saveTarget && state.saveTarget.id !== state.asset?.id))
   const modelError = useModelEditorStore(state => state.error)
@@ -54,7 +57,6 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
   const needsModelGuard = useModelEditorStore(selectModelEditorNeedsGuard)
   const accountId = useMediaStore(state => state.accountId)
   const previousAccount = useRef(accountId)
-  const uploadForModel = useRef(false)
   const selectionKey = selection ? `${selection.kind}:${selection.id}` : 'none'
   const [headerState, setHeaderState] = useState<{ owner: string; actions: MediaHeaderActions | null } | null>(null)
   const receiveHeaderActions = useCallback((actions: MediaHeaderActions | null) => setHeaderState({ owner: selectionKey, actions }), [selectionKey])
@@ -95,7 +97,7 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
     if (selectedMediaId && !selectedMedia) commitSelection(null)
   }, [selectedMedia, selectedMediaId, commitSelection])
   useEffect(() => {
-    if (previousAccount.current !== accountId) { previousAccount.current = accountId; uploadForModel.current = false; setPending(null); commitSelection(null) }
+    if (previousAccount.current !== accountId) { previousAccount.current = accountId; setPending(null); commitSelection(null) }
   }, [accountId, commitSelection])
   useEffect(() => () => { useMediaEditStore.getState().endSession(); useModelEditorStore.getState().reset() }, [])
   useEffect(() => {
@@ -120,13 +122,13 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
               label="New Media"
               title="Add Media"
               icon={<HeaderActionIcon action="create" />}
-              onClick={() => { uploadForModel.current = false; openImportMediaModal() }}
+              onClick={() => openImportMediaModal()}
             />
-            <HeaderIconKey label="Create 3D Model" icon={<AppIcon kind="layers" size={15} />}
-              disabled={selectedMedia?.type !== 'image' || !selectedMedia.dbId || !!selectedMedia.uploading || !!selectedMedia.uploadError}
-              onClick={() => { if (selectedMedia) createFromImage(selectedMedia) }} />
-            <HeaderIconKey label="Import Image for 3D" icon={<HeaderActionIcon action="create" />}
-              onClick={() => requestTransition(() => { uploadForModel.current = true; openImportMediaModal() })} />
+            {modelSelected && <>
+              <HeaderIconKey label={modelLoaded ? 'Regenerate 3D Model' : 'Generate 3D Model'} title={modelCanGenerate ? undefined : 'Available once the source is prepared (and its foreground confirmed)'} icon={<AppIcon kind="wand" size={15} />} disabled={!modelCanGenerate} onClick={() => { void useModelEditorStore.getState().generate() }} />
+              <HeaderIconKey label="Fit Model" title="Fit the model in the viewport" icon={<AppIcon kind="cameraFocus" size={15} />} disabled={!modelLoaded} onClick={fitModelViewport} />
+              <HeaderIconKey label="Reset Camera" title="Reset the viewport camera" icon={<HeaderActionIcon action="reset" />} disabled={!modelLoaded} onClick={resetModelCamera} />
+            </>}
             <HeaderIconKey
               label="Save Changes"
               title={modelSelected ? modelStatus === 'saving' ? 'Saving model…' : 'Save model changes' : headerActions?.saving ? 'Saving…' : 'Save the changes made on the Info tab'}
@@ -172,12 +174,6 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
               onSelect={id => requestSelection({ kind: 'media', id })}
               activeModelId={modelSelected ? selection.id : null}
               onSelectModel={selectModel}
-              onVisualUploaded={items => {
-                if (!uploadForModel.current) return
-                const image = items.find(item => item.type === 'image' && item.dbId && !item.uploadError && !item.uploading)
-                if (image) { uploadForModel.current = false; createFromImage(image) }
-              }}
-              onImportClosed={() => { uploadForModel.current = false }}
               activeTrackId={selectedTrackId}
               onSelectTrack={track => requestSelection({ kind: 'track', id: track.id })}
               activeFontId={selection?.kind === 'font' ? selection.id : null}
@@ -206,6 +202,7 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
               track={selectedTrack}
               font={selectedFont}
               onMediaCreated={id => commitSelection({ kind: 'media', id })}
+              onCreateModel={createFromImage}
               onFontRenamed={setSelectedFont}
               onHeaderActions={receiveHeaderActions}
             />}

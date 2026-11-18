@@ -8,10 +8,13 @@ is introduced by this phase. Earlier cloud deployment gates remain pending.
 
 ## User workflow
 
-Select a successfully uploaded image and choose **Create 3D Model**, or choose
-**Import Image for 3D** to use the existing upload dialog. The upload callback
-matches completed canonical records to the queue's operation IDs, including
-reconciled uploads; unrelated library arrivals cannot become the source.
+A 3D model is always made from an image that is already in the user's media library. There is one
+upload entry, the plus in the Media Manager header, and it only uploads media. To make a model, select
+a successfully uploaded SVG, PNG, JPEG or WebP image, open the **Edit** tab and choose **Create 3D Model**
+in its **3D Model** group. The group is offered for exactly those types (`isModelSourceImage`), including
+an SVG, whose own editing is unavailable; it is not offered for a GIF or a video. It waits while the
+image is still uploading. Choosing it first asks about unsaved media or model changes, then continues
+into generation for that image.
 The source loader fetches original bytes through the existing signed-media path,
 refreshes an expired URL once and never substitutes a thumbnail.
 
@@ -59,7 +62,7 @@ renderer/context, controls, observers, PMREM environment, shadow target, grid,
 floor and axes. Preview Blob URLs are revoked on replacement/unmount.
 
 Gestures: left drag/one finger orbit; right drag/two fingers pan; wheel/pinch zoom.
-**Fit model** and **Reset camera** frame the model around its actual bounds/pivot.
+**Fit Model** and **Reset Camera** frame the model around its actual bounds/pivot. They are icon keys in the Media Manager header's control group, shown only while a model is open and enabled once it has loaded; the stage itself has no title bar (the model's name is in the Info tab). The inspector's Info / Edit / Output tabs are the standard underline tabs, the same as the media inspector's. **Generate 3D Model** is also a header key (shown as **Regenerate 3D Model** once a model exists), not a button in Source Preparation. It is enabled when the source is prepared and, for an opaque raster, its foreground is confirmed (`selectModelCanGenerate`). In the Edit tab, Geometry puts related inputs two to a row (Depth and Uniform scale; Curve detail and Pivot; Bevel width and Bevel thickness; Bevel segments), with the Bevel toggle, which controls the bevel inputs below it, on its own row beneath Pivot.
 ResizeObserver follows rail/window changes, DPI is capped at 2, and rendering is
 requested on changes rather than through a continuous animation loop. Hidden or
 non-intersecting views suppress drawing. Context-loss events show an inline notice;
@@ -180,3 +183,5 @@ status and a static reduced-motion variant.
 Media Library sibling groups use the shared Collapsible spacing. The model
 section adds no extra bottom margin or duplicate outer divider, so the gap
 from 3D Models to Images matches the gap from Images to Videos when collapsed.
+
+Colours in the model inspector (each material's Color and Emissive, and Preview background) use the standard `PaletteColorRow` picker, never the browser's native colour input. A material's Color and Emissive sit side by side in the shared two-column palette grid (`rv-palette-color-grid`).

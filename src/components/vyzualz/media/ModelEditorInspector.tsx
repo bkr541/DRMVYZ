@@ -2,7 +2,7 @@ import '../../../styles/reactView.css'
 import { useEffect, useState } from 'react'
 import { selectModelCanSave, useModelEditorStore } from '../../../features/models/state/modelEditorStore'
 import { MODEL_MATERIAL_PRESETS } from '../../../features/models/materials/modelMaterials'
-import { Collapsible, ColorRow, NumberInputRow, SelectRow, SliderRow, TextAreaRow, TextInputRow, ToggleRow } from '../react/ReactControlRows'
+import { Collapsible, NumberInputRow, PaletteColorRow, SelectRow, SliderRow, TextAreaRow, TextInputRow, ToggleRow } from '../react/ReactControlRows'
 import { IconChipButton } from '../react/controls/IconChipButton'
 import { ConfirmDialog } from '../react/controls/ConfirmDialog'
 import { NoticeCard } from '../react/controls/NoticeCard'
@@ -32,20 +32,22 @@ export function ModelEditorInspector({ onSelectSource }: { onSelectSource?: () =
     }
     const preset = Object.entries(MODEL_MATERIAL_PRESETS).find(([, p]) => p.color === value.color && p.metalness === value.metalness && p.roughness === value.roughness && p.opacity === value.opacity && p.emissive === value.emissive)?.[0] ?? 'custom'
     return <Collapsible label={region === 'front' ? 'Front / Caps' : 'Sides'} defaultOpen>
-      <SelectRow label={`${region} material preset`} value={preset} disabled={locked} options={[{ value: 'custom', label: 'Custom', disabled: true }, ...Object.keys(MODEL_MATERIAL_PRESETS).map(name => ({ value: name, label: name }))]}
+      <SelectRow label="Material preset" value={preset} disabled={locked} options={[{ value: 'custom', label: 'Custom', disabled: true }, ...Object.keys(MODEL_MATERIAL_PRESETS).map(name => ({ value: name, label: name }))]}
         onChange={name => { const picked = MODEL_MATERIAL_PRESETS[name as keyof typeof MODEL_MATERIAL_PRESETS]; if (picked) update({ ...picked, emissiveIntensity: 1, clearcoat: 0, clearcoatRoughness: 0.1 }) }} />
-      <ColorRow label={`${region} color`} value={value.color} disabled={locked} onChange={color => update({ color })} />
-      <SliderRow label={`${region} metalness`} value={value.metalness} disabled={locked} onChange={metalness => update({ metalness })} />
-      <SliderRow label={`${region} roughness`} value={value.roughness} disabled={locked} onChange={roughness => update({ roughness })} />
-      <ColorRow label={`${region} emissive`} value={value.emissive} disabled={locked} onChange={emissive => update({ emissive })} />
-      <SliderRow label={`${region} emissive intensity`} value={value.emissiveIntensity ?? 1} min={0} max={5} disabled={locked || value.emissive === '#000000'} onChange={emissiveIntensity => update({ emissiveIntensity })} />
-      <SliderRow label={`${region} clearcoat`} value={value.clearcoat ?? 0} disabled={locked} onChange={clearcoat => update({ clearcoat })} />
-      {(value.clearcoat ?? 0) > 0 && <SliderRow label={`${region} clearcoat roughness`} value={value.clearcoatRoughness ?? 0.1} disabled={locked} onChange={clearcoatRoughness => update({ clearcoatRoughness })} />}
-      <SliderRow label={`${region} opacity`} value={value.opacity} min={0.05} max={1} disabled={locked} onChange={opacity => update({ opacity })} />
+      <div className="rv-palette-color-grid">
+        <PaletteColorRow label="Color" value={value.color} disabled={locked} onChange={color => update({ color })} />
+        <PaletteColorRow label="Emissive" value={value.emissive} disabled={locked} onChange={emissive => update({ emissive })} />
+      </div>
+      <SliderRow label="Metalness" value={value.metalness} disabled={locked} onChange={metalness => update({ metalness })} />
+      <SliderRow label="Roughness" value={value.roughness} disabled={locked} onChange={roughness => update({ roughness })} />
+      <SliderRow label="Emissive intensity" value={value.emissiveIntensity ?? 1} min={0} max={5} disabled={locked || value.emissive === '#000000'} onChange={emissiveIntensity => update({ emissiveIntensity })} />
+      <SliderRow label="Clearcoat" value={value.clearcoat ?? 0} disabled={locked} onChange={clearcoat => update({ clearcoat })} />
+      {(value.clearcoat ?? 0) > 0 && <SliderRow label="Clearcoat roughness" value={value.clearcoatRoughness ?? 0.1} disabled={locked} onChange={clearcoatRoughness => update({ clearcoatRoughness })} />}
+      <SliderRow label="Opacity" value={value.opacity} min={0.05} max={1} disabled={locked} onChange={opacity => update({ opacity })} />
     </Collapsible>
   }
   return <><RailWindowHeader side="right" icon={<AppIcon kind="layers" size={15} />} label="3D Model" />
-    <RailTabs tabs={tabs} activeTab={tab} onChange={value => { if (value === 'info' || value === 'edit' || value === 'output') setTab(value) }} ariaLabel="Model inspector tabs" className="mmi-tabs" />
+    <RailTabs tabs={tabs} activeTab={tab} onChange={value => { if (value === 'info' || value === 'edit' || value === 'output') setTab(value) }} ariaLabel="Model inspector tabs" className="rv-main-workspace-tabs" variant="underline" />
     <div className="mmi-body mm-model-inspector">
       {tab === 'info' && <>
         <Collapsible label="Model Info" icon={<AppIcon kind="info" size={14} />}>
@@ -75,24 +77,25 @@ export function ModelEditorInspector({ onSelectSource }: { onSelectSource?: () =
           </>}
           <SelectRow label="Quality" value={recipe.quality ?? 'normal'} options={[{ value: 'draft', label: 'Draft' }, { value: 'normal', label: 'Normal' }, { value: 'high', label: 'High' }]} disabled={locked} onChange={quality => s.setRecipe({ quality: quality as 'draft' | 'normal' | 'high' })} />
           {s.needsConfirmation && <ToggleRow label="Confirm foreground preview" value={s.confirmed} disabled={busy} onChange={s.confirmForeground} />}
-          <IconChipButton disabled={locked || !s.preview || (s.needsConfirmation && !s.confirmed)} onClick={() => { void s.generate() }}>{s.model ? 'Regenerate 3D Model' : 'Generate 3D Model'}</IconChipButton>
         </Collapsible>
         {geometry && <Collapsible label="Geometry" icon={<AppIcon kind="layers" size={14} />}>
-          <NumberInputRow label="Depth" value={geometry.depth} min={0.01} max={10} step={0.01} disabled={locked} onChange={depth => s.setRecipe({ geometry: { ...geometry, depth } })} />
-          <ToggleRow label="Bevel" value={geometry.bevelEnabled} disabled={locked} onChange={bevelEnabled => s.setRecipe({ geometry: { ...geometry, bevelEnabled } })} />
-          {geometry.bevelEnabled && <>
-            <NumberInputRow label="Bevel width" value={geometry.bevelSize} min={0} max={1} step={0.005} disabled={locked} onChange={bevelSize => s.setRecipe({ geometry: { ...geometry, bevelSize } })} />
-            <NumberInputRow label="Bevel thickness" value={geometry.bevelThickness} min={0} max={1} step={0.005} disabled={locked} onChange={bevelThickness => s.setRecipe({ geometry: { ...geometry, bevelThickness } })} />
-            <NumberInputRow label="Bevel segments" value={geometry.bevelSegments} min={1} max={16} step={1} disabled={locked} onChange={bevelSegments => s.setRecipe({ geometry: { ...geometry, bevelSegments } })} />
-          </>}
-          <NumberInputRow label="Curve detail" value={geometry.curveSegments} min={1} max={64} step={1} disabled={locked} onChange={curveSegments => s.setRecipe({ geometry: { ...geometry, curveSegments } })} />
-          <SelectRow label="Pivot" value={recipe.transform.pivot} disabled={locked} options={[{ value: 'center', label: 'Center' }, { value: 'bottom', label: 'Bottom' }]} onChange={pivot => s.setRecipe({ transform: { ...recipe.transform, pivot: pivot as 'center' | 'bottom' } })} />
-          <NumberInputRow label="Uniform scale" value={recipe.transform.scale[0]} min={0.01} max={10} step={0.05} disabled={locked} onChange={scale => s.setRecipe({ transform: { ...recipe.transform, scale: [scale, scale, scale] } })} />
+          <div className="mm-model-field-grid">
+            <NumberInputRow label="Depth" value={geometry.depth} min={0.01} max={10} step={0.01} disabled={locked} onChange={depth => s.setRecipe({ geometry: { ...geometry, depth } })} />
+            <NumberInputRow label="Uniform scale" value={recipe.transform.scale[0]} min={0.01} max={10} step={0.05} disabled={locked} onChange={scale => s.setRecipe({ transform: { ...recipe.transform, scale: [scale, scale, scale] } })} />
+            <NumberInputRow label="Curve detail" value={geometry.curveSegments} min={1} max={64} step={1} disabled={locked} onChange={curveSegments => s.setRecipe({ geometry: { ...geometry, curveSegments } })} />
+            <SelectRow label="Pivot" value={recipe.transform.pivot} disabled={locked} options={[{ value: 'center', label: 'Center' }, { value: 'bottom', label: 'Bottom' }]} onChange={pivot => s.setRecipe({ transform: { ...recipe.transform, pivot: pivot as 'center' | 'bottom' } })} />
+            <div className="mm-model-field-grid__wide"><ToggleRow label="Bevel" value={geometry.bevelEnabled} disabled={locked} onChange={bevelEnabled => s.setRecipe({ geometry: { ...geometry, bevelEnabled } })} /></div>
+            {geometry.bevelEnabled && <>
+              <NumberInputRow label="Bevel width" value={geometry.bevelSize} min={0} max={1} step={0.005} disabled={locked} onChange={bevelSize => s.setRecipe({ geometry: { ...geometry, bevelSize } })} />
+              <NumberInputRow label="Bevel thickness" value={geometry.bevelThickness} min={0} max={1} step={0.005} disabled={locked} onChange={bevelThickness => s.setRecipe({ geometry: { ...geometry, bevelThickness } })} />
+              <NumberInputRow label="Bevel segments" value={geometry.bevelSegments} min={1} max={16} step={1} disabled={locked} onChange={bevelSegments => s.setRecipe({ geometry: { ...geometry, bevelSegments } })} />
+            </>}
+          </div>
         </Collapsible>}
         <Collapsible label="Materials" icon={<AppIcon kind="edit" size={14} />}>{material('front')}{material('side')}</Collapsible>
         {preview && <Collapsible label="Preview" icon={<AppIcon kind="image" size={14} />}>
           <p>Preview lighting, background and motion are included in PNG previews, not the GLB.</p>
-          <ColorRow label="Preview background" value={preview.background} disabled={locked} onChange={background => s.setRecipe({ preview: { ...preview, background } })} />
+          <PaletteColorRow label="Preview background" value={preview.background} disabled={locked} onChange={background => s.setRecipe({ preview: { ...preview, background } })} />
           <SliderRow label="Preview lighting" value={preview.lightIntensity} min={0.1} max={4} disabled={locked} onChange={lightIntensity => s.setRecipe({ preview: { ...preview, lightIntensity } })} />
           <SelectRow label="Preview environment" value={preview.environment} disabled={locked} options={[{ value: 'neutral', label: 'Neutral' }, { value: 'studio', label: 'Studio' }]} onChange={environment => s.setRecipe({ preview: { ...preview, environment: environment as 'neutral' | 'studio' } })} />
           <ToggleRow label="Preview grid" value={preview.grid ?? true} disabled={locked} onChange={grid => s.setRecipe({ preview: { ...preview, grid } })} />
