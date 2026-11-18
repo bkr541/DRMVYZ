@@ -32,6 +32,24 @@ describe('model image preparation and SVG safety', () => {
     '<svg xmlns="http://www.w3.org/2000/svg"><path d="M1e100 0L1 1Z"/></svg>',
     '<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0L1 1" stroke="black"/></svg>',
   ])('blocks unsafe or unsupported SVG %#', value => expect(() => sanitizeModelSvg(value)).toThrow())
+  const codeOf = (value: string) => { try { sanitizeModelSvg(value); return null } catch (error) { return (error as { code?: string }).code ?? 'other' } }
+  it.each([
+    '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>',
+    '<svg xmlns="http://www.w3.org/2000/svg" onload="x()"/>',
+    '<svg xmlns="http://www.w3.org/2000/svg"><foreignObject/></svg>',
+    '<svg xmlns="http://www.w3.org/2000/svg"><image href="https://example.com/x"/></svg>',
+    '<svg xmlns="http://www.w3.org/2000/svg"><use href="#x"/></svg>',
+    '<svg xmlns="http://www.w3.org/2000/svg"><style>path{fill:red}</style></svg>',
+    '<svg xmlns="http://www.w3.org/2000/svg"><path style="fill:url(https://example.com/x)"/></svg>',
+    '<!DOCTYPE svg [<!ENTITY foo SYSTEM "file:///etc/passwd">]><svg/>',
+  ])('refuses hostile SVG outright, so it is never drawn as an image: %#', value => expect(codeOf(value)).toBe('unsafe_svg'))
+  it.each([
+    ['a gradient', '<svg xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="g"><stop offset="0" stop-color="red"/></linearGradient></defs><path d="M0 0L9 0L9 9Z" fill="url(#g)"/></svg>'],
+    ['a stroke', '<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0L1 1" stroke="black"/></svg>'],
+    ['an unsupported element', '<svg xmlns="http://www.w3.org/2000/svg"><text>hi</text></svg>'],
+    ['too many shapes', `<svg xmlns="http://www.w3.org/2000/svg">${'<path d="M0 0L1 1Z"/>'.repeat(300)}</svg>`],
+    ['a file over 1 MiB', `<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0L1 1Z"/>${'<!-- -->'.repeat(140_000)}</svg>`],
+  ])('marks %s as harmless but unsupported, so the file may be drawn as an image and traced', (_name, value) => expect(codeOf(value)).toBe('unsupported_svg'))
   it('blocks malformed and giant SVG and retains the supported transformed fill subset', async () => {
     expect(() => sanitizeModelSvg('<svg>' + ' '.repeat(1024 * 1024))).toThrow()
     expect(() => sanitizeModelSvg('<svg xmlns="http://www.w3.org/2000/svg"><path')).toThrow()

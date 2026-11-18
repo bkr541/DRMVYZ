@@ -27,6 +27,13 @@ export interface ModelArtifact extends GeneratedModel {
   glb: Blob
   files: { glb: { data: Blob; contentType: 'model/gltf-binary' }; source: { data: Blob; contentType: 'image/png' | 'image/svg+xml' }; trace: { data: Blob; contentType: 'image/svg+xml' } }
 }
+/** A trace of a picture (not the user's own vector) that is too intricate to extrude fails with budget errors written for hand-made SVGs; say what to try instead. */
+function explainPictureTraceFailure(error: unknown, fromPicture: boolean): unknown {
+  if (fromPicture && error instanceof ModelGenerationError && ['unsupported_svg', 'unsafe_svg', 'overlapping_contours', 'geometry_budget'].includes(error.code)) {
+    return new ModelGenerationError('trace_too_complex', 'This image is too detailed to become one solid 3D shape. Try Draft quality, raise Smoothing, adjust the Threshold or Invert foreground, or use a simpler image such as a logo on a transparent background.')
+  }
+  return error
+}
 /** Independent engine boundary. Caller owns the returned group's lifetime and calls dispose on replacement. */
 export async function createModelArtifact(input: CreateModelArtifactInput): Promise<ModelArtifact> {
   checkAbort(input.signal)
@@ -36,10 +43,12 @@ export async function createModelArtifact(input: CreateModelArtifactInput): Prom
   if (recipe.trace.colorMode !== 'silhouette') throw new ModelGenerationError('color_mode', 'Full-color layered geometry is not supported; use silhouette mode.')
   const prepared = await prepareModelInput(input.source, recipe, quality, input.signal)
   if (prepared.requiresForegroundConfirmation && !input.foregroundConfirmed) throw new ModelGenerationError('foreground_confirmation_required', 'Review the foreground preview and confirm before generation.', prepared.foregroundPreview)
-  const svg = prepared.svg ?? await new VTracerVectorizer().trace({ pixels: prepared.pixels!, width: prepared.width, height: prepared.height, options: { smoothing: recipe.trace.smoothing }, signal: input.signal })
+  let svg: string
+  try { svg = prepared.svg ?? await new VTracerVectorizer().trace({ pixels: prepared.pixels!, width: prepared.width, height: prepared.height, options: { smoothing: recipe.trace.smoothing }, signal: input.signal }) } catch (error) { throw explainPictureTraceFailure(error, !prepared.svg) }
   checkAbort(input.signal)
   prepared.recipe.engine = { name: prepared.svg ? 'drmvyz-svg-extrude' : 'drmvyz-vtracer-extrude', version: prepared.svg ? '1' : `${VTRACER_VERSION}/1`, threeVersion: '0.186.1' }
-  const model = createExtrudedModel(svg, prepared.recipe, quality, input.signal)
+  let model: ReturnType<typeof createExtrudedModel>
+  try { model = createExtrudedModel(svg, prepared.recipe, quality, input.signal) } catch (error) { throw explainPictureTraceFailure(error, !prepared.svg) }
   try {
     const glb = await exportModelGlb(model.group, input.signal)
     const sourceType = prepared.svg ? 'image/svg+xml' as const : 'image/png' as const

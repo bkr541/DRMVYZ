@@ -185,3 +185,13 @@ section adds no extra bottom margin or duplicate outer divider, so the gap
 from 3D Models to Images matches the gap from Images to Videos when collapsed.
 
 Colours in the model inspector (each material's Color and Emissive, and Preview background) use the standard `PaletteColorRow` picker, never the browser's native colour input. A material's Color and Emissive sit side by side in the shared two-column palette grid (`rv-palette-color-grid`).
+
+## Which images become a model
+
+A model is the outline of the source, extruded. An SVG made only of filled shapes (no gradients or strokes, within 1 MiB, 256 shapes and 12,000 path commands) is extruded directly from its own vectors.
+
+An SVG that is only unsupported (a gradient, a stroke, an element such as text or a clip path, or a file that is too large or detailed) is no longer refused. It is drawn as an image at a 1024px working size and its outline is traced, the way a PNG is; a warning says so, and that gradients and fine detail are not kept. An SVG that is hostile or malformed (script, event handlers, external references, `use`, `image`, `foreignObject`, a DOCTYPE or entities) is still refused and is never drawn.
+
+An image with its own background counts as opaque when it has no transparency, or when nearly all of it (98%) counts as foreground by alpha, so a few soft-edged pixels do not make a full-bleed picture a cut-out. An opaque image asks the user to review the threshold foreground preview before it is generated.
+
+If the traced outline is still too intricate to extrude, generation stops with "This image is too detailed to become one solid 3D shape" and says what to try: Draft quality, more Smoothing, a different Threshold or Invert foreground, or a simpler image such as a logo on a transparent background. The stage shows the reason for any failure, not only the inspector.
