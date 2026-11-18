@@ -42,50 +42,56 @@ describe('Open Decks (preview only)', () => {
     expect(cinema2ThreeAssetRegistry.resolveUrl(asset.id, 'high')).toContain('open-decks.glb')
   })
 
-  it('is revision 4, so a parameter state saved by an earlier, angled or differently framed version is discarded', () => {
-    expect(manifest.revision).toBe(4)
+  it('is revision 9, so a parameter state saved by an earlier, angled or differently framed version is discarded', () => {
+    expect(manifest.revision).toBe(9)
     const compiled = cinema2NativePresetRegistry.compile(manifest.id)
     if (!compiled.ok) throw new Error('Open Decks did not compile')
     const state = new Cinema2ParameterState(compiled.plan.parameters)
     const stale = JSON.parse(state.serialize())
-    stale.presetRevision = 1
+    stale.presetRevision = 8
     stale.values = { ...stale.values, 'open-decks-heading': 24 }
     expect(state.restore(JSON.stringify(stale)).ok).toBe(false)
     expect(state.getValue('open-decks-heading' as never)).toBe(0)
   })
 
-  it('faces the camera head on by default', () => {
+  it('looks down onto the table by default', () => {
     const camera = manifest.cameras?.[0]
-    expect(camera?.rig).toMatchObject({ kind: 'orbit', azimuthDegrees: 0, elevationDegrees: 0 })
+    expect(camera?.rig).toMatchObject({ kind: 'orbit', azimuthDegrees: 0, elevationDegrees: 30 })
     const defaults = Object.fromEntries((manifest.parameters ?? []).map(parameter => [parameter.id, parameter.defaultValue]))
     expect(defaults['open-decks-heading']).toBe(0)
-    expect(defaults['open-decks-elevation']).toBe(0)
+    expect(defaults['open-decks-elevation']).toBe(30)
   })
 
-  it('fills most of the width and lets the bottom of the device run just past the bottom of the Stage, on every Stage from narrow to wide', () => {
+  it('accepts camera elevation down to -70 degrees', () => {
+    const elevation = manifest.parameters!.find(parameter => parameter.id === 'open-decks-elevation')!
+    expect(elevation.min).toBe(-70)
+    expect(elevation.max).toBe(30)
+    const compiled = cinema2NativePresetRegistry.compile(manifest.id)
+    if (!compiled.ok) throw new Error('Open Decks did not compile')
+    const state = new Cinema2ParameterState(compiled.plan.parameters)
+    expect(state.setPersistentValue(elevation.id, -70).ok).toBe(true)
+    expect(state.getValue(elevation.id)).toBe(-70)
+  })
+
+  it('restores close CDJ framing instead of the wide booth composition', () => {
     const camera = manifest.cameras![0]!
-    expect(camera.rig).toMatchObject({ kind: 'orbit', radius: 3.18 })
+    expect(camera.rig).toMatchObject({ kind: 'orbit', radius: 5.6 })
+    expect(camera.target).toEqual([0, 7.5, 0])
     expect(camera.minAspect).toBeCloseTo(1.15, 6)
-    expect(camera.minAspectAnchor).toBe(1)
-    // The model is 2.5 wide and 1.85 tall (a 1080 x 800 photograph), centred. At the composition aspect the visible half-height is radius x tan(fov / 2);
-    // the camera looks above the centre so the model's bottom edge falls a little past the frame. Wider Stages keep the vertical view, narrower ones are
-    // pinned to the same bottom edge (minAspectAnchor 1).
-    const half = 3.18 * Math.tan(((camera.fovDegrees ?? 40) / 2) * Math.PI / 180)
-    const bottomBelowFrame = (camera.target![1]! + 0.925) - half
-    expect(bottomBelowFrame).toBeGreaterThan(0.06)
-    expect(bottomBelowFrame).toBeLessThan(0.15)
-    const fraction = 1.25 / (half * camera.minAspect!)
-    expect(fraction).toBeGreaterThan(0.85)
-    expect(fraction).toBeLessThanOrEqual(1)
-    // The top of the device stays in the frame.
-    expect(0.925 - camera.target![1]!).toBeLessThan(half)
+    expect(camera.minAspectAnchor).toBe(0)
+    const half = 5.6 * Math.tan(((camera.fovDegrees ?? 40) / 2) * Math.PI / 180)
+    expect(half).toBeGreaterThan(1.9)
+    expect(half * camera.minAspect!).toBeGreaterThan(1.25)
+    const distance = manifest.parameters!.find(parameter => parameter.id === 'open-decks-distance')!
+    expect(distance.defaultValue).toBe(5.6)
+    expect(distance.max).toBe(40)
   })
 
-  it('never zooms with Auto Performance on: no rule touches the lens or the distance, and the only camera movement is a slight sway of the heading', () => {
+  it('never zooms with Auto Performance on: no rule touches the lens or the distance, and camera movement is limited to heading sway and a crowd-reveal dip', () => {
     const targets = (manifest.choreography?.rules ?? []).flatMap(rule => rule.actions.map(action => action.target as { kind: string; ref?: { $ref: string }; property?: string }))
     const camera = targets.filter(target => target.kind === 'camera')
     expect(camera.length).toBeGreaterThan(0)
-    for (const target of camera) expect(target.property, 'camera property').toBe('control.orbitAzimuthDegrees')
+    for (const target of camera) expect(['control.orbitAzimuthDegrees', 'control.orbitElevationDegrees']).toContain(target.property)
     const sway = (manifest.choreography?.rules ?? []).filter(rule => String(rule.id).startsWith('open-decks-auto-sway-'))
     expect(sway).toHaveLength(2)
     expect(sway.map(rule => (rule.actions[0] as { value: number }).value).sort()).toEqual([-4, 4])
@@ -93,10 +99,24 @@ describe('Open Decks (preview only)', () => {
 
   it('is lifted off its backdrop: the raised parts cast shadows onto the plate and glass beneath them and the device onto the wall behind it under a shadow-casting key, with a rim and a fill and the studio environment', () => {
     const module = manifest.modules?.[0]
-    expect(module?.config?.shadows).toEqual({ cast: ['cdj'], receive: ['cdj', 'screen', 'backdrop'] })
+    expect(module?.config?.shadows).toEqual({ cast: ['cdj', 'table'], receive: ['cdj', 'screen', 'table', 'backdrop'] })
     expect(module?.config?.environment).toBe('cinema2-studio-environment-neutral')
     const lights = manifest.lighting?.lights ?? []
-    expect(lights.map(light => light.type)).toEqual(['spot', 'spot', 'spot'])
+    expect(lights.map(light => light.type)).toEqual(['spot', 'spot', 'spot', 'spot', 'spot'])
     expect(lights.filter(light => light.config?.threeShadow === true).map(light => light.id)).toEqual(['open-decks-key'])
   })
+})
+
+it('lays the CDJ flat with its back plane resting on the tabletop', () => {
+  const node = manifest.scene!.nodes.find(node => node.id === 'open-decks-model')!
+  expect(node.transform!.rotation).toEqual([-Math.PI / 2, 0, 0])
+  expect(node.transform!.position).toEqual([0, 7.2, 0])
+})
+
+it('adds a music-gated crowd reveal without changing camera distance or authored defaults', () => {
+  expect(manifest.modules?.[0].typeId).toBe('open-decks-club')
+  const dip = manifest.choreography!.rules!.find(rule => rule.id === 'open-decks-auto-club-reveal')!
+  expect(dip.enabledParameter?.$ref).toBe('open-decks-auto-performance')
+  expect(dip.source).toEqual({ signal: 'drop', capability: 'music.drop' })
+  expect(dip.actions[0]).toMatchObject({ operation: 'envelope', value: -22, composition: 'add', envelope: { attack: 1, hold: 2, release: 6, unit: 'beats' } })
 })

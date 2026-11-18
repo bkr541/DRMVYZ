@@ -325,3 +325,24 @@ describe('Cinema 2.0 target registry and final value resolver', () => {
   })
 
 })
+
+it('inherits control bounds for bound module/effect values while keeping animation continuous and unbound values unrestricted', () => {
+  const authored = manifest()
+  const boundManifest = {
+    ...authored,
+    modules: authored.modules!.map(module => ({ ...module, parameters: { ...module.parameters, freeGain: .75 }, parameterBindings: { gain: cinema2Ref(intensityId) } })),
+    effects: authored.effects!.map(effect => ({ ...effect, parameterBindings: { amount: cinema2Ref(intensityId) } })),
+  }
+  const compiled = compileCinema2NativePreset(boundManifest)
+  if (!compiled.ok) throw new Error(JSON.stringify(compiled.diagnostics))
+  const resolver = new Cinema2FinalValueResolver(compiled.plan.targets)
+  for (const [kind, property] of [['module','gain'],['effect','amount']] as const) {
+    const target = compiled.plan.targets.targets.find(t => t.kind === kind && t.property === property)!
+    expect(target.min).toBe(0);expect(target.max).toBe(1)
+    expect(resolver.resolve(target.id,[{contributorId:'test',operation:'replace',value:3,priority:1}]).value).toBe(1)
+    expect(resolver.resolve(target.id,[{contributorId:'test',operation:'replace',value:.4319,priority:1}]).value).toBe(.4319)
+  }
+  const free = compiled.plan.targets.targets.find(t => t.kind === 'module' && t.property === 'freeGain')!
+  expect(free.max).toBeNull()
+  expect(resolver.resolve(free.id,[{contributorId:'test',operation:'replace',value:3,priority:1}]).value).toBe(3)
+})

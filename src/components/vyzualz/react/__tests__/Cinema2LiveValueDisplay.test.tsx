@@ -114,8 +114,8 @@ describe('Pattern Change and Trigger: what Auto Performance is choosing', () => 
   })
 
   it('shows the choice under the Pattern Change toggle and the Trigger dropdown, and only for those', async () => {
-    const toggle = { definition: { id: 'pc', label: 'Pattern Change', type: 'boolean', defaultValue: false, description: 'x' }, value: false, enabled: true, disabledReason: null } as never
-    const select = { definition: { id: 'tr', label: 'Trigger', type: 'enum', defaultValue: 'bar4', options, description: 'x' }, value: 'bar8', enabled: true, disabledReason: null } as never
+    const toggle = { definition: { id: 'pc', label: 'Pattern Change', type: 'boolean', metadata: {moodPolicy:'patternChange'}, defaultValue: false, description: 'x' }, value: false, enabled: true, disabledReason: null } as never
+    const select = { definition: { id: 'tr', label: 'Trigger', type: 'enum', metadata: {moodPolicy:'trigger'}, defaultValue: 'bar4', options, description: 'x' }, value: 'bar8', enabled: true, disabledReason: null } as never
     const other = { definition: { id: 'other', label: 'Other', type: 'boolean', defaultValue: false, description: 'x' }, value: false, enabled: true, disabledReason: null } as never
     await act(async () => root.render(
       <Cinema2LivePolicyProvider value={new Map([['pc', 'Auto Performance is choosing: On, Every Bar'], ['tr', 'Auto Performance is choosing: Every Bar']])}>
@@ -171,4 +171,17 @@ describe('the live-value poll', () => {
     expect(renders).toBeLessThan(8)
     vi.useRealTimers()
   })
+})
+
+
+it('reserves the shared policy slot before music is available without displaying a false choice',async()=>{
+ const definition={id:'pc',label:'Pattern Change',type:'boolean',defaultValue:false,metadata:{moodPolicy:'patternChange'}}
+ const model={definition,value:false,enabled:true,disabledReason:null} as never
+ const render=(message?:string)=><Cinema2LivePolicyProvider value={new Map(message?[['pc',message]]:[])}><Cinema2SchemaControl control={model} onChange={()=>{}} onTrigger={()=>{}} /></Cinema2LivePolicyProvider>
+ await act(async()=>root.render(render()))
+ const slot=container.querySelector('.rv-ctrl-live-policy')!
+ expect(slot.getAttribute('aria-hidden')).toBe('true');expect(container.querySelector('[data-live-policy]')).toBeNull()
+ await act(async()=>root.render(render('Auto Performance is choosing: Every Bar')))
+ expect(container.querySelector('.rv-ctrl-live-policy')).toBe(slot)
+ expect(slot.getAttribute('aria-hidden')).toBe('false');expect(slot.textContent).toContain('Every Bar')
 })

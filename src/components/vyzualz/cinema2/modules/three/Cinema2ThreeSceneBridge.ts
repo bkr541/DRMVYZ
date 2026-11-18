@@ -107,6 +107,7 @@ export interface Cinema2ThreeAtlHoeLightSpec {
 export interface Cinema2ThreeSceneOptions {
   /** Optional preset-owned controller for named model surfaces that need richer runtime behavior than material overrides. */
   modelController?: Readonly<{
+    inspect?(): Readonly<Record<string, unknown>>
     /** Opt-in ordering for proxy controllers that hide the source mesh. */
     afterVisibility?: boolean
     attach(root: ThreeNamespace.Object3D, userModel?: boolean): void

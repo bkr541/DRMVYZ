@@ -528,18 +528,18 @@ export const CINEMA2_ASSET_RECORDS = [
     "kind": "model",
     "compression": "meshopt",
     "license": "generated-in-house",
-    "attribution": "OPEN DECKS CDJ model and reference photograph supplied by DRMVYZ.",
+    "attribution": "OPEN DECKS CDJ model: DRMVYZ. Full-device illustration extended with built-in image_gen from the owner-supplied illustration and CDJ layout references. Procedural 3D club, lighting rig and articulated crowd: DRMVYZ.",
     "files": {
       "high": {
         "url": "/cinema2/models/open-decks.glb",
-        "bytes": 359688,
-        "triangles": 2640
+        "bytes": 1613020,
+        "triangles": 68734
       }
     },
     "gpuBytes": {
-      "high": 16605353,
-      "medium": 16605353,
-      "low": 16605353
+      "high": 18073588,
+      "medium": 18073588,
+      "low": 18073588
     }
   },
   {

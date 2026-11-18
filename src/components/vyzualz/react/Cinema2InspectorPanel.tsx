@@ -12,6 +12,7 @@ import {
   type Cinema2InspectorInstanceModel,
   type Cinema2InspectorSurface,
 } from '../cinema2/parameters/Cinema2InspectorModel'
+import { readCinema2MoodPolicy } from '../cinema2/conductor/Cinema2MoodPolicy'
 import { notify } from '../../../stores/notificationStore'
 import type { Cinema2JsonValue } from '../cinema2/contracts/Cinema2NativePresetManifest'
 import type { Cinema2Runtime } from '../cinema2/runtime/Cinema2Runtime'
@@ -505,6 +506,8 @@ function Cinema2SchemaControlBody({
   const controlId = `${idPrefix}-${definition.id}`
   const liveValue = useCinema2LiveValue(definition.id)
   const livePolicy = useCinema2LivePolicy(definition.id)
+  const policy = readCinema2MoodPolicy(definition.metadata)
+  const hasLivePolicy = policy === 'patternChange' || policy === 'trigger'
 
   switch (definition.type) {
     case 'float':
@@ -556,7 +559,7 @@ function Cinema2SchemaControlBody({
             description={description || undefined}
             onChange={onChange}
           />
-          {livePolicy && <div className="rv-ctrl-info rv-ctrl-live-policy" data-live-policy="true">{livePolicy}</div>}
+          {hasLivePolicy && <div className="rv-ctrl-live-policy" data-live-policy={livePolicy ? 'true' : undefined} aria-hidden={!livePolicy} title={livePolicy ?? undefined}>{livePolicy ?? '\u00a0'}</div>}
         </div>
       )
     case 'enum':
@@ -571,7 +574,7 @@ function Cinema2SchemaControlBody({
             options={(definition.options ?? []).map(option => ({ value: option.value, label: option.label }))}
             onChange={onChange}
           />
-          {livePolicy && <div className="rv-ctrl-info rv-ctrl-live-policy" data-live-policy="true">{livePolicy}</div>}
+          {hasLivePolicy && <div className="rv-ctrl-live-policy" data-live-policy={livePolicy ? 'true' : undefined} aria-hidden={!livePolicy} title={livePolicy ?? undefined}>{livePolicy ?? '\u00a0'}</div>}
         </div>
       )
     case 'color': {

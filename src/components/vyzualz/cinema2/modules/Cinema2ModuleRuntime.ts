@@ -33,6 +33,7 @@ import { Cinema2RandomService } from '../runtime/Cinema2RandomService'
 export type Cinema2ModuleRuntimeStatus = 'inactive' | 'active' | 'failed' | 'disposed'
 
 export interface Cinema2ModuleInstanceSnapshot {
+  inspection?: unknown
   moduleId: Cinema2ModuleId
   status: Cinema2ModuleRuntimeStatus
   activeResourceLeaseCount: number
@@ -176,6 +177,7 @@ export class Cinema2ModuleRuntime {
       if (record.status === 'active' && reported.length > 0) degradedModuleCount += 1
       const resources = record.resources?.getSnapshot()
       return Object.freeze({
+        ...readInspection(record.instance),
         moduleId: record.module.id,
         status: record.status,
         activeResourceLeaseCount: resources?.activeLeaseCount ?? 0,
@@ -379,4 +381,10 @@ function cloneJson<T extends Cinema2JsonValue | undefined>(value: T): T {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
+}
+
+/** Diagnostics are opt-in and never allowed to interrupt production rendering. */
+function readInspection(instance: Cinema2ModuleInstance | null): { inspection?: unknown } {
+  const inspect = (instance as (Cinema2ModuleInstance & { inspect?: () => unknown }) | null)?.inspect
+  try { return inspect ? { inspection: inspect.call(instance) } : {} } catch { return {} }
 }

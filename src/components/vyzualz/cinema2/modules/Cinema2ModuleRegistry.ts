@@ -1,3 +1,5 @@
+import { cinema2BassSigilModuleDefinition } from './Cinema2BassSigilNativeModule'
+import { cinema2OpenDecksClubModuleDefinition } from './Cinema2OpenDecksClubModule'
 import { cinema2NeonForestNativeModuleDefinition } from './Cinema2NeonForestNativeModule'
 import { cinema2OrbitalNativeModuleDefinition } from './Cinema2OrbitalNativeModule'
 import { cinema2SubmergeNativeModuleDefinition } from './Cinema2SubmergeNativeModule'
@@ -160,6 +162,10 @@ const thresholdNativeRegistration = cinema2NativeModuleRegistry.register(cinema2
 if (!thresholdNativeRegistration.ok) {
   throw new Error(`Cinema 2.0 Threshold native module registration failed: ${thresholdNativeRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
 }
+const bassSigilRegistration = cinema2NativeModuleRegistry.register(cinema2BassSigilModuleDefinition)
+if (!bassSigilRegistration.ok) throw new Error('Cinema 2.0 Bass Sigil module registration failed.')
+const openDecksClubRegistration = cinema2NativeModuleRegistry.register(cinema2OpenDecksClubModuleDefinition)
+if (!openDecksClubRegistration.ok) throw new Error('Cinema 2.0 Open Decks club module registration failed.')
 const threeSceneRegistration = cinema2NativeModuleRegistry.register(cinema2ThreeSceneModuleDefinition)
 if (!threeSceneRegistration.ok) {
   throw new Error(`Cinema 2.0 Three scene module registration failed: ${threeSceneRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)

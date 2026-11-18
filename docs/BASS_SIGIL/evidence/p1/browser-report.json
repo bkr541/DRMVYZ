@@ -1,0 +1,892 @@
+[
+  {
+    "width": 1280,
+    "height": 720,
+    "quality": "high",
+    "red": 7684,
+    "blue": 273212,
+    "coreBounds": [
+      661,
+      247,
+      722,
+      451
+    ],
+    "snapshot": {
+      "runtime": {
+        "phase": "running",
+        "viewport": {
+          "width": 1280,
+          "height": 720,
+          "dpr": 1
+        },
+        "frameCount": 21,
+        "contextGeneration": 1,
+        "statusMessage": null,
+        "resources": {
+          "activeAnimationFrameCount": 1,
+          "activeEventListenerCount": 2,
+          "activeWebGLContextCount": 1
+        },
+        "performance": {
+          "diagnosticsEnabled": true,
+          "requestedMode": "quality",
+          "resolvedQuality": "high",
+          "renderTargetScale": 1,
+          "gpuMemoryBudgetBytes": 268435456,
+          "cpuFrameTimeMs": 1.2000000029802322,
+          "cpuFrameTimeAverageMs": 1.325999998152256,
+          "gpuFrameTimeMs": null,
+          "gpuTimingSupported": false,
+          "degraded": false,
+          "degradationReason": null
+        }
+      },
+      "modules": {
+        "activeModuleCount": 1,
+        "failedModuleCount": 0,
+        "degradedModuleCount": 0,
+        "activeResourceLeaseCount": 1,
+        "estimatedGpuBytes": 6039255,
+        "modules": [
+          {
+            "moduleId": "bass-sigil-core",
+            "status": "active",
+            "activeResourceLeaseCount": 1,
+            "estimatedGpuBytes": 6039255,
+            "renderProviderCount": 1,
+            "diagnostics": []
+          }
+        ]
+      },
+      "render": {
+        "disposed": false,
+        "frameCount": 21,
+        "executedPassCount": 42,
+        "skippedPassCount": 0,
+        "failedPassCount": 0,
+        "activePersistentTargetCount": 0,
+        "lastExecutedPassIds": [
+          "bass-sigil-scene",
+          "bass-sigil-output"
+        ],
+        "diagnostics": [],
+        "visibilityCheckpoints": []
+      },
+      "camera": {
+        "version": 1,
+        "cameraId": "bass-sigil-camera",
+        "source": "authored",
+        "projection": "perspective",
+        "rig": "static",
+        "position": [
+          0,
+          0,
+          11.2
+        ],
+        "target": [
+          0,
+          0,
+          0
+        ],
+        "fovDegrees": 40,
+        "orthographicHeight": 5,
+        "near": 0.05,
+        "far": 100,
+        "aspect": 1.7777777777777777,
+        "rollDegrees": 0,
+        "viewMatrix": [
+          1,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          -11.2,
+          1
+        ],
+        "projectionMatrix": [
+          1.5454560484432254,
+          0,
+          0,
+          0,
+          0,
+          2.7474774194546225,
+          0,
+          0,
+          0,
+          0,
+          -1.001000500250125,
+          -1,
+          0,
+          0,
+          -0.10005002501250625,
+          0
+        ],
+        "viewProjectionMatrix": [
+          1.5454560484432254,
+          0,
+          0,
+          0,
+          0,
+          2.7474774194546225,
+          0,
+          0,
+          0,
+          0,
+          -1.001000500250125,
+          -1,
+          0,
+          0,
+          11.111155577788894,
+          11.2
+        ],
+        "corrected": false
+      }
+    },
+    "resources": {
+      "disposed": true,
+      "contextAvailable": false,
+      "viewport": {
+        "width": 1280,
+        "height": 720,
+        "dpr": 1
+      },
+      "maximumTextureSize": 8192,
+      "maximumPooledAllocationCount": 24,
+      "maximumEstimatedGpuMemoryBytes": 268435456,
+      "renderTargetScale": 1,
+      "activeLeaseCount": 0,
+      "activeTransientLeaseCount": 0,
+      "activePersistentLeaseCount": 0,
+      "pooledAllocationCount": 0,
+      "activeSurfaceCount": 0,
+      "pooledSurfaceCount": 0,
+      "createdAllocationCount": 1,
+      "reusedAllocationCount": 21,
+      "destroyedAllocationCount": 1,
+      "reconstructedAllocationCount": 0,
+      "estimatedGpuMemoryBytes": 0,
+      "activeLeaseCountByOwner": {}
+    }
+  },
+  {
+    "width": 960,
+    "height": 720,
+    "quality": "high",
+    "red": 4301,
+    "blue": 188118,
+    "coreBounds": [
+      496,
+      276,
+      542,
+      427
+    ],
+    "snapshot": {
+      "runtime": {
+        "phase": "running",
+        "viewport": {
+          "width": 960,
+          "height": 720,
+          "dpr": 1
+        },
+        "frameCount": 16,
+        "contextGeneration": 1,
+        "statusMessage": null,
+        "resources": {
+          "activeAnimationFrameCount": 1,
+          "activeEventListenerCount": 2,
+          "activeWebGLContextCount": 1
+        },
+        "performance": {
+          "diagnosticsEnabled": true,
+          "requestedMode": "quality",
+          "resolvedQuality": "high",
+          "renderTargetScale": 1,
+          "gpuMemoryBudgetBytes": 268435456,
+          "cpuFrameTimeMs": 2.1000000089406967,
+          "cpuFrameTimeAverageMs": 1.2900000035762786,
+          "gpuFrameTimeMs": null,
+          "gpuTimingSupported": false,
+          "degraded": false,
+          "degradationReason": null
+        }
+      },
+      "modules": {
+        "activeModuleCount": 1,
+        "failedModuleCount": 0,
+        "degradedModuleCount": 0,
+        "activeResourceLeaseCount": 1,
+        "estimatedGpuBytes": 6039255,
+        "modules": [
+          {
+            "moduleId": "bass-sigil-core",
+            "status": "active",
+            "activeResourceLeaseCount": 1,
+            "estimatedGpuBytes": 6039255,
+            "renderProviderCount": 1,
+            "diagnostics": []
+          }
+        ]
+      },
+      "render": {
+        "disposed": false,
+        "frameCount": 16,
+        "executedPassCount": 32,
+        "skippedPassCount": 0,
+        "failedPassCount": 0,
+        "activePersistentTargetCount": 0,
+        "lastExecutedPassIds": [
+          "bass-sigil-scene",
+          "bass-sigil-output"
+        ],
+        "diagnostics": [],
+        "visibilityCheckpoints": []
+      },
+      "camera": {
+        "version": 1,
+        "cameraId": "bass-sigil-camera",
+        "source": "authored",
+        "projection": "perspective",
+        "rig": "static",
+        "position": [
+          0,
+          0,
+          11.2
+        ],
+        "target": [
+          0,
+          0,
+          0
+        ],
+        "fovDegrees": 51.77400875924256,
+        "orthographicHeight": 5,
+        "near": 0.05,
+        "far": 100,
+        "aspect": 1.3333333333333333,
+        "rollDegrees": 0,
+        "viewMatrix": [
+          1,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          -11.2,
+          1
+        ],
+        "projectionMatrix": [
+          1.5454560484432254,
+          0,
+          0,
+          0,
+          0,
+          2.060608064590967,
+          0,
+          0,
+          0,
+          0,
+          -1.001000500250125,
+          -1,
+          0,
+          0,
+          -0.10005002501250625,
+          0
+        ],
+        "viewProjectionMatrix": [
+          1.5454560484432254,
+          0,
+          0,
+          0,
+          0,
+          2.060608064590967,
+          0,
+          0,
+          0,
+          0,
+          -1.001000500250125,
+          -1,
+          0,
+          0,
+          11.111155577788894,
+          11.2
+        ],
+        "corrected": false
+      }
+    },
+    "resources": {
+      "disposed": true,
+      "contextAvailable": false,
+      "viewport": {
+        "width": 960,
+        "height": 720,
+        "dpr": 1
+      },
+      "maximumTextureSize": 8192,
+      "maximumPooledAllocationCount": 24,
+      "maximumEstimatedGpuMemoryBytes": 268435456,
+      "renderTargetScale": 1,
+      "activeLeaseCount": 0,
+      "activeTransientLeaseCount": 0,
+      "activePersistentLeaseCount": 0,
+      "pooledAllocationCount": 0,
+      "activeSurfaceCount": 0,
+      "pooledSurfaceCount": 0,
+      "createdAllocationCount": 1,
+      "reusedAllocationCount": 16,
+      "destroyedAllocationCount": 1,
+      "reconstructedAllocationCount": 0,
+      "estimatedGpuMemoryBytes": 0,
+      "activeLeaseCountByOwner": {}
+    }
+  },
+  {
+    "width": 720,
+    "height": 720,
+    "quality": "high",
+    "red": 2438,
+    "blue": 112111,
+    "coreBounds": [
+      372,
+      298,
+      406,
+      410
+    ],
+    "snapshot": {
+      "runtime": {
+        "phase": "running",
+        "viewport": {
+          "width": 720,
+          "height": 720,
+          "dpr": 1
+        },
+        "frameCount": 17,
+        "contextGeneration": 1,
+        "statusMessage": null,
+        "resources": {
+          "activeAnimationFrameCount": 1,
+          "activeEventListenerCount": 2,
+          "activeWebGLContextCount": 1
+        },
+        "performance": {
+          "diagnosticsEnabled": true,
+          "requestedMode": "quality",
+          "resolvedQuality": "high",
+          "renderTargetScale": 1,
+          "gpuMemoryBudgetBytes": 268435456,
+          "cpuFrameTimeMs": 1.5999999940395355,
+          "cpuFrameTimeAverageMs": 1.5999999940395355,
+          "gpuFrameTimeMs": null,
+          "gpuTimingSupported": false,
+          "degraded": false,
+          "degradationReason": null
+        }
+      },
+      "modules": {
+        "activeModuleCount": 1,
+        "failedModuleCount": 0,
+        "degradedModuleCount": 0,
+        "activeResourceLeaseCount": 1,
+        "estimatedGpuBytes": 6039255,
+        "modules": [
+          {
+            "moduleId": "bass-sigil-core",
+            "status": "active",
+            "activeResourceLeaseCount": 1,
+            "estimatedGpuBytes": 6039255,
+            "renderProviderCount": 1,
+            "diagnostics": []
+          }
+        ]
+      },
+      "render": {
+        "disposed": false,
+        "frameCount": 17,
+        "executedPassCount": 34,
+        "skippedPassCount": 0,
+        "failedPassCount": 0,
+        "activePersistentTargetCount": 0,
+        "lastExecutedPassIds": [
+          "bass-sigil-scene",
+          "bass-sigil-output"
+        ],
+        "diagnostics": [],
+        "visibilityCheckpoints": []
+      },
+      "camera": {
+        "version": 1,
+        "cameraId": "bass-sigil-camera",
+        "source": "authored",
+        "projection": "perspective",
+        "rig": "static",
+        "position": [
+          0,
+          0,
+          11.2
+        ],
+        "target": [
+          0,
+          0,
+          0
+        ],
+        "fovDegrees": 65.81043501721129,
+        "orthographicHeight": 5,
+        "near": 0.05,
+        "far": 100,
+        "aspect": 1,
+        "rollDegrees": 0,
+        "viewMatrix": [
+          1,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          -11.2,
+          1
+        ],
+        "projectionMatrix": [
+          1.5454560484432251,
+          0,
+          0,
+          0,
+          0,
+          1.5454560484432251,
+          0,
+          0,
+          0,
+          0,
+          -1.001000500250125,
+          -1,
+          0,
+          0,
+          -0.10005002501250625,
+          0
+        ],
+        "viewProjectionMatrix": [
+          1.5454560484432251,
+          0,
+          0,
+          0,
+          0,
+          1.5454560484432251,
+          0,
+          0,
+          0,
+          0,
+          -1.001000500250125,
+          -1,
+          0,
+          0,
+          11.111155577788894,
+          11.2
+        ],
+        "corrected": false
+      }
+    },
+    "resources": {
+      "disposed": true,
+      "contextAvailable": false,
+      "viewport": {
+        "width": 720,
+        "height": 720,
+        "dpr": 1
+      },
+      "maximumTextureSize": 8192,
+      "maximumPooledAllocationCount": 24,
+      "maximumEstimatedGpuMemoryBytes": 268435456,
+      "renderTargetScale": 1,
+      "activeLeaseCount": 0,
+      "activeTransientLeaseCount": 0,
+      "activePersistentLeaseCount": 0,
+      "pooledAllocationCount": 0,
+      "activeSurfaceCount": 0,
+      "pooledSurfaceCount": 0,
+      "createdAllocationCount": 1,
+      "reusedAllocationCount": 17,
+      "destroyedAllocationCount": 1,
+      "reconstructedAllocationCount": 0,
+      "estimatedGpuMemoryBytes": 0,
+      "activeLeaseCountByOwner": {}
+    }
+  },
+  {
+    "width": 540,
+    "height": 960,
+    "quality": "high",
+    "red": 1340,
+    "blue": 63040,
+    "coreBounds": [
+      279,
+      433,
+      304,
+      516
+    ],
+    "snapshot": {
+      "runtime": {
+        "phase": "running",
+        "viewport": {
+          "width": 540,
+          "height": 960,
+          "dpr": 1
+        },
+        "frameCount": 15,
+        "contextGeneration": 1,
+        "statusMessage": null,
+        "resources": {
+          "activeAnimationFrameCount": 1,
+          "activeEventListenerCount": 2,
+          "activeWebGLContextCount": 1
+        },
+        "performance": {
+          "diagnosticsEnabled": true,
+          "requestedMode": "quality",
+          "resolvedQuality": "high",
+          "renderTargetScale": 1,
+          "gpuMemoryBudgetBytes": 268435456,
+          "cpuFrameTimeMs": 1.3999999910593033,
+          "cpuFrameTimeAverageMs": 1.3999999910593033,
+          "gpuFrameTimeMs": null,
+          "gpuTimingSupported": false,
+          "degraded": false,
+          "degradationReason": null
+        }
+      },
+      "modules": {
+        "activeModuleCount": 1,
+        "failedModuleCount": 0,
+        "degradedModuleCount": 0,
+        "activeResourceLeaseCount": 1,
+        "estimatedGpuBytes": 6039255,
+        "modules": [
+          {
+            "moduleId": "bass-sigil-core",
+            "status": "active",
+            "activeResourceLeaseCount": 1,
+            "estimatedGpuBytes": 6039255,
+            "renderProviderCount": 1,
+            "diagnostics": []
+          }
+        ]
+      },
+      "render": {
+        "disposed": false,
+        "frameCount": 15,
+        "executedPassCount": 30,
+        "skippedPassCount": 0,
+        "failedPassCount": 0,
+        "activePersistentTargetCount": 0,
+        "lastExecutedPassIds": [
+          "bass-sigil-scene",
+          "bass-sigil-output"
+        ],
+        "diagnostics": [],
+        "visibilityCheckpoints": []
+      },
+      "camera": {
+        "version": 1,
+        "cameraId": "bass-sigil-camera",
+        "source": "authored",
+        "projection": "perspective",
+        "rig": "static",
+        "position": [
+          0,
+          0,
+          11.2
+        ],
+        "target": [
+          0,
+          0,
+          0
+        ],
+        "fovDegrees": 97.99789250850486,
+        "orthographicHeight": 5,
+        "near": 0.05,
+        "far": 100,
+        "aspect": 0.5625,
+        "rollDegrees": 0,
+        "viewMatrix": [
+          1,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          -11.2,
+          1
+        ],
+        "projectionMatrix": [
+          1.5454560484432256,
+          0,
+          0,
+          0,
+          0,
+          0.8693190272493144,
+          0,
+          0,
+          0,
+          0,
+          -1.001000500250125,
+          -1,
+          0,
+          0,
+          -0.10005002501250625,
+          0
+        ],
+        "viewProjectionMatrix": [
+          1.5454560484432256,
+          0,
+          0,
+          0,
+          0,
+          0.8693190272493144,
+          0,
+          0,
+          0,
+          0,
+          -1.001000500250125,
+          -1,
+          0,
+          0,
+          11.111155577788894,
+          11.2
+        ],
+        "corrected": false
+      }
+    },
+    "resources": {
+      "disposed": true,
+      "contextAvailable": false,
+      "viewport": {
+        "width": 540,
+        "height": 960,
+        "dpr": 1
+      },
+      "maximumTextureSize": 8192,
+      "maximumPooledAllocationCount": 24,
+      "maximumEstimatedGpuMemoryBytes": 268435456,
+      "renderTargetScale": 1,
+      "activeLeaseCount": 0,
+      "activeTransientLeaseCount": 0,
+      "activePersistentLeaseCount": 0,
+      "pooledAllocationCount": 0,
+      "activeSurfaceCount": 0,
+      "pooledSurfaceCount": 0,
+      "createdAllocationCount": 1,
+      "reusedAllocationCount": 15,
+      "destroyedAllocationCount": 1,
+      "reconstructedAllocationCount": 0,
+      "estimatedGpuMemoryBytes": 0,
+      "activeLeaseCountByOwner": {}
+    }
+  },
+  {
+    "width": 1280,
+    "height": 720,
+    "quality": "low",
+    "red": 7999,
+    "blue": 282435,
+    "coreBounds": [
+      661,
+      248,
+      723,
+      449
+    ],
+    "snapshot": {
+      "runtime": {
+        "phase": "running",
+        "viewport": {
+          "width": 1280,
+          "height": 720,
+          "dpr": 1
+        },
+        "frameCount": 14,
+        "contextGeneration": 1,
+        "statusMessage": null,
+        "resources": {
+          "activeAnimationFrameCount": 1,
+          "activeEventListenerCount": 2,
+          "activeWebGLContextCount": 1
+        },
+        "performance": {
+          "diagnosticsEnabled": true,
+          "requestedMode": "performance",
+          "resolvedQuality": "low",
+          "renderTargetScale": 0.67,
+          "gpuMemoryBudgetBytes": 100663296,
+          "cpuFrameTimeMs": 1.2999999970197678,
+          "cpuFrameTimeAverageMs": 1.2999999970197678,
+          "gpuFrameTimeMs": null,
+          "gpuTimingSupported": false,
+          "degraded": false,
+          "degradationReason": null
+        }
+      },
+      "modules": {
+        "activeModuleCount": 1,
+        "failedModuleCount": 0,
+        "degradedModuleCount": 0,
+        "activeResourceLeaseCount": 1,
+        "estimatedGpuBytes": 6039255,
+        "modules": [
+          {
+            "moduleId": "bass-sigil-core",
+            "status": "active",
+            "activeResourceLeaseCount": 1,
+            "estimatedGpuBytes": 6039255,
+            "renderProviderCount": 1,
+            "diagnostics": []
+          }
+        ]
+      },
+      "render": {
+        "disposed": false,
+        "frameCount": 14,
+        "executedPassCount": 28,
+        "skippedPassCount": 0,
+        "failedPassCount": 0,
+        "activePersistentTargetCount": 0,
+        "lastExecutedPassIds": [
+          "bass-sigil-scene",
+          "bass-sigil-output"
+        ],
+        "diagnostics": [],
+        "visibilityCheckpoints": []
+      },
+      "camera": {
+        "version": 1,
+        "cameraId": "bass-sigil-camera",
+        "source": "authored",
+        "projection": "perspective",
+        "rig": "static",
+        "position": [
+          0,
+          0,
+          11.2
+        ],
+        "target": [
+          0,
+          0,
+          0
+        ],
+        "fovDegrees": 40,
+        "orthographicHeight": 5,
+        "near": 0.05,
+        "far": 100,
+        "aspect": 1.7777777777777777,
+        "rollDegrees": 0,
+        "viewMatrix": [
+          1,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          -11.2,
+          1
+        ],
+        "projectionMatrix": [
+          1.5454560484432254,
+          0,
+          0,
+          0,
+          0,
+          2.7474774194546225,
+          0,
+          0,
+          0,
+          0,
+          -1.001000500250125,
+          -1,
+          0,
+          0,
+          -0.10005002501250625,
+          0
+        ],
+        "viewProjectionMatrix": [
+          1.5454560484432254,
+          0,
+          0,
+          0,
+          0,
+          2.7474774194546225,
+          0,
+          0,
+          0,
+          0,
+          -1.001000500250125,
+          -1,
+          0,
+          0,
+          11.111155577788894,
+          11.2
+        ],
+        "corrected": false
+      }
+    },
+    "resources": {
+      "disposed": true,
+      "contextAvailable": false,
+      "viewport": {
+        "width": 1280,
+        "height": 720,
+        "dpr": 1
+      },
+      "maximumTextureSize": 8192,
+      "maximumPooledAllocationCount": 24,
+      "maximumEstimatedGpuMemoryBytes": 100663296,
+      "renderTargetScale": 0.67,
+      "activeLeaseCount": 0,
+      "activeTransientLeaseCount": 0,
+      "activePersistentLeaseCount": 0,
+      "pooledAllocationCount": 0,
+      "activeSurfaceCount": 0,
+      "pooledSurfaceCount": 0,
+      "createdAllocationCount": 1,
+      "reusedAllocationCount": 14,
+      "destroyedAllocationCount": 1,
+      "reconstructedAllocationCount": 0,
+      "estimatedGpuMemoryBytes": 0,
+      "activeLeaseCountByOwner": {}
+    }
+  }
+]

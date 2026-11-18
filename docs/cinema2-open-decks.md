@@ -1,39 +1,55 @@
-# OPEN DECKS (Cinema 2.0, preview only)
+# OPEN DECKS (Cinema 2.0)
 
-A 3D model of a CDJ, textured with a reference photograph. It is a **preview-only reference preset** like War Of Worlds: a static scene for framing and visual review, with no musical behaviour of its own. Preset id `drmvyz.cinema2.open-decks`; catalog role `reference`.
+Open Decks (`drmvyz.cinema2.open-decks`, reference role, revision 9) is a complete, stylized 3D CDJ. The complete CDJ sits horizontally on a wooden DJ table. Its lower chassis, circular jog wheel, transport buttons, search controls and tempo fader follow the supplied full-device layout while retaining the established gold-and-ink illustration style.
 
-## What it is
+## Artwork and geometry
 
-The reference photograph (`scripts/cinema2-assets/sources/open-decks-cdj-reference.png`, 1080 x 800) is a straight-on view of the top of a CDJ. Each part of the hardware is measured off it in photo pixels (`PARTS` in `scripts/cinema2-assets/generate-open-decks.mjs`) and built as a real volume:
+The completed atlas is [`open-decks-full-illustration.png`](../scripts/cinema2-assets/sources/open-decks-full-illustration.png), 1086 × 1448. It was extended with the built-in image_gen edit tool using the original gold-and-ink illustration as the style/upper-layout reference and the owner's full CDJ photograph only as a hardware-layout reference. The exact [generation prompt](../scripts/cinema2-assets/sources/open-decks-full-illustration.prompt.md) and both input images remain alongside it. The original cropped illustration is archived unchanged.
 
-- the **chassis plate** and the **raised screen housing** (0.17 units above the plate's back, 0.08 above its front), with the **glass set back** inside the housing opening, so the bezel stands proud of the screen;
-- six **soft keys** on the housing, eight **hot-cue pads**, the browse cluster with its **rotary** and **knob**, the in/out/loop buttons, the vinyl-speed knob, delete/memory/arrow buttons, the time-mode knob and the smaller keys, each raised by its own height.
+The model contains 57 CDJ parts plus a procedural table, closed studio enclosure and club, totaling 68,734 triangles:
 
-The **tops** of the parts are mapped to the photograph by a planar projection from the front, so from the front the model reads exactly as photographed (screen content, labels, colours and brushed-metal texture included), and from the side it has parallax, steps and edges. The **sides** of the parts are a plain dark brushed metal instead of the stretched photo. The glass is dark and glossy and lights itself with the photograph's own screen.
+- A full-height chassis, raised screen housing and independently recessed screen.
+- Six soft keys, eight hot-cue pads, the tall cylindrical browse knob with stepped crown, and the existing upper knobs/buttons.
+- A complete circular jog-wheel rim, platter and raised center medallion. The wheel geometry and UVs are no longer clipped at the old image boundary.
+- Lower direction switch, four search knobs, two search keys, cue and play/pause buttons, tempo fader well with raised cap, and tempo reset control.
+- A 15 × 4.2 wooden booth worktop built from twelve planks, sturdy corner supports, full-height side returns, a broad front fascia and a rear stretcher. It is six CDJ widths across and 7.2 units tall, with a shallow countertop only slightly deeper than the CDJ. The front fascia leaves 2.2 units of clearance above the floor, like the supplied booth reference. Shallow modeled ribbons give the matte walnut-colored planks visible grain. The CDJ rests on the tabletop at world Y=7.2; the feet land at Y=0, inside a shadow-receiving studio enclosure.
 
-The model has three meshes: `cdj` (two primitives: the photographed tops and the metal sides), `screen` (the glass) and `backdrop` (a dark wall, 16 x 10 units so no camera angle sees its edge, hanging 0.15 units behind the chassis back plane: the gap the device's shadow falls across). It is about 2,600 triangles with the photograph embedded once as a JPEG, 0.14 MiB meshopt-compressed (`public/cinema2/models/open-decks.glb`, asset `cinema2-open-decks`). Regenerate with `node scripts/cinema2-assets/generate-open-decks.mjs`; the part table, heights and wall are at the top of that file.
+The decorative corner bursts remain absent. Front faces share the completed illustration atlas; sides remain matte dark brown ink. All materials have zero metalness and full roughness. The dark outlines, gold/cream borders, faceted faces and saturated controls continue across the whole device.
 
-## The preset
+The CDJ uses the supplied GLB’s measured height/width ratio of 0.28441184: total height 0.71103 at the existing 2.5-unit width. The added thickness sits beneath the controls, with chassis top at 0.45103, housing at 0.53103, glass at 0.51903 and browse-knob crown at 0.71103. Other upper knobs retain their 0.12-unit rise; pads rise 0.07, smaller keys 0.055 and soft keys 0.04. Lower controls also have real side walls and raised caps. Camera orbit produces physical parallax and depth occlusion.
 
-- **Scene:** one `three-scene` module with the model, facing the camera head on (an orbit camera at 0° heading and 0° elevation, radius 3.18, looking a little above the model's centre so its bottom edge runs just past the bottom of the Stage; the width is filled and the bottom stays pinned on narrower Stages). It is lifted off its background the way MAINFRAME is: a physically lit scene with shadows. A shadow-casting key spot from above left, a cool rim spot from the right and a low fill (MAINFRAME's rig at this scene's size) light it under the shared neutral studio environment, with a light edge vignette. `config.shadows` makes the raised parts shadow the plate and glass beneath them and the device shadow the wall. Shadows are medium and high quality only, so on the low tier the wall is lit flat.
-- **Controls:** Master Controls: Exposure and Auto Performance (there is no BPM Sync: nothing in the scene moves on the beat, the same as War Of Worlds); Design: Camera Distance, Camera Heading and Camera Elevation (both default to 0, head on); Effects: Contrast, Saturation; Palette: Color Temperature, Color Tint; Quality / Performance.
-- **Revision 4.** A saved parameter state only restores when its revision matches, so a workspace that saved an earlier framing restores these defaults instead of the old angle or distance.
-- **Auto Performance** (off by default, like every preset) is the only choreography: with it on, the camera sways slightly left and right with the music (four degrees of heading, a bar out and a bar back, alternating every two bars; it never zooms or changes the lens) and the exposure lifts before a drop and flashes on it. Camera Distance, Heading and Elevation are deliberately not driven by the coverage step.
+The asset is meshopt-compressed `public/cinema2/models/open-decks.glb`, about 1.54 MiB, with one embedded 2048px-wide JPEG atlas. The original four mesh identities are `cdj`, `screen`, `table` and `backdrop` (closed studio cyclorama). The CDJ and table cast shadows; timber and floor receive them. The whole device is 2.5 units wide and approximately 3.49 tall.
 
-## Verification
+Regenerate with `node scripts/cinema2-assets/generate-open-decks.mjs`, followed by `npm run assets:build`.
 
-`npm run test:e2e:cinema2-open-decks` runs the preset through the production Cinema 2.0 runtime in Chromium at high and low quality and at desktop and narrow widths: no failed modules, passes or effects, a non-blank frame (taken after the photograph has loaded), a visible palette edit and clean disposal. Frames are written to `artifacts/cinema2-open-decks/`.
+## Preset behavior
 
-## Limits
+The default view is close to the CDJ again: distance 5.6, elevation 30°, heading 0°, looking at the player at world Y=7.5. The worktop stays beneath the player, while the booth front and legs no longer dictate the composition. The assembly rotates −90° around X so the deck lies flat, with its controls facing upward. Camera Distance still permits close inspection and now extends to 40. Camera Elevation retains its −70° to +30° range and now defaults to 30°. Heading and palette controls are preserved. Auto Performance adds a smooth drop-triggered club reveal. The light rig is raised to match the standing-height worktop. The camera restores the earlier 1.15 minimum aspect composition for the close CDJ view.
 
-- The photograph is 1080 px wide, so on a large stage the texture is magnified and softer than a native-resolution render. A larger photograph of the same view (the part positions are measured in its pixels, so a scaled copy works with the table scaled to match) would sharpen it.
-- The jog wheel is cropped at the bottom of the photograph, so it is flat and the model ends there.
-- The photograph is a manufacturer's product image showing a rekordbox screen with a real track's details. Replace it with your own artwork before the preset is shown publicly.
+Revision 9 discards the previous wide-booth saved camera state and restores the close player framing. Auto Performance remains off by default and never zooms the camera.
 
-## Installer budget
+## Club environment and motion
 
-The model did not fit the 131 MiB Cinema 2.0 installer budget (about 30 KB of headroom was left), so the budget in `assets/cinema2/budgets.json` was raised by 1 MiB to 132 MiB (0.9 MiB of headroom after this model).
+The club is original procedural geometry generated by `scripts/cinema2-assets/open-decks-club.mjs`, in the same gold-and-ink palette. It extends beyond the far edge of the booth, along world −Z. The scene includes a dark dance floor, back/side walls, inset gold wall lighting, equalizer accents, ceiling trusses, two modeled fixtures and translucent light cones. Two real gold spot lights illuminate the club; the CDJ's original light rig remains intact.
 
-## Texture and material quality (2026-11-18)
+Forty-five low-poly people stand in five staggered rows. Heads, torsos, bent legs and independently pivoted arms are actual volumes. Dark silhouettes receive subtle gold rim accents. The preset-owned `open-decks-club` controller animates body sway, bobbing, arms and gentle beam sweeps, driven by the shared beat clock and authoritative audio energy. It follows detected tempo, freezes with paused playback, and provides gentle idle motion without a source. High quality shows 45 people, medium 36, and low 15. Shared Three infrastructure retains ownership of GPU resources.
 
-The photograph is embedded at 2048 px wide (lanczos enlargement and a light sharpen from the 1080 px source), so the graphics card does not stretch each texel; it adds no detail the photograph lacks, so a larger original would still look sharper. The tops and the glass turn most of their reflection off (`KHR_materials_specular`), because a reflection of the studio lighting lifted every black to grey and washed out the colour. Measured against the photograph on the screen area: shadows 25 vs 16 (were 51), saturation 0.32 vs 0.33 (was 0.12); on the chassis the median is 63 vs 60.
+Auto Performance remains off by default. When enabled, a detected drop lowers orbit elevation by 22° over one beat, holds for two beats, and returns over six beats. From the close 30° default this reveals the club at about 8°, without changing distance, target or lens. Existing heading sway and exposure gestures remain. Manual camera controls still cover −70° to +30°; low angles below the booth naturally show its underside.
+
+## Validation
+
+Focused geometry tests cover the atlas, UVs, complete player, calibrated chassis height, booth support and closed backdrop, plus volumetric club meshes, crowd count, articulated arms and serialized animation pivots. Native preset tests cover camera defaults, saved-state revision, module registration and the audio-triggered elevation envelope. Controller tests check preserved imported transforms, independent crowd motion, pause/resume, quality reduction and reference cleanup.
+
+Production browser captures exercise high/low quality, wide/narrow Stages, the lowered club view, orbit, −70° elevation, palette editing, zero renderer errors and clean resource disposal. `node scripts/run-cinema2-open-decks-club-browser.mjs` (with Vite running) uses the real runtime and intelligence bridge to verify a drop lowers the camera and returns it to the authored elevation. Reviewed captures are in ignored `artifacts/cinema2-open-decks/`, including `club-high-1280.png` and `audio-club-reveal.png`. The production thumbnail is regenerated from the complete model.
+
+## Height reference
+
+The requested Downloads path was absent; the matching `cdj_player.glb` is present in the project crate. Its source hash, transformed bounds and derived ratio are saved in `scripts/cinema2-assets/sources/open-decks-height-reference.json`, so regeneration does not require a file in Downloads. Only proportions are used; reference geometry/textures are not copied into the shipped model. Existing width, length, illustration, table and camera composition remain intact.
+
+Height validation includes production renders of the booth and a close side view, with no failed modules/passes/effects and clean disposal. The current production preset now uses the close camera target and distance directly. Captures: ignored `artifacts/cinema2-open-decks/height-reference/booth.png` and `close.png`.
+
+## Continuous studio environment
+
+The old finite floor quad exposed the scene clear color as a hard black band when tilting the camera. `buildStudioBackdrop()` now creates a closed 360° studio: a flat floor under the booth, rounded floor-to-wall and wall-to-ceiling transitions, and a ceiling. Inward-facing geometry and smooth vertex normals keep the surrounding space continuous. The normal attributes are retained through the GLB writer's non-uniform position quantization. The camera far plane is 200 so the enclosure remains in view; close CDJ framing and controls are unchanged.
+
+The enclosure remains behind the club and surrounds under-table views, so orbit changes do not expose the old finite floor edge. The club deliberately occupies the previously empty background; geometry tests enforce the enclosure's closed boundary rather than requiring a flat background strip.

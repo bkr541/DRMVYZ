@@ -1,3 +1,4 @@
+import { CINEMA2_OPEN_DECKS_CLUB_MODULE_TYPE_ID } from '../modules/Cinema2OpenDecksClubModule'
 import {
   CINEMA2_NATIVE_PRESET_SCHEMA_ID, CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   cinema2NamespacedId, cinema2Ref, cinema2StableId,
@@ -42,31 +43,29 @@ function spot(name: string, position: readonly [number, number, number], intensi
   }
 }
 
-/** Preview-only preset: the CDJ as a stepped 3D model textured with the supplied reference photograph, for framing and visual review. No invented musical behavior or material replacement. */
+/** Preview-only preset: the CDJ as a stepped 3D model textured with the supplied gold-and-ink illustration, for framing and visual review. Keeps the existing review controls and Auto Performance behavior. */
 const CINEMA2_OPEN_DECKS_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = {
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID, schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
-  // Revision 4. A saved parameter state only restores when its revision matches, so a workspace that saved an earlier framing (revision 1 opened at an
-  // 18-24 degree heading; revision 2 at 3.3 distance; revision 3 at 2.9) restores these defaults instead: head on, 3.18 from the model, which fills
-  // most of the width and lets the bottom of the device run just past the bottom of the Stage.
-  id: CINEMA2_OPEN_DECKS_PRESET_ID, revision: 4,
+  // Revision 9 restores the close CDJ composition and restores the authored visual defaults.
+  id: CINEMA2_OPEN_DECKS_PRESET_ID, revision: 9,
   metadata: {
     name: 'Open Decks',
-    description: 'A 3D model of the Open Decks CDJ, textured with the reference photograph: the raised screen housing with its glass set back, the hot-cue pads, rotary and knobs are real volumes, so they have depth when the camera orbits. Preview only, for framing and visual review.',
+    description: 'A 3D model of the Open Decks CDJ seated on a wooden DJ table, styled with the supplied gold-and-ink illustration: the raised screen housing with its glass set back, the hot-cue pads, rotary and knobs are real volumes, so they have depth when the camera orbits. A dark 3D crowd dances beyond the booth under gold club lights; Auto Performance dips the camera toward the room on drops.',
     author: 'DRMVYZ',
-    tags: ['3d', 'cdj', 'dj', 'review'],
+    tags: ['3d', 'cdj', 'dj', 'club'],
   },
   capabilities: [
     { id: 'render.webgl2', requirement: 'required', purpose: 'Render the textured CDJ model.' },
     { id: 'render.depth', requirement: 'required', purpose: 'Resolve the stacked parts of the model and the glass set back in its housing.' },
     { id: 'scene.3d', requirement: 'required', purpose: 'Place the model in a world-space scene.' },
-    { id: 'camera.world', requirement: 'required', purpose: 'Frame and inspect the model using an adjustable static orbit camera.' },
+    { id: 'camera.world', requirement: 'required', purpose: 'Frame and inspect the model using an adjustable orbit camera.' },
     { id: 'lighting', requirement: 'required', purpose: 'Light the model so its raised parts, edges and shadows read as depth.' },
   ],
   parameters: [
     number('exposure', 'Exposure', 'master-controls', 1, .1, 3, 0),
-    number('distance', 'Camera Distance', 'design', 3.18, 1.6, 6, 10),
+    number('distance', 'Camera Distance', 'design', 5.6, 1.6, 40, 10),
     number('heading', 'Camera Heading', 'design', 0, -60, 60, 11),
-    number('elevation', 'Camera Elevation', 'design', 0, -30, 30, 12),
+    number('elevation', 'Camera Elevation', 'design', 30, -70, 30, 12),
     number('contrast', 'Contrast', 'effects', 1, .5, 1.5, 20),
     number('saturation', 'Saturation', 'effects', 1, 0, 2, 21),
     number('temperature', 'Color Temperature', 'palette', 0, -1, 1, 30),
@@ -74,36 +73,38 @@ const CINEMA2_OPEN_DECKS_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetM
     CINEMA2_QUALITY_MODE_PARAMETER,
   ],
   modules: [{
-    id: moduleId, typeId: cinema2StableId<Cinema2ModuleTypeId>('three-scene'), version: 1, enabled: true,
+    id: moduleId, typeId: CINEMA2_OPEN_DECKS_CLUB_MODULE_TYPE_ID, version: 1, enabled: true,
     config: {
       instances: [{ asset: 'cinema2-open-decks', node: model }],
-      // The raised parts shadow the plate and glass beneath them, and the device shadows the wall behind it, which is what lifts it off its background.
-      shadows: { cast: ['cdj'], receive: ['cdj', 'screen', 'backdrop'] },
+      // Raised controls shadow the CDJ; the CDJ and table cast onto the timber and stage floor.
+      shadows: { cast: ['cdj', 'table'], receive: ['cdj', 'screen', 'table', 'backdrop'] },
       environment: CINEMA2_STUDIO_NEUTRAL_ENVIRONMENT_ASSET_ID,
     },
   }],
   scene: { nodes: [
     { id: root, kind: 'group', coordinateSpace: 'world' },
-    // The model is 2.5 wide and about 1.7 tall, centred in x and y, its back plane at z = 0 and the screen housing front 0.17 above it; the wall hangs 0.15 behind.
-    { id: model, kind: 'module', parent: cinema2Ref(root), module: cinema2Ref(moduleId), transform: { scale: [1, 1, 1], position: [0, 0, -.04] } },
-    { id: lightTarget, kind: 'group', parent: cinema2Ref(root), transform: { position: [0, -.05, 0] } },
+    // Rotate the atlas-facing assembly into a horizontal deck; the table feet land at world Y=0 and the CDJ rests at Y=7.2.
+    { id: model, kind: 'module', parent: cinema2Ref(root), module: cinema2Ref(moduleId), transform: { scale: [1, 1, 1], position: [0, 7.2, 0], rotation: [-Math.PI / 2, 0, 0] } },
+    { id: lightTarget, kind: 'group', parent: cinema2Ref(root), transform: { position: [0, 7.2, 0] } },
+    { id: cinema2StableId<Cinema2SceneNodeId>('open-decks-club-light-left-target'), kind: 'group', parent: cinema2Ref(root), transform: { position: [-3,1,-12] } },
+    { id: cinema2StableId<Cinema2SceneNodeId>('open-decks-club-light-right-target'), kind: 'group', parent: cinema2Ref(root), transform: { position: [3,1,-12] } },
   ], roots: [cinema2Ref(root)] },
   layers: [{ id: layer, label: 'Open Decks', source: cinema2Ref(root), role: 'world', depthPolicy: 'read-write', order: 0 }],
   cameras: [{
-    // Composed for a Stage a little wider than square (the Stage this preview is judged in): the model fills most of the width, and the camera looks above
-    // its centre so the model's bottom edge sits just below the bottom of the frame. Wider Stages keep that bottom edge (the vertical view holds); minAspectAnchor 1
-    // pins it on narrower ones (the extra view goes above the device).
-    id: camera, label: 'Scene Review', projection: 'perspective', fovDegrees: 40, minAspect: 1.15, minAspectAnchor: 1,
-    near: .05, far: 100, target: [0, .335, 0],
-    rig: { kind: 'orbit', radius: 3.18, azimuthDegrees: 0, elevationDegrees: 0, angularVelocityDegreesPerSecond: 0 },
+    // Restore the close CDJ view; the booth remains beneath it rather than controlling the framing.
+    id: camera, label: 'Scene Review', projection: 'perspective', fovDegrees: 40, minAspect: 1.15, minAspectAnchor: 0,
+    near: .05, far: 200, target: [0, 7.5, 0],
+    rig: { kind: 'orbit', radius: 5.6, azimuthDegrees: 0, elevationDegrees: 30, angularVelocityDegreesPerSecond: 0 },
     controls: { orbitRadius: ref('distance'), orbitAzimuthDegrees: ref('heading'), orbitElevationDegrees: ref('elevation') },
   }],
   environment: { backgroundColor: [.016, .02, .028, 1] },
   lighting: { lights: [
-    // MAINFRAME's rig, brought in to this scene's size: a key from above left that casts the device's shadow across the wall, a cool rim from the right and a low fill.
-    spot('open-decks-key', [-3.6, 3.4, 5.2], .7, [.97, .96, .92, 1], 40, true),
-    spot('open-decks-rim', [4.4, 1.6, 4.4], .16, [.72, .84, 1, 1], 46),
-    spot('open-decks-fill', [-.8, -3.4, 4.6], .07, [.86, .88, .9, 1], 56),
+    // Raised key, cool rim and low fill light the deck, timber and stage floor.
+    spot('open-decks-key', [-5.6, 12.4, 6.2], 2.2, [.97, .96, .92, 1], 40, true),
+    spot('open-decks-rim', [8.4, 10.6, 4.4], .45, [.72, .84, 1, 1], 46),
+    spot('open-decks-fill', [-.8, 5.4, 6.6], .2, [.86, .88, .9, 1], 56),
+    { id: cinema2StableId<Cinema2LightId>('open-decks-club-left'), type: 'spot', color: [1,.52,.04,1], intensity: 3, transform: { position: [-9,11.5,-22] }, targetNode: cinema2Ref(cinema2StableId<Cinema2SceneNodeId>('open-decks-club-light-left-target')), config: { coneAngleDegrees: 28, penumbra: .55, range: 35 } },
+    { id: cinema2StableId<Cinema2LightId>('open-decks-club-right'), type: 'spot', color: [1,.52,.04,1], intensity: 3, transform: { position: [9,11.5,-22] }, targetNode: cinema2Ref(cinema2StableId<Cinema2SceneNodeId>('open-decks-club-light-right-target')), config: { coneAngleDegrees: 28, penumbra: .55, range: 35 } },
   ] },
 
   effects: [{
@@ -124,21 +125,21 @@ const CINEMA2_OPEN_DECKS_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetM
 }
 
 /**
- * Auto Performance (off by default). The scene is a static preview with no reactions of its own, so with it on the music directs only the camera's
- * slight sway left and right (below) and the exposure: a lift on the last downbeats before a drop and a flash on each drop. The camera never zooms.
+ * Auto Performance (off by default). The club has its own tempo-aware crowd motion; with Auto Performance on the music also directs the camera's
+ * slight sway left and right (below), a drop-triggered dip toward the club, and the exposure: a lift on the last downbeats before a drop and a flash on each drop. The camera never zooms.
  * The scene, its materials and your framing, exposure and colour controls are never changed.
  */
 const CINEMA2_OPEN_DECKS_AUTO_MANIFEST = withCinema2AutoPerformance(CINEMA2_OPEN_DECKS_AUTHORED_PRESET_MANIFEST, {
   prefix: 'open-decks',
   group: 'Master',
   order: 1,
-  description: 'Lets the music direct the camera and exposure: the camera sways slightly left and right with the music (it never zooms), the exposure lifts on the last downbeats before a drop, and flashes on each drop.',
+  description: 'Lets the music direct the camera and exposure: the camera sways gently and dips toward the crowd on drops (it never zooms), the exposure lifts on the last downbeats before a drop, and flashes on each drop.',
   capabilities: [
     { id: 'music.downbeat', purpose: 'Downbeats before a drop drive the exposure lift, and the bars of a phrase drive the camera sway, when Auto Performance is on.' },
     { id: 'music.drop', purpose: 'Each drop flashes the exposure when Auto Performance is on.' },
   ],
   gestures: {
-    // The camera never zooms: no push-in, no change of distance or lens. The only camera movement is the slight sway below.
+    // The camera never zooms: no push-in, no change of distance or lens. Camera motion combines gentle heading sway with the drop reveal below.
     peak: [{ id: 'exposure', target: cinema2AutoTargets.effect('open-decks-finish', 'exposure'), operation: 'envelope', value: 0.12, hold: 0.1, release: 0.8 }],
     drop: [{ id: 'exposure', target: cinema2AutoTargets.effect('open-decks-finish', 'exposure'), operation: 'envelope', value: 0.35, hold: 0.1, release: 2 }],
   },
@@ -161,7 +162,17 @@ const swayRule = (name: string, phase: number, degrees: number) => Object.freeze
     composition: 'add' as const, envelope: Object.freeze({ attack: 4, hold: 0, release: 4, unit: 'beats' as const }),
   })]),
 })
+const clubRevealRule = Object.freeze({
+  id: cinema2StableId<Cinema2ChoreographyRuleId>('open-decks-auto-club-reveal'), priority: 62,
+  enabledParameter: cinema2Ref(parameter('auto-performance')),
+  source: { signal: 'drop' as const, capability: 'music.drop' as const },
+  conditions: [{ kind: 'once-per-event' as const }, { kind: 'not-silent' as const }],
+  actions: [{ id: cinema2StableId<Cinema2ChoreographyActionId>('open-decks-club-reveal-elevation'),
+    target: cinema2AutoTargets.camera('open-decks-camera', 'control.orbitElevationDegrees'),
+    operation: 'envelope' as const, value: -22, composition: 'add' as const,
+    envelope: { attack: 1, hold: 2, release: 6, unit: 'beats' as const } }],
+})
 export const CINEMA2_OPEN_DECKS_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
   ...CINEMA2_OPEN_DECKS_AUTO_MANIFEST,
-  choreography: Object.freeze({ ...(CINEMA2_OPEN_DECKS_AUTO_MANIFEST.choreography ?? {}), rules: Object.freeze([...(CINEMA2_OPEN_DECKS_AUTO_MANIFEST.choreography?.rules ?? []), swayRule('left', 0, -4), swayRule('right', 1, 4)]) }),
+  choreography: Object.freeze({ ...(CINEMA2_OPEN_DECKS_AUTO_MANIFEST.choreography ?? {}), rules: Object.freeze([...(CINEMA2_OPEN_DECKS_AUTO_MANIFEST.choreography?.rules ?? []), swayRule('left', 0, -4), swayRule('right', 1, 4), clubRevealRule]) }),
 })

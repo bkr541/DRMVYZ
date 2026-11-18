@@ -1,0 +1,29 @@
+{
+  "source": "public/cinema2/models/crate/skrillex_-_vj_-_flash_warning.glb",
+  "sourceSha256": "3b74af78b57b0dd24727a06f41a16064af3044ded52118700fbe6008cb1843cc",
+  "output": "public/cinema2/models/bass-sigil-core.glb",
+  "heroWidth": 6,
+  "heroParts": [
+    "diamond-back",
+    "wordmark",
+    "diamond-shine",
+    "core-right",
+    "core-middle",
+    "core-left",
+    "wordmark-edge"
+  ],
+  "shells": [
+    {
+      "cells": 95,
+      "junctions": 186,
+      "edges": 279
+    },
+    {
+      "cells": 130,
+      "junctions": 256,
+      "edges": 384
+    }
+  ],
+  "particles": 970,
+  "phase": "P1 — static dry visual; no audio or automation"
+}

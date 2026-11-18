@@ -1,3 +1,4 @@
+import { cinema2DepthTrailsEffectDefinition } from './Cinema2DepthTrailsEffect'
 import type { Cinema2EffectManifest, Cinema2EffectTypeId } from '../contracts/Cinema2NativePresetManifest'
 import {
   cinema2BloomEffectDefinition,
@@ -97,6 +98,7 @@ export const cinema2NativeEffectRegistry = new Cinema2EffectRegistry()
 for (const definition of [
   cinema2BlurEffectDefinition,
   cinema2BloomEffectDefinition,
+  cinema2DepthTrailsEffectDefinition,
   cinema2HdrBloomEffectDefinition,
   cinema2GlareEffectDefinition,
   cinema2DepthOfFieldEffectDefinition,

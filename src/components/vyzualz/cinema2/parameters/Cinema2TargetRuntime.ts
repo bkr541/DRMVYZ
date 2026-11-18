@@ -206,6 +206,10 @@ export function compileCinema2TargetPlan(
     authoredBaseValue: Cinema2JsonValue | undefined,
     options: Cinema2TargetDefinitionOptions = {},
   ): Cinema2TargetHandle => {
+    // Bound creative targets share their control's limits so Inspector live values match rendering.
+    // Keep unbound targets unrestricted and avoid applying UI step quantization to animation.
+    const bound = (entity.kind === 'module' || entity.kind === 'effect') && options.parameterId
+      ? parameters.definitions.find(definition => definition.id === options.parameterId) : undefined
     const operations = options.operations ?? operationsForType(valueType)
     const handle = freeze({
       id: propertyTargetId(entity.id, property),
@@ -218,8 +222,8 @@ export function compileCinema2TargetPlan(
       operations: Object.freeze([...operations]),
       parameterId: options.parameterId ?? null,
       authoredBaseValue: cloneJson(authoredBaseValue),
-      min: options.min ?? null,
-      max: options.max ?? null,
+      min: options.min ?? bound?.min ?? null,
+      max: options.max ?? bound?.max ?? null,
       step: options.step ?? null,
       options: Object.freeze([...(options.values ?? [])]),
       capabilities: Object.freeze([...(options.capabilities ?? [])].sort(compareStrings)),

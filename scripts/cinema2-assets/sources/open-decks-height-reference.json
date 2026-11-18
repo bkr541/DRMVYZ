@@ -1,0 +1,21 @@
+{
+  "source": "3D Cinema 2.0 Crate/cdj_player.glb",
+  "sha256": "bb353cbdeb3cf6ef558c6b0104620ff946fd047cc845c752a7d8f8a47c29bd75",
+  "bounds": {
+    "min": [
+      -0.8241360187530518,
+      -0.23439404269191244,
+      -0.9999999986397488
+    ],
+    "max": [
+      0.8241360187530518,
+      0.23439403945788176,
+      1.000000001022448
+    ]
+  },
+  "width": 1.6482720375061035,
+  "height": 0.46878808214979417,
+  "length": 1.9999999996621967,
+  "heightToWidth": 0.2844118394795363,
+  "purpose": "Height calibration only; no reference geometry or textures are shipped."
+}

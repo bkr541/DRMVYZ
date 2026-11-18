@@ -1,0 +1,37 @@
+{
+  "sourceVideo": "/Users/kodyrobinson/Desktop/Bass_Sigil_Ref.mov",
+  "sha256": "9e89969804bfa779857be7e7722d0c2fd7aee4e9b14cee984e55b036e1049cfe",
+  "bytes": 27878493,
+  "durationSeconds": 14.595208,
+  "videoDurationSeconds": 14.56,
+  "width": 1550,
+  "height": 856,
+  "frameCount": 786,
+  "averageFrameRate": "23580/437",
+  "audio": {
+    "codec": "aac",
+    "sampleRate": 48000,
+    "channels": 2,
+    "meanVolumeDbFS": -57.4,
+    "peakVolumeDbFS": -33.7
+  },
+  "extraction": {
+    "contactSheet": "ffmpeg fps=2; scale width465; labeled half-second samples",
+    "heroSeconds": 2.6,
+    "flareSeconds": 5.5,
+    "motionStudy": {
+      "startSeconds": 7,
+      "durationSeconds": 0.8,
+      "fps": 10
+    }
+  },
+  "limitations": [
+    "Visual timestamps refer to the screen recording, not musical beats.",
+    "No claim of live audio synchronization in the recording.",
+    "Production implementation and human visual acceptance are pending."
+  ],
+  "contract": {
+    "path": "DRMVYZ_Cinema_2_0_Preset_Creation_Contract.md",
+    "sha256": "53de12d2dcc0a301dbf47cf6f7a462b16e76d1b68b7e249dcbe1b95de63b9ed6"
+  }
+}

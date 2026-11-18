@@ -3,6 +3,7 @@ import { ShaderCompiler } from '../../react/shaders/runtime/ShaderCompiler'
 import { ShaderProgram } from '../../react/shaders/runtime/ShaderProgram'
 import {
   cinema2StableId,
+  type Cinema2JsonValue,
   type Cinema2EffectManifest,
   type Cinema2EffectTypeId,
   type Cinema2RenderQualityLevel,
@@ -20,6 +21,7 @@ import {
   validateEffectParameters,
   type Cinema2EffectNumericRange,
 } from './Cinema2EffectParameterHelpers'
+import type { Cinema2CameraFrame } from '../spatial/Cinema2CameraRuntime'
 import { invertCinema2Matrix4 } from './Cinema2VolumetricAtmosphereEffect'
 
 /**
@@ -92,6 +94,13 @@ const NUMERIC: readonly Cinema2EffectNumericRange[] = Object.freeze([
   ['nearBlur', 0, 40],
 ])
 
+/** Optional camera-target focus keeps an orbiting subject sharp at every zoom distance. */
+export function resolveCinema2FocusDistance(parameters: Readonly<Record<string, Cinema2JsonValue>>, camera?: Readonly<Cinema2CameraFrame>) {
+  return parameters.focusCameraTarget === true && camera
+    ? Math.hypot(...camera.position.map((value, i) => value - camera.target[i]))
+    : number(parameters, 'focusDistance', 5)
+}
+
 class DepthOfFieldEffectInstance implements Cinema2EffectInstance {
   private readonly program: ShaderProgram
   private readonly pass: FullscreenPass
@@ -130,7 +139,7 @@ class DepthOfFieldEffectInstance implements Cinema2EffectInstance {
       program.setVec3('u_cameraPosition', camera.position[0], camera.position[1], camera.position[2])
     }
     program.setVec2('u_resolution', context.width, context.height)
-    program.setFloat('u_focusDistance', clamp(number(p, 'focusDistance', 5), 0.1, 500))
+    program.setFloat('u_focusDistance', clamp(resolveCinema2FocusDistance(p, camera), 0.1, 500))
     program.setFloat('u_focusRange', clamp(number(p, 'focusRange', 1.5), 0, 500))
     program.setFloat('u_falloff', clamp(number(p, 'falloff', 6), 0.01, 500))
     program.setFloat('u_farBlur', clamp(number(p, 'farBlur', 6), 0, 40) * scale)

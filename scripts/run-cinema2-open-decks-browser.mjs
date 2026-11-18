@@ -40,11 +40,41 @@ try {
     assert.equal(snapshot.render.failedPassCount, 0)
     assert.equal(snapshot.effects.failedEffectCount, 0)
     assert.deepEqual(errors, [])
-    const png = await page.screenshot({ path: `${output}/${quality}-${width}.png` })
-    const stats = await sharp(png).stats()
-    assert(stats.channels.slice(0, 3).some(channel => channel.stdev > 12), 'Scene is blank or flat')
+    // Texture upload and shader compilation can outlast the module's first resource report.
+    let png
+    let visible = false
+    for (let attempt = 0; attempt < 40; attempt++) {
+      png = await page.screenshot()
+      const stats = await sharp(png).stats()
+      visible = stats.channels.slice(0, 3).some(channel => channel.stdev > 12)
+      if (visible) break
+      await page.waitForTimeout(500)
+    }
+    assert(visible, 'Scene is blank or flat')
+    await writeFile(`${output}/${quality}-${width}.png`, png)
+    assert.equal((await page.evaluate(() => globalThis.openDecksReview.set('elevation', 8))).ok, true)
+    const dipFrame = await page.evaluate(() => globalThis.openDecksReview.snapshot().runtime.frameCount)
+    await page.waitForFunction(previous => globalThis.openDecksReview.snapshot().runtime.frameCount > previous + 2, dipFrame)
+    await page.screenshot({ path: `${output}/club-${quality}-${width}.png` })
+    assert.equal((await page.evaluate(() => globalThis.openDecksReview.set('elevation', 30))).ok, true)
+    // Club geometry intentionally occupies the previously empty background strip.
+    // Closed-backdrop topology is checked by open-decks-geometry.test.mjs.
     // Palette must affect baked/unlit textures too; it operates in the final color grade.
     if (quality === 'high' && width === 1280) {
+      assert.equal((await page.evaluate(() => globalThis.openDecksReview.set('heading', 25))).ok, true)
+      await page.waitForFunction(previous => globalThis.openDecksReview.snapshot().runtime.frameCount > previous + 2, snapshot.runtime.frameCount)
+      const angled = await page.screenshot({ path: `${output}/illustrated-angle.png` })
+      assert.notDeepEqual(angled, png, 'Orbit view must reveal depth in the illustrated geometry')
+      assert.equal((await page.evaluate(() => globalThis.openDecksReview.set('elevation', -70))).ok, true)
+      const elevationFrame = await page.evaluate(() => globalThis.openDecksReview.snapshot().runtime.frameCount)
+      await page.waitForFunction(previous => globalThis.openDecksReview.snapshot().runtime.frameCount > previous + 2, elevationFrame)
+      await page.screenshot({ path: `${output}/elevation-minus-70.png` })
+      assert.equal((await page.evaluate(() => globalThis.openDecksReview.set('elevation', 30))).ok, true)
+      const depthFrame = await page.evaluate(() => globalThis.openDecksReview.snapshot().runtime.frameCount)
+      await page.waitForFunction(previous => globalThis.openDecksReview.snapshot().runtime.frameCount > previous + 2, depthFrame)
+      await page.screenshot({ path: `${output}/raised-controls.png` })
+      assert.equal((await page.evaluate(() => globalThis.openDecksReview.set('elevation', 30))).ok, true)
+      assert.equal((await page.evaluate(() => globalThis.openDecksReview.set('heading', 0))).ok, true)
       assert.equal((await page.evaluate(() => globalThis.openDecksReview.set('temperature', .8))).ok, true)
       const frame = snapshot.runtime.frameCount
       await page.waitForFunction(previous => globalThis.openDecksReview.snapshot().runtime.frameCount > previous + 2, frame)

@@ -1,0 +1,182 @@
+{
+  "controls": [
+    {
+      "name": "intensity",
+      "min": 0,
+      "normal": 1,
+      "max": 2,
+      "minMaxMeanPixelChange": 19.005961733217593,
+      "defaultDelta": 15.936568648726851
+    },
+    {
+      "name": "motionRate",
+      "min": 0,
+      "normal": 1,
+      "max": 2,
+      "minMaxMeanPixelChange": 12.946271339699074,
+      "defaultDelta": 0
+    },
+    {
+      "name": "geometryExtent",
+      "min": 0,
+      "normal": 0.35,
+      "max": 1,
+      "minMaxMeanPixelChange": 11.637297453703704,
+      "defaultDelta": 6.457602719907407
+    },
+    {
+      "name": "coreTravel",
+      "min": 0,
+      "normal": 0.25,
+      "max": 1,
+      "minMaxMeanPixelChange": 0.2621227575231482,
+      "defaultDelta": 0.07566370081018518
+    },
+    {
+      "name": "membraneScale",
+      "min": 0.65,
+      "normal": 1,
+      "max": 1.4,
+      "minMaxMeanPixelChange": 19.030208333333334,
+      "defaultDelta": 9.972356770833333
+    },
+    {
+      "name": "particleDensity",
+      "min": 0,
+      "normal": 1,
+      "max": 1,
+      "minMaxMeanPixelChange": 3.0542697482638888,
+      "defaultDelta": 3.0542697482638888
+    },
+    {
+      "name": "tunnelDepth",
+      "min": 0.5,
+      "normal": 1,
+      "max": 1.5,
+      "minMaxMeanPixelChange": 19.981386357060185,
+      "defaultDelta": 13.826942997685185
+    },
+    {
+      "name": "heroScale",
+      "min": 0.75,
+      "normal": 1,
+      "max": 1.15,
+      "minMaxMeanPixelChange": 6.886665219907408,
+      "defaultDelta": 4.598824508101852
+    },
+    {
+      "name": "membraneOpacity",
+      "min": 0,
+      "normal": 1,
+      "max": 1,
+      "minMaxMeanPixelChange": 9.9903515625,
+      "defaultDelta": 9.9903515625
+    },
+    {
+      "name": "glow",
+      "min": 0,
+      "normal": 1,
+      "max": 2,
+      "minMaxMeanPixelChange": 1.5148813657407407,
+      "defaultDelta": 1.5148813657407407
+    },
+    {
+      "name": "wordmarkColor",
+      "paletteDifference": 1.536380570023148
+    },
+    {
+      "name": "edgeColor",
+      "paletteDifference": 0.37201497395833333
+    },
+    {
+      "name": "coreColor",
+      "paletteDifference": 0.861466652199074
+    },
+    {
+      "name": "membraneColor",
+      "paletteDifference": 6.440358434606481
+    },
+    {
+      "name": "particlesColor",
+      "paletteDifference": 2.557681206597222
+    },
+    {
+      "name": "background",
+      "paletteDifference": 71.71618417245371
+    }
+  ],
+  "patterns": [
+    {
+      "pattern": "reference-vortex",
+      "frameDifference": 13.723156105324074
+    },
+    {
+      "pattern": "countercurrent",
+      "frameDifference": 16.69484881365741
+    },
+    {
+      "pattern": "axial-pressure",
+      "frameDifference": 5.95494285300926
+    },
+    {
+      "pattern": "orbital-weave",
+      "frameDifference": 15.803072916666666
+    },
+    {
+      "pattern": "broken-crown",
+      "frameDifference": 13.536507161458333
+    },
+    {
+      "pattern": "tidal-ribbon",
+      "frameDifference": 15.898158998842593
+    },
+    {
+      "pattern": "lens-collapse",
+      "frameDifference": 0.45408094618055556
+    },
+    {
+      "pattern": "shock-bloom",
+      "frameDifference": 7.623117042824074
+    }
+  ],
+  "aspects": [
+    {
+      "width": 960,
+      "height": 720
+    },
+    {
+      "width": 720,
+      "height": 720
+    },
+    {
+      "width": 540,
+      "height": 960
+    }
+  ],
+  "timing": [
+    {
+      "sync": true,
+      "bpm": 90,
+      "hostSync": false
+    },
+    {
+      "sync": true,
+      "bpm": 180,
+      "hostSync": true
+    },
+    {
+      "sync": false,
+      "bpm": 90,
+      "hostSync": true
+    },
+    {
+      "sync": false,
+      "bpm": 180,
+      "hostSync": false
+    }
+  ],
+  "timingComparison": {
+    "syncedDifference": 5.085347865226337,
+    "freeDifference": 0
+  }
+}

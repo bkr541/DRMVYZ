@@ -414,3 +414,11 @@
     font-size: max(16px, var(--type-field-size)) !important;
   }
 }
+
+/* Live musical policy is a control value. Reserve three lines so enabling it never moves controls. */
+.rv-ctrl-live-policy {
+  font: var(--type-field-value);
+  color: var(--color-text-muted, rgba(232, 244, 248, .65));
+  height: 3.6em;
+  overflow: hidden;
+}
