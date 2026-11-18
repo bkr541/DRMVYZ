@@ -51,9 +51,9 @@ function render(element: React.ReactElement) {
   return act(async () => root.render(element))
 }
 
-describe('application floating chrome (all six workspaces)', () => {
-  it('activates all six production workspaces', () => {
-    expect(APP_VIEWS).toEqual(['react', 'performanceManager', 'presetManager', 'showManager', 'lyrics', 'media'])
+describe('application floating chrome (every workspace)', () => {
+  it('activates every production workspace, the six creative ones and the admin-only one', () => {
+    expect(APP_VIEWS).toEqual(['react', 'performanceManager', 'presetManager', 'showManager', 'lyrics', 'media', 'admin'])
     expect(FLOATING_APP_VIEWS.react).toBe(true)
     expect(FLOATING_APP_VIEWS.presetManager).toBe(true)
     expect(FLOATING_APP_VIEWS.media).toBe(true)

@@ -8,9 +8,10 @@ import { useSharedAudio } from '../../context/AudioEngineContext'
 import { HeaderNotificationsButton } from './shared/HeaderNotificationsButton'
 import type { AppPageId } from '../../stores/pageActivityStore'
 import { VyzualzProfileControl } from './shared/VyzualzProfileControl'
+import { useAdminAccess } from '../../lib/adminAccess'
 import type { AppView } from './appView'
 
-const NOTIFICATION_PAGES: Record<AppView, AppPageId> = { react: 'react', performanceManager: 'performance-manager', presetManager: 'preset-manager', showManager: 'show-manager', lyrics: 'lyric-manager', media: 'media-manager' }
+const NOTIFICATION_PAGES: Record<AppView, AppPageId> = { react: 'react', performanceManager: 'performance-manager', presetManager: 'preset-manager', showManager: 'show-manager', lyrics: 'lyric-manager', media: 'media-manager', admin: 'admin' }
 
 type Props = {
   compact?: boolean
@@ -51,6 +52,8 @@ export function VyzualzBrandToggle({
 export function VyzualzSidebar(props: Props) {
   const { compact = false, appView, onAppViewChange } = props
   const notificationPage = NOTIFICATION_PAGES[appView ?? 'react']
+  // Shown only to a server-verified admin; the Admin view checks again on its own.
+  const isAdmin = useAdminAccess()
   const engine = useSharedAudio()
   const [legacyCollapsed, setLegacyCollapsed] = useState(compact)
   const isCollapsed = props.variant === 'floating' ? props.collapsed : legacyCollapsed
@@ -191,6 +194,18 @@ export function VyzualzSidebar(props: Props) {
           <AppIcon kind="chevronRight" size={24} style={{ transform: isCollapsed ? undefined : 'rotate(180deg)' }} />
         </button>}
         <HeaderNotificationsButton key={notificationPage} page={notificationPage} iconOnly className="az-sidebar-notifications" />
+        {isAdmin && <button
+          type="button"
+          className={`az-nav-item az-sidebar-admin${appView === 'admin' ? ' az-nav-item--active' : ''}`}
+          onClick={() => onAppViewChange?.('admin')}
+          title="Admin"
+          aria-label="Admin"
+          aria-current={appView === 'admin' ? 'page' : undefined}
+        >
+          <span className="az-nav-fill" aria-hidden="true" />
+          <NavMedallionIcon kind="navAdmin" size={NAV_ICON_SIZE} />
+          <span className="az-nav-label">Admin</span>
+        </button>}
         <VyzualzProfileControl />
       </div>
     </aside>

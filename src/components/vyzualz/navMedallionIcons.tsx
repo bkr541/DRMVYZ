@@ -6,7 +6,7 @@ import './navMedallionIcons.css'
  * with a lit arc, drawn on a 32 grid. Structure follows the item colour (`currentColor`); accent shapes take `--llni-accent`, which the
  * navigation already sets per item (dimmer at rest, brighter when active). Notifications keeps its own control and is not part of this set.
  */
-export type NavMedallionKind = 'navReact' | 'navPerformance' | 'navPreset' | 'navShow' | 'navLyrics' | 'navMedia'
+export type NavMedallionKind = 'navReact' | 'navPerformance' | 'navPreset' | 'navShow' | 'navLyrics' | 'navMedia' | 'navAdmin'
 
 const rr = (x: number, y: number, w: number, h: number, r: number) =>
   `M${x + r} ${y}H${x + w - r}A${r} ${r} 0 0 1 ${x + w} ${y + r}V${y + h - r}A${r} ${r} 0 0 1 ${x + w - r} ${y + h}H${x + r}A${r} ${r} 0 0 1 ${x} ${y + h - r}V${y + r}A${r} ${r} 0 0 1 ${x + r} ${y}Z`
@@ -72,7 +72,10 @@ const media = (): ReactElement[] => [
   </g>,
 ]
 
-export const NAV_MEDALLION_ARTWORK: Record<NavMedallionKind, () => ReactElement[]> = { navReact: react, navPerformance: pads, navPreset: presets, navShow: show, navLyrics: lyrics, navMedia: media }
+/** Admin: a shield with a lit check. */
+const admin = (): ReactElement[] => [...RING, P('s', 's', 'M16 7.5l7 2.6v5.2c0 4.6-3 7.8-7 9.4-4-1.6-7-4.8-7-9.4v-5.2Z'), P('c', 'a', 'M12.6 15.8l2.5 2.5 4.5-4.8')]
+
+export const NAV_MEDALLION_ARTWORK: Record<NavMedallionKind, () => ReactElement[]> = { navReact: react, navPerformance: pads, navPreset: presets, navShow: show, navLyrics: lyrics, navMedia: media, navAdmin: admin }
 
 /** `size` is the symbol's scale (px per 32 grid); the svg is 38/32 larger so the wider ring fits. */
 export function NavMedallionIcon({ kind, size = 36 }: { kind: NavMedallionKind; size?: number }) {

@@ -1,4 +1,4 @@
-export const APP_VIEWS = ['react', 'performanceManager', 'presetManager', 'showManager', 'lyrics', 'media'] as const
+export const APP_VIEWS = ['react', 'performanceManager', 'presetManager', 'showManager', 'lyrics', 'media', 'admin'] as const
 
 export type AppView = (typeof APP_VIEWS)[number]
 export type PerformanceAppView = Extract<AppView, 'react' | 'showManager'>
@@ -13,6 +13,7 @@ export const FLOATING_APP_VIEWS: Readonly<Record<AppView, boolean>> = {
   showManager: true,
   lyrics: true,
   media: true,
+  admin: true,
 }
 
 export const APP_VIEW_LABELS: Readonly<Record<AppView, string>> = {
@@ -22,6 +23,7 @@ export const APP_VIEW_LABELS: Readonly<Record<AppView, string>> = {
   showManager: 'Show Manager',
   lyrics: 'Lyric Manager',
   media: 'Media Manager',
+  admin: 'Admin',
 }
 
 export function isPerformanceAppView(view: AppView): view is PerformanceAppView {

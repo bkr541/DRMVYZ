@@ -43,6 +43,7 @@ const EMPTY_EVENT_PAGES: Readonly<Record<AppPageId, readonly NotificationEvent[]
   'show-manager': EMPTY_EVENTS,
   'media-manager': EMPTY_EVENTS,
   'lyric-manager': EMPTY_EVENTS,
+  admin: EMPTY_EVENTS,
 })
 
 interface NotificationState {
@@ -70,6 +71,7 @@ const EMPTY_PAGES: NotificationState['pages'] = Object.freeze({
   'show-manager': EMPTY,
   'media-manager': EMPTY,
   'lyric-manager': EMPTY,
+  admin: EMPTY,
 })
 
 let nextEventId = 0

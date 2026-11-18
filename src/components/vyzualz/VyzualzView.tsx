@@ -1,7 +1,7 @@
 import { selectModelEditorNeedsGuard, useModelEditorStore } from '../../features/models/state/modelEditorStore'
 import { UnsavedModelChangesDialog } from './media/UnsavedModelChangesDialog'
 import { requestTextSceneNavigation } from '../../features/cinema2Text/textSceneNavigation'
-import { lazy, Suspense, useCallback, useLayoutEffect, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useState } from 'react'
 import { useLyricsStore } from '../../stores/lyricsStore'
 import { LyricRuntimePreviewIndicator } from '../../features/lyrics/components/LyricRuntimePreviewIndicator'
 import { NotificationPageProvider } from '../../stores/notificationStore'
@@ -19,6 +19,7 @@ import {
 } from './appView'
 import type { AppView, PerformanceAppView } from './appView'
 import type { LyricManagerNavigationIntent } from '../../features/lyrics/lyricNavigation'
+import { useAdminAccess } from '../../lib/adminAccess'
 import { setAudioSourcePolicyAppView } from '../../audio/audioSourcePolicy'
 
 const ReactView = lazy(() =>
@@ -32,6 +33,9 @@ const PresetManagerView = lazy(() =>
 )
 const MediaManagerView = lazy(() =>
   import('../../features/media/MediaManagerView').then(module => ({ default: module.MediaManagerView })),
+)
+const AdminView = lazy(() =>
+  import('../../features/admin/AdminView').then(module => ({ default: module.AdminView })),
 )
 const LyricManagerView = lazy(() =>
   import('../../features/lyrics/LyricManagerView').then(module => ({ default: module.LyricManagerView })),
@@ -98,6 +102,10 @@ export function VyzualzView({ initialAppView = DEFAULT_PERFORMANCE_VIEW }: Props
   const modelEditorNeedsGuard = useModelEditorStore(selectModelEditorNeedsGuard)
   const imageEditorNeedsGuard = useMediaEditStore(selectMediaEditNeedsGuard)
   const mediaEditorNeedsGuard = imageEditorNeedsGuard || modelEditorNeedsGuard
+
+  // Leaving the Admin view if admin access is lost (signing out, or the role being removed) while it is open.
+  const isAdmin = useAdminAccess()
+  useEffect(() => { if (appView === 'admin' && !isAdmin) setAppView(DEFAULT_PERFORMANCE_VIEW) }, [appView, isAdmin])
 
   useLayoutEffect(() => {
     setAudioSourcePolicyAppView(appView)
@@ -181,6 +189,18 @@ export function VyzualzView({ initialAppView = DEFAULT_PERFORMANCE_VIEW }: Props
         <Suspense fallback={<WorkspaceLoader label="Preset Manager" />}>
           <NotificationPageProvider value="preset-manager">
             <PresetManagerView />
+          </NotificationPageProvider>
+        </Suspense>
+      </ManagedWorkspaceShell>
+    )
+  }
+
+  if (appView === 'admin') {
+    return (
+      <ManagedWorkspaceShell appView={appView} onAppViewChange={requestAppViewChange} sidebarCollapsed={sidebarCollapsed} onSidebarCollapsedChange={setSidebarCollapsed}>
+        <Suspense fallback={<WorkspaceLoader label="Admin" />}>
+          <NotificationPageProvider value="admin">
+            <AdminView />
           </NotificationPageProvider>
         </Suspense>
       </ManagedWorkspaceShell>

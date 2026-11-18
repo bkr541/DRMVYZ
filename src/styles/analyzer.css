@@ -251,6 +251,20 @@
   color: var(--az-text-muted);
   cursor: pointer;
 }
+/* The Admin entrance (admins only) sits directly above Profile and lines up with it: same left edge, same row height, an icon the size of the avatar. */
+.az-sidebar-account > .az-sidebar-admin {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 36px;
+  min-width: 0;
+  margin: 0;
+  padding: 4px 0;
+  background: transparent;
+}
+.az-sidebar-account > .az-sidebar-admin .nav-medallion { width: 38px; height: 38px; flex: 0 0 auto; }
+.az-sidebar.az-sidebar--collapsed .az-sidebar-account > .az-sidebar-admin { justify-content: center; padding: 4px 0; }
 .az-sidebar-account > .vsm-settings-btn.vz-header-status-chip.vz-header-chip.vz-header-notifications.az-sidebar-notifications {
   width: 38px;
   height: 38px;
