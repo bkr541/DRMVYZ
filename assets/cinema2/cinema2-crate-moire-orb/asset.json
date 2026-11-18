@@ -1,0 +1,11 @@
+{
+  "id": "cinema2-crate-moire-orb",
+  "kind": "model",
+  "compression": "none",
+  "license": "CC-BY-4.0",
+  "attribution": "Geometry Texture Effect Spheres \u2014 SonicVisual (https://sketchfab.com/sonicvisual). https://sketchfab.com/3d-models/geometry-texture-effect-spheres-5058a0f82e744c27988304db012647d0. CC BY 4.0.",
+  "origin": "Unmodified owner-supplied GLB from 3D Cinema 2.0 Crate/geometry_texture_effect_spheres.glb",
+  "files": {
+    "high": "public/cinema2/models/crate/geometry_texture_effect_spheres.glb"
+  }
+}

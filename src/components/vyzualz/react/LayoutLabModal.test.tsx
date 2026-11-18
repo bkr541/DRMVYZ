@@ -39,7 +39,7 @@ describe('isolated Layout Lab', () => {
       expect(canvas.querySelectorAll('[data-nav-icon-study]')).toHaveLength(20)
       expect(canvas.querySelectorAll('[data-left-nav-study]')).toHaveLength(15)
       expect([...canvas.querySelectorAll('[role="tabpanel"]')].slice(5).every(panel => panel.childElementCount === 0)).toBe(true)
-      expect(canvas.querySelectorAll('[data-preset-study]')).toHaveLength(16)
+      expect(canvas.querySelectorAll('[data-preset-study]')).toHaveLength(21)
       expect(popupDocument.head.querySelector('style, link[rel="stylesheet"]')).toBeNull()
       expect(popupDocument.querySelector('style')?.textContent).not.toContain('main { display: none; }')
       expect(popupDocument.querySelector('canvas, video, audio')).toBeNull()

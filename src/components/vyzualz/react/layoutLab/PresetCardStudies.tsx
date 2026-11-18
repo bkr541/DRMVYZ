@@ -13,12 +13,12 @@ const PRESETS = [
   { id: 'drmvyz.cinema2.electric-storm', name: 'Electric Storm', color: '#88b8e8', key: '4', wrap: true },
 ] as const
 const DESIGNS = [
-  { id: 'poster', name: 'Cinema poster', detail: 'Edge-to-edge image · quiet overlay' },
-  { id: 'print', name: 'Framed print', detail: 'Inset image · separate caption' },
-  { id: 'gallery', name: 'Gallery tile', detail: 'Title first · uninterrupted image' },
-  { id: 'strip', name: 'Compact strip', detail: 'Landscape thumbnail · side caption' },
-  { id: 'monitor', name: 'Studio monitor', detail: 'Recessed screen · centered title' },
-  // 06–10: the five card treatments above, infused with the Performance Pad styling (accent line, outlined numeral, tinted selection, strike halo).
+  { id: 'poster', name: 'Cinema classic', detail: 'Full-width thumbnail · solid charcoal caption', captioned: true },
+  { id: 'print', name: 'Matte frame', detail: 'Inset thumbnail · centered caption · photographic border', captioned: true },
+  { id: 'gallery', name: 'Accent gallery', detail: 'Thumbnail header · color seam · dark caption', captioned: true },
+  { id: 'strip', name: 'Light folio', detail: 'Panoramic thumbnail · light caption · dark text', captioned: true },
+  { id: 'monitor', name: 'Studio panel', detail: 'Recessed thumbnail · slate caption · inset rail', captioned: true },
+  // 06–10: legacy Performance Pad treatments (accent line, outlined numeral, tinted selection, strike halo).
   { id: 'signal-poster', name: 'Signal poster', detail: 'Poster · centered title over a signal line · outlined numeral', infused: true },
   { id: 'rail-print', name: 'Rail print', detail: 'Framed print · accent rail beside the caption · outlined numeral', infused: true },
   { id: 'underline-gallery', name: 'Underline gallery', detail: 'Title band · long recessed underline · watermark numeral', infused: true },
@@ -27,10 +27,16 @@ const DESIGNS = [
   { id: 'asset-library', name: 'Asset library', detail: 'Full preview · separate two-line title · metadata', fresh: true },
   { id: 'compact-library', name: 'Compact library', detail: 'Square thumbnail · stacked title · dense browsing', fresh: true },
   { id: 'immersive-library', name: 'Immersive gallery', detail: 'Large preview · contrast scrim · floating actions', fresh: true },
-  // 14–16: the production poster tile (row 01) with three different ways of keeping the title readable over any thumbnail.
+  // 14–16: the original production poster tile with three overlay legibility treatments.
   { id: 'poster-scrim', name: 'Poster · soft scrim', detail: 'Production poster · a dark scrim behind the title, clear at the edges', legible: true },
   { id: 'poster-plate', name: 'Poster · frosted band', detail: 'Production poster · a feathered band blurs the strip behind the title', legible: true },
   { id: 'poster-bar', name: 'Poster · outlined title', detail: 'Production poster · no background, a dark outline on the letters', legible: true },
+  // 17–21: independent browsing layouts with different preview shapes and caption placement.
+  { id: 'split-aperture', name: 'Split aperture', detail: 'Circular scene window · left-aligned caption', fresh: true },
+  { id: 'index-ticket', name: 'Index ticket', detail: 'Numbered spine · perforated divider · scene and caption', fresh: true },
+  { id: 'panorama-dossier', name: 'Panorama dossier', detail: 'Title above a panoramic scene · metadata footer', fresh: true },
+  { id: 'offset-sleeve', name: 'Offset sleeve', detail: 'Tilted image sleeve · layered backing · solid caption', fresh: true },
+  { id: 'lens-badge', name: 'Lens badge', detail: 'Centered circular preview · concentric frame · stacked caption', fresh: true },
 ] as const
 
 /** Local design studies; card actions never select a live engine preset. */
@@ -43,7 +49,7 @@ export function PresetCardStudies() {
   const release = (key: string) => setHits(current => { if (!current.has(key)) return current; const next = new Set(current); next.delete(key); return next })
   return <div className="ll-preset-studies" aria-label="Preset card design studies">
     <style>{studyStyles}</style>
-    {DESIGNS.map((design, index) => <section className={`ll-preset-study ll-preset-study--${design.id}${'infused' in design ? ' ll-preset-study--infused' : ''}`} key={design.id} data-preset-study={design.id} aria-labelledby={`ll-preset-study-${design.id}`}>
+    {DESIGNS.map((design, index) => <section className={`ll-preset-study ll-preset-study--${design.id}${'infused' in design ? ' ll-preset-study--infused' : ''}${'captioned' in design ? ' ll-preset-study--captioned' : ''}`} key={design.id} data-preset-study={design.id} aria-labelledby={`ll-preset-study-${design.id}`}>
       <header className="ll-preset-study-heading">
         <h2 id={`ll-preset-study-${design.id}`}><AppIcon kind="navPreset" size={14} /><span className="ll-preset-study-number">{String(index + 1).padStart(2, '0')}</span>{design.name}</h2>
         <p>{design.detail}</p>
@@ -60,6 +66,7 @@ export function PresetCardStudies() {
               onPointerDown={event => { if (event.button === 0) strike(key) }} onPointerUp={() => release(key)} onPointerCancel={() => release(key)} onPointerLeave={() => release(key)} onBlur={() => release(key)}
               onKeyDown={event => { if (event.key === ' ' || event.key === 'Enter') strike(key) }} onKeyUp={() => release(key)}
               aria-label={`${design.name}: select ${preset.name}`} aria-pressed={active} onClick={() => setSelected(current => ({ ...current, [design.id]: preset.id }))}>
+              {design.id === 'index-ticket' && <span className="ll-library-index" aria-hidden="true">{preset.key.padStart(2, '0')}</span>}
               <span className={fresh ? 'll-library-preview' : 'll-preset-image'}><img src={new URL(`${import.meta.env.BASE_URL}preset-artwork/${encodeURIComponent(preset.id)}.webp`, window.location.href).href} alt={`${preset.name} — actual Cinema 2.0 render`} loading="lazy" decoding="async" width="480" height="270" /></span>
               <span className={fresh ? 'll-library-copy' : 'll-preset-copy'}>
                 <span className={fresh ? 'll-library-engine' : 'll-preset-engine'}>Cinema 2.0</span>

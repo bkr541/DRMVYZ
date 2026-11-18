@@ -1,0 +1,11 @@
+{
+  "id": "cinema2-crate-nested-pulse",
+  "kind": "model",
+  "compression": "none",
+  "license": "CC-BY-4.0",
+  "attribution": "Pulse Cubed \u2014 Tycho Magnetic Anomaly (https://sketchfab.com/Tycho_Magnetic_Anomaly). https://sketchfab.com/3d-models/pulse-cubed-c01de5d2c4304b25b7aded836b5da575. CC BY 4.0.",
+  "origin": "Unmodified owner-supplied GLB from 3D Cinema 2.0 Crate/pulse_cubed.glb",
+  "files": {
+    "high": "public/cinema2/models/crate/pulse_cubed.glb"
+  }
+}

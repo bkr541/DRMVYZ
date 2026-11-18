@@ -229,7 +229,7 @@ test('fails when all shipped assets exceed the installer budget', () => {
 
 test('loads and merges the Cinema 2.0 project budget overrides', () => {
   assert.deepEqual(PROJECT_BUDGETS, {
-    installerBytes: 132 * 1024 * 1024,
+    installerBytes: 160 * 1024 * 1024,
     maxFileBytes: 16 * 1024 * 1024,
     maxTrianglesPerAsset: 250000,
     maxTextureDimension: 4096,
@@ -271,7 +271,7 @@ test('project overrides still reject assets above every new threshold', () => {
   assert.deepEqual(overGpu.issues.filter(issue => issue.code === 'ASSET_GPU_OVER_BUDGET').map(issue => issue.message.match(/on (\w+),/)?.[1]), ['low', 'medium', 'high'])
 
   const fifteenMiBTexture = png(1, 1, 15 * 1024 * 1024 - 33)
-  const records = Array.from({ length: 9 }, (_, index) => ({
+  const records = Array.from({ length: 11 }, (_, index) => ({
     directory: `installer-${index}`,
     record: texture({ id: `installer-${index}`, files: { high: `public/cinema2/textures/installer-${index}.png` } }),
   }))
@@ -315,12 +315,22 @@ test('rejects a required glTF extension the loader does not support, and tolerat
   assert.deepEqual(analyze(model({ files: { high: 'public/cinema2/models/optional-unknown.glb' } })).issues, [])
 })
 
-test('the supported extension list matches the installed Three.js GLTFLoader', () => {
+test('accepts factor-only legacy materials and rejects unsupported specular/gloss textures', () => {
+  const extension = 'KHR_materials_pbrSpecularGlossiness'
+  const analyzeLegacy = values => analyzeAssets([{ directory: 'ok-model', record: model() }], () => glb({ extra: {
+    extensionsUsed: [extension], extensionsRequired: [extension],
+    materials: [{ extensions: { [extension]: values } }],
+  } }))
+  assert.deepEqual(analyzeLegacy({ diffuseFactor: [1, 0, 0, 1], glossinessFactor: .4 }).issues, [])
+  assert.ok(codes(analyzeLegacy({ specularGlossinessTexture: { index: 0 } })).includes('ASSET_EXTENSION_UNSUPPORTED'))
+})
+
+test('the supported extensions match GLTFLoader plus the legacy material plugin', () => {
   const source = readFileSync(new URL('../../node_modules/three/examples/jsm/loaders/GLTFLoader.js', import.meta.url), 'utf8')
   const block = /const EXTENSIONS = \{([\s\S]*?)\n\};/.exec(source)?.[1] ?? ''
   const loaderExtensions = [...block.matchAll(/:\s*'([^']+)'/g)].map(match => match[1]).sort()
   assert.ok(loaderExtensions.length > 10)
-  assert.deepEqual([...SUPPORTED_GLTF_EXTENSIONS].sort(), loaderExtensions)
+  assert.deepEqual([...SUPPORTED_GLTF_EXTENSIONS].sort(), [...loaderExtensions, 'KHR_materials_pbrSpecularGlossiness'].sort())
 })
 
 test('accepts an OpenEXR environment and reads its size from the dataWindow', () => {

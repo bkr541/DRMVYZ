@@ -201,6 +201,158 @@ export const CINEMA2_ASSET_RECORDS = [
     }
   },
   {
+    "id": "cinema2-crate-bass-sigil",
+    "kind": "model",
+    "compression": "none",
+    "license": "CC-BY-4.0",
+    "attribution": "Skrillex - VJ - FLASH WARNING — tamminen (https://sketchfab.com/tamminen). https://sketchfab.com/3d-models/skrillex-vj-flash-warning-053c80f052e543f69f0e552d28a51690. CC BY 4.0.",
+    "files": {
+      "high": {
+        "url": "/cinema2/models/crate/skrillex_-_vj_-_flash_warning.glb",
+        "bytes": 1666412,
+        "triangles": 16206
+      }
+    },
+    "gpuBytes": {
+      "high": 4168210,
+      "medium": 4168210,
+      "low": 4168210
+    }
+  },
+  {
+    "id": "cinema2-crate-beam-lattice",
+    "kind": "model",
+    "compression": "none",
+    "license": "CC-BY-4.0",
+    "attribution": "Lasers - VJ — tamminen (https://sketchfab.com/tamminen). https://sketchfab.com/3d-models/lasers-vj-c1067425a9004836b3f99d571f791255. CC BY 4.0.",
+    "files": {
+      "high": {
+        "url": "/cinema2/models/crate/lasers_-_vj.glb",
+        "bytes": 100576,
+        "triangles": 800
+      }
+    },
+    "gpuBytes": {
+      "high": 67200,
+      "medium": 67200,
+      "low": 67200
+    }
+  },
+  {
+    "id": "cinema2-crate-glitch-array",
+    "kind": "model",
+    "compression": "none",
+    "license": "CC-BY-4.0",
+    "attribution": "Stroboscopic Glitch - (Photosensitivity Warning) — Tycho Magnetic Anomaly (https://sketchfab.com/Tycho_Magnetic_Anomaly). https://sketchfab.com/3d-models/stroboscopic-glitch-photosensitivity-warning-df7d2183dc1f4af4a3f5ed68bc76842b. CC BY 4.0.",
+    "files": {
+      "high": {
+        "url": "/cinema2/models/crate/stroboscopic_glitch_-_photosensitivity_warning.glb",
+        "bytes": 6098588,
+        "triangles": 52272
+      }
+    },
+    "gpuBytes": {
+      "high": 9565077,
+      "medium": 9565077,
+      "low": 9565077
+    }
+  },
+  {
+    "id": "cinema2-crate-glyph-sphere",
+    "kind": "model",
+    "compression": "none",
+    "license": "CC-BY-4.0",
+    "attribution": "Oyes — tamminen (https://sketchfab.com/tamminen). https://sketchfab.com/3d-models/oyes-6345583ea17543aaab7ef23a80a78715. CC BY 4.0.",
+    "files": {
+      "high": {
+        "url": "/cinema2/models/crate/oyes.glb",
+        "bytes": 235696,
+        "triangles": 640
+      }
+    },
+    "gpuBytes": {
+      "high": 5641045,
+      "medium": 5641045,
+      "low": 5641045
+    }
+  },
+  {
+    "id": "cinema2-crate-moire-orb",
+    "kind": "model",
+    "compression": "none",
+    "license": "CC-BY-4.0",
+    "attribution": "Geometry Texture Effect Spheres — SonicVisual (https://sketchfab.com/sonicvisual). https://sketchfab.com/3d-models/geometry-texture-effect-spheres-5058a0f82e744c27988304db012647d0. CC BY 4.0.",
+    "files": {
+      "high": {
+        "url": "/cinema2/models/crate/geometry_texture_effect_spheres.glb",
+        "bytes": 9514556,
+        "triangles": 168704
+      }
+    },
+    "gpuBytes": {
+      "high": 9485712,
+      "medium": 9485712,
+      "low": 9485712
+    }
+  },
+  {
+    "id": "cinema2-crate-nested-pulse",
+    "kind": "model",
+    "compression": "none",
+    "license": "CC-BY-4.0",
+    "attribution": "Pulse Cubed — Tycho Magnetic Anomaly (https://sketchfab.com/Tycho_Magnetic_Anomaly). https://sketchfab.com/3d-models/pulse-cubed-c01de5d2c4304b25b7aded836b5da575. CC BY 4.0.",
+    "files": {
+      "high": {
+        "url": "/cinema2/models/crate/pulse_cubed.glb",
+        "bytes": 2234200,
+        "triangles": 23116
+      }
+    },
+    "gpuBytes": {
+      "high": 849488,
+      "medium": 849488,
+      "low": 849488
+    }
+  },
+  {
+    "id": "cinema2-crate-paradox-weave",
+    "kind": "model",
+    "compression": "none",
+    "license": "CC-BY-4.0",
+    "attribution": "Paradox Abstract Art of Python — daydev (https://sketchfab.com/daydev). https://sketchfab.com/3d-models/paradox-abstract-art-of-python-e738d9649db5468f8ab25fa1e602b4f8. CC BY 4.0.",
+    "files": {
+      "high": {
+        "url": "/cinema2/models/crate/paradox_abstract_art_of_python.glb",
+        "bytes": 279036,
+        "triangles": 3168
+      }
+    },
+    "gpuBytes": {
+      "high": 190080,
+      "medium": 190080,
+      "low": 190080
+    }
+  },
+  {
+    "id": "cinema2-crate-wireframe-portal",
+    "kind": "model",
+    "compression": "none",
+    "license": "CC-BY-4.0",
+    "attribution": "Lightweight — tamminen (https://sketchfab.com/tamminen). https://sketchfab.com/3d-models/lightweight-b60b8110608c4a1fa41d8c5a20e19d42. CC BY 4.0.",
+    "files": {
+      "high": {
+        "url": "/cinema2/models/crate/lightweight.glb",
+        "bytes": 1713408,
+        "triangles": 18432
+      }
+    },
+    "gpuBytes": {
+      "high": 1202176,
+      "medium": 1202176,
+      "low": 1202176
+    }
+  },
+  {
     "id": "cinema2-dvydrm-logo",
     "kind": "model",
     "compression": "none",

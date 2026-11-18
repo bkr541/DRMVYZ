@@ -29,6 +29,8 @@ export const SUPPORTED_GLTF_EXTENSIONS = Object.freeze([
   'KHR_binary_glTF',
   'KHR_draco_mesh_compression',
   'KHR_lights_punctual',
+  // Factor-only legacy materials are decoded by Cinema2LegacyMaterialPlugin.
+  'KHR_materials_pbrSpecularGlossiness',
   'KHR_materials_clearcoat',
   'KHR_materials_dispersion',
   'KHR_materials_ior',
@@ -198,7 +200,8 @@ export function inspectGlb(bytes) {
     if (!size) throw new Error(`image ${index} has an unrecognised format`)
     textures.push(size)
   }
-  return { triangles, geometryBytes, textures, extensionsUsed: json.extensionsUsed ?? [], extensionsRequired: json.extensionsRequired ?? [] }
+  const legacyTexture = (json.materials ?? []).some(material => material.extensions?.KHR_materials_pbrSpecularGlossiness?.specularGlossinessTexture)
+  return { triangles, geometryBytes, textures, legacyTexture, extensionsUsed: json.extensionsUsed ?? [], extensionsRequired: json.extensionsRequired ?? [] }
 }
 
 // ---------------------------------------------------------------- record analysis and validation
@@ -278,6 +281,7 @@ export function analyzeAssets(records, readFileBytes, budgetOverrides = {}) {
           for (const extension of glb.extensionsRequired) {
             if (!SUPPORTED_GLTF_EXTENSIONS.includes(extension)) fail(id, 'ASSET_EXTENSION_UNSUPPORTED', `"${path}" requires the glTF extension ${extension}, which the Cinema 2.0 loader does not support. Re-export without it (or bake it into plain PBR materials).`)
           }
+          if (glb.legacyTexture) fail(id, 'ASSET_EXTENSION_UNSUPPORTED', `"${path}" uses a legacy specular/glossiness texture; only factor-based legacy materials are supported.`)
           const usesDraco = glb.extensionsUsed.includes('KHR_draco_mesh_compression')
           const usesKtx2 = glb.extensionsUsed.includes('KHR_texture_basisu')
           if ((record.compression === 'draco') !== usesDraco) fail(id, 'ASSET_COMPRESSION_MISMATCH', `"${path}" ${usesDraco ? 'uses' : 'does not use'} KHR_draco_mesh_compression but the record says compression "${record.compression}".`)

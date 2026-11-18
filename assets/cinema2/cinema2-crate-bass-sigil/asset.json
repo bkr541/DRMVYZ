@@ -1,0 +1,11 @@
+{
+  "id": "cinema2-crate-bass-sigil",
+  "kind": "model",
+  "compression": "none",
+  "license": "CC-BY-4.0",
+  "attribution": "Skrillex - VJ - FLASH WARNING \u2014 tamminen (https://sketchfab.com/tamminen). https://sketchfab.com/3d-models/skrillex-vj-flash-warning-053c80f052e543f69f0e552d28a51690. CC BY 4.0.",
+  "origin": "Unmodified owner-supplied GLB from 3D Cinema 2.0 Crate/skrillex_-_vj_-_flash_warning.glb",
+  "files": {
+    "high": "public/cinema2/models/crate/skrillex_-_vj_-_flash_warning.glb"
+  }
+}

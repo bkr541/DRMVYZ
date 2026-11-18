@@ -274,7 +274,7 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
             return
           }
           held = ok.map(entry => entry.asset)
-          loaded = ok.map(entry => ({ asset: entry.asset, node: entry.instance.node, spin: entry.instance.spin }))
+          loaded = ok.map(entry => ({ asset: entry.asset, node: entry.instance.node, spin: entry.instance.spin, preserveMaterials: entry.instance.preserveMaterials }))
           if (userConfig) {
             const fallback = createCinema2ModelPlaceholder(library!)
             ownedTemplates.push(fallback)
@@ -505,6 +505,7 @@ export function cinema2ThreeSpinRadians(beats: number, turnSeconds: number): num
 }
 
 interface RequestedInstance {
+  preserveMaterials: boolean
   asset: string
   node: string | null
   spin: boolean
@@ -518,7 +519,7 @@ function parseInstances(module: Readonly<Cinema2ModuleManifest>): RequestedInsta
     if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue
     const record = entry as Record<string, unknown>
     if (typeof record.asset !== 'string') continue
-    result.push({ asset: record.asset, node: typeof record.node === 'string' && record.node ? record.node : null, spin: record.spin === true })
+    result.push({ asset: record.asset, node: typeof record.node === 'string' && record.node ? record.node : null, spin: record.spin === true, preserveMaterials: record.preserveMaterials === true })
   }
   return result
 }
@@ -544,6 +545,9 @@ function validateConfig(module: Readonly<Cinema2ModuleManifest>, registry: Cinem
       diagnostics.push({ code: 'CINEMA2_THREE_SCENE_INSTANCE_INVALID', path: `${path}.asset`, message: 'Instance "asset" must be a shipped asset id string.' })
     } else if (!registry.has(record.asset)) {
       diagnostics.push({ code: 'CINEMA2_THREE_SCENE_ASSET_UNKNOWN', path: `${path}.asset`, message: `No shipped 3D asset "${record.asset}" is registered.` })
+    }
+    if (record.preserveMaterials !== undefined && typeof record.preserveMaterials !== 'boolean') {
+      diagnostics.push({ code: 'CINEMA2_THREE_SCENE_INSTANCE_INVALID', path: `${path}.preserveMaterials`, message: 'Instance "preserveMaterials" must be true or false when present.' })
     }
     if (record.spin !== undefined && typeof record.spin !== 'boolean') {
       diagnostics.push({ code: 'CINEMA2_THREE_SCENE_INSTANCE_INVALID', path: `${path}.spin`, message: 'Instance "spin" must be true or false when present.' })

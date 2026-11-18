@@ -364,7 +364,7 @@
 
 /* ── Spotlight preset card ──────────────────────────────────────────────────
    The shared reusable preset card (ReactPresetCard) used across every engine's
-   Presets tab, matching Layout Lab Preset Cards row 01, Cinema poster:
+   Presets tab, retaining the original Cinema poster treatment:
    full-color artwork, a centered shadowed title, quiet border and corner favorite.
    Dedicated classes only — nothing here is shared with any other card style,
    so it can't be affected by unrelated cascade rules elsewhere in this file. */
@@ -674,7 +674,13 @@
   -webkit-line-clamp: 2;
   overflow: hidden;
   color: #fff;
-  text-shadow: 0 1px 3px #000d, 0 0 7px #0009;
+  /* A fine dark edge keeps bright thumbnails from swallowing the lettering. */
+  text-shadow:
+    -.75px -.75px 0 #020506, 0 -.75px 0 #020506, .75px -.75px 0 #020506,
+    -.75px 0 0 #020506, .75px 0 0 #020506,
+    -.75px .75px 0 #020506, 0 .75px 0 #020506, .75px .75px 0 #020506;
+  /* Paint the soft halo after line-clamp clipping, so it has no rectangular cutoff. */
+  filter: drop-shadow(0 1px 2px #020506e6) drop-shadow(0 0 4px #020506cc);
   overflow-wrap: anywhere;
   text-overflow: clip;
   white-space: normal;
@@ -699,6 +705,11 @@
 /* Full-color poster artwork is independent of the Engine dropdown's blueprint treatment. */
 .rv-preset-spotlight-thumb.rv-preset-spotlight-thumb--frame { background: #020506; }
 .rv-preset-frame-scene { position: absolute; inset: 0; }
+.rv-preset-spotlight-card--poster .rv-preset-frame-scene {
+  /* Overscan the blurred artwork so the card edges stay filled. */
+  inset: -2px;
+  filter: blur(.8px);
+}
 .rv-preset-frame-scene > .rv-preset-thumb { width: 100%; height: 100%; min-height: 0; border: 0; border-radius: 0; box-shadow: none; }
 
 .rv-preset-poster-chip {

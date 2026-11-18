@@ -1,0 +1,11 @@
+{
+  "id": "cinema2-crate-glitch-array",
+  "kind": "model",
+  "compression": "none",
+  "license": "CC-BY-4.0",
+  "attribution": "Stroboscopic Glitch - (Photosensitivity Warning) \u2014 Tycho Magnetic Anomaly (https://sketchfab.com/Tycho_Magnetic_Anomaly). https://sketchfab.com/3d-models/stroboscopic-glitch-photosensitivity-warning-df7d2183dc1f4af4a3f5ed68bc76842b. CC BY 4.0.",
+  "origin": "Unmodified owner-supplied GLB from 3D Cinema 2.0 Crate/stroboscopic_glitch_-_photosensitivity_warning.glb",
+  "files": {
+    "high": "public/cinema2/models/crate/stroboscopic_glitch_-_photosensitivity_warning.glb"
+  }
+}

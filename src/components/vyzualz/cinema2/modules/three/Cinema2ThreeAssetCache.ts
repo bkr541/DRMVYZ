@@ -1,3 +1,4 @@
+import { createCinema2LegacyMaterialPlugin } from './Cinema2LegacyMaterialPlugin'
 import type * as ThreeNamespace from 'three'
 import type { Cinema2RenderQualityLevel } from '../../contracts/Cinema2NativePresetManifest'
 import type { Cinema2ThreeLibrary } from './Cinema2ThreeLibrary'
@@ -173,6 +174,7 @@ async function loadModelWithGltfLoader(
   if (record.compression === 'draco') kinds.add('draco')
   if (record.textureCompression === 'ktx2') kinds.add('ktx2')
   const loader = new library.GLTFLoader()
+  loader.register(parser => createCinema2LegacyMaterialPlugin(parser, library))
   if (record.compression === 'meshopt' || requirements.meshopt) loader.setMeshoptDecoder(library.MeshoptDecoder as never)
   const lease = kinds.size > 0 ? await decoders.lease([...kinds]) : null
   try {
