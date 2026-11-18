@@ -1,3 +1,4 @@
+import { BUILTIN_MODELS, type BuiltinModel } from '../../../features/models/domain/builtinModels'
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { modelAssetRepository } from '../../../features/models/data/modelAssetRepository'
@@ -21,8 +22,8 @@ function ModelThumbnail({ asset }: { asset: ModelAsset }) {
   }, [asset.id, asset.currentVersion, retry])
   return url ? <img src={url} alt="" loading="lazy" onError={() => { setUrl(null); if (!retry) setRetry(1) }} /> : <AppIcon kind="layers" size={28} />
 }
-export function ModelLibraryCards({ search, favorites, viewMode, activeId, onSelect, sectioned = false, collectionId, searchControl }: {
-  search: string; favorites: boolean; viewMode: 'grid' | 'list'; activeId: string | null; onSelect(asset: ModelAsset): void; sectioned?: boolean; collectionId?: string; searchControl?: ReactNode
+export function ModelLibraryCards({ search, favorites, viewMode, activeId, onSelect, sectioned = false, collectionId, searchControl, onSelectBuiltin }: {
+  search: string; favorites: boolean; viewMode: 'grid' | 'list'; activeId: string | null; onSelect(asset: ModelAsset): void; onSelectBuiltin?(model: BuiltinModel): void; sectioned?: boolean; collectionId?: string; searchControl?: ReactNode
 }) {
   const libraryRevision = useModelEditorStore(s => s.libraryRevision)
   const accountId = useMediaStore(s => s.accountId)
@@ -51,7 +52,9 @@ export function ModelLibraryCards({ search, favorites, viewMode, activeId, onSel
     const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(update) : null; observer?.observe(element)
     return () => { observer?.disconnect(); element.removeEventListener('scroll', update) }
   }, [expanded])
-  const windowed = computeVirtualMediaWindow({ itemCount: items.length, ...metrics, viewMode, manager: true })
+  const builtins = onSelectBuiltin && !favorites && !collectionId ? BUILTIN_MODELS.filter(model => `${model.name} ${model.description}`.toLowerCase().includes(search.trim().toLowerCase())) : []
+  const rows = [...builtins.map(model => ({kind:'builtin' as const,model})), ...items.map(asset => ({kind:'saved' as const,asset}))]
+  const windowed = computeVirtualMediaWindow({ itemCount: rows.length, ...metrics, viewMode, manager: true })
   const loadMore = async () => {
     if (inFlight.current || page.key !== key || !page.cursor) return
     inFlight.current = true; setLoading(true); setError(null); const token = generation.current
@@ -76,15 +79,19 @@ export function ModelLibraryCards({ search, favorites, viewMode, activeId, onSel
     <div className="mm-model-card-scroll" ref={root}>
       {draftId && !favorites && !collectionId && draftName.toLowerCase().includes(search.toLowerCase()) && <div className="mm-model-draft-card" role="status"><AppIcon kind="layers" size={14} /> {draftName} · Draft / Unsaved</div>}
       {error && <NoticeCard tone="error" title="Model library unavailable" role="alert">{error} <IconChipButton onClick={() => setRefresh(n => n + 1)}>Retry models</IconChipButton></NoticeCard>}
-      {!loading && !error && !items.length && <div className="vz-media-page-state">{search ? 'No models match this search.' : 'No saved 3D models.'}</div>}
+      {!loading && !error && !rows.length && <div className="vz-media-page-state">{search ? 'No models match this search.' : 'No saved 3D models.'}</div>}
       {windowed.topSpacer > 0 && <div style={{ height: windowed.topSpacer }} aria-hidden="true" />}
       <div className={viewMode === 'grid' ? 'vz-media-sheet' : 'vz-media-list'} style={viewMode === 'grid' ? { '--vz-sheet-tile': `${windowed.tileSize}px` } as CSSProperties : undefined}>
-        {items.slice(windowed.startIndex, windowed.endIndex).map(asset => <div key={`model:${asset.id}`} className={`mm-model-card ${viewMode === 'list' ? 'mm-model-card--list' : ''}`}>
+        {rows.slice(windowed.startIndex, windowed.endIndex).map(row => { if (row.kind === 'builtin') return <div key={row.model.id} className={`mm-model-card ${viewMode === 'list' ? 'mm-model-card--list' : ''}`}>
+          <button type="button" className="mm-model-card-select" aria-label={`Select 3D model ${row.model.name}`} aria-pressed={activeId === row.model.id} onClick={() => onSelectBuiltin?.(row.model)}>
+            <AppIcon kind="layers" size={28} /><span className="mm-model-card-name" title={row.model.name}>{row.model.name}</span><span className="mm-model-card-type">Conduit</span>
+          </button>
+        </div>; const asset = row.asset; return <div key={`model:${asset.id}`} className={`mm-model-card ${viewMode === 'list' ? 'mm-model-card--list' : ''}`}>
           <button type="button" className="mm-model-card-select" aria-label={`Select 3D model ${asset.name}`} aria-pressed={activeId === asset.id} onClick={() => onSelect(asset)}>
             <ModelThumbnail asset={asset} /><span className="mm-model-card-name">{asset.name}</span><span className="mm-model-card-type">{asset.status === 'deletion_pending' ? 'Deletion pending' : asset.currentVersion ? `3D · v${asset.currentVersion}` : 'Draft record'}</span>
           </button>
           <button type="button" className="mm-model-favorite" aria-label={`Favorite model ${asset.name}`} aria-pressed={asset.favorite} disabled={busy === asset.id || asset.status === 'deletion_pending'} onClick={() => { void favorite(asset) }}><AppIcon kind="star" size={12} /></button>
-        </div>)}
+        </div> })}
       </div>
       {windowed.bottomSpacer > 0 && <div style={{ height: windowed.bottomSpacer }} aria-hidden="true" />}
       {loading && <div role="status" className="vz-media-page-state">Loading models…</div>}

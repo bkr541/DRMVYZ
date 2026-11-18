@@ -62,3 +62,14 @@ describe('model card paging and interactions', () => {
     expect(host.textContent).toContain('Model shared-id')
   })
 })
+
+
+it('shows the original Conduit wordmark in the model library and keeps it out of unrelated filtered lists',async()=>{
+ const select=vi.fn();await render({onSelectBuiltin:select})
+ await act(async()=>host.querySelector<HTMLButtonElement>('[aria-label="Select 3D model DVYDRM Wordmark"]')!.click())
+ expect(select).toHaveBeenCalledWith(expect.objectContaining({url:'/cinema2/models/conduit-wordmark.glb'}))
+ await render({onSelectBuiltin:select,search:'DVYDRM'});expect(host.textContent).toContain('DVYDRM Wordmark')
+ await render({onSelectBuiltin:select,search:'unrelated'});expect(host.textContent).not.toContain('DVYDRM Wordmark')
+ await render({onSelectBuiltin:select,favorites:true});expect(host.textContent).not.toContain('DVYDRM Wordmark')
+ await render({onSelectBuiltin:select,collectionId:'collection'});expect(host.textContent).not.toContain('DVYDRM Wordmark')
+})

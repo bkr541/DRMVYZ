@@ -1,3 +1,4 @@
+import { BUILTIN_MODELS, type BuiltinModel } from '../domain/builtinModels'
 import { Box3, Mesh } from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { MODEL_MAX_FILE_BYTES, parseModelGeometryStats, type ModelAsset } from '../domain/modelAssetTypes'
@@ -16,6 +17,19 @@ export async function loadModelPreview(asset: ModelAsset, signal: AbortSignal) {
     }
     if (attempt || ![401, 403].includes(response.status)) throw new Error('The saved model could not be downloaded. Retry loading it.')
   }
+  return decodeModelPreview(bytes, signal)
+}
+
+export async function loadBuiltinModelPreview(model: BuiltinModel, signal: AbortSignal) {
+  const known = BUILTIN_MODELS.find(item => item.id === model.id)
+  if (!known) throw new Error('This built-in model is unavailable.')
+  const response = await fetch(known.url, { signal })
+  if (!response.ok) throw new Error('The wordmark could not be loaded. Select it again to retry.')
+  if (Number(response.headers.get('content-length')) > MODEL_MAX_FILE_BYTES) throw new Error('Model exceeds the GLB size budget.')
+  return decodeModelPreview(await response.arrayBuffer(), signal)
+}
+
+async function decodeModelPreview(bytes: ArrayBuffer | null, signal: AbortSignal) {
   if (!bytes || bytes.byteLength < 20 || bytes.byteLength > MODEL_MAX_FILE_BYTES) throw new Error('Saved model is empty or too large.')
   const header = new DataView(bytes)
   if (header.getUint32(0, true) !== 0x46546c67 || header.getUint32(4, true) !== 2 || header.getUint32(8, true) !== bytes.byteLength || header.getUint32(16, true) !== 0x4e4f534a) throw new Error('Saved model has an invalid GLB header.')

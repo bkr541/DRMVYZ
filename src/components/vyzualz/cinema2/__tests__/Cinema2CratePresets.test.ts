@@ -9,15 +9,14 @@ import { createCinema2LegacyMaterialPlugin } from '../modules/three/Cinema2Legac
 import type { Cinema2ThreeLibrary } from '../modules/three/Cinema2ThreeLibrary'
 
 describe('Cinema 2.0 crate reference presets', () => {
-  it('registers eight references, keeping seven static and Bass Sigil on its original asset', () => {
+  it('registers eight references, keeping six static and the two developed presets on their original assets', () => {
     expect(CINEMA2_CRATE_PRESET_MANIFESTS).toHaveLength(8)
     for (const manifest of CINEMA2_CRATE_PRESET_MANIFESTS) {
       const registered = cinema2NativePresetRegistry.get(manifest.id)!
       expect(cinema2NativePresetRegistry.compile(manifest.id).ok).toBe(true)
-      if (manifest.id !== 'drmvyz.cinema2.crate-bass-sigil') expect(registered.parameters).toHaveLength(0)
-      else expect(manifest.modules?.[0].config?.instances).toEqual([expect.objectContaining({ asset: 'cinema2-crate-bass-sigil' })])
-      if (manifest.id !== 'drmvyz.cinema2.crate-bass-sigil') expect(registered.choreography?.rules ?? []).toHaveLength(0)
-      expect(registered.cameras?.[0].rig?.kind).toBe(manifest.id === 'drmvyz.cinema2.crate-bass-sigil' ? 'path' : 'static')
+      const developed = ['drmvyz.cinema2.crate-bass-sigil','drmvyz.cinema2.crate-moire-orb'].includes(manifest.id)
+      if (!developed) { expect(registered.parameters).toHaveLength(0); expect(registered.choreography?.rules ?? []).toHaveLength(0) }
+      expect(registered.cameras?.[0].rig?.kind).toBe(developed ? 'path' : 'static')
       expect(manifest.modules?.[0].config?.instances).toEqual([expect.objectContaining({ spin: false, preserveMaterials: true })])
     }
   })

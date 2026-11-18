@@ -107,3 +107,14 @@ describe('model mode selection and guards', () => {
     expect(container.querySelector('[data-testid="model-stage"]')).not.toBeNull()
   })
 })
+
+
+it('opens the supplied wordmark in model mode with view controls and no editing actions',async()=>{
+ const builtin={id:'builtin-conduit-dvydrm-wordmark',name:'DVYDRM Wordmark',url:'/cinema2/models/conduit-wordmark.glb'}
+ const load=vi.spyOn(useModelEditorStore.getState(),'loadBuiltin').mockImplementation(model=>useModelEditorStore.setState({id:model.id,builtinModel:model,name:model.name,dirty:false}))
+ await invoke('onSelectBuiltinModel',builtin)
+ expect(load).toHaveBeenCalledWith(builtin);expect(container.querySelector('[data-testid="model-stage"]')).not.toBeNull()
+ expect(button('Generate 3D Model')).toBeUndefined();expect(button('Regenerate 3D Model')).toBeUndefined()
+ expect(button('Save Changes').disabled).toBe(true);expect(button('Delete Media').disabled).toBe(true)
+ expect(button('Fit Model')).toBeDefined();expect(button('Reset Camera')).toBeDefined()
+})

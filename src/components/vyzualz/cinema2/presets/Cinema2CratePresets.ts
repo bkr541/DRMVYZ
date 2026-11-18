@@ -1,8 +1,9 @@
+import { CINEMA2_MOIRE_ORB_PRESET_MANIFEST } from './Cinema2MoireOrbPreset'
 import { CINEMA2_BASS_SIGIL_PRESET_MANIFEST } from './Cinema2BassSigilPreset'
 import { CINEMA2_NATIVE_PRESET_SCHEMA_ID, CINEMA2_NATIVE_PRESET_SCHEMA_VERSION, cinema2NamespacedId, cinema2Ref, cinema2StableId, type Cinema2NativePresetManifest, type Cinema2PresetId, type Cinema2ModuleId, type Cinema2SceneNodeId, type Cinema2CameraId, type Cinema2Vector3, type Cinema2RenderTargetId, type Cinema2RenderPassId, type Cinema2RenderSlotId } from '../contracts/Cinema2NativePresetManifest'
 import { CINEMA2_THREE_SCENE_MODULE_TYPE_ID } from '../modules/Cinema2ThreeSceneModule'
 
-/** Crate references. Bass Sigil has a dedicated original-environment native performance; others retain their original fixed framing. */
+/** Crate references. Bass Sigil and Moire Orb have dedicated native performances; six others retain their original fixed framing. */
 export const CINEMA2_CRATE_ARTIFACTS = [
   {
     "slug": "moire-orb",
@@ -143,6 +144,7 @@ export const CINEMA2_CRATE_ARTIFACTS = [
 ] as const
 
 export const CINEMA2_CRATE_PRESET_MANIFESTS: readonly Readonly<Cinema2NativePresetManifest>[] = CINEMA2_CRATE_ARTIFACTS.map((artifact): Readonly<Cinema2NativePresetManifest> => {
+  if (artifact.slug === 'moire-orb') return CINEMA2_MOIRE_ORB_PRESET_MANIFEST
   if (artifact.slug === 'bass-sigil') return CINEMA2_BASS_SIGIL_PRESET_MANIFEST
   const prefix = `crate-${artifact.slug}`
   const moduleId = cinema2StableId<Cinema2ModuleId>(`${prefix}-scene`)

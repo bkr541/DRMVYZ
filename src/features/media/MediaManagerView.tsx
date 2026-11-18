@@ -1,3 +1,4 @@
+import type { BuiltinModel } from '../models/domain/builtinModels'
 import { AppIcon } from '../../components/shared/icons/AppIcon'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 
@@ -48,6 +49,7 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
   const [pending, setPending] = useState<{ commit(): void } | null>(null)
   const needsMediaGuard = useMediaEditStore(selectMediaEditNeedsGuard)
   const modelCanSave = useModelEditorStore(selectModelCanSave)
+  const builtinModel = useModelEditorStore(state => state.builtinModel)
   const modelLoaded = useModelEditorStore(state => !!state.model)
   const modelCanGenerate = useModelEditorStore(selectModelCanGenerate)
   const modelId = useModelEditorStore(state => state.id), modelStatus = useModelEditorStore(state => state.status), modelAsset = useModelEditorStore(state => state.asset)
@@ -84,6 +86,13 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
     const id = useModelEditorStore.getState().begin(media)
     setSelection({ kind: 'model', id }); setSelectedFont(null)
   })
+  const selectBuiltinModel = (model: BuiltinModel) => {
+    if (selection?.kind === 'model' && selection.id === model.id && useModelEditorStore.getState().status !== 'error') return
+    requestTransition(() => {
+      useMediaEditStore.getState().endSession()
+      useModelEditorStore.getState().loadBuiltin(model); setSelection({kind:'model',id:model.id}); setSelectedFont(null)
+    })
+  }
   const selectModel = (asset: ModelAsset) => {
     if (selection?.kind === 'model' && selection.id === asset.id) return
     requestTransition(() => {
@@ -125,7 +134,7 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
               onClick={() => openImportMediaModal()}
             />
             {modelSelected && <>
-              <HeaderIconKey label={modelLoaded ? 'Regenerate 3D Model' : 'Generate 3D Model'} title={modelCanGenerate ? undefined : 'Available once the source is prepared (and its foreground confirmed)'} icon={<AppIcon kind="wand" size={15} />} disabled={!modelCanGenerate} onClick={() => { void useModelEditorStore.getState().generate() }} />
+              {!builtinModel && <HeaderIconKey label={modelLoaded ? 'Regenerate 3D Model' : 'Generate 3D Model'} title={modelCanGenerate ? undefined : 'Available once the source is prepared (and its foreground confirmed)'} icon={<AppIcon kind="wand" size={15} />} disabled={!modelCanGenerate} onClick={() => { void useModelEditorStore.getState().generate() }} />}
               <HeaderIconKey label="Fit Model" title="Fit the model in the viewport" icon={<AppIcon kind="cameraFocus" size={15} />} disabled={!modelLoaded} onClick={fitModelViewport} />
               <HeaderIconKey label="Reset Camera" title="Reset the viewport camera" icon={<HeaderActionIcon action="reset" />} disabled={!modelLoaded} onClick={resetModelCamera} />
             </>}
@@ -174,6 +183,7 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
               onSelect={id => requestSelection({ kind: 'media', id })}
               activeModelId={modelSelected ? selection.id : null}
               onSelectModel={selectModel}
+              onSelectBuiltinModel={selectBuiltinModel}
               activeTrackId={selectedTrackId}
               onSelectTrack={track => requestSelection({ kind: 'track', id: track.id })}
               activeFontId={selection?.kind === 'font' ? selection.id : null}

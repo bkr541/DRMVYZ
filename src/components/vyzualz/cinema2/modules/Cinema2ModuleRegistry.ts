@@ -1,3 +1,4 @@
+import { cinema2MoireOrbModuleDefinition } from './Cinema2MoireOrbNativeModule'
 import { cinema2BassSigilModuleDefinition } from './Cinema2BassSigilNativeModule'
 import { cinema2OpenDecksClubModuleDefinition } from './Cinema2OpenDecksClubModule'
 import { cinema2NeonForestNativeModuleDefinition } from './Cinema2NeonForestNativeModule'
@@ -162,6 +163,8 @@ const thresholdNativeRegistration = cinema2NativeModuleRegistry.register(cinema2
 if (!thresholdNativeRegistration.ok) {
   throw new Error(`Cinema 2.0 Threshold native module registration failed: ${thresholdNativeRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
 }
+const moireOrbRegistration = cinema2NativeModuleRegistry.register(cinema2MoireOrbModuleDefinition)
+if (!moireOrbRegistration.ok) throw new Error('Cinema 2.0 Moire Orb module registration failed.')
 const bassSigilRegistration = cinema2NativeModuleRegistry.register(cinema2BassSigilModuleDefinition)
 if (!bassSigilRegistration.ok) throw new Error('Cinema 2.0 Bass Sigil module registration failed.')
 const openDecksClubRegistration = cinema2NativeModuleRegistry.register(cinema2OpenDecksClubModuleDefinition)

@@ -46,6 +46,15 @@ export function ModelEditorInspector({ onSelectSource }: { onSelectSource?: () =
       <SliderRow label="Opacity" value={value.opacity} min={0.05} max={1} disabled={locked} onChange={opacity => update({ opacity })} />
     </Collapsible>
   }
+  if (s.builtinModel) return <>
+    <RailWindowHeader side="right" icon={<AppIcon kind="layers" size={15} />} label="3D Model" />
+    <Collapsible label="Model Info" icon={<AppIcon kind="info" size={14} />}>
+      <p>{s.builtinModel.name}</p><p>{s.builtinModel.description}</p>
+      <p>Drag to orbit, scroll to zoom, or use Fit Model and Reset Camera.</p>
+      <p>Dimensions: {size}</p>
+      {s.model && <p>{s.model.stats.triangles.toLocaleString()} triangles · {s.model.stats.meshes} meshes</p>}
+    </Collapsible>
+  </>
   return <><RailWindowHeader side="right" icon={<AppIcon kind="layers" size={15} />} label="3D Model" />
     <RailTabs tabs={tabs} activeTab={tab} onChange={value => { if (value === 'info' || value === 'edit' || value === 'output') setTab(value) }} ariaLabel="Model inspector tabs" className="rv-main-workspace-tabs" variant="underline" />
     <div className="mmi-body mm-model-inspector">

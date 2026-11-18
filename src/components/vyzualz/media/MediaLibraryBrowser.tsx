@@ -1,3 +1,4 @@
+import type { BuiltinModel } from '../../../features/models/domain/builtinModels'
 import { ModelLibraryCards } from './ModelLibraryCards'
 import type { ModelAsset } from '../../../features/models/domain/modelAssetTypes'
 import { LibraryViewToggle } from '../react/controls/LibraryViewToggle'
@@ -601,6 +602,7 @@ export interface MediaLibraryBrowserProps {
   activeMediaId: string | null
   activeModelId?: string | null
   onSelectModel?: (asset: ModelAsset) => void
+  onSelectBuiltinModel?: (model: BuiltinModel) => void
   onSelect?: (id: string) => void
   /** Optional card-click interception for anchored action menus. When supplied,
    * it replaces immediate selection without changing the default behavior of
@@ -643,7 +645,7 @@ function AddMediaIcon({ size = 14 }: { size?: number }) {
 
 export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
   activeMediaId,
-  activeModelId = null, onSelectModel,
+  activeModelId = null, onSelectModel, onSelectBuiltinModel,
   onSelect,
   onCardActionRequest,
   onOpenMediaManager,
@@ -1394,7 +1396,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
             <span className="vz-coll-breadcrumb-name">{openCollection.name}</span>
             <span className="vz-coll-folder-count">{openCollectionItems.length} {canBrowseModels ? 'images / videos' : openCollectionItems.length === 1 ? 'item' : 'items'}</span>
           </div>
-          {canBrowseModels && <ModelLibraryCards collectionId={openCollectionId} search={debouncedModelSearch} searchControl={renderGroupSearch(modelSearch, setModelSearch, 'Search 3D models', 'models')} favorites={false} viewMode={viewModes.models} activeId={activeModelId} onSelect={onSelectModel!} sectioned />}
+          {canBrowseModels && <ModelLibraryCards collectionId={openCollectionId} search={debouncedModelSearch} searchControl={renderGroupSearch(modelSearch, setModelSearch, 'Search 3D models', 'models')} favorites={false} viewMode={viewModes.models} activeId={activeModelId} onSelect={onSelectModel!} onSelectBuiltin={onSelectBuiltinModel} sectioned />}
           {renderVisualLibraryGroup((
             (loading || refreshing) && openCollectionItems.length === 0 ? <MediaLibrarySkeleton viewMode={viewMode} /> : openCollectionItems.length === 0 ? (
             <div className="vz-media-grid">
@@ -1628,7 +1630,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
       <MediaStatusBar includeAudio={isManager} />
 
       <div className="vz-media-scroll" ref={scrollRef}>
-        {canBrowseModels && ['all', 'favorites', 'models'].includes(libraryFilter) && <ModelLibraryCards search={debouncedModelSearch} searchControl={renderGroupSearch(modelSearch, setModelSearch, 'Search 3D models', 'models')} favorites={libraryFilter === 'favorites'} viewMode={viewModes.models} activeId={activeModelId} onSelect={onSelectModel!} sectioned={libraryFilter !== 'models'} />}
+        {canBrowseModels && ['all', 'favorites', 'models'].includes(libraryFilter) && <ModelLibraryCards search={debouncedModelSearch} searchControl={renderGroupSearch(modelSearch, setModelSearch, 'Search 3D models', 'models')} favorites={libraryFilter === 'favorites'} viewMode={viewModes.models} activeId={activeModelId} onSelect={onSelectModel!} onSelectBuiltin={onSelectBuiltinModel} sectioned={libraryFilter !== 'models'} />}
 
         {renderVisualLibraryGroup((
           libraryFilter === 'models' ? null : libraryFilter === 'tracks' ? (

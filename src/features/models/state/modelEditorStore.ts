@@ -1,3 +1,4 @@
+import type { BuiltinModel } from '../domain/builtinModels'
 import { create } from 'zustand'
 import type { Group } from 'three'
 import type { UploadedMedia } from '../../../stores/mediaStore'
@@ -10,6 +11,7 @@ import { captureModelPreview } from './modelViewportBridge'
 export interface PreviewModel { group: Group; stats: ModelGeometryStats; dispose(): void }
 export type ModelSaveOutcome = { ok: true; id: string; version: number } | { ok: false }
 export interface ModelEditorState extends ModelMetadata {
+  builtinModel: BuiltinModel | null
   id: string | null; sessionKey: number; sourceMediaId: string | null; asset: ModelAsset | null
   activeVersion: number; versions: ModelAssetVersion[]; libraryRevision: number
   source: Blob | null; sourceInfo: ModelGeometryStats['source'] | null; recipe: ModelGeneratorRecipe | null
@@ -22,6 +24,7 @@ export interface ModelEditorState extends ModelMetadata {
   saveTarget: ModelAsset | null; publishedVersion: ModelAssetVersion | null; pendingOperationId: string | null
   begin(source: UploadedMedia): string
   load(asset: ModelAsset, version?: number): void
+  loadBuiltin(model: BuiltinModel): void
   retrySource(): Promise<void>; prepare(): Promise<void>
   setRecipe(patch: Partial<ModelGeneratorRecipe>): void
   setMetadata(patch: Partial<ModelMetadata>): void
@@ -33,7 +36,7 @@ export interface ModelEditorState extends ModelMetadata {
 }
 let controller: AbortController | null = null, revision = 0, sessionSerial = 0
 let generationTimer: ReturnType<typeof setTimeout> | null = null
-const baseline = () => ({ id: null, sessionKey: 0, sourceMediaId: null, name: '', description: null, favorite: false, tags: [], collectionIds: [],
+const baseline = () => ({ builtinModel: null, id: null, sessionKey: 0, sourceMediaId: null, name: '', description: null, favorite: false, tags: [], collectionIds: [],
   asset: null, activeVersion: 0, versions: [], source: null, sourceInfo: null, recipe: null, savedRecipe: null, savedMetadata: null, model: null, artifact: null, preview: null,
   dirty: false, generationPending: false, status: 'idle' as const, saveFailure: false, error: null, progress: null, warnings: [], needsConfirmation: false, confirmed: false,
   saveTarget: null, publishedVersion: null, pendingOperationId: null })
@@ -90,6 +93,18 @@ export const useModelEditorStore = create<ModelEditorState>((set, get) => {
         } catch (error) { if (current(token)) set({ status: 'error', error: message(error) }) }
       })()
       return id
+    },
+    loadBuiltin(builtinModel) {
+      get().reset(); const { signal, token } = start()
+      set({ builtinModel, id: builtinModel.id, name: builtinModel.name, description: builtinModel.description, sessionKey: ++sessionSerial, status: 'loading-model' })
+      void (async () => {
+        try {
+          const { loadBuiltinModelPreview } = await import('../data/loadModelPreview')
+          const model = await loadBuiltinModelPreview(builtinModel, signal)
+          if (!current(token)) { model.dispose(); return }
+          set({ model, status: 'ready' })
+        } catch(error) { if (current(token)) set({ status: 'error', error: message(error) }) }
+      })()
     },
     load(asset, selectedVersion = asset.currentVersion) {
       get().reset(); const { signal, token } = start()
