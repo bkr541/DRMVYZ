@@ -9,6 +9,7 @@ import { CINEMA2_ORBITAL_PRESET_MANIFEST } from './Cinema2OrbitalPreset'
 import { CINEMA2_SUBMERGE_PRESET_MANIFEST } from './Cinema2SubmergePreset'
 import { CINEMA2_PSYLO_PRESET_MANIFEST } from './Cinema2PsyloPreset'
 import { CINEMA2_WAR_OF_WORLDS_PRESET_MANIFEST } from './Cinema2WarOfWorldsPreset'
+import { CINEMA2_OPEN_DECKS_PRESET_MANIFEST } from './Cinema2OpenDecksPreset'
 import { CINEMA2_GLASSFALL_PRESET_MANIFEST } from './Cinema2GlassfallPreset'
 import { CINEMA2_SWITCH_IT_PRESET_MANIFEST } from './Cinema2SwitchItPreset'
 import { CINEMA2_IFRIT_PRESET_MANIFEST } from './Cinema2IfritPreset'
@@ -72,6 +73,8 @@ export const CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS = Object.freeze([
   defineCinema2FirstPartyPreset({ role: 'keeper', manifest: CINEMA2_PSYLO_PRESET_MANIFEST }),
   // Static imported scene for visual review; musical behavior is not authored yet.
   defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_WAR_OF_WORLDS_PRESET_MANIFEST }),
+  // Preview only: the supplied CDJ illustration as a layered 3D relief, for framing and visual review. No musical behavior is authored.
+  defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_OPEN_DECKS_PRESET_MANIFEST }),
   // Full implementation and automated acceptance; human musical acceptance pending.
   defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_GLASSFALL_PRESET_MANIFEST }),
   // Functional production-path review entry; final human performance review pending.

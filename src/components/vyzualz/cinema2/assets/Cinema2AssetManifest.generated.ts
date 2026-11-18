@@ -372,6 +372,25 @@ export const CINEMA2_ASSET_RECORDS = [
     }
   },
   {
+    "id": "cinema2-open-decks",
+    "kind": "model",
+    "compression": "meshopt",
+    "license": "generated-in-house",
+    "attribution": "OPEN DECKS CDJ model and reference photograph supplied by DRMVYZ.",
+    "files": {
+      "high": {
+        "url": "/cinema2/models/open-decks.glb",
+        "bytes": 144804,
+        "triangles": 2640
+      }
+    },
+    "gpuBytes": {
+      "high": 4643668,
+      "medium": 4643668,
+      "low": 4643668
+    }
+  },
+  {
     "id": "cinema2-orbital-gyroscope",
     "kind": "model",
     "compression": "none",

@@ -37,6 +37,7 @@ export const ADDITIONAL_BLUEPRINT_MOTIFS = {
   'drmvyz.cinema2.trippy-bro': ['Optical fan', 'Crossing neon lattice', 'Woven lens', 'Luminous ribbons'],
   'drmvyz.cinema2.vacancy': ['CRT pyramid', 'Rounded screen glass', 'Cabinet hardware', 'Empty brick room'],
   'drmvyz.cinema2.war-of-worlds': ['Tripod invaders', 'Articulated legs', 'City blocks', 'Searchlight beams'],
+  'drmvyz.cinema2.open-decks': ['Raised screen housing', 'Jog wheel ring', 'Pad buttons', 'Side shoulders'],
 } as const
 
 type SceneId = keyof typeof ADDITIONAL_BLUEPRINT_MOTIFS
@@ -73,6 +74,7 @@ const SUBJECT_PLANES: Record<SceneId, readonly [string, string, string, string]>
   'drmvyz.cinema2.trippy-bro': ['translate(-25 35)', 'translate(-10 25)', 'translate(-32 -5)', 'translate(10 -15)'],
   'drmvyz.cinema2.vacancy': ['translate(142 88) scale(.78) translate(-160 -75)', 'translate(10 -18)', 'translate(-15 -17)', 'translate(5 -10)'],
   'drmvyz.cinema2.war-of-worlds': ['', '', 'translate(10 -23)', 'translate(-20 10)'],
+  'drmvyz.cinema2.open-decks': ['', '', '', ''],
 }
 
 function Scene({ id, children }: { id: SceneId; children: readonly [ReactNode, ReactNode, ReactNode, ReactNode] }) {
@@ -364,6 +366,15 @@ function WarOfWorlds() {
   </Scene>
 }
 
+function OpenDecks() {
+  return <Scene id="drmvyz.cinema2.open-decks">
+    <g><path d="M74 22H166V82H74ZM82 30H158V74H82Z" fill="currentColor" fillOpacity=".06" /></g>
+    <g opacity=".8"><path d="M78 142A42 42 0 0 1 162 142M90 142A30 30 0 0 1 150 142M104 116 108 124M120 112V121M136 116 132 124" /></g>
+    <g>{Array.from({ length: 8 }, (_, i) => <path key={i} d={`M${76 + i * 11} 90h8v6h-8Z`} fill="currentColor" fillOpacity=".12" />)}</g>
+    <g opacity=".7"><path d="M36 54H70V140H36ZM170 52H204V140H170ZM44 64H62M44 74H62M180 62H196M180 72H196" /></g>
+  </Scene>
+}
+
 export const ADDITIONAL_BLUEPRINT_DRAWINGS = {
   'drmvyz.cinema2.backstreet': Backstreet, 'drmvyz.cinema2.conduit': Conduit,
   'drmvyz.cinema2.echoform': Echoform, 'drmvyz.cinema2.echowave': Echowave,
@@ -378,7 +389,7 @@ export const ADDITIONAL_BLUEPRINT_DRAWINGS = {
   'drmvyz.cinema2.sixfold': Sixfold, 'drmvyz.cinema2.starters': Starters,
   'drmvyz.cinema2.switch-it': SwitchIt, 'drmvyz.cinema2.threshold': Threshold,
   'drmvyz.cinema2.trippy-bro': TrippyBro, 'drmvyz.cinema2.vacancy': Vacancy,
-  'drmvyz.cinema2.war-of-worlds': WarOfWorlds,
+  'drmvyz.cinema2.war-of-worlds': WarOfWorlds, 'drmvyz.cinema2.open-decks': OpenDecks,
 } satisfies Record<SceneId, () => JSX.Element>
 
 /** Small, distinct camera poses preserve hand-placed open title volumes. */
@@ -412,4 +423,5 @@ export const ADDITIONAL_BLUEPRINT_FRAMING = {
   'drmvyz.cinema2.trippy-bro': 'translate(111 81) rotate(-5) scale(1.03) translate(-120 -75)',
   'drmvyz.cinema2.vacancy': 'translate(112 80) rotate(-7) scale(1.04) translate(-120 -75)',
   'drmvyz.cinema2.war-of-worlds': 'translate(113 82) rotate(-8) scale(1.01) translate(-120 -75)',
+  'drmvyz.cinema2.open-decks': 'translate(113 80) rotate(-6) scale(1.01) translate(-120 -75)',
 } satisfies Record<SceneId, string>

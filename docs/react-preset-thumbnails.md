@@ -85,5 +85,6 @@ ATL HOE’s towers are individually stretched upward from their bases, with smal
 | trippy-bro | Optical fan · Crossing neon lattice · Woven lens · Luminous ribbons |
 | vacancy | CRT pyramid · Rounded screen glass · Cabinet hardware · Empty brick room |
 | war-of-worlds | Tripod invaders · Articulated legs · City blocks · Searchlight beams |
+| open-decks | Raised screen housing · Jog wheel ring · Pad buttons · Side shoulders |
 
 `node scripts/verify-preset-thumbnails.mjs` derives the review catalog from the public native registry and checks all 37 unique IDs at 240px and 160px widths. It verifies four motif groups per scene, the shared Engine line weight, translucent surfaces, clipping, title typography and centering, and unchanged background lighting. Review sheets are written to `/tmp/drmvyz-preset-review/cinema2-catalog-1.png` and `cinema2-catalog-2.png`.
