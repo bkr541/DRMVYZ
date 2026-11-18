@@ -33,3 +33,7 @@ The model has three meshes: `cdj` (two primitives: the photographed tops and the
 ## Installer budget
 
 The model did not fit the 131 MiB Cinema 2.0 installer budget (about 30 KB of headroom was left), so the budget in `assets/cinema2/budgets.json` was raised by 1 MiB to 132 MiB (0.9 MiB of headroom after this model).
+
+## Texture and material quality (2026-11-18)
+
+The photograph is embedded at 2048 px wide (lanczos enlargement and a light sharpen from the 1080 px source), so the graphics card does not stretch each texel; it adds no detail the photograph lacks, so a larger original would still look sharper. The tops and the glass turn most of their reflection off (`KHR_materials_specular`), because a reflection of the studio lighting lifted every black to grey and washed out the colour. Measured against the photograph on the screen area: shadows 25 vs 16 (were 51), saturation 0.32 vs 0.33 (was 0.12); on the chassis the median is 63 vs 60.

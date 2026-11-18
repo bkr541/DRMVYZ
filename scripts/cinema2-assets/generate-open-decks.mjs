@@ -34,6 +34,8 @@ export const OPTIONS = Object.freeze({
   wall: Object.freeze({ width: 16, height: 10, gap: 0.15, color: '#050607' }),
   /** JPEG quality of the embedded photograph. */
   jpegQuality: 90,
+  /** The embedded photograph's width in pixels: the asset limit (see photographJpeg). */
+  textureWidth: 2048,
 })
 
 /** Heights in world units. */
@@ -160,13 +162,22 @@ export function buildModel(options = OPTIONS) {
 
 // ── The photograph ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-/** The reference photograph as JPEG bytes. */
+/**
+ * The reference photograph as JPEG bytes, enlarged to the asset limit (2048 px wide) with a high-quality resample and a light sharpen. The photograph is only
+ * 1080 px wide and is shown larger than that, so the graphics card would otherwise stretch each texel with plain bilinear filtering; enlarging it here with a
+ * better filter keeps edges and text crisper. It adds no detail the photograph does not have.
+ */
 export async function photographJpeg(options = OPTIONS) {
   const { default: sharp } = await import('sharp')
   const image = sharp(SOURCE_PATH)
   const { width, height } = await image.metadata()
   if (width !== PHOTO.width || height !== PHOTO.height) throw new Error(`The reference photograph must be ${PHOTO.width} x ${PHOTO.height} (the part measurements were taken on it); it is ${width} x ${height}.`)
-  return image.jpeg({ quality: options.jpegQuality, mozjpeg: true }).toBuffer()
+  const outputWidth = options.textureWidth
+  return image
+    .resize({ width: outputWidth, height: Math.round(outputWidth * height / width), kernel: 'lanczos3' })
+    .sharpen({ sigma: 0.8, m1: 0.6, m2: 1.2 })
+    .jpeg({ quality: options.jpegQuality, mozjpeg: true, chromaSubsampling: '4:4:4' })
+    .toBuffer()
 }
 
 // ── Writing the GLB ────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -180,10 +191,12 @@ export function materialsOf(options = OPTIONS) {
   return {
     // The tops show the photograph as their own colour (an emissive share keeps it faithful where the lights and shadows do not reach) and are also lit,
     // so the key's shadows and the studio reflections still work on them.
-    panel: { name: 'open-decks-panel', pbrMetallicRoughness: { baseColorTexture: { index: 0 }, baseColorFactor: [0.72, 0.72, 0.72, 1], metallicFactor: 0.1, roughnessFactor: 0.55 }, emissiveTexture: { index: 0 }, emissiveFactor: [0.34, 0.34, 0.34] },
+    // A plastic or metal surface reflects the studio lighting even where the photograph is black, which lifted every black to grey and washed out the colour.
+    // KHR_materials_specular turns most of that reflection off (a little stays so the edges still catch the key), so the photograph's own blacks and colours show.
+    panel: { name: 'open-decks-panel', pbrMetallicRoughness: { baseColorTexture: { index: 0 }, baseColorFactor: [0.4, 0.4, 0.4, 1], metallicFactor: 0, roughnessFactor: 0.6 }, emissiveTexture: { index: 0 }, emissiveFactor: [0.34, 0.34, 0.34], extensions: { KHR_materials_specular: { specularFactor: 0.06 } } },
     sides: { name: 'open-decks-sides', pbrMetallicRoughness: { baseColorFactor: linearColor('#202226'), metallicFactor: 0.65, roughnessFactor: 0.42 } },
     // The screen is the photograph's own screen: it lights itself, under a glossy surface.
-    glass: { name: 'open-decks-glass', pbrMetallicRoughness: { baseColorFactor: [0.01, 0.01, 0.012, 1], metallicFactor: 0, roughnessFactor: 0.14 }, emissiveTexture: { index: 0 }, emissiveFactor: [0.9, 0.9, 0.9] },
+    glass: { name: 'open-decks-glass', pbrMetallicRoughness: { baseColorFactor: [0, 0, 0, 1], metallicFactor: 0, roughnessFactor: 0.25 }, emissiveTexture: { index: 0 }, emissiveFactor: [1, 1, 1], extensions: { KHR_materials_specular: { specularFactor: 0.03 } } },
     wall: { name: 'open-decks-wall', pbrMetallicRoughness: { baseColorFactor: linearColor(options.wall.color), metallicFactor: 0, roughnessFactor: 0.82 } },
   }
 }
@@ -235,7 +248,7 @@ export function writeGlb(meshes, jpeg, name = 'open-decks', options = OPTIONS) {
   })
   const json = {
     asset: { version: '2.0', generator: 'DRMVYZ scripts/cinema2-assets/generate-open-decks.mjs' },
-    extensionsUsed: ['KHR_mesh_quantization'], extensionsRequired: ['KHR_mesh_quantization'],
+    extensionsUsed: ['KHR_mesh_quantization', 'KHR_materials_specular'], extensionsRequired: ['KHR_mesh_quantization'],
     scene: 0, scenes: [{ name, nodes: nodes.map((_, i) => i) }],
     nodes, meshes: gltfMeshes, materials, accessors, bufferViews,
     images: [{ bufferView: imageView, mimeType: 'image/jpeg', name: 'open-decks-photograph' }],

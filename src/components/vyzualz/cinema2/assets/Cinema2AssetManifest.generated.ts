@@ -380,14 +380,14 @@ export const CINEMA2_ASSET_RECORDS = [
     "files": {
       "high": {
         "url": "/cinema2/models/open-decks.glb",
-        "bytes": 144804,
+        "bytes": 359688,
         "triangles": 2640
       }
     },
     "gpuBytes": {
-      "high": 4643668,
-      "medium": 4643668,
-      "low": 4643668
+      "high": 16605353,
+      "medium": 16605353,
+      "low": 16605353
     }
   },
   {

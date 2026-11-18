@@ -12,7 +12,9 @@ test('the reference photograph is the supplied one, at the size the parts were m
   assert.equal(jpeg[0], 0xff); assert.equal(jpeg[1], 0xd8)
   const { default: sharp } = await import('sharp')
   const meta = await sharp(jpeg).metadata()
-  assert.deepEqual([meta.width, meta.height], [PHOTO.width, PHOTO.height])
+  // The embedded copy is the photograph enlarged to the asset's texture width, with the same proportions (so every texture coordinate still lands where it was measured).
+  assert.equal(meta.width, OPTIONS.textureWidth)
+  assert.equal(meta.height, Math.round(OPTIONS.textureWidth * PHOTO.height / PHOTO.width))
 })
 
 test('every part lies on the photograph and stands on something', () => {
