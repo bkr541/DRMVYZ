@@ -7,7 +7,7 @@ import { useModelEditorStore } from '../../../features/models/state/modelEditorS
 import { IconChipButton } from '../react/controls/IconChipButton'
 import { NoticeCard } from '../react/controls/NoticeCard'
 export function ModelEditorStage() {
-  const model = useModelEditorStore(s => s.model), status = useModelEditorStore(s => s.status)
+  const group = useModelEditorStore(s => s.model?.group), status = useModelEditorStore(s => s.status)
   const sessionKey = useModelEditorStore(s => s.sessionKey)
   /** The reason the model could not be made or loaded, so the stage says why instead of a generic message. */
   const storeError = useModelEditorStore(s => s.error)
@@ -15,7 +15,7 @@ export function ModelEditorStage() {
   const root = useRef<HTMLDivElement>(null)
   const [error, setError] = useState<string | null>(null), [epoch, setEpoch] = useState(0)
   useEffect(() => {
-    if (!model || !root.current) return
+    if (!group || !root.current) return
     const host = root.current, scene = new Scene(), camera = new PerspectiveCamera(38, 1, 0.01, 10000)
     let renderer: WebGLRenderer
     try { renderer = new WebGLRenderer({ antialias: true, powerPreference: 'low-power', preserveDrawingBuffer: true }) }
@@ -28,16 +28,26 @@ export function ModelEditorStage() {
     const hemisphere = new HemisphereLight('#ffffff', '#4b5868', 2); scene.add(hemisphere)
     const key = new DirectionalLight('#fff2dd', 4); key.position.set(4, 6, 5); key.castShadow = true; scene.add(key)
     const fill = new DirectionalLight('#9adfff', 2); fill.position.set(-4, 1, 2); scene.add(fill)
-    const bounds = new Box3().setFromObject(model.group), center = bounds.getCenter(new Vector3()), size = bounds.getSize(new Vector3())
-    const extent = Math.max(size.x, size.y, size.z, 0.1), resources = new Group()
-    const grid = new GridHelper(extent * 4, 20, '#4d7182', '#263b45'); grid.position.y = bounds.min.y - extent * 0.02; grid.position.x = center.x; grid.position.z = center.z
-    resources.add(grid)
-    const floor = new Mesh(new PlaneGeometry(extent * 6, extent * 6), new ShadowMaterial({ opacity: 0.3 })); floor.rotation.x = -Math.PI / 2; floor.position.copy(grid.position); floor.receiveShadow = true; resources.add(floor)
-    const axes = new AxesHelper(extent * 0.5); axes.position.copy(grid.position); resources.add(axes)
-    model.group.traverse(object => { if (object instanceof Mesh) { object.castShadow = true; object.receiveShadow = true } })
-    key.position.copy(center).add(new Vector3(4, 6, 5).multiplyScalar(extent)); key.target.position.copy(center); scene.add(key.target)
-    key.shadow.camera.left = key.shadow.camera.bottom = -extent * 3; key.shadow.camera.right = key.shadow.camera.top = extent * 3; key.shadow.camera.far = extent * 30; key.shadow.camera.updateProjectionMatrix()
-    scene.add(resources); scene.add(model.group)
+    const bounds = new Box3(), center = new Vector3(), size = new Vector3(), lightOffset = new Vector3(4, 6, 5)
+    let extent = 1
+    const resources = new Group(), grid = new GridHelper(4, 20, '#4d7182', '#263b45')
+    const floor = new Mesh(new PlaneGeometry(6, 6), new ShadowMaterial({ opacity: 0.3 }))
+    floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true
+    resources.add(grid, floor, new AxesHelper(0.5))
+    const updateBounds = () => {
+      bounds.setFromObject(group).getCenter(center)
+      bounds.getSize(size)
+      extent = Math.max(size.x, size.y, size.z, 0.1)
+      resources.position.set(center.x, bounds.min.y - extent * 0.02, center.z)
+      resources.scale.setScalar(extent)
+      key.position.copy(center).addScaledVector(lightOffset, extent); key.target.position.copy(center)
+      key.shadow.camera.left = key.shadow.camera.bottom = -extent * 3
+      key.shadow.camera.right = key.shadow.camera.top = extent * 3
+      key.shadow.camera.far = extent * 30; key.shadow.camera.updateProjectionMatrix()
+    }
+    group.traverse(object => { if (object instanceof Mesh) { object.castShadow = true; object.receiveShadow = true } })
+    scene.add(resources, group, key.target)
+    updateBounds()
     const pmrem = new PMREMGenerator(renderer)
     let environment: ReturnType<PMREMGenerator['fromScene']> | null = null
     const studio = () => { environment?.dispose(); const room = new RoomEnvironment(); environment = pmrem.fromScene(room, 0.04); scene.environment = environment.texture; room.dispose() }
@@ -72,17 +82,22 @@ export function ModelEditorStage() {
       controls.autoRotate = preview?.turntable ?? false; controls.autoRotateSpeed = 1
       invalidate()
     }
-    const unsubscribe = useModelEditorStore.subscribe((next, previous) => { if (next.recipe?.preview !== previous.recipe?.preview) applyPreview() })
+    const unsubscribe = useModelEditorStore.subscribe((next, previous) => {
+      if (next.recipe?.preview !== previous.recipe?.preview) applyPreview()
+      if (next.model?.group !== group || next.builtinEdit?.values === previous.builtinEdit?.values) return
+      if (next.builtinEdit?.values.rotation !== previous.builtinEdit?.values.rotation || next.builtinEdit?.values.scale !== previous.builtinEdit?.values.scale) updateBounds()
+      invalidate()
+    })
     const stopTurntable = () => { const state = useModelEditorStore.getState(); if (state.recipe?.preview.turntable) state.setRecipe({ preview: { ...state.recipe.preview, turntable: false } }) }
     controls.addEventListener('start', stopTurntable)
-    const unregister = registerModelViewport({ group: model.group, fit, resetCamera: fit, capture: async (edge = 256, frameModel = true) => {
-      if (lost || disposed || renderer.getContext().isContextLost() || !model.group.children.length) throw new Error('Restore the 3D viewport before capturing a model preview.')
+    const unregister = registerModelViewport({ group, fit, resetCamera: fit, capture: async (edge = 256, frameModel = true) => {
+      if (lost || disposed || renderer.getContext().isContextLost() || !group.children.length) throw new Error('Restore the 3D viewport before capturing a model preview.')
       const position = camera.position.clone(), target = controls.target.clone(), automatic = controls.autoRotate, helpersVisible = resources.visible
       controls.autoRotate = false
       const thumbnail = document.createElement('canvas'); thumbnail.width = thumbnail.height = Math.max(64, Math.min(1024, edge))
       try {
         let visibleGeometry = false
-        model.group.traverse(object => { if (object instanceof Mesh && object.visible && (Array.isArray(object.material) ? object.material : [object.material]).some(material => material.opacity > 0.001)) visibleGeometry = true })
+        group.traverse(object => { if (object instanceof Mesh && object.visible && (Array.isArray(object.material) ? object.material : [object.material]).some(material => material.opacity > 0.001)) visibleGeometry = true })
         if (!visibleGeometry) throw new Error('The model is invisible. Increase material opacity before saving.')
         if (frameModel) { resources.visible = false; fit() }
         renderer.render(scene, camera)
@@ -107,14 +122,14 @@ export function ModelEditorStage() {
       disposed = true; cancelAnimationFrame(frame)
       observer.disconnect(); intersection?.disconnect(); controls.dispose(); document.removeEventListener('visibilitychange', visibility)
       canvas.removeEventListener('webglcontextlost', onLost); canvas.removeEventListener('webglcontextrestored', onRestored)
-      scene.remove(model.group)
+      scene.remove(group)
       resources.traverse(object => { if (object instanceof Mesh || object instanceof LineSegments) { object.geometry.dispose(); (Array.isArray(object.material) ? object.material : [object.material]).forEach(material => material.dispose()) } })
       environment?.dispose(); pmrem.dispose(); key.shadow.map?.dispose(); renderer.dispose(); renderer.forceContextLoss(); canvas.remove()
     }
-  }, [model, epoch, sessionKey])
+  }, [group, epoch, sessionKey])
   return <section className="mm-model-stage" aria-label="3D model editor">
     <div className="mm-model-canvas" ref={root} />
-    {!model && <div className="mm-model-stage-empty" role="status">{status === 'generating' ? 'Generating 3D geometry…' : status === 'loading-model' ? 'Loading saved model…' : status === 'error' ? (storeError ?? 'Model unavailable. Retry loading or select another asset.') : 'Prepare the source, then generate a 3D model.'}</div>}
+    {!group && <div className="mm-model-stage-empty" role="status">{status === 'generating' ? 'Generating 3D geometry…' : status === 'loading-model' ? 'Loading saved model…' : status === 'error' ? (storeError ?? 'Model unavailable. Retry loading or select another asset.') : 'Prepare the source, then generate a 3D model.'}</div>}
     {error && <div className="mm-model-stage-notice"><NoticeCard tone="error" role="alert" title="3D viewport unavailable">{error} <IconChipButton onClick={() => setEpoch(value => value + 1)}>Retry viewport</IconChipButton></NoticeCard></div>}
     <div className="mm-model-navigation">Drag to orbit · Right-drag or two fingers to pan · Scroll or pinch to zoom</div>
   </section>

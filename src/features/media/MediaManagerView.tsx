@@ -140,7 +140,7 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
             </>}
             <HeaderIconKey
               label="Save Changes"
-              title={modelSelected ? modelStatus === 'saving' ? 'Saving model…' : 'Save model changes' : headerActions?.saving ? 'Saving…' : 'Save the changes made on the Info tab'}
+              title={modelSelected ? modelStatus === 'saving' ? 'Saving model…' : builtinModel ? 'Save model tags and collections' : 'Save model changes' : headerActions?.saving ? 'Saving…' : 'Save the changes made on the Info tab'}
               icon={<SaveGlyph />}
               disabled={modelSelected ? !modelCanSave : !headerActions || headerActions.saving}
               onClick={() => { if (modelSelected) void useModelEditorStore.getState().save(); else headerActions?.onSave() }}

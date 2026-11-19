@@ -2,8 +2,9 @@ import '../../../styles/reactView.css'
 import { useEffect, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import type { ReactNode } from 'react'
-import { selectModelCanSave, useModelEditorStore, type ModelEditorState } from '../../../features/models/state/modelEditorStore'
+import { selectBuiltinModelEdited, selectBuiltinModelNeedsExport, selectModelCanSave, useModelEditorStore, type ModelEditorState } from '../../../features/models/state/modelEditorStore'
 import type { BuiltinModel } from '../../../features/models/domain/builtinModels'
+import { BUILTIN_MODEL_SCALE_RANGE, type BuiltinMaterialValues, type ModelRotation } from '../../../features/models/geometry/builtinModelEdits'
 import { MODEL_MATERIAL_PRESETS } from '../../../features/models/materials/modelMaterials'
 import { Collapsible, NumberInputRow, PaletteColorRow, SelectRow, SliderRow, TextAreaRow, TextInputRow, ToggleRow } from '../react/ReactControlRows'
 import { IconChipButton } from '../react/controls/IconChipButton'
@@ -30,6 +31,64 @@ function ModelOrganizationFields({ state, disabled }: { state: Pick<ModelEditorS
   }
   return <TagsCollectionsGroup idPrefix="model" tags={state.tags} collectionIds={state.collectionIds}
     disabled={disabled} onTagsChange={tags => patch({ tags })} onCollectionIdsChange={collectionIds => patch({ collectionIds })} />
+}
+
+const ROTATION_AXES = ['X', 'Y', 'Z'] as const
+const toDegrees = (radians: number) => {
+  const degrees = (radians * 180 / Math.PI) % 360
+  return Math.round(degrees > 180 ? degrees - 360 : degrees < -180 ? degrees + 360 : degrees)
+}
+
+function ModelRotationRows({ rotation, disabled, onChange }: { rotation: ModelRotation; disabled: boolean; onChange(axis: number, degrees: number): void }) {
+  return ROTATION_AXES.map((axis, index) => <SliderRow key={axis} label={`Rotate ${axis}`} value={rotation[index]} min={-180} max={180} step={1}
+    formatValue={value => `${value}°`} resetValue={0} disabled={disabled} onChange={value => onChange(index, value)} />)
+}
+
+function BuiltinModelEditPanel() {
+  const { edit, exporting, saving, error, downloadError, editBuiltin, resetBuiltinEdits, download } = useModelEditorStore(useShallow(s => ({
+    edit: s.builtinEdit, exporting: s.builtinExporting, saving: s.status === 'saving', error: s.error,
+    downloadError: s.builtinExportError, editBuiltin: s.editBuiltin, resetBuiltinEdits: s.resetBuiltinEdits, download: s.download,
+  })))
+  const edited = useModelEditorStore(selectBuiltinModelEdited), needsExport = useModelEditorStore(selectBuiltinModelNeedsExport)
+  const [materialIndex, setMaterialIndex] = useState(0)
+  if (!edit) return error
+    ? <NoticeCard tone="error" title="Model unavailable">{error}</NoticeCard>
+    : <p role="status">Loading model for editing…</p>
+
+  const { scale, rotation, materials } = edit.values, material = materials[materialIndex]
+  const disabled = exporting || saving
+  const changeMaterial = (patch: Partial<BuiltinMaterialValues>) => editBuiltin({
+    materials: materials.map((value, index) => index === materialIndex ? { ...value, ...patch } : value),
+  })
+  return <>
+    <Collapsible label="Transform" icon={<AppIcon kind="rotateRight" size={14} />}>
+      <div className="mm-model-field-grid">
+        <SliderRow label="Uniform scale" value={scale} {...BUILTIN_MODEL_SCALE_RANGE} step={0.01} formatValue={value => `${value.toFixed(2)}×`}
+          resetValue={1} disabled={disabled} onChange={value => editBuiltin({ scale: value })} />
+        <ModelRotationRows rotation={rotation} disabled={disabled} onChange={(axis, degrees) => {
+          const next: ModelRotation = [...rotation]; next[axis] = degrees; editBuiltin({ rotation: next })
+        }} />
+      </div>
+    </Collapsible>
+    {material && <Collapsible label="Materials" icon={<AppIcon kind="edit" size={14} />}>
+      <SelectRow label="Material" value={String(materialIndex)} disabled={disabled} options={materials.map((value, index) => ({
+        value: String(index), label: value.name,
+      }))} onChange={value => setMaterialIndex(Number(value))} />
+      <PaletteColorRow label="Base color" value={material.color} disabled={disabled} onChange={color => changeMaterial({ color })} />
+      <SliderRow label="Metalness" value={material.metalness} disabled={disabled} onChange={metalness => changeMaterial({ metalness })} />
+      <SliderRow label="Roughness" value={material.roughness} disabled={disabled} onChange={roughness => changeMaterial({ roughness })} />
+    </Collapsible>}
+    <Collapsible label="Edited Copy" icon={<AppIcon kind="download" size={14} />}>
+      <p className="rv-ctrl-info">Download a GLB to keep edits to this built-in model.</p>
+      <div className="mm-model-edit-actions">
+        <IconChipButton tone="primary" disabled={!edited || disabled} onClick={() => { void download('glb') }}>Download Edited GLB</IconChipButton>
+        <IconChipButton disabled={!edited || disabled} onClick={resetBuiltinEdits}>Restore Original</IconChipButton>
+      </div>
+      {exporting && <p role="status">Preparing GLB…</p>}
+      {!exporting && edited && !needsExport && <p role="status">Edited GLB download started.</p>}
+      {downloadError && <NoticeCard tone="error" role="alert" title="GLB download failed">{downloadError}</NoticeCard>}
+    </Collapsible>
+  </>
 }
 
 function BuiltinModelInspector({ model }: { model: BuiltinModel }) {
@@ -62,6 +121,7 @@ function BuiltinModelInspector({ model }: { model: BuiltinModel }) {
         {!state.savedMetadata && <IconChipButton onClick={() => { void state.loadBuiltinOrganization() }}>Retry tags and collections</IconChipButton>}
       </NoticeCard>}
     </div>}
+    {tab === 'edit' && <div className="mmi-body mm-model-inspector"><BuiltinModelEditPanel key={state.sessionKey} /></div>}
   </>
 }
 
@@ -139,10 +199,20 @@ function EditableModelInspector({ onSelectSource }: { onSelectSource?: () => voi
           <SelectRow label="Quality" value={recipe.quality ?? 'normal'} options={[{ value: 'draft', label: 'Draft' }, { value: 'normal', label: 'Normal' }, { value: 'high', label: 'High' }]} disabled={locked} onChange={quality => s.setRecipe({ quality: quality as 'draft' | 'normal' | 'high' })} />
           {s.needsConfirmation && <ToggleRow label="Confirm foreground preview" value={s.confirmed} disabled={busy} onChange={s.confirmForeground} />}
         </Collapsible>
+        <Collapsible label="Transform" icon={<AppIcon kind="rotateRight" size={14} />}>
+          <div className="mm-model-field-grid">
+            <NumberInputRow label="Uniform scale" value={recipe.transform.scale[0]} min={0.01} max={10} step={0.05} disabled={locked}
+              onChange={scale => { if (scale >= 0.01 && scale <= 10) s.setRecipe({ transform: { ...recipe.transform, scale: [scale, scale, scale] } }) }} />
+            <ModelRotationRows rotation={recipe.transform.rotation.map(toDegrees) as ModelRotation} disabled={locked} onChange={(axis, degrees) => {
+              const rotation: ModelRotation = [...recipe.transform.rotation]
+              rotation[axis] = degrees * Math.PI / 180
+              s.setRecipe({ transform: { ...recipe.transform, rotation } })
+            }} />
+          </div>
+        </Collapsible>
         {geometry && <Collapsible label="Geometry" icon={<AppIcon kind="layers" size={14} />}>
           <div className="mm-model-field-grid">
             <NumberInputRow label="Depth" value={geometry.depth} min={0.01} max={10} step={0.01} disabled={locked} onChange={depth => s.setRecipe({ geometry: { ...geometry, depth } })} />
-            <NumberInputRow label="Uniform scale" value={recipe.transform.scale[0]} min={0.01} max={10} step={0.05} disabled={locked} onChange={scale => s.setRecipe({ transform: { ...recipe.transform, scale: [scale, scale, scale] } })} />
             <NumberInputRow label="Curve detail" value={geometry.curveSegments} min={1} max={64} step={1} disabled={locked} onChange={curveSegments => s.setRecipe({ geometry: { ...geometry, curveSegments } })} />
             <SelectRow label="Pivot" value={recipe.transform.pivot} disabled={locked} options={[{ value: 'center', label: 'Center' }, { value: 'bottom', label: 'Bottom' }]} onChange={pivot => s.setRecipe({ transform: { ...recipe.transform, pivot: pivot as 'center' | 'bottom' } })} />
             <div className="mm-model-field-grid__wide"><ToggleRow label="Bevel" value={geometry.bevelEnabled} disabled={locked} onChange={bevelEnabled => s.setRecipe({ geometry: { ...geometry, bevelEnabled } })} /></div>

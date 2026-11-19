@@ -13,7 +13,7 @@ shared controls. `ModelCreateInspector.tsx` remains a compatibility export.
   modified date, tags and owned collections.
 - Edit: raster alpha/luminance threshold, inversion, foreground confirmation,
   smoothing, quality, depth, bevel width/thickness/segments, curve detail, pivot,
-  uniform scale, independent front/cap and side PBR materials. Chrome, Black
+  uniform scale, X/Y/Z rotation, and independent front/cap and side PBR materials. Chrome, Black
   Chrome, Gold, Gloss, Matte, Clay and Holographic presets change real materials.
   Emissive color/intensity, clearcoat/roughness and alpha opacity export to GLB.
   SVG uses validated filled paths; raster foreground controls are hidden for SVG.

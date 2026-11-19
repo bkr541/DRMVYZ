@@ -1,7 +1,7 @@
 import {createServer} from 'vite'
 import {chromium} from '@playwright/test'
 import assert from 'node:assert/strict'
-import {mkdir,writeFile} from 'node:fs/promises'
+import {mkdir,readFile,writeFile} from 'node:fs/promises'
 const output='artifacts/conduit-wordmark-model-viewer'
 const thumbnailUrl='/cinema2/models/conduit-wordmark-thumbnail.webp'
 const entry=`
@@ -45,7 +45,7 @@ async function captureThumbnail() {
   if (blob?.type !== 'image/webp') throw new Error('Could not encode the wordmark thumbnail.')
   return Array.from(new Uint8Array(await blob.arrayBuffer()))
 }
-globalThis.wordmarkReview={state:()=>{const s=useModelEditorStore.getState();return {status:s.status,error:s.error,name:s.name,stats:s.model?.stats,dirty:s.dirty}},captureThumbnail,reset:()=>useModelEditorStore.getState().reset()};
+globalThis.wordmarkReview={state:()=>{const s=useModelEditorStore.getState();return {status:s.status,error:s.error,name:s.name,stats:s.model?.stats,dirty:s.dirty,edits:s.builtinEdit?.values,exportError:s.builtinExportError}},captureThumbnail,reset:()=>useModelEditorStore.getState().reset()};
 createRoot(document.getElementById('root')).render(React.createElement(AudioEngineProvider,null,React.createElement(VyzualzView,{initialAppView:'media',activeView:'vyzualz',onNavigate:()=>{}})));
 `
 const server=await createServer({configFile:false,root:process.cwd(),resolve:{dedupe:['react','react-dom']},esbuild:{jsx:'automatic'},define:{'import.meta.env.VITE_SUPABASE_URL':JSON.stringify(''),'import.meta.env.VITE_SUPABASE_ANON_KEY':JSON.stringify('')},server:{host:'127.0.0.1',port:0,hmr:false,watch:null},plugins:[{name:'wordmark-review',resolveId:id=>id==='/wordmark-review.tsx'?'\0wordmark-review.tsx':undefined,load:id=>id==='\0wordmark-review.tsx'?entry:undefined,configureServer(s){s.middlewares.use((req,res,next)=>{if(req.url!=='/wordmark-review.html'){next();return}res.setHeader('Content-Type','text/html');res.end('<!doctype html><html><head><style>html,body,#root{height:100%;margin:0}</style></head><body><div id="root"></div><script type="module" src="/wordmark-review.tsx"></script></body></html>')})}}]})
@@ -80,17 +80,54 @@ try {
  }
  await card.locator('img').evaluate(image=>image.decode())
  const thumbnail=await card.locator('img').boundingBox()
- assert(thumbnail.width>=115&&thumbnail.height>70,'The model card should display a large thumbnail.')
+ assert(thumbnail.width>0&&thumbnail.width<=126&&thumbnail.height>0,'The model card should show the rendered thumbnail in its compact tile.')
  await page.screenshot({path:`${output}/wordmark.png`});const before=await viewport.screenshot()
  await page.getByRole('region',{name:'3D Models',exact:true}).getByRole('button',{name:'List view',exact:true}).click()
  const listThumbnail=await card.locator('img').boundingBox()
- assert(listThumbnail.width>=90&&listThumbnail.height>60,'List view should also display a large thumbnail.')
+ assert(listThumbnail.width===72&&listThumbnail.height>0,'List view should show the rendered model at 72px wide.')
  await page.getByRole('tab',{name:'All Visuals',exact:true}).click()
  await card.locator('img').evaluate(image=>image.decode())
  const box=await viewport.boundingBox();assert(box.width>300&&box.height>300,'The wordmark must have a usable visible viewport');await page.mouse.move(box.x+box.width*.5,box.y+box.height*.5);await page.mouse.down();await page.mouse.move(box.x+box.width*.7,box.y+box.height*.6,{steps:12});await page.mouse.up();await page.waitForTimeout(150)
  assert.notDeepEqual(await viewport.screenshot(),before,'Orbit changes the 3D view')
  await page.getByRole('button',{name:'Fit Model',exact:true}).click();await page.getByRole('button',{name:'Reset Camera',exact:true}).click()
  assert(await page.getByRole('button',{name:'Save Changes',exact:true}).isDisabled());assert(await page.getByRole('button',{name:'Delete Media',exact:true}).isDisabled());assert.equal(await page.getByRole('button',{name:'Regenerate 3D Model',exact:true}).count(),0)
+ await inspector.getByRole('tab',{name:'Edit',exact:true}).click()
+ const downloadButton=page.getByRole('button',{name:'Download Edited GLB',exact:true})
+ assert(await downloadButton.isDisabled())
+ const pristine=await viewport.screenshot()
+ const setRange=(name,value)=>page.getByRole('slider',{name,exact:true}).evaluate((input,value)=>{
+   Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,String(value))
+   input.dispatchEvent(new Event('input',{bubbles:true}))
+ },value)
+ await setRange('Uniform scale',1.3)
+ await setRange('Rotate Z',30)
+ await page.getByRole('combobox',{name:'Material',exact:true}).click()
+ await page.getByRole('option',{name:'rim',exact:true}).click()
+ await page.getByRole('button',{name:'Base color',exact:true}).click()
+ await page.getByRole('dialog',{name:'Base color color'}).getByRole('textbox').fill('#42d8f0')
+ await page.keyboard.press('Escape')
+ await setRange('Roughness',0.25)
+ const edited=await page.evaluate(()=>globalThis.wordmarkReview.state())
+ assert.equal(edited.edits.scale,1.3);assert.equal(edited.edits.rotation[2],30)
+ assert.equal(edited.edits.materials.find(material=>material.name==='rim').color,'#42d8f0')
+ assert.notDeepEqual(edited.stats.bounds,state.stats.bounds)
+ assert.notDeepEqual(await viewport.screenshot(),pristine,'Model edits should redraw the live viewport')
+ await page.getByRole('button',{name:'Fit Model',exact:true}).click()
+ await page.screenshot({path:`${output}/wordmark-edit.png`})
+ const [download]=await Promise.all([page.waitForEvent('download'),downloadButton.click()])
+ const bytes=await readFile(await download.path())
+ const exported=JSON.parse(bytes.toString('utf8',20,20+bytes.readUInt32LE(12)))
+ assert.equal(download.suggestedFilename(),'DVYDRM Wordmark edited.glb')
+ const transformed=exported.nodes.find(node=>node.matrix && Math.abs(node.matrix[10]-1.3)<1e-6)
+ assert(transformed && Math.abs(transformed.matrix[0]-1.3*Math.cos(Math.PI/6))<1e-6 && Math.abs(transformed.matrix[1]-0.65)<1e-6,
+   'The exported transform should include 1.3× scale and 30° Z rotation')
+ const rim=exported.materials.find(material=>material.name==='rim').pbrMetallicRoughness
+ assert.equal(rim.roughnessFactor,0.25);assert(rim.baseColorFactor[0]<rim.baseColorFactor[1]&&rim.baseColorFactor[1]<rim.baseColorFactor[2])
+ await page.getByRole('button',{name:'Restore Original',exact:true}).click()
+ assert(await downloadButton.isDisabled())
+ const restored=await page.evaluate(()=>globalThis.wordmarkReview.state())
+ assert.deepEqual(restored.stats.bounds,state.stats.bounds)
+ assert.equal(restored.exportError,null)
  await page.evaluate(()=>globalThis.wordmarkReview.reset());assert.deepEqual(errors,[])
- await writeFile(`${output}/report.json`,JSON.stringify({state,thumbnail:{grid:thumbnail,list:listThumbnail},orbit:true,fit:true,reset:true,viewOnly:true,errors},null,2)+'\n');console.log('Conduit wordmark: grid and list thumbnails, original GLB, orbit, fit/reset and view-only controls passed.')
+ await writeFile(`${output}/report.json`,JSON.stringify({state,thumbnail:{grid:thumbnail,list:listThumbnail},orbit:true,fit:true,reset:true,editedCopy:{name:download.suggestedFilename(),bytes:bytes.length},errors},null,2)+'\n');console.log('Conduit wordmark: thumbnails, orbit, transform, materials, edited GLB and restore passed.')
 } finally {await browser.close();await server.close()}

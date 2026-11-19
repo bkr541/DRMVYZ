@@ -12,9 +12,9 @@ import { IconChipButton } from '../react/controls/IconChipButton'
 import { Collapsible } from '../react/ReactControlRows'
 import { computeVirtualMediaWindow, MEDIA_SHEET_GAP } from './mediaLibraryWindow'
 
-const MIN_MODEL_TILE = 120
-const MAX_MODEL_TILE = 192
-const MODEL_LIST_ROW_HEIGHT = 84
+const MIN_MODEL_TILE = 96
+const MAX_MODEL_TILE = 128
+const MODEL_LIST_ROW_HEIGHT = 64
 
 function ModelThumbnail({ asset }: { asset: ModelAsset }) {
   const [url, setUrl] = useState<string | null>(null), [retry, setRetry] = useState(0)

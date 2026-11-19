@@ -7,11 +7,19 @@ import { modelAssetRepository, parseModelOrganization, type ModelMetadata } from
 import { ModelAssetError, parseModelRecipe, text, type ModelAsset, type ModelAssetVersion, type ModelGeneratorRecipe, type ModelGeometryStats } from '../domain/modelAssetTypes'
 import type { ModelArtifact } from '../generator/createModelArtifact'
 import { checkAbort, MODEL_INPUT_LIMITS } from '../geometry/modelQualityBudget'
+import type { BuiltinModelEditValues, createBuiltinModelEdit } from '../geometry/builtinModelEdits'
 import { captureModelPreview } from './modelViewportBridge'
 export interface PreviewModel { group: Group; stats: ModelGeometryStats; dispose(): void }
 export type ModelSaveOutcome = { ok: true; id: string; version: number } | { ok: false }
+interface BuiltinEditSession extends ReturnType<typeof createBuiltinModelEdit> {
+  values: BuiltinModelEditValues
+  exported: BuiltinModelEditValues | null
+}
 export interface ModelEditorState extends ModelMetadata {
   builtinModel: BuiltinModel | null
+  builtinEdit: BuiltinEditSession | null
+  builtinExporting: boolean
+  builtinExportError: string | null
   id: string | null; sessionKey: number; sourceMediaId: string | null; asset: ModelAsset | null
   activeVersion: number; versions: ModelAssetVersion[]; libraryRevision: number
   source: Blob | null; sourceInfo: ModelGeometryStats['source'] | null; recipe: ModelGeneratorRecipe | null
@@ -28,6 +36,8 @@ export interface ModelEditorState extends ModelMetadata {
   load(asset: ModelAsset, version?: number): void
   loadBuiltin(model: BuiltinModel): void
   loadBuiltinOrganization(): Promise<void>
+  editBuiltin(patch: Partial<BuiltinModelEditValues>): void
+  resetBuiltinEdits(): void
   retrySource(): Promise<void>; prepare(): Promise<void>
   setRecipe(patch: Partial<ModelGeneratorRecipe>): void
   setMetadata(patch: Partial<ModelMetadata>): void
@@ -39,7 +49,7 @@ export interface ModelEditorState extends ModelMetadata {
 }
 let controller: AbortController | null = null, revision = 0, sessionSerial = 0
 let generationTimer: ReturnType<typeof setTimeout> | null = null
-const baseline = () => ({ builtinModel: null, id: null, sessionKey: 0, sourceMediaId: null, name: '', description: null, favorite: false, tags: [], collectionIds: [],
+const baseline = () => ({ builtinModel: null, builtinEdit: null, builtinExporting: false, builtinExportError: null, id: null, sessionKey: 0, sourceMediaId: null, name: '', description: null, favorite: false, tags: [], collectionIds: [],
   asset: null, activeVersion: 0, versions: [], source: null, sourceInfo: null, recipe: null, savedRecipe: null, savedMetadata: null, model: null, artifact: null, preview: null,
   dirty: false, generationPending: false, status: 'idle' as const, saveFailure: false, error: null, progress: null, warnings: [], needsConfirmation: false, confirmed: false,
   builtinOrganizationLoading: false, builtinOrganizationError: null,
@@ -48,8 +58,14 @@ function message(error: unknown) { return error instanceof Error ? error.message
 const metadata = (state: ModelMetadata): ModelMetadata => ({ name: state.name, description: state.description, favorite: state.favorite, tags: [...state.tags], collectionIds: [...state.collectionIds] })
 const geometryKey = (recipe: ModelGeneratorRecipe) => JSON.stringify({ ...recipe, preview: undefined })
 const traceKey = (recipe: ModelGeneratorRecipe) => JSON.stringify([recipe.foreground, recipe.trace, recipe.quality])
-const busy = (state: ModelEditorState) => state.status === 'saving' || state.status === 'deleting'
-export const selectModelEditorNeedsGuard = (state: ModelEditorState) => state.dirty || busy(state)
+const busy = (state: ModelEditorState) => state.status === 'saving' || state.status === 'deleting' || state.builtinExporting
+const sameBuiltinEdits = (a: BuiltinModelEditValues, b: BuiltinModelEditValues | null) => a === b || JSON.stringify(a) === JSON.stringify(b)
+export const selectBuiltinModelEdited = ({ builtinEdit }: ModelEditorState) => !!builtinEdit && !sameBuiltinEdits(builtinEdit.values, builtinEdit.original)
+export const selectBuiltinModelNeedsExport = (state: ModelEditorState) => {
+  const edit = state.builtinEdit
+  return !!edit && selectBuiltinModelEdited(state) && !sameBuiltinEdits(edit.values, edit.exported)
+}
+export const selectModelEditorNeedsGuard = (state: ModelEditorState) => state.dirty || busy(state) || selectBuiltinModelNeedsExport(state)
 /** Whether Generate 3D Model (or Regenerate) can run now: a prepared preview exists, the foreground is confirmed where that is required, and the model is not busy, published or locked. */
 export const selectModelCanGenerate = (state: ModelEditorState) => !(busy(state) || !!state.publishedVersion || !!state.pendingOperationId || !state.source) && !!state.preview && !(state.needsConfirmation && !state.confirmed)
 export const selectModelCanSave = (state: ModelEditorState) => state.builtinModel
@@ -127,12 +143,27 @@ export const useModelEditorStore = create<ModelEditorState>((set, get) => {
       void get().loadBuiltinOrganization()
       void (async () => {
         try {
-          const { loadBuiltinModelPreview } = await import('../data/loadModelPreview')
+          const [{ loadBuiltinModelPreview }, { createBuiltinModelEdit }] = await Promise.all([
+            import('../data/loadModelPreview'), import('../geometry/builtinModelEdits'),
+          ])
           const model = await loadBuiltinModelPreview(builtinModel, signal)
           if (!current(token)) { model.dispose(); return }
-          set({ model, status: 'ready' })
+          const edit = createBuiltinModelEdit(model.group, model.stats)
+          set({ model, builtinEdit: { ...edit, values: edit.original, exported: null }, status: 'ready' })
         } catch(error) { if (current(token)) set({ status: 'error', error: message(error) }) }
       })()
+    },
+    editBuiltin(patch) {
+      const state = get(), { model, builtinEdit } = state
+      if (!model || !builtinEdit || busy(state)) return
+      const values = { ...builtinEdit.values, ...patch }
+      if (sameBuiltinEdits(values, builtinEdit.values)) return
+      const stats = builtinEdit.apply(values)
+      set({ model: { ...model, stats }, builtinEdit: { ...builtinEdit, values }, builtinExportError: null })
+    },
+    resetBuiltinEdits() {
+      const edit = get().builtinEdit
+      if (edit) get().editBuiltin(edit.original)
     },
     async loadBuiltinOrganization() {
       const { builtinModel, sessionKey, savedMetadata, builtinOrganizationLoading } = get()
@@ -342,6 +373,24 @@ export const useModelEditorStore = create<ModelEditorState>((set, get) => {
       try { const more = await modelAssetRepository.listVersions(asset.id, versions.at(-1)?.version); if (get().id === id) set({ versions: [...new Map([...versions, ...more].map(v => [v.version, v])).values()] }) } catch (error) { set({ error: message(error) }) }
     },
     async download(kind) {
+      const state = get(), { builtinModel, builtinEdit, model } = state
+      if (builtinModel && kind === 'glb') {
+        if (!model || !builtinEdit || !selectBuiltinModelEdited(state) || busy(state)) return
+        const { signal, token } = start()
+        set({ builtinExporting: true, builtinExportError: null })
+        try {
+          const [{ exportModelGlb }, { downloadModelBlob }] = await Promise.all([
+            import('../export/exportGlb'), import('../data/modelEditorArtifacts'),
+          ])
+          const blob = await exportModelGlb(model.group, signal)
+          if (!current(token)) return
+          downloadModelBlob(blob, `${builtinModel.name} edited`, kind)
+          set({ builtinExporting: false, builtinEdit: { ...builtinEdit, exported: builtinEdit.values } })
+        } catch (error) {
+          if (current(token)) set({ builtinExporting: false, builtinExportError: message(error) })
+        }
+        return
+      }
       try {
         const s = get(), helpers = await import('../data/modelEditorArtifacts')
         const blob = kind === 'png' ? s.model ? await captureModelPreview(s.model.group, undefined, 1024, false) : null

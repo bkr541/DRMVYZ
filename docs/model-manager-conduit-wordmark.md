@@ -2,15 +2,17 @@
 
 Media Manager → 3D Models now includes **DVYDRM Wordmark**, the same standalone GLB used by Conduit (`/cinema2/models/conduit-wordmark.glb`). Selecting it opens the existing true-3D studio viewport with orbit, pan, zoom, Fit Model and Reset Camera. The original pearl, chrome and amber materials and all seven meshes are retained; Conduit and its shipped model bytes are unchanged.
 
-The wordmark is a built-in library item. Its Media Details inspector has Info, Edit, and Output tabs. Info contains Details, Tags & Collections, and Additional Info. Edit and Output are empty for the wordmark. User-created models use the same Info groups and keep their editing and export tools.
+The wordmark is a built-in library item. Its Media Details inspector has Info, Edit, and Output tabs. Info contains Details, Tags & Collections, and Additional Info. In **Edit**, use **Transform** to scale or rotate the model and **Materials** to change each material's base color, metalness, or roughness. The viewport updates as you edit. Use **Fit Model** to reframe it or **Restore Original** to undo the whole edit session.
+
+Use **Download Edited GLB** to keep a separate file of the result. The library continues to open the original built-in GLB. Media Manager prompts you to download or discard pending geometry edits before navigating away. The header's **Save Changes** action saves tags and collections for the built-in entry.
 
 Use the shared Tags & Collections fields and the header's **Save Changes** action to organize the wordmark. It appears in the collections you assign. Migration `0057_builtin_model_organization.sql` stores each account's assignments separately, using the same tags and collections as other media.
 
-The library uses larger model thumbnails in both grid and list view. The wordmark card displays a bundled WebP rendered from the original GLB with the studio viewport's lighting. Saved model cards display the thumbnail of their current version. To refresh the bundled image after a model change, run `node scripts/model-assets/verify-conduit-wordmark.mjs --write-thumbnail`.
+Model grid tiles are capped at 128 px, and list thumbnails are 72 px wide. The wordmark card displays a bundled WebP rendered from the original GLB with the studio viewport's lighting. Saved model cards display the thumbnail of their current version. To refresh the bundled image after a model change, run `node scripts/model-assets/verify-conduit-wordmark.mjs --write-thumbnail`.
 
 The loader shares the saved-model GLB validation and geometry budgets. Known built-in IDs resolve to shipped URLs; arbitrary URLs cannot be injected. Selection replacement/account changes/discard cancel pending loads, and late results and active model resources are disposed. Failed loads can be retried by selecting the wordmark again.
 
-Validation: 20 focused library, manager-selection and built-in lifecycle tests passed; TypeScript and focused ESLint passed. The production-browser review loads the actual 57,882-triangle, seven-mesh wordmark, verifies a usable viewport and orbit, checks Fit/Reset and view-only controls, and reports no page errors. Reproduce with `node scripts/model-assets/verify-conduit-wordmark.mjs`; captures and report are under ignored `artifacts/conduit-wordmark-model-viewer/`.
+The browser verifier exercises the actual 57,882-triangle, seven-mesh wordmark, including orbit, fit/reset, live editing, GLB export and restore. Run `node scripts/model-assets/verify-conduit-wordmark.mjs` to reproduce. Captures and the report are under ignored `artifacts/conduit-wordmark-model-viewer/`.
 
 A broader existing editor-store suite has four image-source generation failures. The first failing case was reproduced against the unmodified HEAD store, independently of this feature; it was not changed or repeatedly rerun. The new built-in lifecycle tests pass.
 

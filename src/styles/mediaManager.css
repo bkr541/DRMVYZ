@@ -1209,6 +1209,7 @@
 .mm-model-stage-notice { position: absolute; inset: 60px 12px auto; }
 .mm-model-navigation { padding: 8px 12px; color: var(--color-text-muted); background: var(--az-bg, #090d0f); }
 .mm-model-inspector { overflow-y: auto; min-height: 0; }
+.mm-model-edit-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .mm-model-source-preview { height: 160px; display: flex; justify-content: center; margin: 8px 0; background: repeating-conic-gradient(#27353b 0% 25%, #162026 0% 50%) 0 0 / 16px 16px; }
 .mm-model-source-preview img { max-width: 100%; max-height: 100%; object-fit: contain; }
 .mm-model-library { display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 440px; }
@@ -1234,7 +1235,7 @@
 .mm-model-card-list { gap: 6px; padding: 0; }
 .mm-model-card--list { height: var(--mm-model-list-card-height); }
 .mm-model-card--list .mm-model-card-select { flex-direction: row; align-items: center; padding-right: 28px; }
-.mm-model-card--list .mm-model-card-preview { flex: 0 0 96px; height: 100%; }
+.mm-model-card--list .mm-model-card-preview { flex: 0 0 72px; height: 100%; }
 .mm-model-draft-card { display: flex; gap: 6px; padding: 8px 4px; color: var(--az-accent, #4ac7db); }
 .mm-model-inspector > .dv-icon-chip { margin: 8px 0; }
 

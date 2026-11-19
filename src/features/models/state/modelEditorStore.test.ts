@@ -162,9 +162,12 @@ describe('model save and edit lifecycle', () => {
       await draft(); const original = useModelEditorStore.getState().artifact!
       useModelEditorStore.getState().setRecipe({ geometry: { ...recipe.geometry, depth: 2 } })
       useModelEditorStore.getState().setRecipe({ geometry: { ...recipe.geometry, depth: 3 } })
+      useModelEditorStore.getState().setRecipe({ transform: { ...recipe.transform, rotation: [0, Math.PI / 4, 0] } })
       await vi.advanceTimersByTimeAsync(301); await flush()
       expect(mocks.fromTrace).toHaveBeenCalledTimes(1)
-      expect(mocks.fromTrace).toHaveBeenCalledWith(source, original.traceSvg, expect.objectContaining({ geometry: expect.objectContaining({ depth: 3 }) }), expect.any(AbortSignal))
+      expect(mocks.fromTrace).toHaveBeenCalledWith(source, original.traceSvg, expect.objectContaining({
+        geometry: expect.objectContaining({ depth: 3 }), transform: expect.objectContaining({ rotation: [0, Math.PI / 4, 0] }),
+      }), expect.any(AbortSignal))
       const next = useModelEditorStore.getState().recipe!
       useModelEditorStore.getState().setRecipe({ preview: { ...next.preview, lightIntensity: 2 } })
       await vi.advanceTimersByTimeAsync(301)

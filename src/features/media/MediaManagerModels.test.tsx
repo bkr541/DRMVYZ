@@ -19,6 +19,8 @@ import { registerModelViewport } from '../models/state/modelViewportBridge'
 import { MEDIA_DECK_CAPABILITIES, MEDIA_MANAGER_CAPABILITIES } from '../../components/vyzualz/media/mediaLibraryCapabilities'
 import { useMediaEditStore } from '../../stores/mediaEditStore'
 import { BUILTIN_MODELS } from '../models/domain/builtinModels'
+import { createBuiltinModelEdit } from '../models/geometry/builtinModelEdits'
+import { BoxGeometry, Group, Mesh, MeshStandardMaterial } from 'three'
 let container: HTMLDivElement, root: ReturnType<typeof createRoot>
 const button = (label: string) => [...document.querySelectorAll<HTMLButtonElement>('button')].find(b => b.getAttribute('aria-label') === label || b.textContent?.trim() === label)!
 async function invoke(name: string, value: unknown) { await act(async () => { (mocks.browser[name] as (value: unknown) => void)(value) }) }
@@ -113,11 +115,17 @@ describe('model mode selection and guards', () => {
 })
 
 
-it('opens the wordmark with the standard Info groups, editable organization, and empty Edit and Output tabs',async()=>{
+it('opens the wordmark with organization fields and editing controls for the loaded mesh',async()=>{
  const builtin=BUILTIN_MODELS[0]
- const load=vi.spyOn(useModelEditorStore.getState(),'loadBuiltin').mockImplementation(model=>useModelEditorStore.setState({
-   id:model.id,builtinModel:model,name:model.name,dirty:false,
-   savedMetadata:{name:model.name,description:model.description,favorite:false,tags:[],collectionIds:[]},
+ const group = new Group(), geometry = new BoxGeometry(), material = new MeshStandardMaterial()
+ group.add(new Mesh(geometry, material))
+ const stats = { triangles: 12, vertices: 24, meshes: 1, bounds: { min: [-0.5, -0.5, -0.5], max: [0.5, 0.5, 0.5] } } as const
+ const model = { group, stats: { ...stats, bounds: { min: [...stats.bounds.min], max: [...stats.bounds.max] } }, dispose: () => { geometry.dispose(); material.dispose() } } satisfies NonNullable<ReturnType<typeof useModelEditorStore.getState>['model']>
+ const edit = createBuiltinModelEdit(group, model.stats)
+ const load=vi.spyOn(useModelEditorStore.getState(),'loadBuiltin').mockImplementation(builtin=>useModelEditorStore.setState({
+   id:builtin.id,builtinModel:builtin,name:builtin.name,dirty:false,model,status:'ready',
+   builtinEdit:{...edit,values:edit.original,exported:null},
+   savedMetadata:{name:builtin.name,description:builtin.description,favorite:false,tags:[],collectionIds:[]},
  }))
  await invoke('onSelectBuiltinModel',builtin)
  expect(load).toHaveBeenCalledWith(builtin);expect(container.querySelector('[data-testid="model-stage"]')).not.toBeNull()
@@ -128,8 +136,18 @@ it('opens the wordmark with the standard Info groups, editable organization, and
  expect(container.textContent).toContain('Media Details')
  expect(Array.from(container.querySelectorAll('.mm-model-inspector .drc-header')).map(header => header.textContent)).toEqual(['Details', 'Tags & Collections', 'Additional Info'])
  expect(container.querySelector<HTMLInputElement>('#model-tags')?.disabled).toBe(false)
- for (const tab of ['Edit', 'Output']) {
-   await act(async () => button(tab).click())
-   expect(container.querySelector('.mm-model-inspector')).toBeNull()
- }
+ await act(async () => button('Edit').click())
+ expect(Array.from(container.querySelectorAll('.mm-model-inspector .drc-header')).map(header => header.textContent)).toEqual(['Transform', 'Materials', 'Edited Copy'])
+ expect(container.querySelectorAll('.mm-model-inspector input[type="range"]')).toHaveLength(6)
+ expect(button('Download Edited GLB').disabled).toBe(true)
+ await act(async () => useModelEditorStore.getState().editBuiltin({ scale: 1.4 }))
+ expect(button('Download Edited GLB').disabled).toBe(false)
+ expect(button('Save Changes').disabled).toBe(true)
+ await invoke('onSelect', 'image-1')
+ expect(document.querySelector('[role="alertdialog"]')?.textContent).toContain('Download your edited model before continuing?')
+ await act(async () => button('Cancel').click())
+ await act(async () => button('Restore Original').click())
+ expect(button('Download Edited GLB').disabled).toBe(true)
+ await act(async () => button('Output').click())
+ expect(container.querySelector('.mm-model-inspector')).toBeNull()
 })
