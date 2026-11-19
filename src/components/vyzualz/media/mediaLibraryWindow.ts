@@ -24,13 +24,15 @@ export function computeVirtualMediaWindow(input: {
   viewMode: ViewMode
   manager: boolean
   compact?: boolean
+  gridColumns?: number
+  listRowHeight?: number
   overscanRows?: number
 }): VirtualMediaWindow {
   const height = Math.max(240, input.height || 600)
   const isList = input.viewMode === 'list'
-  const columns = isList ? 1 : MEDIA_SHEET_COLUMNS
-  const tileSize = isList ? 0 : Math.max(24, Math.floor((input.width - MEDIA_SHEET_GAP * (MEDIA_SHEET_COLUMNS - 1)) / MEDIA_SHEET_COLUMNS))
-  const rowHeight = isList ? 58 : tileSize + MEDIA_SHEET_GAP
+  const columns = isList ? 1 : input.gridColumns ?? MEDIA_SHEET_COLUMNS
+  const tileSize = isList ? 0 : Math.max(24, Math.floor((input.width - MEDIA_SHEET_GAP * (columns - 1)) / columns))
+  const rowHeight = isList ? input.listRowHeight ?? 58 : tileSize + MEDIA_SHEET_GAP
   const totalRows = Math.ceil(input.itemCount / columns)
   const overscan = input.overscanRows ?? 3
   const firstVisibleRow = Math.max(0, Math.floor(Math.max(0, input.scrollTop) / rowHeight))

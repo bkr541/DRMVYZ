@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { supabase, supabaseConfigured } from '../../../lib/supabase'
 import type { Database, Json } from '../../../types/database'
+import { BUILTIN_MODELS, type BuiltinModel } from '../domain/builtinModels'
 import {
   invalid, record, ModelAssetError, modelStoragePaths, parseModelAsset, parseModelGeometryStats,
   parseModelOperation, parseModelRecipe, parseModelVersion, text, uuid, versionNumber,
@@ -30,6 +31,9 @@ export interface ModelAssetRepository {
   get(assetId: string): Promise<ModelAsset>
   listVersions(assetId: string, before?: number): Promise<ModelAssetVersion[]>
   getOrganization(assetId: string): Promise<ModelOrganization>
+  getBuiltinOrganization(modelKey: BuiltinModel['id']): Promise<ModelOrganization>
+  updateBuiltinOrganization(modelKey: BuiltinModel['id'], organization: ModelOrganization): Promise<ModelOrganization>
+  listBuiltinModelsInCollection(collectionId: string): Promise<BuiltinModel['id'][]>
   updateMetadata(assetId: string, expectedVersion: number, metadata: ModelMetadata): Promise<ModelAsset>
   getVersion(assetId: string, version: number): Promise<ModelAssetVersion>
   createDraft(input: ModelDraftInput): Promise<ModelAsset>
@@ -125,6 +129,24 @@ export class SupabaseModelAssetRepository implements ModelAssetRepository {
   async getOrganization(assetId: string): Promise<ModelOrganization> {
     await this.owner()
     return parseModelOrganization(checkModelResponse(await this.client.rpc('get_model_organization', { p_model_id: uuid(assetId) })))
+  }
+  async getBuiltinOrganization(modelKey: BuiltinModel['id']): Promise<ModelOrganization> {
+    await this.owner()
+    return parseModelOrganization(checkModelResponse(await this.client.rpc('get_builtin_model_organization', { p_model_key: modelKey })))
+  }
+  async updateBuiltinOrganization(modelKey: BuiltinModel['id'], organization: ModelOrganization): Promise<ModelOrganization> {
+    const owner = await this.owner()
+    const org = parseModelOrganization({ tags: organization.tags, collection_ids: organization.collectionIds })
+    return parseModelOrganization(checkModelResponse(await this.client.rpc('update_builtin_model_organization', {
+      p_owner_id: owner, p_model_key: modelKey, p_tags: org.tags, p_collection_ids: org.collectionIds,
+    })))
+  }
+  async listBuiltinModelsInCollection(collectionId: string): Promise<BuiltinModel['id'][]> {
+    const owner = await this.owner()
+    const rows = checkModelResponse(await this.client.from('builtin_model_collection_items').select('model_key')
+      .eq('user_id', owner).eq('collection_id', uuid(collectionId))) ?? []
+    const keys = new Set(rows.map(row => row.model_key))
+    return BUILTIN_MODELS.map(model => model.id).filter(key => keys.has(key))
   }
   async updateMetadata(assetId: string, expectedVersion: number, metadata: ModelMetadata): Promise<ModelAsset> {
     const owner = await this.owner()

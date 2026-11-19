@@ -1,19 +1,73 @@
 import '../../../styles/reactView.css'
 import { useEffect, useState } from 'react'
-import { selectModelCanSave, useModelEditorStore } from '../../../features/models/state/modelEditorStore'
+import type { ReactNode } from 'react'
+import { selectModelCanSave, useModelEditorStore, type ModelEditorState } from '../../../features/models/state/modelEditorStore'
+import type { BuiltinModel } from '../../../features/models/domain/builtinModels'
 import { MODEL_MATERIAL_PRESETS } from '../../../features/models/materials/modelMaterials'
 import { Collapsible, NumberInputRow, PaletteColorRow, SelectRow, SliderRow, TextAreaRow, TextInputRow, ToggleRow } from '../react/ReactControlRows'
 import { IconChipButton } from '../react/controls/IconChipButton'
 import { ConfirmDialog } from '../react/controls/ConfirmDialog'
 import { NoticeCard } from '../react/controls/NoticeCard'
-import { RailWindowHeader } from '../layout/RailWindowHeader'
-import { RailTabs, type RailTabOption } from '../layout/RailTabs'
-import { TagsCollectionsGroup } from './MediaManagerInspector'
+import { MediaDetailsHeader, TagsCollectionsGroup, type MediaInspectorTab } from './MediaManagerInspector'
 import { AppIcon } from '../../shared/icons/AppIcon'
-const tabs: RailTabOption<'info' | 'edit' | 'output'>[] = [{ id: 'info', label: 'Info' }, { id: 'edit', label: 'Edit' }, { id: 'output', label: 'Output' }]
-export function ModelEditorInspector({ onSelectSource }: { onSelectSource?: () => void }) {
+
+function ModelInfoRow({ label, children }: { label: string; children: ReactNode }) {
+  return <div className="rv-ctrl-row">
+    <span className="rv-ctrl-label-cluster"><span className="rv-ctrl-label">{label}</span></span>
+    <span className="mmi-readonly">{children}</span>
+  </div>
+}
+
+function modelDimensions(model: ModelEditorState['model']) {
+  return model ? model.stats.bounds.max.map((n, i) => (n - model.stats.bounds.min[i]).toFixed(3)).join(' × ') : '—'
+}
+
+function ModelOrganizationFields({ state, disabled }: { state: ModelEditorState; disabled: boolean }) {
+  const patch = (organization: Partial<Pick<ModelEditorState, 'tags' | 'collectionIds'>>) => {
+    const current = useModelEditorStore.getState()
+    if (current.sessionKey === state.sessionKey) current.setMetadata(organization)
+  }
+  return <TagsCollectionsGroup idPrefix="model" tags={state.tags} collectionIds={state.collectionIds}
+    disabled={disabled} onTagsChange={tags => patch({ tags })} onCollectionIdsChange={collectionIds => patch({ collectionIds })} />
+}
+
+function BuiltinModelInspector({ model }: { model: BuiltinModel }) {
+  const state = useModelEditorStore()
+  const [tab, setTab] = useState<MediaInspectorTab>('info')
+  return <>
+    <MediaDetailsHeader activeTab={tab} onChange={setTab} />
+    {tab === 'info' && <div className="mmi-body mm-model-inspector">
+      <Collapsible label="Details" defaultOpen>
+        <ModelInfoRow label="Media Role">3D Model</ModelInfoRow>
+        <ModelInfoRow label="Title">{model.name}</ModelInfoRow>
+        <ModelInfoRow label="Description">{model.description}</ModelInfoRow>
+      </Collapsible>
+      <ModelOrganizationFields state={state} disabled={!state.savedMetadata || state.status === 'saving'} />
+      <Collapsible label="Additional Info" defaultOpen={false}>
+        <ModelInfoRow label="Dimensions">{modelDimensions(state.model)}</ModelInfoRow>
+        {state.model && <>
+          <ModelInfoRow label="Triangles">{state.model.stats.triangles.toLocaleString()}</ModelInfoRow>
+          <ModelInfoRow label="Meshes">{state.model.stats.meshes.toLocaleString()}</ModelInfoRow>
+        </>}
+        <ModelInfoRow label="Viewport">Drag to orbit, scroll to zoom, or use Fit Model and Reset Camera.</ModelInfoRow>
+      </Collapsible>
+      {state.builtinOrganizationLoading && <div role="status">Loading tags and collections…</div>}
+      {state.builtinOrganizationError && <NoticeCard tone="error" role="alert" title="Model organization unavailable">
+        {state.builtinOrganizationError}
+        {!state.savedMetadata && <IconChipButton onClick={() => { void state.loadBuiltinOrganization() }}>Retry tags and collections</IconChipButton>}
+      </NoticeCard>}
+    </div>}
+  </>
+}
+
+export function ModelEditorInspector(props: { onSelectSource?: () => void }) {
+  const builtin = useModelEditorStore(state => state.builtinModel)
+  return builtin ? <BuiltinModelInspector key={builtin.id} model={builtin} /> : <EditableModelInspector {...props} />
+}
+
+function EditableModelInspector({ onSelectSource }: { onSelectSource?: () => void }) {
   const s = useModelEditorStore(), canSave = useModelEditorStore(selectModelCanSave)
-  const [tab, setTab] = useState<'info' | 'edit' | 'output'>(() => useModelEditorStore.getState().asset ? 'info' : 'edit')
+  const [tab, setTab] = useState<MediaInspectorTab>(() => useModelEditorStore.getState().asset ? 'info' : 'edit')
   const [url, setUrl] = useState<string | null>(null), [copyName, setCopyName] = useState<string | null>(null)
   const [pendingVersion, setPendingVersion] = useState<number | null>(null), [revertOpen, setRevertOpen] = useState(false)
   useEffect(() => { if (!s.preview) { setUrl(null); return }; const next = URL.createObjectURL(s.preview); setUrl(next); return () => URL.revokeObjectURL(next) }, [s.preview])
@@ -21,7 +75,6 @@ export function ModelEditorInspector({ onSelectSource }: { onSelectSource?: () =
   const locked = busy || !!s.publishedVersion || !!s.pendingOperationId || !s.source
   const recipe = s.recipe
   const geometry = recipe?.geometry, preview = recipe?.preview
-  const size = s.model ? s.model.stats.bounds.max.map((n, i) => (n - s.model!.stats.bounds.min[i]).toFixed(3)).join(' × ') : '—'
   const loadVersion = (version: number) => { if (!s.asset) return; if (s.dirty) setPendingVersion(version); else s.load(s.asset, version) }
   const material = (region: 'front' | 'side') => {
     if (!recipe) return null
@@ -46,32 +99,26 @@ export function ModelEditorInspector({ onSelectSource }: { onSelectSource?: () =
       <SliderRow label="Opacity" value={value.opacity} min={0.05} max={1} disabled={locked} onChange={opacity => update({ opacity })} />
     </Collapsible>
   }
-  if (s.builtinModel) return <>
-    <RailWindowHeader side="right" icon={<AppIcon kind="layers" size={15} />} label="3D Model" />
-    <Collapsible label="Model Info" icon={<AppIcon kind="info" size={14} />}>
-      <p>{s.builtinModel.name}</p><p>{s.builtinModel.description}</p>
-      <p>Drag to orbit, scroll to zoom, or use Fit Model and Reset Camera.</p>
-      <p>Dimensions: {size}</p>
-      {s.model && <p>{s.model.stats.triangles.toLocaleString()} triangles · {s.model.stats.meshes} meshes</p>}
-    </Collapsible>
-  </>
-  return <><RailWindowHeader side="right" icon={<AppIcon kind="layers" size={15} />} label="3D Model" />
-    <RailTabs tabs={tabs} activeTab={tab} onChange={value => { if (value === 'info' || value === 'edit' || value === 'output') setTab(value) }} ariaLabel="Model inspector tabs" className="rv-main-workspace-tabs" variant="underline" />
+  return <>
+    <MediaDetailsHeader activeTab={tab} onChange={setTab} />
     <div className="mmi-body mm-model-inspector">
       {tab === 'info' && <>
-        <Collapsible label="Model Info" icon={<AppIcon kind="info" size={14} />}>
-          <TextInputRow label="Model name" value={s.name} maxLength={200} disabled={busy} onChange={name => s.setMetadata({ name })} />
+        <Collapsible label="Details" defaultOpen>
+          <ModelInfoRow label="Media Role">3D Model</ModelInfoRow>
+          <TextInputRow label="Title" value={s.name} maxLength={200} disabled={busy} onChange={name => s.setMetadata({ name })} />
           <TextAreaRow label="Description" value={s.description ?? ''} disabled={busy} onChange={description => s.setMetadata({ description: description.slice(0, 4000) || null })} />
           <ToggleRow label="Favorite model" value={s.favorite} disabled={busy} onChange={favorite => s.setMetadata({ favorite })} />
-          <p>{s.asset?.currentVersion ? `Version ${s.activeVersion} · Latest ${s.asset.currentVersion}` : 'Draft / Unsaved'}{s.dirty ? ' · Modified' : ''}</p>
-          <p>Dimensions: {size}</p>
-          {s.model && <p>{s.model.stats.triangles.toLocaleString()} triangles · {s.model.stats.vertices.toLocaleString()} vertices · {s.artifact?.materialCount ?? s.versions.find(v => v.version === s.activeVersion)?.geometryStats.materialCount ?? '—'} materials</p>}
+        </Collapsible>
+        <ModelOrganizationFields state={s} disabled={busy || s.status === 'loading-model'} />
+        <Collapsible label="Additional Info" defaultOpen={false}>
+          <ModelInfoRow label="Version">{s.asset?.currentVersion ? `${s.activeVersion} · Latest ${s.asset.currentVersion}` : 'Draft / Unsaved'}{s.dirty ? ' · Modified' : ''}</ModelInfoRow>
+          <ModelInfoRow label="Dimensions">{modelDimensions(s.model)}</ModelInfoRow>
+          {s.model && <ModelInfoRow label="Geometry">{s.model.stats.triangles.toLocaleString()} triangles · {s.model.stats.vertices.toLocaleString()} vertices · {s.artifact?.materialCount ?? s.versions.find(v => v.version === s.activeVersion)?.geometryStats.materialCount ?? '—'} materials</ModelInfoRow>}
           {s.sourceInfo && <p>Source snapshot: {s.sourceInfo.width} × {s.sourceInfo.height} · {s.sourceInfo.mimeType}</p>}
           {s.sourceMediaId && <IconChipButton disabled={!onSelectSource || busy} onClick={onSelectSource}>View source image</IconChipButton>}
           {!s.sourceMediaId && s.source && <p>Using the independent source snapshot.</p>}
           {s.asset && <><p>Owner: {s.asset.userId}</p><p>Modified: {new Date(s.asset.updatedAt).toLocaleString()}</p></>}
         </Collapsible>
-        <fieldset disabled={busy} className="mm-model-organization"><TagsCollectionsGroup idPrefix="model" tags={s.tags} onTagsChange={tags => s.setMetadata({ tags })} collectionIds={s.collectionIds} onCollectionIdsChange={collectionIds => s.setMetadata({ collectionIds })} /></fieldset>
       </>}
       {tab === 'edit' && recipe && <>
         <Collapsible label="Source Preparation" icon={<AppIcon kind="image" size={14} />}>

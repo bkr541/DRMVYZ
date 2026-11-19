@@ -4,5 +4,6 @@ export const BUILTIN_MODELS = [{
   name: 'DVYDRM Wordmark',
   description: 'The original 3D DVYDRM wordmark used in Conduit, with pearl letters, chrome ring and amber edge materials.',
   url: '/cinema2/models/conduit-wordmark.glb',
+  thumbnailUrl: '/cinema2/models/conduit-wordmark-thumbnail.webp',
 }] as const
 export type BuiltinModel = typeof BUILTIN_MODELS[number]

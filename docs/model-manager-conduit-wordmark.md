@@ -2,7 +2,11 @@
 
 Media Manager → 3D Models now includes **DVYDRM Wordmark**, the same standalone GLB used by Conduit (`/cinema2/models/conduit-wordmark.glb`). Selecting it opens the existing true-3D studio viewport with orbit, pan, zoom, Fit Model and Reset Camera. The original pearl, chrome and amber materials and all seven meshes are retained; Conduit and its shipped model bytes are unchanged.
 
-The wordmark is a built-in, view-only library item. It does not require creating an account-owned model record or generating another extrusion. It participates in model search and grid/list display, and stays out of personal Favorites and collection results. Generation, save and deletion actions are unavailable for this preview. Existing image-source creation and saved model workflows continue through their existing paths.
+The wordmark is a built-in library item. Its Media Details inspector has Info, Edit, and Output tabs. Info contains Details, Tags & Collections, and Additional Info. Edit and Output are empty for the wordmark. User-created models use the same Info groups and keep their editing and export tools.
+
+Use the shared Tags & Collections fields and the header's **Save Changes** action to organize the wordmark. It appears in the collections you assign. Migration `0057_builtin_model_organization.sql` stores each account's assignments separately, using the same tags and collections as other media.
+
+The library uses larger model thumbnails in both grid and list view. The wordmark card displays a bundled WebP rendered from the original GLB with the studio viewport's lighting. Saved model cards display the thumbnail of their current version. To refresh the bundled image after a model change, run `node scripts/model-assets/verify-conduit-wordmark.mjs --write-thumbnail`.
 
 The loader shares the saved-model GLB validation and geometry budgets. Known built-in IDs resolve to shipped URLs; arbitrary URLs cannot be injected. Selection replacement/account changes/discard cancel pending loads, and late results and active model resources are disposed. Failed loads can be retried by selecting the wordmark again.
 

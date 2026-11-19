@@ -3,8 +3,8 @@
 import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-const mocks = vi.hoisted(() => ({ list: vi.fn(), update: vi.fn(), sign: vi.fn() }))
-vi.mock('../../../features/models/data/modelAssetRepository', () => ({ modelAssetRepository: { list: mocks.list, update: mocks.update, signedUrl: mocks.sign } }))
+const mocks = vi.hoisted(() => ({ list: vi.fn(), update: vi.fn(), sign: vi.fn(), collectionBuiltins: vi.fn() }))
+vi.mock('../../../features/models/data/modelAssetRepository', () => ({ modelAssetRepository: { list: mocks.list, update: mocks.update, signedUrl: mocks.sign, listBuiltinModelsInCollection: mocks.collectionBuiltins } }))
 vi.mock('../../../stores/mediaStore', () => ({ useMediaStore: (select: (s: { accountId: string }) => unknown) => select({ accountId: 'owner' }) }))
 import { ModelLibraryCards } from './ModelLibraryCards'
 import { useModelEditorStore } from '../../../features/models/state/modelEditorStore'
@@ -12,7 +12,7 @@ const asset = (id: string, favorite = false) => ({ id, name: `Model ${id}`, curr
 let host: HTMLDivElement, root: ReturnType<typeof createRoot>
 const props = { search: '', favorites: false, viewMode: 'grid' as const, activeId: null, onSelect: vi.fn() }
 async function render(overrides: Partial<React.ComponentProps<typeof ModelLibraryCards>> = {}) { await act(async () => root.render(<ModelLibraryCards {...props} {...overrides} />)) }
-beforeEach(() => { vi.clearAllMocks(); mocks.list.mockResolvedValue({ items: [asset('shared-id')], nextCursor: null }); mocks.sign.mockRejectedValue(new Error('No thumbnail')); host = document.createElement('div'); document.body.append(host); root = createRoot(host) })
+beforeEach(() => { vi.clearAllMocks(); mocks.list.mockResolvedValue({ items: [asset('shared-id')], nextCursor: null }); mocks.sign.mockRejectedValue(new Error('No thumbnail')); mocks.collectionBuiltins.mockResolvedValue([]); host = document.createElement('div'); document.body.append(host); root = createRoot(host) })
 afterEach(() => { act(() => root.unmount()); host.remove(); useModelEditorStore.getState().reset() })
 describe('model card paging and interactions', () => {
   it('selects a typed model identity and persists favorites with no image adapter', async () => {
@@ -43,6 +43,17 @@ describe('model card paging and interactions', () => {
     expect(host.textContent).toContain('Model filtered'); expect(host.textContent).not.toContain('Model old')
     expect(host.querySelector('.mm-model-card--list')).not.toBeNull()
   })
+  it('shows the built-in render and the saved version thumbnail in both layouts', async () => {
+    const savedUrl = 'https://example.invalid/model-v1.png'
+    mocks.sign.mockResolvedValue({ url: savedUrl })
+    for (const viewMode of ['grid', 'list'] as const) {
+      await render({ viewMode, onSelectBuiltin: vi.fn() })
+      const thumbnail = (name: string) => host.querySelector<HTMLImageElement>(`[aria-label="Select 3D model ${name}"] .mm-model-card-preview img`)
+      expect(thumbnail('DVYDRM Wordmark')?.getAttribute('src')).toBe('/cinema2/models/conduit-wordmark-thumbnail.webp')
+      expect(thumbnail('Model shared-id')?.src).toBe(savedUrl)
+    }
+    expect(mocks.sign).toHaveBeenCalledWith('shared-id', 1, 'thumbnailPath')
+  })
   it('uses the shared group header and preserves the model page across collapse/reopen', async () => {
     await render()
     const header = host.querySelector<HTMLButtonElement>('.drc-header')!
@@ -72,4 +83,8 @@ it('shows the original Conduit wordmark in the model library and keeps it out of
  await render({onSelectBuiltin:select,search:'unrelated'});expect(host.textContent).not.toContain('DVYDRM Wordmark')
  await render({onSelectBuiltin:select,favorites:true});expect(host.textContent).not.toContain('DVYDRM Wordmark')
  await render({onSelectBuiltin:select,collectionId:'collection'});expect(host.textContent).not.toContain('DVYDRM Wordmark')
+ mocks.collectionBuiltins.mockResolvedValue(['builtin-conduit-dvydrm-wordmark'])
+ await render({onSelectBuiltin:select,collectionId:'assigned-collection'})
+ expect(host.textContent).toContain('DVYDRM Wordmark')
+ expect(mocks.collectionBuiltins).toHaveBeenLastCalledWith('assigned-collection')
 })

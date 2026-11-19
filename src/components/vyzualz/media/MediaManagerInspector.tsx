@@ -46,12 +46,14 @@ export function TagsCollectionsGroup({
   collectionIds,
   onCollectionIdsChange,
   idPrefix = 'mmi',
+  disabled = false,
 }: {
   tags: string[]
   onTagsChange: (tags: string[]) => void
   collectionIds: string[]
   onCollectionIdsChange: (collectionIds: string[]) => void
   idPrefix?: string
+  disabled?: boolean
 }) {
   const { collections, createCollection } = useMediaStore(useShallow(state => ({
     collections: state.collections,
@@ -93,6 +95,7 @@ export function TagsCollectionsGroup({
         <DreamVizTextInput
           id={`${idPrefix}-tags`}
           className="mmi-chip-input"
+          disabled={disabled}
           placeholder="Type to add tags…"
           value={tagInput}
           onChange={event => setTagInput(formatTagTyping(event.target.value))}
@@ -103,7 +106,7 @@ export function TagsCollectionsGroup({
         />
         {tags.length > 0 && (
           <div className="mmi-chip-field">
-            {tags.map(tag => <Badge key={tag} label={tag} tone="#4ac7db" onRemove={() => onTagsChange(tags.filter(candidate => candidate !== tag))} removeLabel="Remove tag" />)}
+            {tags.map(tag => <Badge key={tag} label={tag} tone="#4ac7db" onRemove={disabled ? undefined : () => onTagsChange(tags.filter(candidate => candidate !== tag))} removeLabel="Remove tag" />)}
           </div>
         )}
       </div>
@@ -113,6 +116,7 @@ export function TagsCollectionsGroup({
         </span>
         <Dropdown
           id={`${idPrefix}-collections`}
+          disabled={disabled}
           searchable
           searchValue={collInput}
           onSearchChange={setCollInput}
@@ -128,7 +132,7 @@ export function TagsCollectionsGroup({
         {collectionIds.length > 0 && (
           <div className="mmi-chip-field">
             {collectionIds.map(id => (
-              <Badge key={id} label={collections.find(collection => collection.id === id)?.name ?? id} tone="#b84fc9" onRemove={() => onCollectionIdsChange(collectionIds.filter(candidate => candidate !== id))} removeLabel="Remove collection" />
+              <Badge key={id} label={collections.find(collection => collection.id === id)?.name ?? id} tone="#b84fc9" onRemove={disabled ? undefined : () => onCollectionIdsChange(collectionIds.filter(candidate => candidate !== id))} removeLabel="Remove collection" />
             ))}
           </div>
         )}
@@ -496,13 +500,21 @@ function FontInspector({
 
 // ── Panel ─────────────────────────────────────────────────────────────────────
 
-type MediaInspectorTab = 'info' | 'edit' | 'output'
+export type MediaInspectorTab = 'info' | 'edit' | 'output'
 
 const MEDIA_INSPECTOR_TABS: RailTabOption<MediaInspectorTab>[] = [
   { id: 'info', label: 'Info' },
   { id: 'edit', label: 'Edit' },
   { id: 'output', label: 'Output' },
 ]
+
+export function MediaDetailsHeader({ activeTab, onChange }: { activeTab: MediaInspectorTab; onChange(tab: MediaInspectorTab): void }) {
+  return <>
+    <RailWindowHeader side="right" icon={<AppIcon kind="info" size={15} color="currentColor" aria-hidden="true" />} label="Media Details" />
+    <RailTabs tabs={MEDIA_INSPECTOR_TABS} activeTab={activeTab} onChange={onChange}
+      ariaLabel="Media Manager inspector tabs" className="rv-main-workspace-tabs" variant="underline" />
+  </>
+}
 
 export function MediaManagerInspector({
   media,
@@ -528,19 +540,7 @@ export function MediaManagerInspector({
   const [activeTab, setActiveTab] = useState<MediaInspectorTab>('info')
   return (
     <>
-      <RailWindowHeader
-        side="right"
-        icon={<AppIcon kind="info" size={15} color="currentColor" aria-hidden="true" />}
-        label="Media Details"
-      />
-      <RailTabs
-        tabs={MEDIA_INSPECTOR_TABS}
-        activeTab={activeTab}
-        onChange={setActiveTab}
-        ariaLabel="Media Manager inspector tabs"
-        className="rv-main-workspace-tabs"
-        variant="underline"
-      />
+      <MediaDetailsHeader activeTab={activeTab} onChange={setActiveTab} />
       {/* Output is intentionally empty for now. */}
       {activeTab === 'edit' && (
         media ? (

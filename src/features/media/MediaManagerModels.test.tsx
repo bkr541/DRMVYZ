@@ -3,18 +3,22 @@
 import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-const mocks = vi.hoisted(() => ({ browser: {} as Record<string, unknown>, actions: { onSave: vi.fn(), onDelete: vi.fn(), saving: false, deleting: false }, import: vi.fn() }))
-vi.mock('../../stores/mediaStore', () => ({ useMediaStore: Object.assign((selector: (state: unknown) => unknown) => selector({ items: [{ id: 'image-1', dbId: 'image-1', type: 'image', name: 'Logo' }], openImportMediaModal: mocks.import, openCollectionEditor: vi.fn() }), { getState: () => ({ items: [], ensureMediaSigned: vi.fn() }) }) }))
+const mocks = vi.hoisted(() => ({ browser: {} as Record<string, unknown>, actions: { onSave: vi.fn(), onDelete: vi.fn(), saving: false, deleting: false }, import: vi.fn(), collections: [] }))
+vi.mock('../../stores/mediaStore', () => ({ useMediaStore: Object.assign((selector: (state: unknown) => unknown) => selector({ items: [{ id: 'image-1', dbId: 'image-1', type: 'image', name: 'Logo' }], openImportMediaModal: mocks.import, openCollectionEditor: vi.fn(), collections: mocks.collections }), { getState: () => ({ items: [], ensureMediaSigned: vi.fn() }) }) }))
 vi.mock('../../stores/audioStore', () => ({ useAudioStore: (selector: (state: unknown) => unknown) => selector({ savedTracks: [{ id: 'track-1' }] }) }))
 vi.mock('../../components/vyzualz/media/MediaLibraryBrowser', () => ({ MediaLibraryBrowser: (props: Record<string, unknown>) => { mocks.browser = props; return <div /> } }))
 vi.mock('../../components/vyzualz/media/MediaManagerStage', () => ({ MediaManagerStage: () => <div data-testid="image-stage" /> }))
 vi.mock('../../components/vyzualz/media/ModelEditorStage', () => ({ ModelEditorStage: () => <div data-testid="model-stage" /> }))
-vi.mock('../../components/vyzualz/media/MediaManagerInspector', () => ({ MediaManagerInspector: ({ media, onHeaderActions, onCreateModel }: { media: { id: string } | null; onHeaderActions(actions: typeof mocks.actions): void; onCreateModel(media: { id: string }): void }) => { React.useEffect(() => onHeaderActions(mocks.actions), [onHeaderActions]); return media ? <button type="button" aria-label="Create 3D Model" onClick={() => onCreateModel(media)} /> : <div /> } }))
+vi.mock('../../components/vyzualz/media/MediaManagerInspector', async importOriginal => ({
+  ...await importOriginal<typeof import('../../components/vyzualz/media/MediaManagerInspector')>(),
+  MediaManagerInspector: ({ media, onHeaderActions, onCreateModel }: { media: { id: string } | null; onHeaderActions(actions: typeof mocks.actions): void; onCreateModel(media: { id: string }): void }) => { React.useEffect(() => onHeaderActions(mocks.actions), [onHeaderActions]); return media ? <button type="button" aria-label="Create 3D Model" onClick={() => onCreateModel(media)} /> : <div /> },
+}))
 import { MediaManagerView } from './MediaManagerView'
 import { useModelEditorStore } from '../models/state/modelEditorStore'
 import { registerModelViewport } from '../models/state/modelViewportBridge'
 import { MEDIA_DECK_CAPABILITIES, MEDIA_MANAGER_CAPABILITIES } from '../../components/vyzualz/media/mediaLibraryCapabilities'
 import { useMediaEditStore } from '../../stores/mediaEditStore'
+import { BUILTIN_MODELS } from '../models/domain/builtinModels'
 let container: HTMLDivElement, root: ReturnType<typeof createRoot>
 const button = (label: string) => [...document.querySelectorAll<HTMLButtonElement>('button')].find(b => b.getAttribute('aria-label') === label || b.textContent?.trim() === label)!
 async function invoke(name: string, value: unknown) { await act(async () => { (mocks.browser[name] as (value: unknown) => void)(value) }) }
@@ -109,12 +113,23 @@ describe('model mode selection and guards', () => {
 })
 
 
-it('opens the supplied wordmark in model mode with view controls and no editing actions',async()=>{
- const builtin={id:'builtin-conduit-dvydrm-wordmark',name:'DVYDRM Wordmark',url:'/cinema2/models/conduit-wordmark.glb'}
- const load=vi.spyOn(useModelEditorStore.getState(),'loadBuiltin').mockImplementation(model=>useModelEditorStore.setState({id:model.id,builtinModel:model,name:model.name,dirty:false}))
+it('opens the wordmark with the standard Info groups, editable organization, and empty Edit and Output tabs',async()=>{
+ const builtin=BUILTIN_MODELS[0]
+ const load=vi.spyOn(useModelEditorStore.getState(),'loadBuiltin').mockImplementation(model=>useModelEditorStore.setState({
+   id:model.id,builtinModel:model,name:model.name,dirty:false,
+   savedMetadata:{name:model.name,description:model.description,favorite:false,tags:[],collectionIds:[]},
+ }))
  await invoke('onSelectBuiltinModel',builtin)
  expect(load).toHaveBeenCalledWith(builtin);expect(container.querySelector('[data-testid="model-stage"]')).not.toBeNull()
  expect(button('Generate 3D Model')).toBeUndefined();expect(button('Regenerate 3D Model')).toBeUndefined()
  expect(button('Save Changes').disabled).toBe(true);expect(button('Delete Media').disabled).toBe(true)
  expect(button('Fit Model')).toBeDefined();expect(button('Reset Camera')).toBeDefined()
+ expect(button('Info').getAttribute('aria-selected')).toBe('true')
+ expect(container.textContent).toContain('Media Details')
+ expect(Array.from(container.querySelectorAll('.mm-model-inspector .drc-header')).map(header => header.textContent)).toEqual(['Details', 'Tags & Collections', 'Additional Info'])
+ expect(container.querySelector<HTMLInputElement>('#model-tags')?.disabled).toBe(false)
+ for (const tab of ['Edit', 'Output']) {
+   await act(async () => button(tab).click())
+   expect(container.querySelector('.mm-model-inspector')).toBeNull()
+ }
 })

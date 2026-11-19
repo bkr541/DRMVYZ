@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { ConfirmDialog } from '../react/controls/ConfirmDialog'
 import { selectModelCanSave, useModelEditorStore } from '../../../features/models/state/modelEditorStore'
 export function UnsavedModelChangesDialog({ open, onCancel, onProceed }: { open: boolean; onCancel(): void; onProceed(): void }) {
-  const dirty = useModelEditorStore(s => s.dirty), status = useModelEditorStore(s => s.status), error = useModelEditorStore(s => s.error)
+  const dirty = useModelEditorStore(s => s.dirty), status = useModelEditorStore(s => s.status), error = useModelEditorStore(s => s.builtinModel ? s.builtinOrganizationError : s.error)
   const canSave = useModelEditorStore(selectModelCanSave), busy = status === 'saving' || status === 'deleting'
   useEffect(() => { if (open && !dirty && !busy) onProceed() }, [open, dirty, busy, onProceed])
   if (!open) return null

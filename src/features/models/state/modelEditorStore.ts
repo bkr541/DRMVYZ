@@ -20,11 +20,14 @@ export interface ModelEditorState extends ModelMetadata {
   dirty: boolean; generationPending: boolean
   status: 'idle' | 'loading-source' | 'preparing' | 'generating' | 'loading-model' | 'ready' | 'error' | 'saving' | 'deleting'
   saveFailure: boolean
+  builtinOrganizationLoading: boolean
+  builtinOrganizationError: string | null
   error: string | null; progress: string | null; warnings: string[]; needsConfirmation: boolean; confirmed: boolean
   saveTarget: ModelAsset | null; publishedVersion: ModelAssetVersion | null; pendingOperationId: string | null
   begin(source: UploadedMedia): string
   load(asset: ModelAsset, version?: number): void
   loadBuiltin(model: BuiltinModel): void
+  loadBuiltinOrganization(): Promise<void>
   retrySource(): Promise<void>; prepare(): Promise<void>
   setRecipe(patch: Partial<ModelGeneratorRecipe>): void
   setMetadata(patch: Partial<ModelMetadata>): void
@@ -39,6 +42,7 @@ let generationTimer: ReturnType<typeof setTimeout> | null = null
 const baseline = () => ({ builtinModel: null, id: null, sessionKey: 0, sourceMediaId: null, name: '', description: null, favorite: false, tags: [], collectionIds: [],
   asset: null, activeVersion: 0, versions: [], source: null, sourceInfo: null, recipe: null, savedRecipe: null, savedMetadata: null, model: null, artifact: null, preview: null,
   dirty: false, generationPending: false, status: 'idle' as const, saveFailure: false, error: null, progress: null, warnings: [], needsConfirmation: false, confirmed: false,
+  builtinOrganizationLoading: false, builtinOrganizationError: null,
   saveTarget: null, publishedVersion: null, pendingOperationId: null })
 function message(error: unknown) { return error instanceof Error ? error.message : 'The model operation failed.' }
 const metadata = (state: ModelMetadata): ModelMetadata => ({ name: state.name, description: state.description, favorite: state.favorite, tags: [...state.tags], collectionIds: [...state.collectionIds] })
@@ -48,7 +52,9 @@ const busy = (state: ModelEditorState) => state.status === 'saving' || state.sta
 export const selectModelEditorNeedsGuard = (state: ModelEditorState) => state.dirty || busy(state)
 /** Whether Generate 3D Model (or Regenerate) can run now: a prepared preview exists, the foreground is confirmed where that is required, and the model is not busy, published or locked. */
 export const selectModelCanGenerate = (state: ModelEditorState) => !(busy(state) || !!state.publishedVersion || !!state.pendingOperationId || !state.source) && !!state.preview && !(state.needsConfirmation && !state.confirmed)
-export const selectModelCanSave = (state: ModelEditorState) => !!state.name.trim() && state.dirty && !busy(state) && !state.generationPending && !!state.model && !!state.recipe && (state.artifact ? geometryKey(state.artifact.recipe) === geometryKey(state.recipe) : JSON.stringify(state.recipe) === JSON.stringify(state.savedRecipe)) && (!state.needsConfirmation || state.confirmed) && (!state.error || state.saveFailure || !!state.saveTarget || !!state.pendingOperationId || !!state.publishedVersion)
+export const selectModelCanSave = (state: ModelEditorState) => state.builtinModel
+  ? !!state.savedMetadata && state.dirty && !busy(state) && state.status !== 'loading-model'
+  : !!state.name.trim() && state.dirty && !busy(state) && !state.generationPending && !!state.model && !!state.recipe && (state.artifact ? geometryKey(state.artifact.recipe) === geometryKey(state.recipe) : JSON.stringify(state.recipe) === JSON.stringify(state.savedRecipe)) && (!state.needsConfirmation || state.confirmed) && (!state.error || state.saveFailure || !!state.saveTarget || !!state.pendingOperationId || !!state.publishedVersion)
 async function originalImage(media: UploadedMedia, signal: AbortSignal): Promise<Blob> {
   if (media.type !== 'image' || media.uploading || media.uploadError || !media.dbId) throw new Error('Select a successfully uploaded image to create a model.')
   await useMediaStore.getState().ensureMediaSigned([media.id], 'visible')
@@ -71,8 +77,29 @@ export const useModelEditorStore = create<ModelEditorState>((set, get) => {
   function stopTimer() { if (generationTimer) clearTimeout(generationTimer); generationTimer = null }
   function start() { controller?.abort(); controller = new AbortController(); return { signal: controller.signal, token: ++revision } }
   function current(token: number) { return revision === token }
-  function dirty() { const s = get(); return !s.asset?.currentVersion || JSON.stringify(metadata(s)) !== JSON.stringify(s.savedMetadata) || JSON.stringify(s.recipe) !== JSON.stringify(s.savedRecipe) }
+  function dirty() {
+    const s = get()
+    const metadataChanged = JSON.stringify(metadata(s)) !== JSON.stringify(s.savedMetadata)
+    return s.builtinModel ? metadataChanged : !s.asset?.currentVersion || metadataChanged || JSON.stringify(s.recipe) !== JSON.stringify(s.savedRecipe)
+  }
   function disposeCurrent() { const s = get(); s.model?.dispose(); if (s.artifact && s.artifact !== s.model) s.artifact.dispose() }
+  async function saveBuiltinOrganization(model: BuiltinModel): Promise<ModelSaveOutcome> {
+    const state = get()
+    if (!selectModelCanSave(state)) return { ok: false }
+    set({ status: 'saving', builtinOrganizationError: null })
+    try {
+      const organization = await modelAssetRepository.updateBuiltinOrganization(model.id, { tags: state.tags, collectionIds: state.collectionIds })
+      if (get().sessionKey !== state.sessionKey) return { ok: false }
+      set(s => ({
+        ...organization, savedMetadata: metadata({ ...s, ...organization }),
+        dirty: false, status: state.status, libraryRevision: s.libraryRevision + 1,
+      }))
+      return { ok: true, id: model.id, version: 0 }
+    } catch (error) {
+      if (get().sessionKey === state.sessionKey) set({ status: state.status, builtinOrganizationError: message(error) })
+      return { ok: false }
+    }
+  }
   return {
     ...baseline(), libraryRevision: 0,
     reset() { stopTimer(); controller?.abort(); controller = null; revision++; disposeCurrent(); set(baseline()) },
@@ -97,6 +124,7 @@ export const useModelEditorStore = create<ModelEditorState>((set, get) => {
     loadBuiltin(builtinModel) {
       get().reset(); const { signal, token } = start()
       set({ builtinModel, id: builtinModel.id, name: builtinModel.name, description: builtinModel.description, sessionKey: ++sessionSerial, status: 'loading-model' })
+      void get().loadBuiltinOrganization()
       void (async () => {
         try {
           const { loadBuiltinModelPreview } = await import('../data/loadModelPreview')
@@ -105,6 +133,18 @@ export const useModelEditorStore = create<ModelEditorState>((set, get) => {
           set({ model, status: 'ready' })
         } catch(error) { if (current(token)) set({ status: 'error', error: message(error) }) }
       })()
+    },
+    async loadBuiltinOrganization() {
+      const { builtinModel, sessionKey, savedMetadata, builtinOrganizationLoading } = get()
+      if (!builtinModel || savedMetadata || builtinOrganizationLoading) return
+      set({ builtinOrganizationLoading: true, builtinOrganizationError: null })
+      try {
+        const organization = await modelAssetRepository.getBuiltinOrganization(builtinModel.id)
+        if (get().sessionKey !== sessionKey) return
+        set(s => ({ ...organization, savedMetadata: metadata({ ...s, ...organization }), builtinOrganizationLoading: false }))
+      } catch (error) {
+        if (get().sessionKey === sessionKey) set({ builtinOrganizationLoading: false, builtinOrganizationError: message(error) })
+      }
     },
     load(asset, selectedVersion = asset.currentVersion) {
       get().reset(); const { signal, token } = start()
@@ -139,7 +179,18 @@ export const useModelEditorStore = create<ModelEditorState>((set, get) => {
       })()
     },
     acceptFavorite(assetId, favorite) { if (get().asset?.id !== assetId) return; set(s => ({ favorite, asset: s.asset ? { ...s.asset, favorite } : null, savedMetadata: s.savedMetadata ? { ...s.savedMetadata, favorite } : null })); set({ dirty: dirty() }) },
-    setMetadata(patch) { if (busy(get())) return; set(patch); set({ dirty: dirty(), error: null, saveFailure: false }) },
+    setMetadata(patch) {
+      const state = get()
+      if (busy(state)) return
+      if (state.builtinModel) {
+        if (!state.savedMetadata) return
+        set({ tags: patch.tags ?? state.tags, collectionIds: patch.collectionIds ?? state.collectionIds, builtinOrganizationError: null })
+        set({ dirty: dirty() })
+      } else {
+        set(patch)
+        set({ dirty: dirty(), error: null, saveFailure: false })
+      }
+    },
     setRecipe(patch) {
       const state = get(), recipe = state.recipe
       if (!recipe || busy(state) || state.publishedVersion || state.pendingOperationId) return
@@ -201,6 +252,8 @@ export const useModelEditorStore = create<ModelEditorState>((set, get) => {
     },
     async save(asNewName) {
       if (busy(get())) return { ok: false }
+      const { builtinModel } = get()
+      if (builtinModel) return asNewName ? { ok: false } : saveBuiltinOrganization(builtinModel)
       stopTimer()
       if (asNewName) set({ name: asNewName, saveTarget: null, publishedVersion: null, pendingOperationId: null, dirty: true })
       const s = get()

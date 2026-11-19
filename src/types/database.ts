@@ -783,6 +783,8 @@ export interface Database {
     Functions: {
       get_model_organization: { Args: { p_model_id: string }; Returns: Json }
       update_model_metadata: { Args: { p_model_id: string; p_expected_version: number; p_name: string; p_description: string | null; p_favorite: boolean; p_tags: string[]; p_collection_ids: string[] }; Returns: Json }
+      get_builtin_model_organization: { Args: { p_model_key: string }; Returns: Json }
+      update_builtin_model_organization: { Args: { p_owner_id: string; p_model_key: string; p_tags: string[]; p_collection_ids: string[] }; Returns: Json }
       begin_model_version: {
         Args: { p_model_id: string; p_operation_id: string; p_expected_version: number; p_source_extension: string; p_has_thumbnail: boolean; p_recipe: Json; p_stats: Json }
         Returns: Json
@@ -948,6 +950,18 @@ export interface Database {
       model_version_operations: {
         Row: DBRec<ModelVersionOperationRow>; Insert: never; Update: never
         Relationships: [{ foreignKeyName: 'model_version_operations_model_asset_id_fkey'; columns: ['model_asset_id']; isOneToOne: false; referencedRelation: 'model_assets'; referencedColumns: ['id'] }]
+      }
+      builtin_model_collection_items: {
+        Row: { user_id: string; model_key: string; collection_id: string }
+        Insert: { user_id: string; model_key: string; collection_id: string }
+        Update: Partial<{ user_id: string; model_key: string; collection_id: string }>
+        Relationships: []
+      }
+      builtin_model_tags: {
+        Row: { user_id: string; model_key: string; tag_id: string }
+        Insert: { user_id: string; model_key: string; tag_id: string }
+        Update: Partial<{ user_id: string; model_key: string; tag_id: string }>
+        Relationships: []
       }
       model_collection_items: {
         Row: DBRec<ModelCollectionItemRow>
