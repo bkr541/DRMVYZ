@@ -15,3 +15,7 @@ Validation: 20 focused library, manager-selection and built-in lifecycle tests p
 A broader existing editor-store suite has four image-source generation failures. The first failing case was reproduced against the unmodified HEAD store, independently of this feature; it was not changed or repeatedly rerun. The new built-in lifecycle tests pass.
 
 Changes are uncommitted. The pre-existing deletion of the source crate Bass Sigil GLB is unrelated and was left untouched.
+
+## Regenerating the thumbnail
+
+`public/cinema2/models/conduit-wordmark-thumbnail.webp` is generated, not hand-made: run `node scripts/model-assets/verify-conduit-wordmark.mjs --write-thumbnail` after changing `conduit-wordmark.glb` (it captures the model, crops to the wordmark and writes the file). Nothing detects a stale thumbnail on its own.

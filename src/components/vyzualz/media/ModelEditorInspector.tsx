@@ -1,5 +1,6 @@
 import '../../../styles/reactView.css'
 import { useEffect, useState } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import type { ReactNode } from 'react'
 import { selectModelCanSave, useModelEditorStore, type ModelEditorState } from '../../../features/models/state/modelEditorStore'
 import type { BuiltinModel } from '../../../features/models/domain/builtinModels'
@@ -22,7 +23,7 @@ function modelDimensions(model: ModelEditorState['model']) {
   return model ? model.stats.bounds.max.map((n, i) => (n - model.stats.bounds.min[i]).toFixed(3)).join(' × ') : '—'
 }
 
-function ModelOrganizationFields({ state, disabled }: { state: ModelEditorState; disabled: boolean }) {
+function ModelOrganizationFields({ state, disabled }: { state: Pick<ModelEditorState, 'tags' | 'collectionIds' | 'sessionKey'>; disabled: boolean }) {
   const patch = (organization: Partial<Pick<ModelEditorState, 'tags' | 'collectionIds'>>) => {
     const current = useModelEditorStore.getState()
     if (current.sessionKey === state.sessionKey) current.setMetadata(organization)
@@ -32,7 +33,11 @@ function ModelOrganizationFields({ state, disabled }: { state: ModelEditorState;
 }
 
 function BuiltinModelInspector({ model }: { model: BuiltinModel }) {
-  const state = useModelEditorStore()
+  // Only the fields this panel shows, so generation progress and other editor changes do not re-render it.
+  const state = useModelEditorStore(useShallow(s => ({
+    tags: s.tags, collectionIds: s.collectionIds, sessionKey: s.sessionKey, savedMetadata: s.savedMetadata, status: s.status, model: s.model,
+    builtinOrganizationLoading: s.builtinOrganizationLoading, builtinOrganizationError: s.builtinOrganizationError, loadBuiltinOrganization: s.loadBuiltinOrganization,
+  })))
   const [tab, setTab] = useState<MediaInspectorTab>('info')
   return <>
     <MediaDetailsHeader activeTab={tab} onChange={setTab} />

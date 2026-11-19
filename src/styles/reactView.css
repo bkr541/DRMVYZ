@@ -18771,6 +18771,11 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   bottom: auto;
 }
 
+/* Two notes can show at once (Phase Portal's signal line and the font loading message): the second sits below the first. */
+.rv-xyscope-note--top + .rv-xyscope-note--top {
+  top: 36px;
+}
+
 .rv-headliner-surface {
   width: 100%;
   height: 100%;

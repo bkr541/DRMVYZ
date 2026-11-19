@@ -602,8 +602,11 @@ export class XyScopeRuntime {
     this.phasePortalActive = portalSettings != null
     engine.setPhasePortal(portalSettings ? this.phasePortal : null)
     if (this.osc1Renderer.resize(this.width, this.height)) this.needsClear = true
+    // A seek restarts either variant. Phase Portal also restarts on a loop wrap or a replaced track (its captured trace and its turn belong to one stretch of
+    // audio), and only on a frame that carries new audio, so one discontinuity restarts it once.
     const discontinuity = portalSettings ? input.fresh && hasXyScopeDiscontinuity(input.context) : input.context?.seekDetected
-    const reset = variantChanged || (entering && portalSettings != null) || this.osc2ResetSeen !== o.resetSignals || discontinuity
+    const sceneChanged = variantChanged || (entering && portalSettings != null)
+    const reset = sceneChanged || this.osc2ResetSeen !== o.resetSignals || discontinuity
     if (reset) {
       this.osc2ResetSeen = o.resetSignals
       engine.reset(); this.osc1Analyzer.reset(); this.osc1Conductor.reset(); this.osc2Auto.reset(); this.osc2Output = null
@@ -654,29 +657,40 @@ export class XyScopeRuntime {
     engine.setSettings(effective, o.floor)
     const clock = this.clockFor(input.context, o.bpmSync, playing, dt)
     engine.tick(dt, features, playing, clock, !portalSettings || input.stereo != null)
-    if (portalSettings) {
-      const c = input.context
-      const mapped = c?.capabilities.sections === true
-      const active = playing && o.autoPerformance
-      const drop = active && input.fresh && mapped && resolveXyScopeTriggerEventId(c, this.phasePortalPrevious, 'drop', 0) != null
-      const bassOnset = playing ? (features.onsets?.[0] ?? 0) : 0
-      const localKick = bassOnset >= .55 && !this.phasePortalBassHit
-      const kick = c?.capabilities.rhythmEvents ? input.fresh && c.kick : localKick
-      if (bassOnset >= .55 || bassOnset < .24) this.phasePortalBassHit = bassOnset >= .55
-      if (input.fresh) this.phasePortalPrevious = c
-      const beats = playing ? clock.motionDt * REFERENCE_BPM / 60 : 0
-      this.phasePortal.tick(beats, active ? engine.f.bass : 0, build, drop, active && !mapped && kick && !discontinuity, engine.fitWidth)
-      if (!o.hold || reset) this.phasePortalScope.update(playing && !discontinuity ? input.stereo : null)
-      this.osc1Source = this.phasePortalScope.source === 'unavailable' ? 'none' : this.phasePortalScope.source
-    }
+    if (portalSettings) this.stepPhasePortal(portalSettings, input, features, clock, build, playing, reset === true, discontinuity === true)
     this.osc1Renderer.render(engine, {
       dt, settings: effective, grid: false, hold: o.hold && !(portalSettings && redraw),
       stageHeight: portalSettings ? PHASE_PORTAL_SCENE_HEIGHT : 1,
     })
-    if (portalSettings) {
-      const ctx = this.canvas.getContext('2d', { alpha: false })
-      if (ctx) this.phasePortalScope.draw(ctx, portalSettings.traceMode, o.values.color, this.canvas.width / this.width)
-    }
+    // The reference trace is drawn after the phosphor composite, so it is never smeared by the beam's history.
+    if (portalSettings) this.drawPhasePortalScope(portalSettings.traceMode, o.values.color)
+  }
+
+  /**
+   * Phase Portal, once per frame after the engine has ticked: which musical event cues the 4D turn, the cage's opening, and the reference trace's capture.
+   * With Auto Performance on, a mapped drop cues a turn; where sections are not mapped, a strong kick does (the shared kick event when the audio carries
+   * rhythm events, otherwise a bass onset with hysteresis). A cue that arrives mid-turn is ignored by `PhasePortal.tick`.
+   */
+  private stepPhasePortal(portal: XyScopeSettings['phasePortal'], input: XyScopeFrameInput, features: Osc1Features, clock: BeatClockFrame, build: number, playing: boolean, reset: boolean, discontinuity: boolean): void {
+    const c = input.context
+    const mapped = c?.capabilities.sections === true
+    const active = playing && portal.autoPerformance
+    const drop = active && input.fresh && mapped && resolveXyScopeTriggerEventId(c, this.phasePortalPrevious, 'drop', 0) != null
+    const bassOnset = playing ? (features.onsets?.[0] ?? 0) : 0
+    const localKick = bassOnset >= .55 && !this.phasePortalBassHit
+    const kick = c?.capabilities.rhythmEvents ? input.fresh && c.kick : localKick
+    if (bassOnset >= .55 || bassOnset < .24) this.phasePortalBassHit = bassOnset >= .55
+    if (input.fresh) this.phasePortalPrevious = c
+    const beats = playing ? clock.motionDt * REFERENCE_BPM / 60 : 0
+    this.phasePortal.tick(beats, active ? this.osc2Engine.f.bass : 0, build, drop, active && !mapped && kick && !discontinuity, this.osc2Engine.fitWidth)
+    if (!portal.hold || reset) this.phasePortalScope.update(playing && !discontinuity ? input.stereo : null)
+    this.osc1Source = this.phasePortalScope.source === 'unavailable' ? 'none' : this.phasePortalScope.source
+  }
+
+  private drawPhasePortalScope(mode: XyScopeSettings['phasePortal']['traceMode'], color: string): void {
+    // The renderer owns this canvas's 2D context (same options), so this returns that context rather than creating another.
+    const ctx = this.canvas.getContext('2d', { alpha: false })
+    if (ctx) this.phasePortalScope.draw(ctx, mode, color, this.canvas.width / this.width)
   }
 
   /**

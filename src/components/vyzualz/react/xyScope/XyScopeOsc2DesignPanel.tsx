@@ -99,7 +99,7 @@ export function XyScopeOsc2DesignPanel() {
         <div className="rv-ctrl-group" data-xyscope-inspector-actions="true">
           <IconChipButton onClick={() => patch({ resetSignals: o.resetSignals + 1 })}>Reset Signals</IconChipButton>
           {portal
-            ? <IconChipButton onClick={() => setSettings({ phasePortal: { ...DEFAULT_PHASE_PORTAL_SETTINGS, resetSignals: o.resetSignals + 1 } })}>Reset Phase Portal</IconChipButton>
+            ? <IconChipButton disabled={auto} onClick={() => setSettings({ phasePortal: { ...DEFAULT_PHASE_PORTAL_SETTINGS, resetSignals: o.resetSignals + 1 } })}>Reset Phase Portal</IconChipButton>
             : <IconChipButton disabled={auto} onClick={() => setSettings({ osc2: { ...DEFAULT_OSC2_SETTINGS, resetSignals: o.resetSignals + 1 } })}>Reset OSC 2</IconChipButton>}
         </div>
       </div></div>

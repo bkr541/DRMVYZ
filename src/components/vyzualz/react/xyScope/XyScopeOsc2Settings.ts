@@ -60,7 +60,7 @@ export interface XyScopePhasePortalSettings extends XyScopeOsc2Settings {
 
 export const DEFAULT_PHASE_PORTAL_SETTINGS: Readonly<XyScopePhasePortalSettings> = Object.freeze({
   ...DEFAULT_OSC2_SETTINGS,
-  autoPerformance: true,
+  // Off like every other instrument: the user's Auto Performance default (System Settings) decides, and a new install starts with it off.
   floor: false,
   traceMode: 'waveform',
   values: Object.freeze({
