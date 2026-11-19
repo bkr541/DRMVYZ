@@ -23,7 +23,7 @@ afterEach(async () => {
 })
 const render = async () => { await act(async () => root.render(<LayoutLabMockup />)) }
 const tab = (index: number) => host.querySelector<HTMLButtonElement>(`#layout-lab-tab-0${index}`)!
-const input = () => host.querySelector<HTMLInputElement>('input')!
+const input = () => host.querySelector<HTMLInputElement>('.ll-tab-name-input')!
 async function type(value: string) {
   await act(async () => {
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input(), value)
@@ -37,8 +37,8 @@ async function key(value: string) {
 describe('persistent Layout Lab tabs', () => {
   it('keeps content identity through renaming, switching tabs and reopening', async () => {
     await render()
-    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(7)
-    expect(host.querySelectorAll('[role="tabpanel"]')).toHaveLength(7)
+    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(8)
+    expect(host.querySelectorAll('[role="tabpanel"]')).toHaveLength(8)
     const panel = host.querySelector<HTMLElement>('#layout-lab-tab-01-panel')!
     const studies = panel.querySelector('.ll-pad-studies')
     const rows = [...panel.querySelectorAll('[data-pad-study]')]
@@ -87,20 +87,44 @@ describe('persistent Layout Lab tabs', () => {
     await key('Enter')
     expect(tab(1).textContent).toBe('Tab 1')
     await act(async () => tab(1).dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true })))
-    expect(tab(7).getAttribute('aria-selected')).toBe('true')
-    await act(async () => tab(7).dispatchEvent(new KeyboardEvent('keydown', { key: 'F2', bubbles: true })))
+    expect(tab(8).getAttribute('aria-selected')).toBe('true')
+    await act(async () => tab(8).dispatchEvent(new KeyboardEvent('keydown', { key: 'F2', bubbles: true })))
     await type('Geometry')
     await act(async () => input().blur())
-    expect(tab(7).textContent).toBe('Geometry')
+    expect(tab(8).textContent).toBe('Geometry')
   })
 
   it('recovers invalid saved state and reports unavailable persistence', async () => {
     window.localStorage.setItem(LAYOUT_LAB_STORAGE_KEY, 'broken json')
     vi.spyOn(window.localStorage, 'setItem').mockImplementation(() => { throw new Error('Storage blocked') })
     await render()
-    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(7)
+    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(8)
     expect(host.querySelector('[role="status"]')?.textContent).toContain('could not be saved')
     await act(async () => tab(2).click())
     expect(tab(2).getAttribute('aria-selected')).toBe('true')
+  })
+
+  it('adds AUTH to saved workspaces and previews both forms independently', async () => {
+    window.localStorage.setItem(LAYOUT_LAB_STORAGE_KEY, JSON.stringify({
+      version: 1,
+      activeTabId: 'layout-lab-tab-05',
+      tabs: [{ id: 'layout-lab-tab-05', name: 'My navigation' }],
+    }))
+    await render()
+    expect(tab(5).textContent).toBe('My navigation')
+    expect(tab(5).getAttribute('aria-selected')).toBe('true')
+    expect(tab(8).textContent).toBe('AUTH')
+    await act(async () => tab(8).click())
+    const studies = [...host.querySelectorAll('#layout-lab-tab-08-panel [data-auth-study]')]
+    expect(studies).toHaveLength(4)
+    for (const study of studies) expect(study.querySelectorAll('input.dv-text-input')).toHaveLength(2)
+    await act(async () => studies[0].querySelector<HTMLButtonElement>('.ll-auth-mode')!.click())
+    expect(studies[0].querySelectorAll('input.dv-text-input')).toHaveLength(5)
+    expect(studies[1].querySelectorAll('input.dv-text-input')).toHaveLength(2)
+    const password = studies[0].querySelector<HTMLInputElement>('input[type="password"]')!
+    await act(async () => studies[0].querySelector<HTMLButtonElement>('[aria-label="Show password"]')!.click())
+    expect(password.type).toBe('text')
+    await act(async () => studies[0].querySelector<HTMLButtonElement>('.ll-auth-mode')!.click())
+    expect(studies[0].querySelectorAll('input.dv-text-input')).toHaveLength(2)
   })
 })

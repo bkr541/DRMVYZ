@@ -15,7 +15,7 @@ const P = (key: string, cls: string, d: string, extra: Record<string, unknown> =
 const EO = { fillRule: 'evenodd' } as const
 
 /** The ring is wider than the 32 grid (radius 16), so the symbol inside keeps its size and sits clear of the ring. */
-const RING = [P('r', 'ring', circle(16, 16, 16)), P('r2', 'a', 'M16 0a16 16 0 0 1 13.86 8')]
+const RING = [P('ring', 'ring', circle(16, 16, 16)), P('ring-accent', 'a', 'M16 0a16 16 0 0 1 13.86 8')]
 export const NAV_MEDALLION_RING = RING
 
 /** The Engine switcher symbol (Layout Lab, React options · engine system): the live engine's card in front, the others at the sides. */

@@ -16,8 +16,7 @@ import { DrawerNotice } from '../../shared/DrawerNotice'
 import { XyScopeTransportTracker } from './XyScopeTransport'
 import { publishOsc1Live } from './XyScopeOsc1Live'
 import { publishOsc2Live } from './XyScopeOsc2Live'
-import { PHASE_PORTAL_PRESET_ID } from './XyScopeOsc2Settings'
-import { PHASE_PORTAL_WINDOW_MS } from './XyScopePhasePortal'
+import { PHASE_PORTAL_PRESET_ID } from './XyScopePhasePortalSettings'
 import { publishInitLive } from './XyScopeInitLive'
 import { publishOctaLive } from './XyScopeOctaLive'
 import { publishWireLive } from './XyScopeWireLive'
@@ -232,14 +231,14 @@ export function XyScopeSurface({
       )}
       <canvas ref={canvasRef} className="rv-xyscope-canvas" data-xyscope-output-canvas="true" />
       {portal && <div className="rv-xyscope-note rv-xyscope-note--top" role="status" data-phase-portal-signal="true">
-        {portal.traceMode === 'xy' ? 'Stereo XY' : `Waveform · ${PHASE_PORTAL_WINDOW_MS} ms`} · {
+        Stereo XY · {
           scopeSource === 'stereo' ? (portal.hold ? 'Stereo hold' : 'Live stereo')
-            : scopeSource === 'mono' ? (portal.traceMode === 'xy' ? 'Mono input · stereo required' : portal.hold ? 'Mono hold' : 'Live mono')
+            : scopeSource === 'mono' ? 'Mono input · stereo required'
             : isPaused ? 'Paused' : 'Capture unavailable'
         }
       </div>}
       {resolution.status === 'loading' && settings.fontId && (
-        <div className="rv-xyscope-note rv-xyscope-note--top" role="status">Loading font…</div>
+        <div className={portal ? 'rv-xyscope-note' : 'rv-xyscope-note rv-xyscope-note--top'} role="status">Loading font…</div>
       )}
       {(resolution.status === 'error' || resolution.status === 'missing') && (
         <div className="rv-xyscope-note rv-xyscope-note--top" role="alert">

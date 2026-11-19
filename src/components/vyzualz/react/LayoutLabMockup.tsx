@@ -8,7 +8,8 @@ import { PerformancePadStudies } from './layoutLab/PerformancePadStudies'
 import { EngineDropdownStudies } from './layoutLab/EngineDropdownStudies'
 import { NavIconStudies } from './layoutLab/NavIconStudies'
 import { LeftNavBarStudies } from './layoutLab/LeftNavBarStudies'
-import { LAYOUT_LAB_STORAGE_KEY, readLayoutLabTabs } from './layoutLab/layoutLabTabs'
+import { AuthStudies } from './layoutLab/AuthStudies'
+import { LAYOUT_LAB_AUTH_TAB_ID, LAYOUT_LAB_STORAGE_KEY, readLayoutLabTabs } from './layoutLab/layoutLabTabs'
 
 /** Local-only workspace. Shared CSS supplies the standard design without mounting production components. */
 export function LayoutLabMockup() {
@@ -52,7 +53,8 @@ export function LayoutLabMockup() {
   }
   const navigate = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
     if (event.key === 'F2') { event.preventDefault(); rename(workspace.tabs[index].id); return }
-    const next = event.key === 'ArrowRight' ? (index + 1) % 7 : event.key === 'ArrowLeft' ? (index + 6) % 7 : event.key === 'Home' ? 0 : event.key === 'End' ? 6 : null
+    const count = workspace.tabs.length
+    const next = event.key === 'ArrowRight' ? (index + 1) % count : event.key === 'ArrowLeft' ? (index + count - 1) % count : event.key === 'Home' ? 0 : event.key === 'End' ? count - 1 : null
     if (next === null) return
     event.preventDefault()
     const id = workspace.tabs[next].id
@@ -78,6 +80,13 @@ export function LayoutLabMockup() {
       </div>)}
     </div>
     <p className="ll-workspace-hint" role={saveFailed ? 'status' : undefined}>{saveFailed ? 'Tab names could not be saved in this browser. They will last only for this session.' : 'Click the selected tab again to rename. Enter saves · Escape cancels.'}</p>
-    {workspace.tabs.map(tab => <section key={tab.id} id={`${tab.id}-panel`} className="ll-tab-panel" role="tabpanel" aria-labelledby={tab.id} data-layout-lab-tab-id={tab.id} hidden={workspace.activeTabId !== tab.id}>{tab.id === 'layout-lab-tab-01' && <PerformancePadStudies />}{tab.id === 'layout-lab-tab-02' && <PresetCardStudies />}{tab.id === 'layout-lab-tab-03' && <EngineDropdownStudies />}{tab.id === 'layout-lab-tab-04' && <NavIconStudies />}{tab.id === 'layout-lab-tab-05' && <LeftNavBarStudies />}</section>)}
+    {workspace.tabs.map(tab => <section key={tab.id} id={`${tab.id}-panel`} className="ll-tab-panel" role="tabpanel" aria-labelledby={tab.id} data-layout-lab-tab-id={tab.id} hidden={workspace.activeTabId !== tab.id}>
+      {tab.id === 'layout-lab-tab-01' && <PerformancePadStudies />}
+      {tab.id === 'layout-lab-tab-02' && <PresetCardStudies />}
+      {tab.id === 'layout-lab-tab-03' && <EngineDropdownStudies />}
+      {tab.id === 'layout-lab-tab-04' && <NavIconStudies />}
+      {tab.id === 'layout-lab-tab-05' && <LeftNavBarStudies />}
+      {tab.id === LAYOUT_LAB_AUTH_TAB_ID && <AuthStudies />}
+    </section>)}
   </main>
 }

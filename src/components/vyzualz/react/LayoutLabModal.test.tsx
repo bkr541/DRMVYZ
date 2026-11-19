@@ -16,7 +16,7 @@ afterEach(async () => {
 })
 
 describe('isolated Layout Lab', () => {
-  it('opens isolated pad studies and keeps popup close controls', async () => {
+  it('opens isolated studies and keeps popup close controls', async () => {
     const popupDocument = document.implementation.createHTMLDocument()
     const events = new EventTarget()
     const close = vi.fn()
@@ -33,12 +33,14 @@ describe('isolated Layout Lab', () => {
       await act(async () => root!.render(<LayoutLabModal onClose={onClose} />))
       const canvas = popupDocument.querySelector('main[aria-label="Layout Lab canvas"]')!
       expect(canvas).not.toBeNull()
-      expect(canvas.querySelectorAll('[role="tab"]')).toHaveLength(7)
+      expect(canvas.querySelectorAll('[role="tab"]')).toHaveLength(8)
       expect(canvas.querySelectorAll('[data-pad-study]')).toHaveLength(5)
-      expect(canvas.querySelectorAll('[data-engine-study]')).toHaveLength(5)
+      expect(canvas.querySelectorAll('[data-engine-study]')).toHaveLength(9)
       expect(canvas.querySelectorAll('[data-nav-icon-study]')).toHaveLength(20)
-      expect(canvas.querySelectorAll('[data-left-nav-study]')).toHaveLength(15)
-      expect([...canvas.querySelectorAll('[role="tabpanel"]')].slice(5).every(panel => panel.childElementCount === 0)).toBe(true)
+      expect(canvas.querySelectorAll('[data-left-nav-study] .az-sidebar')).toHaveLength(2)
+      expect(canvas.querySelectorAll('[data-left-nav-study] .az-sidebar--collapsed')).toHaveLength(1)
+      expect(canvas.querySelectorAll('[data-auth-study] form')).toHaveLength(4)
+      expect([...canvas.querySelectorAll('[role="tabpanel"]')].slice(5, 7).every(panel => panel.childElementCount === 0)).toBe(true)
       expect(canvas.querySelectorAll('[data-preset-study]')).toHaveLength(21)
       expect(popupDocument.head.querySelector('style, link[rel="stylesheet"]')).toBeNull()
       expect(popupDocument.querySelector('style')?.textContent).not.toContain('main { display: none; }')

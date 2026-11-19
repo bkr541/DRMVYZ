@@ -14,7 +14,8 @@ import { XY_SCOPE_PATTERN_OPTIONS, type XyScopePattern } from './XyScopePatterns
 import { DEFAULT_OCTA_SETTINGS, normalizeOctaSettings, OCTA_PRESET_ID, type XyScopeOctaSettings } from './XyScopeOctaSettings'
 import { CUBES_PRESET_ID, DEFAULT_WIRE_SETTINGS, normalizeWireSettings, SOLIDS_PRESET_ID, TESSERACT_PRESET_ID, WIRE_PRESET_FIGURES, WIRE_PRESET_LOOKS, type XyScopeWireSettings } from './XyScopeWireSettings'
 import { DEFAULT_INIT_SETTINGS, INIT_PRESET_ID, normalizeInitSettings, type XyScopeInitSettings } from './XyScopeInitSettings'
-import { DEFAULT_OSC2_SETTINGS, DEFAULT_PHASE_PORTAL_SETTINGS, normalizeOsc2Settings, normalizePhasePortalSettings, OSC2_PRESET_ID, PHASE_PORTAL_PRESET_ID, type XyScopeOsc2Settings, type XyScopePhasePortalSettings } from './XyScopeOsc2Settings'
+import { DEFAULT_OSC2_SETTINGS, normalizeOsc2Settings, OSC2_PRESET_ID, type XyScopeOsc2Settings } from './XyScopeOsc2Settings'
+import { DEFAULT_PHASE_PORTAL_SETTINGS, normalizePhasePortalSettings, PHASE_PORTAL_PRESET_ID, type XyScopePhasePortalSettings } from './XyScopePhasePortalSettings'
 import { DEFAULT_OSC1_SETTINGS, normalizeOsc1Settings, OSC1_PRESET_ID, type XyScopeOsc1Settings } from './XyScopeOsc1Settings'
 
 export const XY_SCOPE_ENGINE_ID = 'xyScope' as const
@@ -286,7 +287,7 @@ export const XY_SCOPE_PRESETS: readonly XyScopePreset[] = Object.freeze([
   },
   {
     id: PHASE_PORTAL_PRESET_ID, name: 'PHASE PORTAL', source: 'text',
-    description: 'OSC 2 text and a turning 4D tesseract, with a fixed live waveform or stereo XY trace.',
+    description: 'A stereo XY oscilloscope with your text inside the live phosphor display.',
     parameters: {} as Readonly<Record<string, XyScopeParameterValue>>,
   },
   {

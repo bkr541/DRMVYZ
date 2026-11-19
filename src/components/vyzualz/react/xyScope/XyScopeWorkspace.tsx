@@ -31,6 +31,8 @@ import {
 import { XyScopeTextV2DesignPanel } from './XyScopeTextV2DesignPanel'
 import { XyScopeOsc1DesignPanel } from './XyScopeOsc1DesignPanel'
 import { XyScopeOsc2DesignPanel } from './XyScopeOsc2DesignPanel'
+import { XyScopePhasePortalDesignPanel } from './XyScopePhasePortalDesignPanel'
+import { PHASE_PORTAL_PRESET_ID } from './XyScopePhasePortalSettings'
 import { XyScopeInitDesignPanel } from './XyScopeInitDesignPanel'
 import { XyScopeOctaDesignPanel } from './XyScopeOctaDesignPanel'
 import { XyScopeWireDesignPanel } from './XyScopeWireDesignPanel'
@@ -353,7 +355,7 @@ export function XyScopeDesignPanel() {
   )
 
   if (settings.sourceMode === 'osc1') return <XyScopeOsc1DesignPanel />
-  if (settings.sourceMode === 'osc2') return <XyScopeOsc2DesignPanel />
+  if (settings.sourceMode === 'osc2') return settings.presetId === PHASE_PORTAL_PRESET_ID ? <XyScopePhasePortalDesignPanel /> : <XyScopeOsc2DesignPanel />
   if (settings.sourceMode === 'init') return <XyScopeInitDesignPanel />
   if (settings.sourceMode === 'octa') return <XyScopeOctaDesignPanel />
   if (settings.sourceMode === 'wire') return <XyScopeWireDesignPanel />

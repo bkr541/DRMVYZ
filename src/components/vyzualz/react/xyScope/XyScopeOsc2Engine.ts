@@ -8,7 +8,6 @@
 // Nothing is random: the same input history gives the same picture.
 
 import { OSC1_BAND_COUNT, compileOsc1Glyph, emptyOsc1Features, type Osc1Features, type Osc1Glyph, type Osc1Signal } from './XyScopeOsc1Engine'
-import type { PhasePortal } from './XyScopePhasePortal'
 
 const clamp = (v: number, a = 0, b = 1) => Math.max(a, Math.min(b, v))
 const mix = (a: number, b: number, p: number) => a + (b - a) * p
@@ -55,7 +54,7 @@ const FLOOR_Y = .78
 const FLOOR_LINES_X = 9
 const FLOOR_LINES_Z = 9
 
-type StreamKind = 'letter' | 'floor' | 'terrain' | 'portal'
+type StreamKind = 'letter' | 'floor' | 'terrain'
 export interface Osc2Stream {
   kind: StreamKind
   char: string
@@ -77,9 +76,7 @@ export class Osc2Engine {
   /** Tells the shared scanner the streams carry absolute screen positions. */
   readonly absolute = true
   /** Width of the word in letter heights, so the stage fits it (at least a few letters wide). */
-  get fitWidth(): number { return Math.max(this.portal ? 5 : 3, this.wordWidth * 1.25) }
-  get anchorY(): number | undefined { return this.portal ? .59 : undefined }
-  get sampleRate(): number | undefined { return this.portal ? 36_000 : undefined }
+  get fitWidth(): number { return Math.max(3, this.streams.filter(s => s.kind === 'letter').reduce((sum, s) => sum + s.advance + .3, 0) * 1.25) }
   s: Osc2Settings = { ...OSC2_DEFAULTS }
   floor = true
   streams: Osc2Stream[] = []
@@ -100,13 +97,6 @@ export class Osc2Engine {
   private phase = 0
   private sweep = 0
   private rowClock = 0
-  private portal: PhasePortal | null = null
-  private wordWidth = 0
-  private wordTop = -.5
-  private wordBottom = .5
-  private wordLeft = 0
-  private wordRight = 0
-  private terrainHasCapture = true
   private readonly rows: Float32Array[] = Array.from({ length: TERRAIN_ROWS }, () => new Float32Array(TERRAIN_POINTS))
   private text = ''
   private readonly tables = new Map<string, Float32Array | null>()
@@ -132,40 +122,17 @@ export class Osc2Engine {
     const letters = [...text]
     const advance = (char: string) => this.glyphFor(char)?.advance || .35
     const total = letters.reduce((sum, char) => sum + advance(char) + .3, 0)
-    this.wordWidth = total
-    this.wordTop = -.5
-    this.wordBottom = .5
-    this.wordLeft = -total / 2
-    this.wordRight = total / 2
     let cursor = -total / 2
     const streams: Osc2Stream[] = letters.map((char, i) => {
       const a = advance(char)
       const stream: Osc2Stream = { kind: 'letter', char, table: this.table(char), advance: a, centre: cursor + (a + .3) / 2, scanPhase: i * .137, lastLit: false, lastX: 0, lastY: 0, rate: 1 }
-      if (this.portal && stream.table) {
-        for (let p = 0; p < stream.table.length; p += 3) {
-          if (!stream.table[p + 2]) continue
-          this.wordLeft = Math.min(this.wordLeft, stream.centre + stream.table[p])
-          this.wordRight = Math.max(this.wordRight, stream.centre + stream.table[p])
-          this.wordTop = Math.min(this.wordTop, stream.table[p + 1])
-          this.wordBottom = Math.max(this.wordBottom, stream.table[p + 1])
-        }
-      }
       cursor += a + .3
       return stream
     })
     const env = (kind: StreamKind, rate: number): Osc2Stream => ({ kind, char: '', table: PLACEHOLDER, advance: 0, centre: 0, scanPhase: kind === 'floor' ? .31 : .62, lastLit: false, lastX: 0, lastY: 0, rate })
     streams.push(env('terrain', 1), env('floor', .8))
-    if (this.portal) streams.push(env('portal', .76))
     this.streams = streams
     this.reset()
-  }
-
-  setPhasePortal(portal: PhasePortal | null): void {
-    if (portal === this.portal) return
-    this.portal = portal
-    this.streams = []
-    this.phase = this.sweep = this.strafe = 0
-    this.setText(this.text)
   }
 
   reset(): void {
@@ -182,9 +149,8 @@ export class Osc2Engine {
   setSettings(s: Osc2Settings, floor: boolean): void { this.s = s; this.floor = floor }
 
   /** `clock.motionDt` is the time the camera sweep and the terrain scroll advance by (the track's beats with BPM Sync); envelopes stay in real time. */
-  tick(dt: number, features: Osc1Features, playing: boolean, clock: { motionDt: number } = { motionDt: dt }, terrainHasCapture = true): void {
+  tick(dt: number, features: Osc1Features, playing: boolean, clock: { motionDt: number } = { motionDt: dt }): void {
     this.playing = playing
-    this.terrainHasCapture = terrainHasCapture
     const input = playing ? features : emptyOsc1Features()
     const f = this.f as unknown as Record<string, number>
     for (const key of ['level', 'bass', 'mid', 'air', 'flux', 'width', 'correlation', 'balance', 'peakL', 'peakR', 'crest'] as const) {
@@ -214,7 +180,7 @@ export class Osc2Engine {
     this.strafe = mix(this.strafe, this.f.balance * .5 * Math.min(1, s.audioDepth), 1 - Math.exp(-dt / .3))
 
     // Terrain: the newest moment of waveform enters the front row, older rows recede.
-    if (playing && terrainHasCapture && this.waveL?.length) {
+    if (playing && this.waveL?.length) {
       this.rowClock += clock.motionDt
       if (this.rowClock >= .07) {
         this.rowClock %= .07
@@ -243,41 +209,16 @@ export class Osc2Engine {
     out.q = scale
   }
 
-  private backdrop(out: Osc1Signal, gain: number): Osc1Signal {
-    if (this.portal) {
-      const clearance = Math.max(this.wordLeft - out.x, out.x - this.wordRight, this.wordTop - out.y, out.y - this.wordBottom)
-      const visibility = this.wordWidth ? clamp((clearance - .07) / .2) : 1
-      out.energy *= visibility * gain
-      if (visibility === 0) out.z = 0
-    }
-    return out
-  }
-
   signal(l: Osc2Stream, i: number, u: number, _pass = 0, _offset = 0, out: Osc1Signal = { x: 0, y: 0, z: 0, energy: 0, q: 0 }): Osc1Signal {
     const s = this.s
-    const phase = ((u % 1) + 1) % 1
-    if (l.kind === 'portal' && this.portal) {
-      this.portal.signal(phase, out)
-      return this.backdrop(out, 1)
-    }
     if (l.kind === 'letter') {
       const table = l.table
       if (!table) { out.z = 0; return out }
       const layers = Math.max(2, Math.min(8, Math.round(s.layers)))
-      // Phase Portal spends half of each letter sweep on its stationary face.
-      const lp = this.portal ? (phase < .5 ? phase * 2 : 1 + (phase * 2 - 1) * (layers - 1)) : phase * layers
-      const layer = Math.min(layers - 1, Math.floor(lp)), v = lp - layer
+      const lp = (((u % 1) + 1) % 1) * layers, layer = Math.min(layers - 1, Math.floor(lp)), v = lp - layer
       const N = table.length / 3, p = v * N, k = Math.floor(p) % N, j = (k + 1) % N, t = p - Math.floor(p), a = k * 3, b = j * 3
       const bx = mix(table[a], table[b], t), by = mix(table[a + 1], table[b + 1], t)
       const lit = table[a + 2] && table[b + 2] ? 1 : 0
-      if (this.portal && layer === 0) {
-        out.x = l.centre + bx
-        out.y = by
-        out.z = lit
-        out.energy = 2
-        out.q = 1
-        return out
-      }
       // Slice 0 is the front. Each slice answers one frequency region, rotated per letter so neighbours differ.
       const frac = layer / (layers - 1)
       const band = (Math.round(frac * 7) + (i % 8)) % 8
@@ -286,25 +227,24 @@ export class Osc2Engine {
       const z = (.5 - frac) * s.depth + react * .35
       this.project(l.centre + bx * swell, by * swell, z, out)
       out.z = lit
-      if (this.portal) out.energy *= .31
       return out
     }
     if (l.kind === 'floor') {
       out.z = 0
       if (!this.floor) return out
-      const lines = FLOOR_LINES_X + FLOOR_LINES_Z, lp = phase * lines, line = Math.min(lines - 1, Math.floor(lp)), v = lp - line
+      const lines = FLOOR_LINES_X + FLOOR_LINES_Z, lp = (((u % 1) + 1) % 1) * lines, line = Math.min(lines - 1, Math.floor(lp)), v = lp - line
       let x: number, z: number
       if (line < FLOOR_LINES_X) { x = (line / (FLOOR_LINES_X - 1) - .5) * 9; z = mix(3, -8, v) }
       else { z = mix(2.5, -8, (line - FLOOR_LINES_X) / (FLOOR_LINES_Z - 1)); x = mix(-4.5, 4.5, v) }
       this.project(x, FLOOR_Y, z, out)
       out.energy *= .9
       out.z = v > .01 && v < .99 ? 1 : 0
-      return this.backdrop(out, .27)
+      return out
     }
     // Terrain: the last moments of the waveform as rows receding behind the word.
     out.z = 0
-    if (s.terrain <= 0 || (this.portal && !this.terrainHasCapture)) return out
-    const lp = phase * TERRAIN_ROWS, row = Math.min(TERRAIN_ROWS - 1, Math.floor(lp)), v = lp - row
+    if (s.terrain <= 0) return out
+    const lp = (((u % 1) + 1) % 1) * TERRAIN_ROWS, row = Math.min(TERRAIN_ROWS - 1, Math.floor(lp)), v = lp - row
     const idx = v * (TERRAIN_POINTS - 1), i0 = Math.floor(idx), i1 = Math.min(TERRAIN_POINTS - 1, i0 + 1)
     const sample = mix(this.rows[row][i0], this.rows[row][i1], idx - i0)
     const taper = Math.sqrt(Math.max(0, Math.sin(v * Math.PI)))
@@ -312,6 +252,6 @@ export class Osc2Engine {
     this.project(x, FLOOR_Y - sample * taper * s.terrain * 2.4, z, out)
     out.energy *= (1 - row / TERRAIN_ROWS * .7) * 1.6
     out.z = v > .02 && v < .98 ? 1 : 0
-    return this.backdrop(out, .52)
+    return out
   }
 }

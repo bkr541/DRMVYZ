@@ -288,11 +288,11 @@ Tests: `XyScopeOsc2.test.ts` and an OSC 2 case in `XyScopeWorkspace.test.tsx`.
 
 ### Phase Portal preset
 
-Choose **TEXT → PRESETS → PHASE PORTAL**. The preset uses OSC 2's text inputs, fonts, contour slices, and waveform terrain, with separately saved settings. The front contour stays fixed and bright. Rear slices follow the camera, and the hypercube beam fades out around the front contours so it can turn without obscuring the word.
+Choose **TEXT → PRESETS → PHASE PORTAL**. The typed text and selected font appear as a centered phosphor outline inside a square stereo XY display. A narrow dark outline keeps the letter edges legible where the trace crosses them.
 
-Auto Performance (off by default, like every instrument; the System Settings default applies) opens the cage with bass and mapped builds. A mapped drop cues one complete 4D turn over four beats, followed by a four-beat resolve. A drop or kick that arrives while a turn or its resolve is still running is ignored; the next cue is accepted once the eight beats are over. During unmapped playback a strong kick can cue a turn. BPM Sync follows the track grid when available and uses the shared 100 BPM reference otherwise. Turning Auto Performance off lets you adjust the scene directly.
+Left is X and right is Y for the latest 20 ms of synchronized audio, with equal scaling on both axes. **XY Gain** sets that scale, **Hold Trace** freezes the samples, and **Graticule** toggles the divisions. Mono or unavailable audio leaves the word and graticule visible and reports the capture state.
 
-**Design → Master Controls → Scope View** selects the reference trace in the lower strip. **Waveform** draws a triggered 10 ms window at fixed gain, with left above right for stereo and a single trace for mono. **Stereo XY** plots simultaneous left and right samples on equally scaled axes. The strip identifies the input and shows the graticule alone when capture is unavailable or when stereo is required. **Hold Trace** freezes the displayed capture and scene. The reference trace uses captured PCM and keeps its scale and position through camera moves and beat changes.
+Auto Performance accents the text glow on kicks and bar starts. BPM Sync scales the glow's decay with track tempo. Both features leave the sample coordinates and letter shapes fixed. Projects saved with the original Phase Portal select this XY display automatically and carry over their phosphor color, trace intensity, Hold, and performance toggles.
 
 ## INIT
 

@@ -6,7 +6,7 @@ import { useInitLive } from './XyScopeInitLive'
 import { useOctaLive } from './XyScopeOctaLive'
 import { useOsc1Live } from './XyScopeOsc1Live'
 import { useOsc2Live } from './XyScopeOsc2Live'
-import { PHASE_PORTAL_PRESET_ID } from './XyScopeOsc2Settings'
+import { PHASE_PORTAL_PRESET_ID } from './XyScopePhasePortalSettings'
 import { XyScopeWireIntelligencePanel } from './XyScopeWireIntelligencePanel'
 
 const SOURCE_LABELS = { stereo: 'LIVE STEREO', mono: 'LIVE MONO', shared: 'SHARED ANALYSIS', none: 'NO SIGNAL' } as const
@@ -90,7 +90,9 @@ function Osc2Performance() {
           <Cells>
             {auto && <Cell label="State" value={live?.state ?? 'LISTENING'} />}
             {auto && <Cell label="Evidence" value={evidence(live?.mapped, live?.confidence)} />}
-            <Cell label="Signal" value={portal && live?.source !== 'mono' && live?.source !== 'stereo' ? 'CAPTURE UNAVAILABLE' : signal(live?.source)} />
+            <Cell label="Signal" value={portal && live?.source !== 'stereo'
+              ? live?.source === 'mono' ? 'MONO · STEREO REQUIRED' : 'CAPTURE UNAVAILABLE'
+              : signal(live?.source)} />
           </Cells>
         </MiSection>
       )}

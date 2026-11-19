@@ -6,7 +6,8 @@ export interface Osc2LiveSnapshot {
   state: string
   confidence: number
   mapped: boolean
-  settings: Osc2Settings
+  /** Phase Portal publishes signal status on the same source route and has its own controls. */
+  settings: Osc2Settings | null
   source: 'stereo' | 'mono' | 'shared' | 'none'
 }
 

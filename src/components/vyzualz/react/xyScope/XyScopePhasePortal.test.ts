@@ -1,90 +1,81 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import type { StereoScopeFrame } from '../../../../audio/scope/scopeTypes'
 import { getDefaultXyScopeFont } from './XyScopeGeometry'
-import { emptyOsc1Features } from './XyScopeOsc1Engine'
-import { createOsc1GlyphSource } from './XyScopeOsc1Glyphs'
-import { Osc2Engine } from './XyScopeOsc2Engine'
-import { DEFAULT_PHASE_PORTAL_SETTINGS, PHASE_PORTAL_PRESET_ID } from './XyScopeOsc2Settings'
-import { PhasePortal, PhasePortalScope } from './XyScopePhasePortal'
+import { DEFAULT_PHASE_PORTAL_SETTINGS, PHASE_PORTAL_PRESET_ID } from './XyScopePhasePortalSettings'
+import { PhasePortalScope } from './XyScopePhasePortal'
 import { applyXyScopePreset, DEFAULT_XY_SCOPE_SETTINGS, normalizeXyScopeSettings } from './XyScopeSettings'
 
+function drawing() {
+  const strokes: { color: string; points: [number, number][] }[] = []
+  let points: [number, number][] = []
+  const point = (x: number, y: number) => points.push([x, y])
+  const ctx = {
+    canvas: { width: 800, height: 600 }, strokeStyle: '',
+    save() {}, restore() {}, fillRect() {}, strokeRect() {}, rect() {}, clip() {}, setTransform() {},
+    beginPath() { points = [] }, moveTo: point, lineTo: point, closePath() {},
+    stroke() { strokes.push({ color: this.strokeStyle, points }) },
+  }
+  return { strokes, ctx: ctx as unknown as CanvasRenderingContext2D }
+}
+
 function capture(channelCount = 2): StereoScopeFrame {
-  const left = Float32Array.from({ length: 2048 }, (_, i) => i % 48 < 24 ? -.4 + i % 24 / 100 : .15 + i % 24 / 100)
+  const left = Float32Array.from({ length: 2048 }, (_, i) => i / 4096)
   const right = Float32Array.from(left, sample => sample * -.5)
   return { left, right, sampleRate: 48_000, startFrame: 0, sequenceNumber: 1, audioTimeSeconds: 0, channelCount }
 }
 
 describe('Phase Portal', () => {
-  it('is a text preset with settings and capture mode independent of OSC 2', () => {
-    const on = applyXyScopePreset(DEFAULT_XY_SCOPE_SETTINGS, PHASE_PORTAL_PRESET_ID)
-    expect(on).toMatchObject({ sourceMode: 'osc2', presetId: PHASE_PORTAL_PRESET_ID, phasePortal: DEFAULT_PHASE_PORTAL_SETTINGS })
-    const edited = normalizeXyScopeSettings({ ...on, phasePortal: { traceMode: 'xy', values: { depth: .4 } } })
-    const osc2 = applyXyScopePreset(edited, 'osc2')
+  it('keeps legacy presets selected and retains compatible controls independently of OSC 2', () => {
+    const applied = applyXyScopePreset(DEFAULT_XY_SCOPE_SETTINGS, PHASE_PORTAL_PRESET_ID)
+    const saved = normalizeXyScopeSettings({
+      ...applied, text: 'AB', phasePortal: { traceMode: 'waveform', hold: true, bpmSync: false, values: { depth: .4, color: '#11CCDD' } },
+    })
+    expect(saved).toMatchObject({ sourceMode: 'osc2', presetId: PHASE_PORTAL_PRESET_ID, text: 'AB' })
+    expect(saved.phasePortal).toEqual({
+      ...DEFAULT_PHASE_PORTAL_SETTINGS, hold: true, bpmSync: false,
+      values: { ...DEFAULT_PHASE_PORTAL_SETTINGS.values, color: '#11ccdd' },
+    })
+    const osc2 = applyXyScopePreset(saved, 'osc2')
     expect(osc2.osc2).toEqual(DEFAULT_XY_SCOPE_SETTINGS.osc2)
-    expect(applyXyScopePreset(osc2, PHASE_PORTAL_PRESET_ID).phasePortal).toEqual(edited.phasePortal)
-    expect(applyXyScopePreset(edited, 'storm').sourceMode).toBe('text')
+    expect(applyXyScopePreset(osc2, PHASE_PORTAL_PRESET_ID).phasePortal).toEqual(saved.phasePortal)
   })
 
-  it('turns and resolves the cage around a fixed, brighter letter pass', () => {
-    const portal = new PhasePortal()
-    const engine = new Osc2Engine(createOsc1GlyphSource(getDefaultXyScopeFont()))
-    engine.setPhasePortal(portal)
-    engine.setText('AB')
-    const letter = engine.streams[0]
-    const cage = engine.streams.find(stream => stream.kind === 'portal')!
-    const sampleCage = () => Array.from({ length: 256 }, (_, i) => engine.signal(cage, 0, i / 256))
-    const advance = (beats: number, drop = false) => portal.tick(beats, 0, 0, drop, false, engine.fitWidth)
-    advance(0)
-    const rest = sampleCage()
-    const front = engine.signal(letter, 0, .12)
-    expect(rest.some(point => point.z > 0)).toBe(true)
-    expect(rest.some(point => Math.abs(point.y) < .5 && Math.abs(point.x) < .7 && point.z === 0)).toBe(true)
-
-    advance(0, true)
-    advance(2)
-    const turning = sampleCage()
-    expect(turning).not.toEqual(rest)
-    engine.setSettings({ ...DEFAULT_PHASE_PORTAL_SETTINGS.values, elevation: 50, orbitRange: 70 }, true)
-    for (let i = 0; i < 30; i++) engine.tick(1 / 60, { ...emptyOsc1Features(), bass: 1, level: 1 }, true)
-    expect(engine.signal(letter, 0, .12)).toEqual(front)
-    expect(front.energy).toBeGreaterThan(Math.max(...turning.map(point => point.energy)))
-    advance(2)
-    expect(sampleCage()).not.toEqual(rest)
-    advance(4)
-    expect(sampleCage()).toEqual(rest)
-    engine.setPhasePortal(null)
-    expect(engine.streams.some(stream => stream.kind === 'portal')).toBe(false)
-  })
-
-  it('preserves the captured samples and uses true stereo XY coordinates', () => {
+  it('plots the latest synchronized samples without normalization or clipping the underlying coordinates', () => {
     const scope = new PhasePortalScope()
     const frame = capture()
+    const start = frame.left.length - 960
+    const first = frame.left[start], last = frame.left.at(-1)!
     scope.update(frame)
-    expect(scope.source).toBe('stereo')
-    expect(scope.length).toBe(481)
-    const start = frame.left.findIndex((sample, i) => i > 0 && sample > 0 && frame.left[i - 1] <= 0)
-    expect(scope.left.slice(0, 48)).toEqual(frame.left.slice(start, start + 48))
-    expect(scope.right.slice(0, 48)).toEqual(frame.right.slice(start, start + 48))
-    frame.left.fill(0)
-    expect(scope.left.some(sample => sample > 0)).toBe(true)
+    frame.left.fill(0) // The captured window remains available for Hold.
+    const { ctx, strokes } = drawing()
+    const settings = { ...DEFAULT_PHASE_PORTAL_SETTINGS, grid: false, values: { ...DEFAULT_PHASE_PORTAL_SETTINGS.values, gain: 3 } }
+    scope.draw(ctx, settings, 1)
 
-    const lineTo = vi.fn()
-    const ctx = {
-      canvas: { width: 800, height: 600 }, save() {}, restore() {}, fillRect() {},
-      beginPath() {}, moveTo() {}, lineTo, stroke() {},
-    } as unknown as CanvasRenderingContext2D
-    scope.draw(ctx, 'xy', '#aaffee', 1)
-    const [[x, y]] = lineTo.mock.calls.slice(3)
-    expect(x).toBeGreaterThan(400)
-    // Right is -0.5 times left. Both axes have the same gain; Canvas signs positive Y upward.
-    expect(y - (600 * .73 + 600 * .27 * .46)).toBeCloseTo((x - 400) * .5)
+    expect(scope.source).toBe('stereo')
+    expect(scope.length).toBe(960)
+    const points = strokes.at(-1)!.points
+    const scale = 600 * .85 / 2 * 3
+    expect(points[0]).toEqual([400 + first * scale, 300 + first * scale * .5])
+    expect(points.at(-1)).toEqual([400 + last * scale, 300 + last * scale * .5])
+    expect(points.at(-1)![0]).toBeGreaterThan(400 + 600 * .85 / 2) // The display clips at its boundary.
+  })
+
+  it('centers the typed outline in the XY display and updates it even without a stereo trace', () => {
+    const scope = new PhasePortalScope()
+    const { ctx, strokes } = drawing()
     scope.update(capture(1))
     expect(scope.source).toBe('mono')
-    lineTo.mockClear()
-    scope.draw(ctx, 'xy', '#aaffee', 1)
-    expect(lineTo).toHaveBeenCalledTimes(3) // Divider and the two axes, with no stereo path.
-    scope.update(null)
-    expect(scope.source).toBe('unavailable')
-    expect(scope.length).toBe(0)
+    const settings = { ...DEFAULT_PHASE_PORTAL_SETTINGS, grid: false }
+    scope.setText('D', getDefaultXyScopeFont(), settings.values.textSize)
+    scope.draw(ctx, settings, 1)
+    expect(strokes).toHaveLength(3) // Three passes over the lettering, with no manufactured XY path.
+    const before = strokes.at(-1)!.points
+    expect((Math.min(...before.map(([x]) => x)) + Math.max(...before.map(([x]) => x))) / 2).toBeCloseTo(400)
+    expect((Math.min(...before.map(([, y]) => y)) + Math.max(...before.map(([, y]) => y))) / 2).toBeCloseTo(300)
+    scope.setText('ABCDEFGH12345678', getDefaultXyScopeFont(), settings.values.textSize)
+    scope.draw(ctx, settings, 1)
+    const after = strokes.at(-1)!.points
+    expect(after).not.toEqual(before)
+    expect(after.every(([x]) => Math.abs(x - 400) <= 600 * .85 * .39 + .001)).toBe(true)
   })
 })

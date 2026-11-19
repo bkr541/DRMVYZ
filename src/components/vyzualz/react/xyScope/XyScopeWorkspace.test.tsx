@@ -332,21 +332,21 @@ describe('Sound Drawing XY source, presets and React tab', () => {
     expect(container.querySelector<HTMLInputElement>('#xyscope-osc2-orbitRange')!.disabled).toBe(true)
   })
 
-  it('loads Phase Portal from TEXT and saves its Scope View through the Design inspector', async () => {
+  it('loads the stereo XY Phase Portal from TEXT and keeps its gain separate from OSC 2', async () => {
     await act(async () => root.render(<><XyScopeEnginePanel /><XyScopePresetsPanel /><XyScopeDesignPanel /></>))
     await act(async () => container.querySelector<HTMLElement>('[data-xyscope-preset-id="phase-portal"]')!.click())
     const state = () => useReactStore.getState().xyScopeSettings
     expect(state().presetId).toBe('phase-portal')
     expect(container.querySelector('.rv-xyscope-source-grid [aria-pressed="true"]')?.textContent).toBe('TEXT')
-    const view = container.querySelector<HTMLButtonElement>('#xyscope-phase-portal-trace')!
-    expect(view.textContent).toContain('Waveform')
-    await act(async () => view.click())
-    const xy = Array.from(document.querySelectorAll<HTMLElement>('[role="option"]')).find(el => el.textContent?.includes('Stereo XY'))!
-    await act(async () => xy.click())
-    expect(state().phasePortal.traceMode).toBe('xy')
+    expect(container.querySelector('[data-phase-portal-design]')).not.toBeNull()
+    expect(container.querySelector('#xyscope-osc2-orbitRange')).toBeNull()
+    const gain = container.querySelector<HTMLInputElement>('#xyscope-phase-portal-gain')!
+    await act(async () => setInputValue(gain, '2.4'))
+    expect(state().phasePortal.values.gain).toBe(2.4)
     await act(async () => container.querySelector<HTMLElement>('[data-xyscope-preset-id="osc2"]')!.click())
-    expect(container.querySelector('#xyscope-phase-portal-trace')).toBeNull()
-    expect(state().phasePortal.traceMode).toBe('xy')
+    expect(container.querySelector('#xyscope-phase-portal-gain')).toBeNull()
+    expect(container.querySelector('#xyscope-osc2-orbitRange')).not.toBeNull()
+    expect(state().phasePortal.values.gain).toBe(2.4)
   })
 
   it('offers INIT under the OSCILATOR source with an Input group, the four standard groups and its own controls', async () => {
