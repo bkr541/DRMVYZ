@@ -1,0 +1,144 @@
+{
+  "status": "superseded-by-targeted-repairs",
+  "sourceGLBSha256": "b2dd79d39bc3caee20898bf0f863a2327b9fca8bef7b4558f8091c0fe1979e87",
+  "sourceMeshes": 4,
+  "addedGeometry": 0,
+  "patterns": [
+    "reference-fan",
+    "counter-sweep",
+    "iris-gate",
+    "scissor-cross",
+    "bank-relay",
+    "pressure-cage",
+    "radial-release"
+  ],
+  "validation": {
+    "focusedTests": 17,
+    "skipped": 2,
+    "skipReason": "Unrelated all-crate source-copy and Paradox material checks were not requested or affected.",
+    "typecheck": "passed",
+    "focusedESLint": "passed"
+  },
+  "browser": {
+    "passed": [
+      "reference default; seven distinct native geometry programs; five independent palette roles; geometry/light/effect/lens min/max; motion OFF and rate zero; saved preset re-entry",
+      "independent bass/high/vocal pixel delivery; kick/snare envelopes; zero strength, hard bank zeros and saved-state preservation",
+      "deterministic PCM through Web Audio, canonical analyzer pump, feature bus, persistent bridge and native rendered targets",
+      "shared Mood policy; Director build/drop geometry; bounded return; pause; silent hold; ungated drop; immediate Auto OFF/manual authority; seek/track reset; saved values",
+      "shared Inspector Auto lock and identical geometry; editable Palette/BPM/Auto; context restore; quality tiers and portrait; zero remaining surfaces/leases",
+      "production BPM Sync ON at 180 BPM visibly advances faster than free 120 BPM; toggle preserves phase",
+      "shared Inspector Auto lock and identical geometry; editable Palette/BPM/Auto; context restore; quality tiers and portrait; zero remaining surfaces/leases"
+    ],
+    "measurements": [
+      {
+        "control": "upperColor",
+        "difference": 9.8734765625
+      },
+      {
+        "control": "lowerColor",
+        "difference": 9.873436053240741
+      },
+      {
+        "control": "rightColor",
+        "difference": 19.41476417824074
+      },
+      {
+        "control": "leftColor",
+        "difference": 19.414518229166667
+      },
+      {
+        "control": "backgroundColor",
+        "difference": 81.25036168981481
+      },
+      {
+        "control": "aperture",
+        "difference": 22.81637152777778
+      },
+      {
+        "control": "bankTravel",
+        "difference": 37.03836226851852
+      },
+      {
+        "control": "referenceBeamThickness",
+        "difference": 8.051183449074074
+      },
+      {
+        "control": "cameraFov",
+        "difference": 22.4453125
+      },
+      {
+        "control": "bloom",
+        "difference": 79.19231770833333
+      },
+      {
+        "control": "intensity",
+        "difference": 61.8348755787037
+      },
+      {
+        "control": "upperLighting",
+        "difference": 17.500107060185186
+      },
+      {
+        "control": "lowerLighting",
+        "difference": 9.204114583333334
+      },
+      {
+        "control": "rightLighting",
+        "difference": 1.7323408564814815
+      },
+      {
+        "control": "leftLighting",
+        "difference": 14.297705439814814
+      },
+      {
+        "audio": "bass",
+        "difference": 22.179175347222223
+      },
+      {
+        "audio": "highs",
+        "difference": 1.1205381944444444
+      },
+      {
+        "audio": "vocals",
+        "difference": 0.847806712962963
+      },
+      {
+        "timing": "BPM Sync",
+        "fastPhaseDelta": 1.4999999999999993,
+        "freePhaseDelta": 1.0000000000000004
+      }
+    ],
+    "captureCount": 27,
+    "errors": []
+  },
+  "timing": [
+    {
+      "timing": "BPM Sync",
+      "fastPhaseDelta": 1.4999999999999993,
+      "freePhaseDelta": 1.0000000000000004
+    }
+  ],
+  "sourceAudioProof": {
+    "route": "Deterministic PCM → Web Audio AnalyserNode → canonical MusicIntelligenceAnalyserFramePump → AudioFeatureBus → persistent Cinema2AudioIntelligenceBridge → Choreography → native geometry/lighting",
+    "frame": {
+      "sampleCount": 138,
+      "reusedBufferCount": 274,
+      "skippedDuplicateCount": 0,
+      "skippedAuthorityCount": 0,
+      "frequencyBufferLength": 1024,
+      "timeDomainBufferLength": 2048
+    },
+    "limitation": "Deterministic integration proof, not representative whole-song musicality acceptance."
+  },
+  "humanReview": {
+    "status": "rejected",
+    "reportedFailures": [
+      "group gaps",
+      "whole visual frozen by geometry toggle",
+      "Pattern Trigger not working",
+      "weak camera orbit"
+    ],
+    "repairRecord": "../fixes/repairs.json"
+  },
+  "commitStatus": "uncommitted; no commit requested"
+}

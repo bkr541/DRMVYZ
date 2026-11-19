@@ -110,7 +110,8 @@ export interface Cinema2ThreeSceneOptions {
     inspect?(): Readonly<Record<string, unknown>>
     /** Opt-in ordering for proxy controllers that hide the source mesh. */
     afterVisibility?: boolean
-    attach(root: ThreeNamespace.Object3D, userModel?: boolean): void
+    /** Original asset clips are supplied for explicit controller opt-in; the bridge never starts them itself. */
+    attach(root: ThreeNamespace.Object3D, userModel?: boolean, animations?: readonly ThreeNamespace.AnimationClip[]): void
     detach?(root: ThreeNamespace.Object3D): void
     beforeDraw?(quality: Cinema2RenderQualityLevel): void
     dispose?(): void
@@ -491,7 +492,7 @@ export class Cinema2ThreeSceneBridge {
         owned.slot.mesh.receiveShadow ||= inList(shadows.receive)
       }
     }
-    this.options.modelController?.attach(model, instance.userModel)
+    this.options.modelController?.attach(model, instance.userModel, instance.asset.animations)
     root.add(model)
     this.scene.add(root)
     this.placed.push({ preserveMaterials: instance.preserveMaterials === true, userModel: instance.userModel === true, node: instance.node, spin: instance.spin === true, root, materials })

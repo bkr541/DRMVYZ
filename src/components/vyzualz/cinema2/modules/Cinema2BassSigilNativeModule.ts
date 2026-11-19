@@ -106,14 +106,11 @@ export class Cinema2BassSigilModelController {
     const timingFrame = !frame.transport?.sourcePresent && !frame.transport?.paused ? { ...frame, transport: undefined, deltaTimeSec: Number.isFinite(idleDelta) ? idleDelta : 0 } : frame
     const beats = this.clock.update(timingFrame, parameters.get('bpmSync') !== false).beats
     this.beats = beats
-    const motion = parameters.get('geometryMotion') !== false
     const rate = this.number('motionRate', 1, 0, 2)
     const elapsedBeats = this.lastBeat == null ? 0 : Math.max(0, beats - this.lastBeat)
-    this.phase += motion && frame.transport?.animationActive !== false ? elapsedBeats * rate * Math.PI / 4 : 0
-    if (parameters.get('logoMotion') !== false) {
-      this.logoPhase += elapsedBeats * Math.PI / 8
-      this.logoSpinPhase += elapsedBeats * this.number('logoSpinRate', .25, 0, 2) * Math.PI / 8
-    }
+    this.phase += frame.transport?.animationActive !== false ? elapsedBeats * rate * Math.PI / 4 : 0
+    this.logoPhase += elapsedBeats * Math.PI / 8
+    this.logoSpinPhase += elapsedBeats * this.number('logoSpinRate', .25, 0, 2) * Math.PI / 8
     this.lastBeat = beats
     const editRevision = parameters.getEditRevision?.('pattern')
     let patternEdited = editRevision != null && this.patternEditRevision != null && editRevision !== this.patternEditRevision
@@ -127,9 +124,9 @@ export class Cinema2BassSigilModelController {
     const controls = this.policy.update({saved:{patternChange:parameters.get('patternChange')===true,trigger:(parameters.get('trigger')??'bar4') as Cinema2AfterhoursTriggerId},mood:frame.mood,autoPerformance:autoOn})
     const drop = resolveCinema2AfterhoursTriggerEventIdentity(frame,'drop',this.previousTime)
     const event = controls.trigger==='drop' ? drop : resolveCinema2AfterhoursTriggerEventIdentity(frame,controls.trigger,this.previousTime)
-    const selected=this.selection.update({authoredPattern:pattern,patternChange:controls.patternChange && motion,trigger:controls.trigger,triggerEventId:event,absoluteBeat:beats,reset})
+    const selected=this.selection.update({authoredPattern:pattern,patternChange:controls.patternChange,trigger:controls.trigger,triggerEventId:event,absoluteBeat:beats,reset})
     this.basePattern=selected.activePattern
-    const performance=this.auto.update({enabled:autoOn && motion,absoluteBeat:beats,buildCharge:frame.mood?.silence && frame.mood.silence>.5 ? 0 : frame.director?.context.build.available ? frame.director.context.build.value??0 : 0,dropEventId:drop,patternEdited,reset,basePattern:this.basePattern,patternChange:controls.patternChange})
+    const performance=this.auto.update({enabled:autoOn,absoluteBeat:beats,buildCharge:frame.mood?.silence && frame.mood.silence>.5 ? 0 : frame.director?.context.build.available ? frame.director.context.build.value??0 : 0,dropEventId:drop,patternEdited,reset,basePattern:this.basePattern,patternChange:controls.patternChange})
     const next=performance.pattern??this.basePattern
     if(next!==this.pattern && !patternEdited && !reset && this.sphere) this.transition={start:beats,duration:performance.reason==='drop'?.125:1,poses:this.moving.map(r=>restOf(r.object)),vertices:new Float32Array(this.sphere.geometry.attributes.position.array)}
     if(patternEdited||reset)this.transition=null
@@ -144,16 +141,15 @@ export class Cinema2BassSigilModelController {
   beforeDraw() {
     if (!this.context || !this.sphere || !this.sphereBase || !this.hero) return
     const { THREE } = this.library
-    const motion = this.context.parameters.get('geometryMotion') !== false, phase = motion ? this.performingPhase??this.phase : 0
-    const extent = this.number('geometryExtent', .35, 0, 1), travel = motion ? this.number('coreTravel', .25, 0, 1) : 0
+    const phase = this.performingPhase??this.phase
+    const extent = this.number('geometryExtent', .35, 0, 1), travel = this.number('coreTravel', .25, 0, 1)
     const master = this.number('intensity', 1, 0, 2), depth = this.number('tunnelDepth', 1, .5, 1.5)
     this.hero.scale.setScalar(this.number('heroScale', 1, .75, 1.15))
-    const logoOn = this.context.parameters.get('logoMotion') !== false
-    const logoPhase = logoOn ? this.logoPhase : 0, sway = logoOn ? this.number('logoSway', .35, 0, 1) : 0
+    const logoPhase = this.logoPhase, sway = this.number('logoSway', .35, 0, 1)
     const radians = Math.PI / 180
     this.hero.rotation.set(
       this.number('logoPitch',0,-90,90)*radians + Math.sin(logoPhase*.7)*sway*.3,
-      this.number('logoHeading',0,-180,180)*radians + (logoOn ? this.logoSpinPhase : 0),
+      this.number('logoHeading',0,-180,180)*radians + this.logoSpinPhase,
       this.number('logoRoll',0,-180,180)*radians + Math.sin(logoPhase*.9)*sway*.16,
     )
     if (this.heroRest) {
@@ -184,7 +180,7 @@ export class Cinema2BassSigilModelController {
     }
     shell.scale.multiplyScalar(this.number('membraneScale', 1, .65, 1.4)); shell.scale.z *= depth
     first.scale.z *= depth; second.scale.z *= depth
-    const score = motion ? this.number('scoreAmount',.5,0,1) : 0
+    const score = this.number('scoreAmount',.5,0,1)
     const release = score*this.number('shellRelease',0,0,1), twist = score*this.number('shellTwist',0,0,1)
     shell.scale.multiplyScalar(1+release*.12)
     const position = this.sphere.geometry.getAttribute('position')

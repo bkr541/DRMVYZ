@@ -116,3 +116,7 @@ With Auto Performance on, every numeric control in Master Controls, Design and E
 - **Authority controls** (Music Reactivity, Camera Motion on Say It, Master Intensity on GO-TO and others): they set how strongly the choreography acts, so they are the scale of the drives, not something the drives move.
 - **Counts and seeds** (Frame, Blade, Satellite and Fragment counts on Ifrit, Laser Count, Element Count, Rows and Columns, Random Seed): changing them live would rebuild or reshuffle the scene.
 - **Module changes still to make** (`Cinema2AutoCoverageExemptions.ts`, each with its reason): Blockshift's Block Size, Spread, Depth and Rotation Range (the module rebuilds the layout and treats a change as a manual edit); Say It, Orbital and Submerge's Tracking, Line Spacing and Glyph Scale (the text layout is rebuilt on every change); Canopy's spacing and rod controls (the rod structure is rebuilt); Light Strength and Fog Density on Neon Forest and PSYLO and City Atmosphere on ATL HOE (a rule maps the saved value, so there is no property to add to).
+
+### Inspector policy spacing
+
+Pattern Change and Trigger render live policy status only when a status is present. Manual mode and unavailable policy do not reserve blank lines. Active status uses its natural text height, retaining the shared field-value typography without clipping.

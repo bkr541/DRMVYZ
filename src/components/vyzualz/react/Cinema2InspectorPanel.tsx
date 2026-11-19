@@ -11,6 +11,7 @@ import {
   type Cinema2InspectorGroupModel,
   type Cinema2InspectorInstanceModel,
   type Cinema2InspectorSurface,
+  resolveCinema2AutoPerformanceLock,
 } from '../cinema2/parameters/Cinema2InspectorModel'
 import { readCinema2MoodPolicy } from '../cinema2/conductor/Cinema2MoodPolicy'
 import { notify } from '../../../stores/notificationStore'
@@ -82,11 +83,15 @@ export function Cinema2InspectorPanel({ runtime, surface, sharedAudioAnalysis = 
     }
     return ranges
   }, [designParentGroups])
-  const readLiveValues = useCallback(() => (
-    runtime && plan
-      ? resolveCinema2LiveValues(plan, runtime.getTargetResolver(), runtime.getParameterState().getSnapshot().persistentValues, liveRanges)
-      : new Map<string, number>()
-  ), [runtime, plan, liveRanges])
+  // The yellow marker means "Auto Performance is moving this": the music's always-on audio reactions also move controls, but they are not shown as
+  // markers, so with Auto Performance off no slider carries one. A preset with no Auto Performance toggle keeps showing what the music does.
+  const readLiveValues = useCallback(() => {
+    if (!runtime || !plan) return new Map<string, number>()
+    const saved = runtime.getParameterState().getSnapshot().persistentValues
+    const lock = resolveCinema2AutoPerformanceLock(plan, saved)
+    if (lock.autoParameterId !== null && !lock.active) return new Map<string, number>()
+    return resolveCinema2LiveValues(plan, runtime.getTargetResolver(), saved, liveRanges)
+  }, [runtime, plan, liveRanges])
   const liveValues = useCinema2LiveValues(surface === 'design' && runtime != null && liveRanges.size > 0, readLiveValues)
   // Pattern Change and the Trigger: with Auto Performance on, the music chooses them, so the inspector says what it chose.
   const policyControls = useMemo(
@@ -559,7 +564,7 @@ function Cinema2SchemaControlBody({
             description={description || undefined}
             onChange={onChange}
           />
-          {hasLivePolicy && <div className="rv-ctrl-live-policy" data-live-policy={livePolicy ? 'true' : undefined} aria-hidden={!livePolicy} title={livePolicy ?? undefined}>{livePolicy ?? '\u00a0'}</div>}
+          {hasLivePolicy && livePolicy && <div className="rv-ctrl-live-policy" data-live-policy="true" title={livePolicy}>{livePolicy}</div>}
         </div>
       )
     case 'enum':
@@ -574,7 +579,7 @@ function Cinema2SchemaControlBody({
             options={(definition.options ?? []).map(option => ({ value: option.value, label: option.label }))}
             onChange={onChange}
           />
-          {hasLivePolicy && <div className="rv-ctrl-live-policy" data-live-policy={livePolicy ? 'true' : undefined} aria-hidden={!livePolicy} title={livePolicy ?? undefined}>{livePolicy ?? '\u00a0'}</div>}
+          {hasLivePolicy && livePolicy && <div className="rv-ctrl-live-policy" data-live-policy="true" title={livePolicy}>{livePolicy}</div>}
         </div>
       )
     case 'color': {

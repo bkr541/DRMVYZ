@@ -1,0 +1,131 @@
+{
+  "source": "lasers_-_vj.glb",
+  "passed": [
+    "four original meshes, zero added geometry, source clip playback and exact loop return",
+    "pause hold and authored-speed transport seeking",
+    "context restoration, mixer recreation and zero remaining leases/surfaces"
+  ],
+  "captures": [
+    {
+      "name": "start",
+      "inspection": {
+        "source": "lasers_-_vj.glb",
+        "sourceMeshes": 4,
+        "addedGeometry": 0,
+        "clipCount": 1,
+        "clipName": "Animation",
+        "clipDuration": 10.416666984558105,
+        "clipTracks": 8,
+        "timeSec": 0,
+        "animation": {
+          "paused": false,
+          "speed": 1,
+          "active": [
+            "Animation"
+          ],
+          "clipNames": [
+            "Animation"
+          ],
+          "disposed": false
+        },
+        "state": "ready",
+        "loadedAssetCount": 1,
+        "skippedInstanceCount": 0
+      }
+    },
+    {
+      "name": "quarter",
+      "inspection": {
+        "source": "lasers_-_vj.glb",
+        "sourceMeshes": 4,
+        "addedGeometry": 0,
+        "clipCount": 1,
+        "clipName": "Animation",
+        "clipDuration": 10.416666984558105,
+        "clipTracks": 8,
+        "timeSec": 2.5,
+        "animation": {
+          "paused": false,
+          "speed": 1,
+          "active": [
+            "Animation"
+          ],
+          "clipNames": [
+            "Animation"
+          ],
+          "disposed": false
+        },
+        "state": "ready",
+        "loadedAssetCount": 1,
+        "skippedInstanceCount": 0
+      }
+    },
+    {
+      "name": "middle",
+      "inspection": {
+        "source": "lasers_-_vj.glb",
+        "sourceMeshes": 4,
+        "addedGeometry": 0,
+        "clipCount": 1,
+        "clipName": "Animation",
+        "clipDuration": 10.416666984558105,
+        "clipTracks": 8,
+        "timeSec": 5,
+        "animation": {
+          "paused": false,
+          "speed": 1,
+          "active": [
+            "Animation"
+          ],
+          "clipNames": [
+            "Animation"
+          ],
+          "disposed": false
+        },
+        "state": "ready",
+        "loadedAssetCount": 1,
+        "skippedInstanceCount": 0
+      }
+    },
+    {
+      "name": "late",
+      "inspection": {
+        "source": "lasers_-_vj.glb",
+        "sourceMeshes": 4,
+        "addedGeometry": 0,
+        "clipCount": 1,
+        "clipName": "Animation",
+        "clipDuration": 10.416666984558105,
+        "clipTracks": 8,
+        "timeSec": 7.5,
+        "animation": {
+          "paused": false,
+          "speed": 1,
+          "active": [
+            "Animation"
+          ],
+          "clipNames": [
+            "Animation"
+          ],
+          "disposed": false
+        },
+        "state": "ready",
+        "loadedAssetCount": 1,
+        "skippedInstanceCount": 0
+      }
+    }
+  ],
+  "errors": [],
+  "sourceGLBSha256": "b2dd79d39bc3caee20898bf0f863a2327b9fca8bef7b4558f8091c0fe1979e87",
+  "validation": {
+    "focusedTests": 29,
+    "typecheck": "passed",
+    "focusedESLint": "passed",
+    "browser": "passed"
+  },
+  "scope": "Original scene and original animation only; Laser Loom cancelled.",
+  "commitStatus": "uncommitted",
+  "status": "superseded",
+  "supersededBy": "reference-acceptance.json",
+  "reason": "User rejected the external artifact framing and supplied Reference_vid.mov."
+}

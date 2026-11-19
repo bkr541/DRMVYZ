@@ -68,3 +68,7 @@ The user reviewed the final captures and answered **“Looks right”** to the e
 The user has approved the environment and finishing in the final captures. Remaining human review concerns motion, timing, musicality, camera travel and manual authority against moving reference and representative music. A representative real-track audition is also outstanding: the supplied video has very quiet audio (mean −57.4 dBFS) and is not a substitute for quiet, vocal, groove, build and drop passages from a representative track. Neither can be marked passed by an unattended automated test.
 
 Changes are uncommitted; no commit was requested. Existing Open Decks work is preserved. No production promotion or unrelated cleanup was performed.
+
+## Corrections, 2026-11-18
+
+Removed the Geometry Motion and Logo Motion toggles (revision 2). Motion Rate, Logo Spin Rate and Logo Sway at zero hold the corresponding motion; Pattern Change, Auto Performance and the audio and score rules are no longer gated by a motion switch.

@@ -4,7 +4,7 @@ import type {Cinema2RenderQualityLevel} from '../../contracts/Cinema2NativePrese
 import {MOIRE_ORB_PATTERN_IDS,REACTOR_FIXTURE_COUNT,reactorPattern} from './MoireOrbPatterns'
 import {MoireOrbReactorDetail} from './MoireOrbReactorDetail'
 export interface ReactorControls {
- geometryMotion:boolean;fixtureMotion:boolean;intensity:number;coreScale:number;coreOpacity:number;coreGlow:number;layerSeparation:number;ringTravel:number;ringLighting:number;fixtureLighting:number;chamberLighting:number;coreDetailLighting:number;beamWidth:number;haze:number
+ fixtureMotion:boolean;intensity:number;coreScale:number;coreOpacity:number;coreGlow:number;layerSeparation:number;ringTravel:number;ringLighting:number;fixtureLighting:number;chamberLighting:number;coreDetailLighting:number;beamWidth:number;haze:number
  coreColor:readonly number[];ringColor:readonly number[];fixtureColor:readonly number[];chamberColor:readonly number[];detailColor:readonly number[]
 }
 type Material=THREE.MeshStandardMaterial|THREE.MeshBasicMaterial|THREE.ShaderMaterial
@@ -100,12 +100,13 @@ export class MoireOrbReactorScene {
    const target=new T.Vector3()
    // Interpolate actual world targets so accumulated angular phases never whip a head around on a pattern change.
    MOIRE_ORB_PATTERN_IDS.forEach((id,j)=>{const p=reactorPattern(id,fixturePhase,i),a=fixture.angle+p.aimTurn;target.addScaledVector(new T.Vector3(Math.sin(a)*p.aimRadius,p.aimY,Math.cos(a)*p.aimRadius),weights[j]??0)})
-   if((c.geometryMotion&&c.fixtureMotion)||!fixture.initialized){fixture.head.lookAt(target);fixture.yoke.rotation.y=Math.atan2(target.x-fixture.head.position.x,target.z-fixture.head.position.z);fixture.target.position.copy(target);fixture.initialized=true}
+   if(c.fixtureMotion||!fixture.initialized){fixture.head.lookAt(target);fixture.yoke.rotation.y=Math.atan2(target.x-fixture.head.position.x,target.z-fixture.head.position.z);fixture.target.position.copy(target);fixture.initialized=true}
    const beamLength=Math.max(1.1,fixture.head.position.distanceTo(fixture.target.position))
    const power=c.intensity*c.fixtureLighting*(.5+.5*mix(i*4,phase).light)
-   fixture.light.visible=i%(12/budget)===0&&power>0;fixture.light.color.copy(fixtureColor);fixture.light.intensity=power*12;fixture.light.angle=.065+c.beamWidth*.07
-   fixture.lens.material.color.copy(fixtureColor).multiplyScalar(power*1.5)
-   fixture.beam.visible=c.haze>0&&power>0;(fixture.beam.material.uniforms.uColor.value as THREE.Color).copy(fixtureColor).multiplyScalar(Math.min(1.5,power));fixture.beam.material.uniforms.uOpacity.value=c.haze*.14
+   fixture.light.visible=i%(12/budget)===0&&power>0;fixture.light.color.copy(fixtureColor);fixture.light.intensity=power*40;fixture.light.angle=.065+c.beamWidth*.07
+   // A fixture that is on always reads as lit (a floor under its lens), so no head looks dead; a hard zero in Fixture Lighting still turns every lens off.
+   fixture.lens.material.color.copy(fixtureColor).multiplyScalar(power>0?1.1+power*1.8:0)
+   fixture.beam.visible=c.haze>0&&power>0;(fixture.beam.material.uniforms.uColor.value as THREE.Color).copy(fixtureColor).multiplyScalar(Math.min(1.5,power));fixture.beam.material.uniforms.uOpacity.value=c.haze*.32
    const width=Math.tan(fixture.light.angle)*beamLength;fixture.beam.scale.set(width,width,beamLength-1.02)
   })
  }

@@ -75,7 +75,7 @@ it('honors the preset BPM Sync independently of host sync, and holds pause, zero
   const s=await setup();s.step();s.step();const phase=s.controller.inspect().phase
   for(let i=0;i<10;i++)s.step({paused:true});expect(s.controller.inspect().phase).toBe(phase)
   s.values.motionRate=0;for(let i=0;i<10;i++)s.step();expect(s.controller.inspect().phase).toBe(phase)
-  s.values.motionRate=1;s.values.geometryMotion=false;s.values.logoMotion=false;s.step();const pose=s.root.getObjectByName('Object_10')!.matrixWorld.clone()
+  s.values.motionRate=0;s.values.logoSpinRate=0;s.values.logoSway=0;s.step();const pose=s.root.getObjectByName('Object_10')!.matrixWorld.clone()
   for(let i=0;i<10;i++)s.step();expect(s.root.getObjectByName('Object_10')!.matrixWorld.elements).toEqual(pose.elements)
   s.controller.dispose()
 })
@@ -96,8 +96,8 @@ it('clears motion and pattern progression on track/seek discontinuities and disp
   s.controller.dispose();expect(disposed).toBe(true);expect(s.controller.inspect().ownedGeometryCount).toBe(0)
 })
 
-it('rotates and sways the complete original logo independently, with real manual orientation and hard-off',async()=>{
-  const s=await setup();s.values.geometryMotion=false;s.step()
+it('rotates and sways the complete original logo independently, with real manual orientation and spin and sway at zero',async()=>{
+  const s=await setup();s.values.motionRate=0;s.step()
   const logo=s.root.getObjectByName('Object_6')!,sphere=s.root.getObjectByName('Object_18')!
   const before=logo.matrixWorld.clone(),shell=sphere.matrixWorld.clone()
   for(let i=0;i<20;i++)s.step()
@@ -106,7 +106,7 @@ it('rotates and sways the complete original logo independently, with real manual
   s.values.logoSpinRate=0;const spin=s.controller.inspect().logoSpinPhase
   for(let i=0;i<10;i++)s.step();expect(s.controller.inspect().logoSpinPhase).toBe(spin)
   expect(s.controller.inspect().logoPhase).toBeGreaterThan(0)
-  s.values.logoMotion=false;s.values.logoHeading=45;s.values.logoPitch=20;s.values.logoRoll=10;s.step()
+  s.values.logoSpinRate=0;s.values.logoSway=0;s.values.logoHeading=45;s.values.logoPitch=20;s.values.logoRoll=10;s.step()
   const manual=logo.matrixWorld.clone();for(let i=0;i<10;i++)s.step();expect(logo.matrixWorld.elements).toEqual(manual.elements)
   s.values.logoHeading=-45;s.step();expect(logo.matrixWorld.elements).not.toEqual(manual.elements)
   s.controller.dispose()

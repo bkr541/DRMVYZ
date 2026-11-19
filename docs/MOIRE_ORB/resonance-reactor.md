@@ -87,3 +87,7 @@ Focused checks cover source identity, exact inventory, cell addressability, expo
 Reproduce with `node scripts/run-cinema2-moire-orb-browser.mjs`; `--stage=visual|audio|performance|lifecycle` runs a focused segment. `MOIRE_ORB_OUTPUT` selects the artifact directory. The actual-input script is `node scripts/run-cinema2-moire-orb-real-audio-browser.mjs` and requires the supplied recording or `MOIRE_ORB_REFERENCE_VIDEO`.
 
 No commit was requested. The pre-existing deleted Bass Sigil source-crate GLB and the DVYDRM model-viewer work are unrelated and preserved. Their known unrelated checks are not rerun for this revision.
+
+## Corrections, 2026-11-18
+
+Removed the Geometry Motion and Fixture Motion toggles (revision 3): motion is controlled by Motion Rate and Fixture Speed, and Pattern Change and Auto Performance are no longer gated by a motion switch (the old gate silently disabled both when the toggle was off). Lighting was too dim and some fixtures looked dead: Fixture, Ring, Chamber and Electrode Lighting, Beam Haze and Bloom defaults are higher, spot lights and beam volumes are about three times stronger, a lit fixture's lens has a brightness floor, and the scene's ambient and key lights are raised.

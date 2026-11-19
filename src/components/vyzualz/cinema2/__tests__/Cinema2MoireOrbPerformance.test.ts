@@ -11,15 +11,16 @@ it('reuses all eleven canonical Triggers and compiles each advertised pattern an
  expect(cinema2NativePresetRegistry.compile(manifest.id).ok).toBe(true)
  expect(Object.keys(manifest.cameras![0].rigVariants!)).toEqual(['manual','horizontal','omnidirectional'])
 })
-it('delivers independent shared audio facts and keeps lighting zeros and geometry-motion permission authoritative',()=>{
+it('delivers independent shared audio facts and keeps lighting zeros authoritative',()=>{
  const stage=moodStage(manifest),music=moodMusic();stage.state.setPersistentValue(pid('reactivity'),1)
  const saved=stage.state.serialize();for(let i=0;i<40;i++)stage.choreography.update(music.next({energy:1,bass:1,high:1,vocal:1}))
  expect(stage.read('moire-orb-reactor','coreScale')).toBeLessThan(1);expect(stage.read('moire-orb-reactor','motionRate')).toBeGreaterThan(1)
  expect(stage.state.serialize()).toBe(saved)
  for(const name of ['ringLighting','fixtureLighting','chamberLighting','coreDetailLighting','coreGlow','haze'])stage.state.setPersistentValue(pid(name),0)
- stage.state.setPersistentValue(pid('geometryMotion'),false);stage.state.setPersistentValue(pid('autoPerformance'),true)
+ stage.state.setPersistentValue(pid('autoPerformance'),true)
  for(let i=0;i<20;i++)stage.choreography.update(music.next({energy:1,bass:1,event:'drop',eventId:i,section:'drop'}))
- expect(stage.read('moire-orb-reactor','coreScale')).toBe(1)
+ // The core still follows the music (the bass compresses it, a drop pushes it back out); it is no longer gated by a motion switch.
+ expect(stage.read('moire-orb-reactor','coreScale')).toBeGreaterThan(0.5)
  for(const name of ['ringLighting','fixtureLighting','chamberLighting','coreDetailLighting','coreGlow','haze'])expect(stage.read('moire-orb-reactor',name)).toBe(0)
  stage.choreography.dispose()
 })

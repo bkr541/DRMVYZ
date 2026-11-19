@@ -48,8 +48,8 @@ it('builds exactly 48 segments and twelve physical fixture/beam/light rigs aroun
 it('moves real layers, rings and fixture heads, freezes both motion domains and honors hard lighting zeros',async()=>{
  const s=await setup();s.step();const ring=s.scene.getObjectByName('reactor-gimbal-1')!,head=s.scene.getObjectByName('reactor-moving-fixture-2')!,first=ring.matrixWorld.clone(),aim=head.quaternion.clone()
  for(let i=0;i<12;i++)s.step();expect(ring.matrixWorld.elements).not.toEqual(first.elements);expect(head.quaternion.toArray()).not.toEqual(aim.toArray())
- s.values.fixtureMotion=false;s.step();const held=head.quaternion.clone();for(let i=0;i<10;i++)s.step();expect(head.quaternion.toArray()).toEqual(held.toArray())
- s.values.geometryMotion=false;s.step();const frozen=ring.matrixWorld.clone();for(let i=0;i<10;i++)s.step();expect(ring.matrixWorld.elements).toEqual(frozen.elements)
+ s.values.fixtureSpeed=0;s.step();const held=head.quaternion.clone();for(let i=0;i<10;i++)s.step();expect(head.quaternion.toArray()).toEqual(held.toArray())
+ s.values.motionRate=0;s.values.fixtureSpeed=0;s.values.ringTravel=0;s.step();const frozen=ring.matrixWorld.clone();for(let i=0;i<10;i++)s.step();expect(ring.matrixWorld.elements).toEqual(frozen.elements)
  s.values.ringLighting=0;s.values.fixtureLighting=0;s.values.chamberLighting=0;s.values.coreDetailLighting=0;s.step();expect(s.scene.getObjectByName('reactor-segment-0')!.visible).toBe(false);expect(s.controller.inspect().activeDirectLights).toBe(0)
  const bank=s.scene.getObjectByName('reactor-chamber-lighting-cells') as THREE.InstancedMesh;const led=new THREE.Color();bank.getColorAt(0,led);expect(led.toArray()).toEqual([0,0,0])
  s.values.intensity=0;s.step();expect(s.scene.getObjectByName('reactor-complete-chamber')!.visible).toBe(false)

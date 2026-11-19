@@ -26,7 +26,7 @@ export const bassSigilParameterId = (name: string) => cinema2StableId<Cinema2Par
 const base = { section: 'Design', exposure: 'primary', persistence: 'preset', reset: 'authored-default' } as const
 const number = (name: string, label: string, group: Cinema2ParameterManifest['designParentGroup'], value: number, min: number, max: number, order: number): Cinema2ParameterManifest => ({ ...base, id: bassSigilParameterId(name), label, type: 'float', defaultValue: value, min, max, step: .01, designParentGroup: group, order })
 const bind = (name: string) => cinema2Ref(bassSigilParameterId(name))
-const bindings = Object.fromEntries(['autoPerformance','reactivity','scoreAmount','bpmSync','intensity','pattern','patternChange','trigger','geometryMotion','motionRate','geometryExtent','coreTravel','membraneScale','particleDensity','tunnelDepth','heroScale','logoMotion','logoSpinRate','logoSway','logoHeading','logoPitch','logoRoll','membraneOpacity','glow',...Object.keys(BASS_SIGIL_PALETTE).map(role=>`${role}Color`)].map(name=>[name,bind(name)]))
+const bindings = Object.fromEntries(['autoPerformance','reactivity','scoreAmount','bpmSync','intensity','pattern','patternChange','trigger','motionRate','geometryExtent','coreTravel','membraneScale','particleDensity','tunnelDepth','heroScale','logoSpinRate','logoSway','logoHeading','logoPitch','logoRoll','membraneOpacity','glow',...Object.keys(BASS_SIGIL_PALETTE).map(role=>`${role}Color`)].map(name=>[name,bind(name)]))
 const parameters: readonly Cinema2ParameterManifest[] = [
     { ...base, id: bassSigilParameterId('bpmSync'), label: 'BPM Sync', type: 'boolean', defaultValue: true, designParentGroup: 'master-controls', order: 0, description: 'Locks native motion to shared tempo. Off runs at the 120 BPM reference; the host toggle does not override this choice.' },
     number('intensity','Intensity','master-controls',1,0,2,1),
@@ -36,7 +36,6 @@ const parameters: readonly Cinema2ParameterManifest[] = [
     { ...base, id: bassSigilParameterId('pattern'), label: 'Pattern', type: 'enum', defaultValue: 'reference-vortex', options: BASS_SIGIL_PATTERNS, designParentGroup: 'design', group: 'Pattern', order: 0 },
     { ...base, id: bassSigilParameterId('patternChange'), label: 'Pattern Change', type: 'boolean', defaultValue: false, designParentGroup: 'design', group: 'Pattern', order: 1 },
     { ...base, id: bassSigilParameterId('trigger'), label: 'Trigger', type: 'enum', defaultValue: 'bar4', options: CINEMA2_AFTERHOURS_TRIGGER_OPTIONS, designParentGroup: 'design', group: 'Pattern', order: 2, visibleWhen: [{ kind: 'parameter-equals', parameterId: bassSigilParameterId('patternChange'), value: true }] },
-    { ...base, id: bassSigilParameterId('geometryMotion'), label: 'Geometry Motion', type: 'boolean', defaultValue: true, designParentGroup: 'design', order: 10, description: 'Off shows the selected pattern at rest. No sphere, particle or bar movement continues. Camera and Logo Motion have their own controls.' },
     number('motionRate','Motion Rate','design',1,0,2,11),
     { ...number('geometryExtent','Geometry Extent','design',.35,0,1,12), description: 'Deformation strength in the native variants. Reference Vortex keeps the original sphere shape and animates its rotation.' },
     number('coreTravel','Core Travel','design',.25,0,1,13),
@@ -44,7 +43,6 @@ const parameters: readonly Cinema2ParameterManifest[] = [
     number('particleDensity','Particle Density','design',1,0,1,15),
     number('tunnelDepth','Tunnel Depth','design',1,.5,1.5,16),
     number('heroScale','Hero Scale','design',1,.75,1.15,17),
-    { ...base, id: bassSigilParameterId('logoMotion'), label: 'Logo Motion', type: 'boolean', defaultValue: true, designParentGroup: 'design', group: 'Logo', order: 0, description: 'Independent rotation and sway of the complete original 3D logo. Off holds its manual orientation.' },
     { ...number('logoSpinRate','Logo Spin Rate','design',.25,0,2,1), group: 'Logo' },
     { ...number('logoSway','Logo Sway','design',.35,0,1,2), group: 'Logo' },
     { ...number('logoHeading','Logo Heading','design',0,-180,180,3), group: 'Logo' },
@@ -74,7 +72,7 @@ const orbitPoints = Array.from({ length: 12 }, (_,i) => {
 /** Complete original artifact with shared musical choreography, Mood policy and depth-aware finishing. */
 const authored: Readonly<Cinema2NativePresetManifest> = {
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID, schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
-  id: CINEMA2_BASS_SIGIL_PRESET_ID, revision: 1,
+  id: CINEMA2_BASS_SIGIL_PRESET_ID, revision: 2,
   metadata: { name: 'Bass Sigil', description: 'The original Bass Sigil sphere, particle fields and 3D logo with eight native programs, omnidirectional camera, musical geometry score, shared Auto Performance and cinematic finishing.', tags: ['reference', 'crate', '3d'] },
   capabilities: [
     { id: 'render.webgl2', requirement: 'required', purpose: 'Render the original hero, cellular sphere and particles.' },
