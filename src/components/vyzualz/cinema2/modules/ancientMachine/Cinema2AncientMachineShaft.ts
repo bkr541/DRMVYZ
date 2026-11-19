@@ -1,5 +1,7 @@
 export const ANCIENT_MACHINE_SHAFT_VERTEX_BYTES = 7 * Float32Array.BYTES_PER_ELEMENT
 export const ANCIENT_MACHINE_GANTRY_DEPTHS = [-27, -21, -15, -10.25, -5.7, 5.7, 10.25, 15, 21, 27] as const
+export const ANCIENT_MACHINE_COLLAR_CENTER_Z = -2.75
+export const ANCIENT_MACHINE_COLLAR_INNER_RADIUS = 4.86
 
 const shell = 0
 const steel = 1
@@ -86,11 +88,12 @@ export function buildCinema2AncientMachineShaft(): Float32Array {
   }
 
   // Anchor the mechanism to the shaft with a collar and heavy side supports.
+  const collarZ = ANCIENT_MACHINE_COLLAR_CENTER_Z
   for (let segment = 0; segment < 12; segment += 1) {
     const angle = segment * TAU / 12
     const half = TAU / 24
-    arc(4.86, 5.32, -2.38, -3.12, angle - half + .018, angle + half - .018, 5, steel)
-    arc(5.16, 5.32, -2.30, -2.39, angle - half + .028, angle + half - .028, 5, bronze)
+    arc(ANCIENT_MACHINE_COLLAR_INNER_RADIUS, 5.32, collarZ + .37, collarZ - .37, angle - half + .018, angle + half - .018, 5, steel)
+    arc(5.16, 5.32, collarZ + .45, collarZ + .36, angle - half + .028, angle + half - .028, 5, bronze)
   }
 
   // Service catwalks frame the lower corners and provide a foreground scale cue.

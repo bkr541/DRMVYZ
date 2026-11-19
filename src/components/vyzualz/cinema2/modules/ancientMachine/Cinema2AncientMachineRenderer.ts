@@ -1,10 +1,12 @@
 import { ShaderCompiler } from '../../../react/shaders/runtime/ShaderCompiler'
 import { ShaderProgram } from '../../../react/shaders/runtime/ShaderProgram'
 import { assertCinema2NoGlErrors } from '../../runtime/Cinema2GpuValidation'
-import { CINEMA2_ANCIENT_MACHINE_INSTANCE_FLOATS, buildCinema2AncientMachineShaftDebris, packCinema2AncientMachineInstances } from './Cinema2AncientMachineLayout'
-import { ANCIENT_MACHINE_SHAFT_VERTEX_BYTES, buildCinema2AncientMachineShaft } from './Cinema2AncientMachineShaft'
+import { ANCIENT_MACHINE_CORE_MAX_RADIUS, ANCIENT_MACHINE_CORE_RADIUS, CINEMA2_ANCIENT_MACHINE_INSTANCE_FLOATS, CINEMA2_ANCIENT_MACHINE_PART_CODES, buildCinema2AncientMachineShaftDebris, packCinema2AncientMachineInstances } from './Cinema2AncientMachineLayout'
+import { ANCIENT_MACHINE_ROCK_VARIANT_COUNT, buildCinema2AncientMachineRockGeometry } from './Cinema2AncientMachineRockGeometry'
+import { ANCIENT_MACHINE_COLLAR_CENTER_Z, ANCIENT_MACHINE_COLLAR_INNER_RADIUS, ANCIENT_MACHINE_SHAFT_VERTEX_BYTES, buildCinema2AncientMachineShaft } from './Cinema2AncientMachineShaft'
 
 const DEFAULT_SHAFT_BACKGROUND = [0.004, 0.006, 0.006] as const
+const GLSL_CRYSTAL_CENTER = `vec3(0.0, 0.0, ${ANCIENT_MACHINE_COLLAR_CENTER_Z.toFixed(2)})`
 
 const SHAFT_VERTEX_SOURCE = `#version 300 es
 precision highp float;
@@ -72,6 +74,7 @@ layout(location = 3) in vec4 i_centerSizeX;
 layout(location = 4) in vec4 i_sizeRotationKind;
 layout(location = 5) in vec4 i_ringGroupRandom;
 layout(location = 6) in vec4 i_reserved;
+layout(location = 7) in vec3 a_surfaceTangent;
 uniform mat4 u_viewProjection;
 uniform float u_time;
 uniform float u_rotationSpeed;
@@ -87,6 +90,8 @@ uniform int u_look;
 out vec3 v_world;
 out vec3 v_normal;
 out vec2 v_uv;
+flat out vec3 v_surfaceTangent;
+out float v_lampDistance;
 flat out float v_kind;
 flat out float v_ring;
 flat out float v_group;
@@ -99,6 +104,10 @@ vec3 rotateBlock(vec3 point, vec3 c, vec3 s) {
   return point;
 }
 
+vec3 spinBlock(vec3 point, vec3 axis, float c, float s) {
+  return point * c + cross(axis, point) * s + axis * dot(axis, point) * (1.0 - c);
+}
+
 void main() {
   float ring = i_ringGroupRandom.x;
   float kind = i_sizeRotationKind.w;
@@ -109,14 +118,24 @@ void main() {
   v_ring = ring;
   v_group = i_ringGroupRandom.y;
   v_random = i_ringGroupRandom.z;
+  v_lampDistance = 0.0;
   if (kind > 4.5) {
-    float drift = u_time * (0.18 + v_random * 0.15) + v_random * 31.0;
-    vec3 angles = vec3(i_reserved.xy, i_sizeRotationKind.z) + 0.16 * sin(vec3(0.77, 0.89, 1.0) * drift);
+    float drift = u_time * (0.11 + v_random * 0.21) + v_random * 31.0;
+    center += 0.21 * sin(vec3(1.0, 0.83, 0.71) * drift + vec3(0.0, 2.1, 4.2));
+    vec3 angles = vec3(i_reserved.xy, i_sizeRotationKind.z);
     vec3 c = cos(angles);
     vec3 s = sin(angles);
-    center += vec3(0.14, 0.18, 0.15) * sin(vec3(1.0, 0.83, 0.71) * drift);
-    v_world = center + rotateBlock(a_position * size, c, s);
-    v_normal = rotateBlock(a_normal, c, s);
+    // Constant angular velocity around a different axis for each block.
+    vec3 spinAxis = normalize(vec3(i_reserved.xy, 0.55 + v_random * 0.45));
+    float speed = mix(0.32, 0.93, fract(v_random * 11.37)) / (1.0 + 0.75 * size.x);
+    float spin = u_time * speed * mix(-1.0, 1.0, step(0.5, v_random));
+    float spinC = cos(spin);
+    float spinS = sin(spin);
+    v_world = center + spinBlock(rotateBlock(a_position * size, c, s), spinAxis, spinC, spinS);
+    v_normal = spinBlock(rotateBlock(a_normal / size, c, s), spinAxis, spinC, spinS);
+    v_surfaceTangent = spinBlock(rotateBlock(a_surfaceTangent * size, c, s), spinAxis, spinC, spinS);
+    // A slice through the rock makes the recessed band wrap continuously over the facets.
+    v_lampDistance = dot(a_position, vec3(1.0, 0.18, -0.22)) - 0.08;
     gl_Position = u_viewProjection * vec4(v_world, 1.0);
     return;
   }
@@ -124,25 +143,31 @@ void main() {
   float lookRate = u_look == 1 ? 1.8 : (u_look == 2 ? 0.24 : 0.55);
   float dynamicRotation = u_time * u_rotationSpeed * lookRate * direction * (0.35 + ring * 0.08);
   dynamicRotation += u_build * direction * ring * 0.018;
+  const vec3 crystalCenter = ${GLSL_CRYSTAL_CENTER};
+  center -= crystalCenter;
+  vec3 radial = normalize(center);
+  vec3 reference = abs(radial.y) > 0.92 ? vec3(1.0, 0.0, 0.0) : vec3(0.0, 1.0, 0.0);
+  vec3 tangent = normalize(cross(reference, radial));
+  vec3 bitangent = cross(radial, tangent);
+  float tilt = ring * 2.39996323;
+  vec3 axis = normalize(vec3(cos(tilt) * 0.52, sin(tilt) * 0.52, 0.85));
   float c = cos(dynamicRotation);
   float s = sin(dynamicRotation);
-  mat2 ringRotation = mat2(c, -s, s, c);
-  center.xy = ringRotation * center.xy;
   float debris = step(3.5, kind);
   float bassDrive = smoothstep(0.035, 0.88, u_bass);
-  vec2 radial = normalize(center.xy + vec2(0.0001));
-  vec2 tangent = vec2(-radial.y, radial.x);
   float vibrationPhase = u_time * (19.0 + i_ringGroupRandom.z * 11.0) + i_ringGroupRandom.z * 31.0;
   float radialVibration = sin(vibrationPhase) * (0.035 + i_ringGroupRandom.z * 0.055);
   float tangentVibration = cos(vibrationPhase * 1.37 + i_ringGroupRandom.y * 1.7) * (0.025 + (1.0 - i_ringGroupRandom.z) * 0.045);
-  center.xy += debris * bassDrive * (radial * radialVibration + tangent * tangentVibration);
-  center.z += debris * bassDrive * sin(vibrationPhase * 1.83) * 0.075;
-  float aperturePart = step(3.5, kind) * step(length(center.xy), 1.25);
-  center.xy *= 1.0 + aperturePart * (u_aperture * 0.58 + u_drop * 0.38);
-  center.z *= u_mechanicalDepth;
-  center.z -= u_build * ring * 0.018;
-  center.z += u_drop * (i_ringGroupRandom.z - 0.5) * 0.42;
-  float authoredRotation = i_sizeRotationKind.z + dynamicRotation;
+  center += debris * bassDrive * (radial * radialVibration + tangent * tangentVibration + bitangent * sin(vibrationPhase * 1.83) * 0.075);
+  center *= 1.0 + (u_aperture * 0.018 + u_drop * 0.024) * debris;
+  center += radial * (u_drop * (i_ringGroupRandom.z - 0.5) * 0.23 - u_build * ring * 0.012);
+  center = spinBlock(center, axis, c, s);
+  center.z *= 1.0 + (u_mechanicalDepth - 1.0) * 0.13;
+  const float minShellRadius = ${(ANCIENT_MACHINE_CORE_MAX_RADIUS + .43).toFixed(2)};
+  center *= max(1.0, minShellRadius / length(center));
+  const float maxCollarRadius = ${(ANCIENT_MACHINE_COLLAR_INNER_RADIUS - .27).toFixed(2)};
+  center.xy *= min(1.0, maxCollarRadius / max(length(center.xy), 0.001));
+  float authoredRotation = i_sizeRotationKind.z;
   float rc = cos(authoredRotation);
   float rs = sin(authoredRotation);
   mat2 localRotation = mat2(rc, -rs, rs, rc);
@@ -156,10 +181,14 @@ void main() {
   if (u_look == 0) size *= mix(0.94, 1.0, u_lockProgress);
   vec3 local = a_position * size;
   local.xy = localRotation * local.xy;
-  vec3 normal = a_normal;
+  vec3 normal = a_normal / size;
   normal.xy = localRotation * normal.xy;
-  v_world = center + local;
-  v_normal = normal;
+  vec3 surfaceTangent = a_surfaceTangent * size;
+  surfaceTangent.xy = localRotation * surfaceTangent.xy;
+  mat3 frame = mat3(tangent, bitangent, radial);
+  v_world = crystalCenter + center + spinBlock(frame * local, axis, c, s);
+  v_normal = spinBlock(frame * normal, axis, c, s);
+  v_surfaceTangent = spinBlock(frame * surfaceTangent, axis, c, s);
   gl_Position = u_viewProjection * vec4(v_world, 1.0);
 }`
 
@@ -185,10 +214,9 @@ void main() {
   float directionalWave = sin(dot(direction, vec3(5.7, 8.3, 6.1)) + u_time * 2.4);
   directionalWave += cos(dot(direction, vec3(-7.1, 4.9, 9.2)) - u_time * 1.65) * 0.55;
   float audioPressure = clamp(u_bass * 0.72 + u_energy * 0.2 + u_kick * 0.34, 0.0, 1.5);
-  float radius = 0.68 * (1.0 + u_aperture * 0.16 + u_drop * 0.13 + audioPressure * 0.12);
+  float radius = ${ANCIENT_MACHINE_CORE_RADIUS.toFixed(2)} * (1.0 + u_aperture * 0.16 + u_drop * 0.13 + audioPressure * 0.12);
   float crystalWarp = 1.0 + directionalWave * (0.018 + audioPressure * 0.025);
-  vec3 world = direction * radius * crystalWarp;
-  world.z = world.z * 1.08 + 0.12;
+  vec3 world = ${GLSL_CRYSTAL_CENTER} + direction * min(radius * crystalWarp, ${ANCIENT_MACHINE_CORE_MAX_RADIUS.toFixed(2)});
   v_world = world;
   v_normal = normalize(a_normal + direction * directionalWave * audioPressure * 0.045);
   v_crystalPosition = direction;
@@ -235,6 +263,8 @@ precision highp int;
 in vec3 v_world;
 in vec3 v_normal;
 in vec2 v_uv;
+flat in vec3 v_surfaceTangent;
+in float v_lampDistance;
 flat in float v_kind;
 flat in float v_ring;
 flat in float v_group;
@@ -244,6 +274,7 @@ uniform vec3 u_metalColor;
 uniform vec3 u_glyphColor;
 uniform vec3 u_internalColor;
 uniform float u_intensity;
+uniform float u_rockLightIntensity;
 uniform float u_glyphDensity;
 uniform float u_energy;
 uniform float u_beat;
@@ -255,23 +286,54 @@ uniform float u_build;
 uniform float u_drop;
 uniform float u_quality;
 uniform int u_look;
+uniform bool u_hasRockMaterial;
+uniform sampler2D u_rockMaterial;
 out vec4 outColor;
 
-void main() {
-  if (v_random > mix(0.52, 1.0, u_quality) && v_kind > 0.5 && v_kind < 3.5) discard;
-  vec3 normal = normalize(v_normal);
-  vec3 viewDirection = normalize(u_cameraPosition - v_world);
-  float diffuse = max(dot(normal, normalize(vec3(-0.35, 0.62, 0.7))), 0.0);
-  float rim = pow(1.0 - max(dot(normal, viewDirection), 0.0), 2.8);
+float glyphEmission() {
   float cadence = 0.16 + u_energy * 0.22 + u_beat * 0.22 + u_downbeat * 0.42;
   cadence += u_kick * (0.18 + 0.16 * step(0.5, v_group)) + u_phrase * 0.18;
   if (u_look == 0) cadence *= 0.64 + 0.36 * step(mod(v_ring, 4.0), 0.5);
   if (u_look == 1) cadence *= 1.24;
   if (u_look == 2) cadence *= 0.5 + u_build * 0.65;
+  return (0.12 + cadence * 2.5 + u_snare * 0.42 + u_drop * 1.25) * u_intensity;
+}
+
+float stripeCoverage(float position, float halfWidth, float pixelWidth) {
+  return smoothstep(-pixelWidth, pixelWidth, position + halfWidth)
+       - smoothstep(-pixelWidth, pixelWidth, position - halfWidth);
+}
+
+void main() {
+  float lampPixelWidth = max(0.003, fwidth(v_lampDistance) * 0.55);
+  if (v_random > mix(0.52, 1.0, u_quality) && v_kind > 0.5 && v_kind < 3.5) discard;
+  vec3 normal = normalize(v_normal);
+  vec3 viewDirection = normalize(u_cameraPosition - v_world);
+  float diffuse = max(dot(normal, normalize(vec3(-0.35, 0.62, 0.7))), 0.0);
+  float rim = pow(1.0 - max(dot(normal, viewDirection), 0.0), 2.8);
   if (v_kind < 0.5 || v_kind > 2.5) {
-    vec3 metal = u_metalColor * (0.48 + diffuse * 1.08 + rim * 0.48);
+    vec3 base = u_metalColor;
+    vec3 surfaceLight = vec3(0.0);
+    if (u_hasRockMaterial) {
+      vec2 mirror = (step(vec2(0.5), fract(v_random * vec2(13.37, 21.91))) * 2.0 - 1.0);
+      vec2 uv = 0.5 + (v_uv - 0.5) * mirror * 0.96;
+      vec4 rock = texture(u_rockMaterial, vec2(uv.x, 1.0 - uv.y));
+      vec2 xy = (rock.rg * 2.0 - 1.0) * vec2(mirror.x, -mirror.y);
+      vec3 tangent = normalize(v_surfaceTangent);
+      vec3 bitangent = cross(normal, tangent);
+      normal = normalize(tangent * xy.x + bitangent * xy.y + normal * sqrt(max(0.01, 1.0 - dot(xy, xy))));
+      vec3 key = normalize(vec3(-0.35, 0.62, 0.7));
+      diffuse = max(dot(normal, key), 0.0);
+      float highlight = pow(max(dot(normal, normalize(key + viewDirection)), 0.0), mix(52.0, 7.0, rock.a));
+      float fissure = smoothstep(0.16, 0.75, rock.b);
+      base = mix(base * 0.64, base * 0.30, fissure);
+      surfaceLight = vec3(0.12, 0.15, 0.16) * highlight * (1.0 - rock.a * 0.75);
+      surfaceLight += u_internalColor * fissure * 0.18;
+    }
+    vec3 metal = base * (0.48 + diffuse * 1.08 + rim * 0.48) + surfaceLight;
     float edge = 1.0 - smoothstep(0.0, 0.047, min(min(v_uv.x, 1.0 - v_uv.x), min(v_uv.y, 1.0 - v_uv.y)));
-    float coreSpill = 1.0 / (1.0 + 0.65 * dot(v_world, v_world));
+    vec3 fromCrystal = v_world - ${GLSL_CRYSTAL_CENTER};
+    float coreSpill = 1.0 / (1.0 + 0.65 * dot(fromCrystal, fromCrystal));
     float rimFill = max(dot(normal, normalize(vec3(0.62, -0.3, 0.55))), 0.0);
     metal += u_internalColor * (0.022 * rimFill + 0.095 * coreSpill);
     metal += u_glyphColor * edge * (0.032 + diffuse * 0.072);
@@ -279,6 +341,10 @@ void main() {
       float overhead = max(0.0, dot(normal, normalize(vec3(-0.3, 0.85, 0.4))));
       metal *= 0.79 + 0.41 * v_random;
       metal += u_glyphColor * (0.084 * overhead + 0.035 * rim);
+      float slot = stripeCoverage(v_lampDistance, 0.081, lampPixelWidth);
+      float strip = stripeCoverage(v_lampDistance, 0.055, lampPixelWidth);
+      metal *= 1.0 - 0.72 * slot;
+      metal += u_internalColor * (max(0.0, glyphEmission()) * u_rockLightIntensity) * (0.92 * strip + 0.08 * slot);
     } else {
       metal += u_internalColor * (u_drop * 0.18 + u_build * 0.05) * (0.4 + v_random);
     }
@@ -288,13 +354,14 @@ void main() {
   float glyphGate = step(v_random, u_glyphDensity);
   vec3 emissionColor = v_kind > 1.5 ? u_internalColor : u_glyphColor;
   float edge = smoothstep(0.0, 0.12, min(min(v_uv.x, 1.0 - v_uv.x), min(v_uv.y, 1.0 - v_uv.y)));
-  float emission = (0.12 + cadence * 2.5 + u_snare * 0.42 + u_drop * 1.25) * u_intensity * glyphGate;
+  float emission = glyphEmission() * glyphGate;
   outColor = vec4(emissionColor * emission * mix(0.75, 1.0, edge), 1.0);
 }`
 
 export interface Cinema2AncientMachineDrawState {
   viewProjection: readonly number[]
   cameraPosition: readonly [number, number, number]
+  rockMaterialTexture?: WebGLTexture | null
   backgroundColor?: readonly [number, number, number]
   timeSeconds: number
   look: number
@@ -302,6 +369,7 @@ export interface Cinema2AncientMachineDrawState {
   glyphColor: readonly [number, number, number]
   internalColor: readonly [number, number, number]
   intensity: number
+  rockLightIntensity?: number
   rotationSpeed: number
   counterRotation: number
   mechanicalDepth: number
@@ -320,18 +388,24 @@ export interface Cinema2AncientMachineDrawState {
   quality: number
 }
 
+interface MechanismBatch {
+  vao: WebGLVertexArrayObject
+  indexCount: number
+  instanceCount: number
+  bytes: number
+}
+
 export class Cinema2AncientMachineRenderer {
   private readonly shaftProgram: ShaderProgram
   private readonly shaftVao: WebGLVertexArrayObject
   private readonly shaftVertexCount: number
   private readonly program: ShaderProgram
   private readonly coreProgram: ShaderProgram
-  private readonly vao: WebGLVertexArrayObject
+  private readonly mechanismBatches: readonly MechanismBatch[]
   private readonly coreVao: WebGLVertexArrayObject
+  private readonly fallbackRockMaterial: WebGLTexture
   private readonly buffers: WebGLBuffer[] = []
-  private readonly indexCount: number
   private readonly coreIndexCount: number
-  private readonly instanceCount: number
   private readonly gpuBytes: number
   private disposed = false
 
@@ -344,32 +418,14 @@ export class Cinema2AncientMachineRenderer {
         'u_viewProjection', 'u_cameraPosition', 'u_time', 'u_rotationSpeed', 'u_counterRotation', 'u_mechanicalDepth',
         'u_lockProgress', 'u_aperture', 'u_build', 'u_drop', 'u_kick', 'u_look', 'u_metalColor', 'u_glyphColor',
         'u_internalColor', 'u_intensity', 'u_glyphDensity', 'u_energy', 'u_bass', 'u_beat', 'u_snare', 'u_downbeat', 'u_phrase', 'u_quality',
+        'u_rockMaterial', 'u_hasRockMaterial', 'u_rockLightIntensity',
       ],
     })
     if (!result.program) throw new Error(`Shader compilation failed at ${result.error.stage} for "${result.error.label}": ${result.error.log}`)
     this.program = result.program
-    const box = buildBox()
-    const vao = gl.createVertexArray()
-    if (!vao) throw new Error('Cinema 2.0 Ancient Machine could not allocate a vertex array.')
-    this.vao = vao
-    gl.bindVertexArray(vao)
-    this.createBuffer(gl.ARRAY_BUFFER, box.vertices)
-    gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 32, 0)
-    gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 32, 12)
-    gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 2, gl.FLOAT, false, 32, 24)
-    this.createBuffer(gl.ELEMENT_ARRAY_BUFFER, box.indices)
     const debris = packCinema2AncientMachineInstances(buildCinema2AncientMachineShaftDebris())
-    const geometry = new Float32Array(instances.length + debris.length)
-    geometry.set(instances)
-    geometry.set(debris, instances.length)
-    this.createBuffer(gl.ARRAY_BUFFER, geometry)
-    const stride = CINEMA2_ANCIENT_MACHINE_INSTANCE_FLOATS * 4
-    for (let attribute = 0; attribute < 4; attribute += 1) {
-      gl.enableVertexAttribArray(3 + attribute)
-      gl.vertexAttribPointer(3 + attribute, 4, gl.FLOAT, false, stride, attribute * 16)
-      gl.vertexAttribDivisor(3 + attribute, 1)
-    }
-    gl.bindVertexArray(null)
+    this.mechanismBatches = groupMechanismInstances(instances, debris).map((packed, group) =>
+      this.createMechanismBatch(group === 0 ? buildBox() : buildCinema2AncientMachineRockGeometry(group - 1), packed))
 
     const coreResult = ShaderProgram.create(gl, new ShaderCompiler(gl), {
       label: 'Cinema2/AncientMachine/EnergyCrystal',
@@ -393,9 +449,7 @@ export class Cinema2AncientMachineRenderer {
     gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 2, gl.FLOAT, false, 32, 24)
     this.createBuffer(gl.ELEMENT_ARRAY_BUFFER, sphere.indices)
     gl.bindVertexArray(null)
-    this.indexCount = box.indices.length
     this.coreIndexCount = sphere.indices.length
-    this.instanceCount = Math.floor(geometry.length / CINEMA2_ANCIENT_MACHINE_INSTANCE_FLOATS)
 
     const shaftResult = ShaderProgram.create(gl, new ShaderCompiler(gl), {
       label: 'Cinema2/AncientMachine/ReactorShaft',
@@ -416,7 +470,16 @@ export class Cinema2AncientMachineRenderer {
     gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 1, gl.FLOAT, false, ANCIENT_MACHINE_SHAFT_VERTEX_BYTES, 24)
     gl.bindVertexArray(null)
     this.shaftVertexCount = shaft.byteLength / ANCIENT_MACHINE_SHAFT_VERTEX_BYTES
-    this.gpuBytes = box.vertices.byteLength + box.indices.byteLength + geometry.byteLength + sphere.vertices.byteLength + sphere.indices.byteLength + shaft.byteLength
+    const fallbackRockMaterial = gl.createTexture()
+    if (!fallbackRockMaterial) throw new Error('Cinema 2.0 Ancient Machine could not allocate a fallback rock texture.')
+    this.fallbackRockMaterial = fallbackRockMaterial
+    const previousTexture = gl.getParameter(gl.TEXTURE_BINDING_2D) as WebGLTexture | null
+    gl.bindTexture(gl.TEXTURE_2D, fallbackRockMaterial)
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, null)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+    gl.bindTexture(gl.TEXTURE_2D, previousTexture)
+    const mechanismBytes = this.mechanismBatches.reduce((bytes, batch) => bytes + batch.bytes, 0)
+    this.gpuBytes = mechanismBytes + sphere.vertices.byteLength + sphere.indices.byteLength + shaft.byteLength + 4
     assertCinema2NoGlErrors(gl, 'Ancient Machine renderer setup')
   }
 
@@ -444,7 +507,8 @@ export class Cinema2AncientMachineRenderer {
     for (const [name, value] of Object.entries({
       u_time: state.timeSeconds, u_rotationSpeed: state.rotationSpeed, u_counterRotation: state.counterRotation,
       u_mechanicalDepth: state.mechanicalDepth, u_lockProgress: state.lockProgress, u_aperture: state.aperture,
-      u_glyphDensity: state.glyphDensity, u_intensity: state.intensity, u_energy: state.energy, u_beat: state.beat,
+      u_glyphDensity: state.glyphDensity, u_intensity: state.intensity, u_rockLightIntensity: state.rockLightIntensity ?? 1,
+      u_energy: state.energy, u_beat: state.beat,
       u_bass: state.bass, u_kick: state.kick, u_snare: state.snare, u_downbeat: state.downbeat, u_phrase: state.phrase,
       u_build: state.build, u_drop: state.drop, u_quality: state.quality,
     })) program.setFloat(name, value)
@@ -452,8 +516,15 @@ export class Cinema2AncientMachineRenderer {
     program.setVec3('u_glyphColor', ...state.glyphColor)
     program.setVec3('u_internalColor', ...state.internalColor)
     program.setInt('u_look', state.look)
-    gl.bindVertexArray(this.vao)
-    gl.drawElementsInstanced(gl.TRIANGLES, this.indexCount, gl.UNSIGNED_SHORT, 0, this.instanceCount)
+    program.setInt('u_hasRockMaterial', state.rockMaterialTexture ? 1 : 0)
+    program.setSampler('u_rockMaterial', 0)
+    gl.activeTexture(gl.TEXTURE0)
+    gl.bindTexture(gl.TEXTURE_2D, state.rockMaterialTexture ?? this.fallbackRockMaterial)
+    for (const batch of this.mechanismBatches) {
+      gl.bindVertexArray(batch.vao)
+      gl.drawElementsInstanced(gl.TRIANGLES, batch.indexCount, gl.UNSIGNED_SHORT, 0, batch.instanceCount)
+    }
+    gl.bindTexture(gl.TEXTURE_2D, null)
     gl.bindVertexArray(null); gl.disable(gl.CULL_FACE)
 
     const coreProgram = this.coreProgram
@@ -477,9 +548,38 @@ export class Cinema2AncientMachineRenderer {
     if (this.disposed) return
     this.disposed = true
     for (const buffer of this.buffers) this.gl.deleteBuffer(buffer)
+    this.gl.deleteTexture(this.fallbackRockMaterial)
     this.gl.deleteVertexArray(this.shaftVao); this.shaftProgram.dispose()
-    this.gl.deleteVertexArray(this.vao); this.gl.deleteVertexArray(this.coreVao)
+    for (const batch of this.mechanismBatches) this.gl.deleteVertexArray(batch.vao)
+    this.gl.deleteVertexArray(this.coreVao)
     this.program.dispose(); this.coreProgram.dispose()
+  }
+
+  private createMechanismBatch(mesh: { vertices: Float32Array; indices: Uint16Array }, instances: Float32Array): MechanismBatch {
+    const { gl } = this
+    const vao = gl.createVertexArray()
+    if (!vao) throw new Error('Cinema 2.0 Ancient Machine could not allocate a mechanism vertex array.')
+    gl.bindVertexArray(vao)
+    this.createBuffer(gl.ARRAY_BUFFER, mesh.vertices)
+    for (const [attribute, size, offset] of [[0, 3, 0], [1, 3, 12], [2, 2, 24], [7, 3, 32]]) {
+      gl.enableVertexAttribArray(attribute)
+      gl.vertexAttribPointer(attribute, size, gl.FLOAT, false, 44, offset)
+    }
+    this.createBuffer(gl.ELEMENT_ARRAY_BUFFER, mesh.indices)
+    this.createBuffer(gl.ARRAY_BUFFER, instances)
+    const stride = CINEMA2_ANCIENT_MACHINE_INSTANCE_FLOATS * 4
+    for (let attribute = 0; attribute < 4; attribute += 1) {
+      gl.enableVertexAttribArray(3 + attribute)
+      gl.vertexAttribPointer(3 + attribute, 4, gl.FLOAT, false, stride, attribute * 16)
+      gl.vertexAttribDivisor(3 + attribute, 1)
+    }
+    gl.bindVertexArray(null)
+    return {
+      vao,
+      indexCount: mesh.indices.length,
+      instanceCount: instances.length / CINEMA2_ANCIENT_MACHINE_INSTANCE_FLOATS,
+      bytes: mesh.vertices.byteLength + mesh.indices.byteLength + instances.byteLength,
+    }
   }
 
   private createBuffer(target: number, data: Float32Array | Uint16Array): void {
@@ -488,6 +588,28 @@ export class Cinema2AncientMachineRenderer {
     this.gl.bindBuffer(target, buffer); this.gl.bufferData(target, data as ArrayBufferView<ArrayBuffer>, this.gl.STATIC_DRAW)
     this.buffers.push(buffer)
   }
+}
+
+function groupMechanismInstances(instances: Float32Array, debris: Float32Array): Float32Array[] {
+  const stride = CINEMA2_ANCIENT_MACHINE_INSTANCE_FLOATS
+  const packed = new Float32Array(instances.length + debris.length)
+  packed.set(instances)
+  packed.set(debris, instances.length)
+  const groups = Array.from({ length: ANCIENT_MACHINE_ROCK_VARIANT_COUNT + 1 }, (): number[] => [])
+  const { glyph, 'internal-light': internalLight } = CINEMA2_ANCIENT_MACHINE_PART_CODES
+  for (let offset = 0; offset < packed.length; offset += stride) {
+    const kind = packed[offset + 7]!
+    const random = packed[offset + 10]!
+    const group = kind === glyph || kind === internalLight
+      ? 0
+      : Math.min(ANCIENT_MACHINE_ROCK_VARIANT_COUNT, 1 + Math.floor(random * ANCIENT_MACHINE_ROCK_VARIANT_COUNT))
+    groups[group]!.push(offset)
+  }
+  return groups.map(offsets => {
+    const group = new Float32Array(offsets.length * stride)
+    offsets.forEach((offset, index) => group.set(packed.subarray(offset, offset + stride), index * stride))
+    return group
+  })
 }
 
 function buildSphere(longitudes: number, latitudes: number): { vertices: Float32Array; indices: Uint16Array } {
@@ -527,7 +649,12 @@ function buildBox(): { vertices: Float32Array; indices: Uint16Array } {
   faces.forEach(([normal, tangent, bitangent], faceIndex) => {
     for (const [u, v] of [[0, 0], [1, 0], [1, 1], [0, 1]] as const) {
       const su = u - 0.5; const sv = v - 0.5
-      vertices.push(normal[0]! * 0.5 + tangent[0]! * su + bitangent[0]! * sv, normal[1]! * 0.5 + tangent[1]! * su + bitangent[1]! * sv, normal[2]! * 0.5 + tangent[2]! * su + bitangent[2]! * sv, normal[0]!, normal[1]!, normal[2]!, u, v)
+      vertices.push(
+        normal[0]! * 0.5 + tangent[0]! * su + bitangent[0]! * sv,
+        normal[1]! * 0.5 + tangent[1]! * su + bitangent[1]! * sv,
+        normal[2]! * 0.5 + tangent[2]! * su + bitangent[2]! * sv,
+        ...normal, u, v, ...tangent,
+      )
     }
     const base = faceIndex * 4; indices.push(base, base + 1, base + 2, base, base + 2, base + 3)
   })

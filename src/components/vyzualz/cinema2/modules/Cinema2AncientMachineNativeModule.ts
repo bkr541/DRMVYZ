@@ -1,3 +1,4 @@
+import { CINEMA2_LOCAL_ANCIENT_MACHINE_ROCK_ASSET_ID } from '../assets/Cinema2TextureAssetManifest'
 import { Cinema2PatternControlResolver } from '../conductor/Cinema2PatternControls'
 import { cinema2StableId, type Cinema2Color, type Cinema2ModuleManifest, type Cinema2ModuleTypeId } from '../contracts/Cinema2NativePresetManifest'
 import type { Cinema2ModuleCreateContext, Cinema2ModuleDiagnostic, Cinema2ModuleRenderExecutionContext, Cinema2ModuleTypeDefinition, Cinema2ModuleUpdateContext } from './Cinema2ModuleContracts'
@@ -43,6 +44,9 @@ export function createCinema2AncientMachineNativeModuleDefinition(options: {
         value => value.dispose(),
       )
       context.resources.reportGpuBytes(renderer.estimateGpuBytes())
+      const rockMaterial = import.meta.env.DEV
+        ? context.textures?.acquire(CINEMA2_LOCAL_ANCIENT_MACHINE_ROCK_ASSET_ID, 'high')
+        : undefined
       const initialLook = readEnum(context.parameters, 'look', CINEMA2_ANCIENT_MACHINE_LOOKS, 'oracleLock')
       const patternControls = new Cinema2PatternControlResolver<typeof CINEMA2_ANCIENT_MACHINE_TRIGGER_IDS[number]>()
       const controller = new Cinema2AncientMachineProgramController(
@@ -63,34 +67,37 @@ export function createCinema2AncientMachineNativeModuleDefinition(options: {
         execute(execution: Cinema2ModuleRenderExecutionContext) {
           if (!execution.depthAvailable) throw new Error(`Cinema 2.0 Ancient Machine module "${context.module.id}" requires depth.`)
           if (!execution.camera) throw new Error(`Cinema 2.0 Ancient Machine module "${context.module.id}" requires a camera.`)
-          const build = clamp(readNumber(context.parameters, 'buildAmount', 0), 0, 1)
-          const drop = clamp(readNumber(context.parameters, 'dropAccent', 0), 0, 1)
           const auto = readBoolean(context.parameters, 'autoPerformance', true)
-          const look = auto && drop > 0.05 ? 'gearSun' : auto && build > 0.18 ? 'epochEngine' : activeLook
+          const rhythm = auto || readBoolean(context.parameters, 'rhythmResponse', false)
+          const build = clamp(readNumber(context.parameters, auto ? 'buildAmount' : 'manualBuild', 0), 0, 1)
+          const drop = clamp(readNumber(context.parameters, auto ? 'dropAccent' : 'manualDrop', 0), 0, 1)
+          const look = drop > 0.05 ? 'gearSun' : build > 0.18 ? 'epochEngine' : activeLook
           const quality = execution.lightingEnvironment?.quality ?? 'high'
           const background = execution.lightingEnvironment?.environment.backgroundColor
           renderer.draw({
             viewProjection: execution.camera.viewProjectionMatrix,
             cameraPosition: execution.camera.position,
             backgroundColor: background ? rgb(background) : undefined,
+            rockMaterialTexture: rockMaterial?.texture ?? null,
             timeSeconds: resolveTime(execution.frame), look: LOOK_INDEX[look],
             metalColor: rgb(readColor(context.parameters, 'metalColor', DEFAULT_METAL)),
             glyphColor: rgb(readColor(context.parameters, 'glyphColor', DEFAULT_GLYPH)),
             internalColor: rgb(readColor(context.parameters, 'internalColor', DEFAULT_INTERNAL)),
             intensity: clamp(readNumber(context.parameters, 'intensity', 0.82), 0, 2),
+            rockLightIntensity: clamp(readNumber(context.parameters, 'rockLightIntensity', 1), 0, 4),
             rotationSpeed: clamp(readNumber(context.parameters, 'rotationSpeed', 0.35), -2, 2),
             counterRotation: clamp(readNumber(context.parameters, 'counterRotation', 0.72), 0, 2),
             mechanicalDepth: clamp(readNumber(context.parameters, 'mechanicalDepth', 1), 0.25, 2),
             lockProgress: clamp(readNumber(context.parameters, 'lockProgress', 0.82), 0, 1),
             aperture: clamp(readNumber(context.parameters, 'aperture', 0.12) + drop * 0.55, 0, 1),
             glyphDensity: clamp(readNumber(context.parameters, 'glyphDensity', 0.86), 0, 1),
-            energy: clamp(readNumber(context.parameters, 'overallEnergy', 0), 0, 1),
-            bass: clamp(readNumber(context.parameters, 'bassPressure', 0), 0, 1),
-            beat: clamp(readNumber(context.parameters, 'beatAccent', 0), 0, 1),
-            kick: clamp(readNumber(context.parameters, 'kickAccent', 0), 0, 1),
-            snare: clamp(readNumber(context.parameters, 'snareAccent', 0), 0, 1),
-            downbeat: clamp(readNumber(context.parameters, 'downbeatAccent', 0), 0, 1),
-            phrase: clamp(readNumber(context.parameters, 'phraseAccent', 0), 0, 1),
+            energy: rhythm ? clamp(readNumber(context.parameters, 'overallEnergy', 0), 0, 1) : 0,
+            bass: rhythm ? clamp(readNumber(context.parameters, 'bassPressure', 0), 0, 1) : 0,
+            beat: rhythm ? clamp(readNumber(context.parameters, 'beatAccent', 0), 0, 1) : 0,
+            kick: rhythm ? clamp(readNumber(context.parameters, 'kickAccent', 0), 0, 1) : 0,
+            snare: rhythm ? clamp(readNumber(context.parameters, 'snareAccent', 0), 0, 1) : 0,
+            downbeat: rhythm ? clamp(readNumber(context.parameters, 'downbeatAccent', 0), 0, 1) : 0,
+            phrase: rhythm ? clamp(readNumber(context.parameters, 'phraseAccent', 0), 0, 1) : 0,
             build, drop, quality: quality === 'low' ? 0 : quality === 'medium' ? 0.55 : 1,
           })
         },
@@ -124,7 +131,7 @@ export function createCinema2AncientMachineNativeModuleDefinition(options: {
             previousTimeSec = timeSec; previousBeat = timing.beats; previousSourceIdentity = sourceIdentity
             previousTrackId = frame.transport?.trackId; previousContextGeneration = frame.contextGeneration; previousPlayback = playback
           },
-          dispose: () => { controller.reset(); beatClock.reset(); patternControls.reset() },
+          dispose: () => { rockMaterial?.release(); controller.reset(); beatClock.reset(); patternControls.reset() },
         },
         render: { providers: Object.freeze([provider]) },
         inspect: () => patternControls.inspect(),

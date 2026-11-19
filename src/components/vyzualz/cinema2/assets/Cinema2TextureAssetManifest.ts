@@ -9,8 +9,9 @@ export const CINEMA2_SMOKE_SPRITES_TEXTURE_ASSET_ID: Cinema2AssetId = 'cinema2-s
 export const CINEMA2_BWC_CREATURE_LABEL_TEXTURE_ASSET_ID: Cinema2AssetId = 'cinema2-bwc-creature-label'
 /** Tileable 3D smoke/noise volume used by the volumetric atmosphere (generated in house, see `assets/cinema2/cinema2-smoke-volume`). */
 export const CINEMA2_SMOKE_VOLUME_TEXTURE_ASSET_ID: Cinema2AssetId = 'cinema2-smoke-volume'
+export const CINEMA2_LOCAL_ANCIENT_MACHINE_ROCK_ASSET_ID = 'local-ancient-machine-rock'
 
-/** Filled from the generated manifest (`npm run assets:build`); nothing is registered by hand. */
+/** Shipped assets come from the generated manifest (`npm run assets:build`). */
 export const cinema2TextureAssetRegistry = new Cinema2TextureAssetRegistry()
 
 for (const record of CINEMA2_ASSET_RECORDS) {
@@ -30,6 +31,18 @@ for (const record of CINEMA2_ASSET_RECORDS) {
     },
     license: record.license,
     ...(attribution ? { attribution } : {}),
+  })
+}
+
+if (import.meta.env.DEV) {
+  cinema2TextureAssetRegistry.register({
+    id: CINEMA2_LOCAL_ANCIENT_MACHINE_ROCK_ASSET_ID,
+    url: '/artifacts/ancient-machine/rock-material.png',
+    layout: 'surface-normal-crack-roughness',
+    width: 448,
+    height: 128,
+    license: 'CC BY-NC-SA 4.0',
+    attribution: 'Glowing Rock by laboratorija (Sketchfab). Cropped and repacked material maps.',
   })
 }
 

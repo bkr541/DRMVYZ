@@ -1,19 +1,22 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createCinemaMockWebGL } from '../../../../test/support/CinemaWebGLTestUtils'
+import { Cinema2AudioIntelligenceBridge } from '../audio/Cinema2AudioIntelligenceBridge'
 import { CINEMA2_ANCIENT_MACHINE_NATIVE_MODULE_TYPE_ID } from '../modules/Cinema2AncientMachineNativeModule'
-import { CINEMA2_ANCIENT_MACHINE_INSTANCE_FLOATS, buildCinema2AncientMachineLayout, buildCinema2AncientMachineShaftDebris, packCinema2AncientMachineInstances } from '../modules/ancientMachine/Cinema2AncientMachineLayout'
+import { ANCIENT_MACHINE_CORE_MAX_RADIUS, ANCIENT_MACHINE_CORE_RADIUS, CINEMA2_ANCIENT_MACHINE_INSTANCE_FLOATS, buildCinema2AncientMachineLayout, buildCinema2AncientMachineShaftDebris, packCinema2AncientMachineInstances } from '../modules/ancientMachine/Cinema2AncientMachineLayout'
 import { Cinema2AncientMachineProgramController, createCinema2AncientMachineLookCycle } from '../modules/ancientMachine/Cinema2AncientMachineProgramController'
-import { ANCIENT_MACHINE_SHAFT_VERTEX_BYTES, buildCinema2AncientMachineShaft } from '../modules/ancientMachine/Cinema2AncientMachineShaft'
+import { ANCIENT_MACHINE_ROCK_VARIANT_COUNT, buildCinema2AncientMachineRockGeometry } from '../modules/ancientMachine/Cinema2AncientMachineRockGeometry'
+import { ANCIENT_MACHINE_COLLAR_CENTER_Z, ANCIENT_MACHINE_COLLAR_INNER_RADIUS, ANCIENT_MACHINE_SHAFT_VERTEX_BYTES, buildCinema2AncientMachineShaft } from '../modules/ancientMachine/Cinema2AncientMachineShaft'
 import { cinema2NativeModuleRegistry } from '../modules/Cinema2ModuleRegistry'
 import { createCinema2DesignParentGroupModel } from '../parameters/Cinema2InspectorModel'
 import { Cinema2ParameterState } from '../parameters/Cinema2ParameterState'
 import { CINEMA2_AFTERHOURS_TRIGGER_OPTIONS } from '../presets/Cinema2AfterhoursPreset'
-import { CINEMA2_ANCIENT_MACHINE_CAMERA_ID, CINEMA2_ANCIENT_MACHINE_LOOK_ID, CINEMA2_ANCIENT_MACHINE_PATTERN_CHANGE_ID, CINEMA2_ANCIENT_MACHINE_PRESET_ID, CINEMA2_ANCIENT_MACHINE_PRESET_MANIFEST, CINEMA2_ANCIENT_MACHINE_TRIGGER_ID } from '../presets/Cinema2AncientMachinePreset'
+import { CINEMA2_ANCIENT_MACHINE_AUTO_PERFORMANCE_ID, CINEMA2_ANCIENT_MACHINE_BUILD_CHARGE_ID, CINEMA2_ANCIENT_MACHINE_CAMERA_ID, CINEMA2_ANCIENT_MACHINE_DROP_IMPACT_ID, CINEMA2_ANCIENT_MACHINE_LOOK_ID, CINEMA2_ANCIENT_MACHINE_PATTERN_CHANGE_ID, CINEMA2_ANCIENT_MACHINE_PRESET_ID, CINEMA2_ANCIENT_MACHINE_PRESET_MANIFEST, CINEMA2_ANCIENT_MACHINE_RHYTHM_RESPONSE_ID, CINEMA2_ANCIENT_MACHINE_ROCK_LIGHT_ID, CINEMA2_ANCIENT_MACHINE_TRIGGER_ID } from '../presets/Cinema2AncientMachinePreset'
 import { CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS } from '../presets/Cinema2FirstPartyPresetCatalog'
 import { validateCinema2PresetAuthoringConventions } from '../presets/Cinema2PresetAuthoring'
 import { compileCinema2NativePreset } from '../presets/Cinema2PresetCompiler'
 import { cinema2NativePresetRegistry } from '../presets/Cinema2PresetRegistry'
 import { Cinema2Runtime } from '../runtime/Cinema2Runtime'
+import { humMusicFrame } from './support/Cinema2HumNFrameFactory'
 
 const CAPABILITIES = Object.freeze(['render.webgl2', 'render.depth', 'scene.3d', 'camera.world', 'lighting'] as const)
 class FakeCanvas extends EventTarget {
@@ -22,25 +25,48 @@ class FakeCanvas extends EventTarget {
 }
 
 describe('Cinema 2.0 Ancient Machine preset', () => {
-  it('builds deterministic concentric mechanical geometry with stable addresses', () => {
+  it('builds deterministic mechanical layers that envelop the enlarged crystal in every direction', () => {
     const first = buildCinema2AncientMachineLayout(); const second = buildCinema2AncientMachineLayout()
     expect(first).toEqual(second); expect(first.instances).toHaveLength(444)
     expect(first.instances.filter(instance => instance.kind === 'tooth')).toHaveLength(36)
     expect(first.instances.filter(instance => instance.kind === 'glyph')).toHaveLength(72)
     expect(first.instances.filter(instance => instance.kind === 'plate')).toHaveLength(12)
-    expect(first.instances.filter(instance => instance.kind === 'plate').every(instance => Math.hypot(instance.center[0], instance.center[1]) > 4.5)).toBe(true)
+    expect(ANCIENT_MACHINE_CORE_RADIUS).toBeCloseTo(.68 * 3)
+    const octants = new Set<number>()
+    for (const { center: [x, y, worldZ], kind } of first.instances) {
+      const z = worldZ - ANCIENT_MACHINE_COLLAR_CENTER_Z
+      const radius = Math.hypot(x, y, z)
+      expect(radius).toBeGreaterThan(ANCIENT_MACHINE_CORE_MAX_RADIUS + .5)
+      expect(radius).toBeLessThan(ANCIENT_MACHINE_COLLAR_INNER_RADIUS)
+      if (kind === 'metal') octants.add(Number(x > 0) + 2 * Number(y > 0) + 4 * Number(z > 0))
+    }
+    expect(octants.size).toBe(8)
     expect(packCinema2AncientMachineInstances(first.instances)).toHaveLength(444 * CINEMA2_ANCIENT_MACHINE_INSTANCE_FLOATS)
   })
 
-  it('distributes suspended blocks through the shaft around the central mechanism', () => {
+  it('fills the shaft and the foreground throughout the inspection orbit', () => {
     const debris = buildCinema2AncientMachineShaftDebris()
     expect(debris).toEqual(buildCinema2AncientMachineShaftDebris())
+    expect(debris.length).toBeGreaterThanOrEqual(27_000)
     for (const [min, max] of [[-31, -21], [-21, -10], [-10, 0], [0, 10], [10, 21], [21, 31]]) {
-      expect(debris.filter(({ center: [, , z] }) => z >= min && z < max).length).toBeGreaterThan(50)
+      expect(debris.filter(({ center: [, , z] }) => z >= min && z < max).length).toBeGreaterThan(3_500)
     }
     expect(debris.every(({ center: [x, y, z] }) => (
-      Math.hypot(x, y) < 14 && (Math.abs(z) >= 3.7 || Math.hypot(x, y) >= 5.65)
+      Math.hypot(x, y) < 14 && Math.hypot(x, y, z - ANCIENT_MACHINE_COLLAR_CENTER_Z) >= 4.75
     ))).toBe(true)
+    for (let degrees = -18; degrees < 342; degrees += 15) {
+      const angle = degrees * Math.PI / 180
+      const eye = [Math.sin(angle) * 12.48, 1.75, Math.cos(angle) * 12.48 - .4] as const
+      const direction = [-eye[0], -eye[1], ANCIENT_MACHINE_COLLAR_CENTER_Z - eye[2]]
+      const distance = Math.hypot(...direction)
+      const foreground = debris.filter(({ center: [x, y, z] }) => {
+        const offset = [x - eye[0], y - eye[1], z - eye[2]]
+        const depth = (offset[0] * direction[0] + offset[1] * direction[1] + offset[2] * direction[2]) / distance
+        const crossSection = offset[0] ** 2 + offset[1] ** 2 + offset[2] ** 2 - depth ** 2
+        return depth > 2 && depth < distance - 4 && crossSection < (depth * .33) ** 2
+      })
+      expect(foreground.length, `foreground debris at ${degrees}°`).toBeGreaterThanOrEqual(10)
+    }
   })
 
   it('ships all three legacy identities as authored looks and passes native gates', () => {
@@ -99,8 +125,77 @@ describe('Cinema 2.0 Ancient Machine preset', () => {
     const shaft = buildCinema2AncientMachineShaft()
     expect(shaft.every(Number.isFinite)).toBe(true)
     expect(gl.drawArrays).toHaveBeenCalledWith(gl.TRIANGLES, 0, shaft.byteLength / ANCIENT_MACHINE_SHAFT_VERTEX_BYTES)
-    const blockCount = buildCinema2AncientMachineLayout().instances.length + buildCinema2AncientMachineShaftDebris().length
-    expect(gl.drawElementsInstanced).toHaveBeenCalledWith(gl.TRIANGLES, 36, gl.UNSIGNED_SHORT, 0, blockCount)
+    const mechanism = buildCinema2AncientMachineLayout().instances
+    const accentCount = mechanism.filter(({ kind }) => kind === 'glyph' || kind === 'internal-light').length
+    const rockCount = mechanism.length - accentCount + buildCinema2AncientMachineShaftDebris().length
+    expect(gl.drawElementsInstanced).toHaveBeenCalledWith(gl.TRIANGLES, 36, gl.UNSIGNED_SHORT, 0, accentCount)
+    const rockDraws = vi.mocked(gl.drawElementsInstanced).mock.calls.filter(([, indexCount]) => indexCount === 60)
+    expect(rockDraws).toHaveLength(ANCIENT_MACHINE_ROCK_VARIANT_COUNT)
+    expect(rockDraws.reduce((total, draw) => total + draw[4], 0)).toBe(rockCount)
+    expect(rockDraws.every(draw => draw[4] > 0)).toBe(true)
     created.runtime.dispose()
+  })
+
+  it('lets manual stage and rock brightness coexist with live rhythm response', () => {
+    const gl = createCinemaMockWebGL()
+    gl.getUniformLocation = vi.fn((_program, name: string) => ({ name }) as unknown as WebGLUniformLocation)
+    let scheduled: FrameRequestCallback | null = null
+    let audio = humMusicFrame({ frameId: 1, timeSec: 10, energy: 0.8, trackId: 'ancient-machine-test' })
+    const bridge = new Cinema2AudioIntelligenceBridge({
+      getFrame: () => audio,
+      getPublicationMeta: () => ({ sequence: audio.frameId, publishedAtMs: audio.timeSec * 1000, publisherId: 'ancient-machine-test', kind: 'frame' }),
+    })
+    const { runtime, error } = Cinema2Runtime.create(new FakeCanvas(gl) as unknown as HTMLCanvasElement, {
+      presetId: CINEMA2_ANCIENT_MACHINE_PRESET_ID,
+      audioIntelligenceBridge: bridge,
+      transportSource: { getState: () => ({ sourcePresent: true, playing: true, analysisActive: true, paused: false, trackId: audio.trackId, timeSec: audio.timeSec }) },
+      requestAnimationFrame: vi.fn(callback => { scheduled = callback; return 1 }),
+      cancelAnimationFrame: vi.fn(),
+    })
+    if (!runtime) throw new Error(String(error))
+    runtime.resize({ width: 640, height: 360, dpr: 1 })
+    runtime.start()
+    const frame = () => {
+      audio = humMusicFrame({ frameId: audio.frameId + 1, timeSec: audio.timeSec + 0.05, energy: 0.8, trackId: 'ancient-machine-test' })
+      scheduled?.(audio.timeSec * 1000)
+    }
+    const uniform = (name: string, method: 'uniform1f' | 'uniform1i' = 'uniform1f') =>
+      vi.mocked(gl[method]).mock.calls.filter(([location]) => (location as { name?: string } | null)?.name === name).at(-1)?.[1]
+    const state = runtime.getParameterState()
+    state.setPersistentValue(CINEMA2_ANCIENT_MACHINE_AUTO_PERFORMANCE_ID, false)
+    state.setPersistentValue(CINEMA2_ANCIENT_MACHINE_ROCK_LIGHT_ID, 2.4)
+    state.setPersistentValue(CINEMA2_ANCIENT_MACHINE_BUILD_CHARGE_ID, 0.6)
+    frame()
+    expect(uniform('u_rockLightIntensity')).toBeCloseTo(2.4)
+    expect(uniform('u_build')).toBeCloseTo(0.6)
+    expect(uniform('u_look', 'uniform1i')).toBe(2)
+    expect(uniform('u_energy')).toBe(0)
+    state.setPersistentValue(CINEMA2_ANCIENT_MACHINE_RHYTHM_RESPONSE_ID, true)
+    state.setPersistentValue(CINEMA2_ANCIENT_MACHINE_DROP_IMPACT_ID, 0.7)
+    frame()
+    expect(uniform('u_energy')).toBeGreaterThan(0)
+    expect(uniform('u_drop')).toBeCloseTo(0.7)
+    expect(uniform('u_look', 'uniform1i')).toBe(1)
+    state.setPersistentValue(CINEMA2_ANCIENT_MACHINE_AUTO_PERFORMANCE_ID, true)
+    frame()
+    expect(uniform('u_build')).toBe(0)
+    expect(uniform('u_drop')).toBe(0)
+    expect(uniform('u_look', 'uniform1i')).toBe(0)
+    runtime.dispose()
+  })
+
+  it('builds distinct rock silhouettes with outward-facing facets inside the original brick bounds', () => {
+    const rocks = Array.from({ length: ANCIENT_MACHINE_ROCK_VARIANT_COUNT }, (_, variant) => buildCinema2AncientMachineRockGeometry(variant))
+    expect(new Set(rocks.map(rock => rock.vertices.join(','))).size).toBe(rocks.length)
+    for (const { vertices, indices } of rocks) {
+      expect(indices).toHaveLength(60)
+      expect(vertices.every(Number.isFinite)).toBe(true)
+      for (let vertex = 0; vertex < vertices.length; vertex += 11) {
+        const x = vertices[vertex]!, y = vertices[vertex + 1]!, z = vertices[vertex + 2]!
+        const nx = vertices[vertex + 3]!, ny = vertices[vertex + 4]!, nz = vertices[vertex + 5]!
+        expect(Math.max(Math.abs(x), Math.abs(y), Math.abs(z))).toBeLessThanOrEqual(.5)
+        expect(x * nx + y * ny + z * nz).toBeGreaterThan(0)
+      }
+    }
   })
 })

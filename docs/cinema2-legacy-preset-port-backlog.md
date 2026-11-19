@@ -168,8 +168,11 @@ A massive ceremonial mechanism made from concentric seals, gears, glyph rings, t
 ### Native 3D and geometry
 
 - The Reactor Shaft visual pass surrounds the existing mechanism with a fixed cylindrical shell, receding gantry bays, mechanical supports, and foreground service catwalks. Bronze edges and static palette-linked fixtures separate the depth planes in the existing world pass.
-- Matching bronze-brown blocks drift throughout the shaft bays, from the foreground to the far bulkheads, with clearance around the crystal, catwalks, and inspection orbit.
-- World-space nested gear, ring, tooth, plate, glyph, and rail assemblies surrounding a faceted spherical energy crystal.
+- Tens of thousands of bronze-brown fragments drift through the shaft bays, including the volume in front of the crystal throughout the inspection orbit. Smaller pieces fill the depth between larger blocks while the crystal and catwalks retain physical clearance.
+- Each shaft fragment tumbles continuously on its own axis and carries the same inset light strip. The strip follows the preset's existing glyph response and uses the Internal Light palette color.
+- Shaft fragments and the bricks around the core use three instanced, faceted rock shapes with irregular proportions. The inset strip on shaft debris follows the rock surface across the facets.
+- The enlarged faceted crystal floats at the steel collar's center. The original bricks, teeth, plates, and glyphs occupy irregular spherical layers with counter-rotation around the crystal.
+- The local dev preview can load `artifacts/ancient-machine/rock-material.png` for the shaft debris and the bricks around the crystal. The preview crops and repacks the tangent normals, emissive fissures, and roughness from `rock_2.glb` ([Glowing Rock by laboratorija](https://sketchfab.com/3d-models/glowing-rock-6111d8001bf14a6f9d78e47412fc9272), [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/)). The original material is the fallback in packaged builds and when the local file is absent.
 - Separate depth planes and mechanical layers with real occlusion and parallax.
 - Stable named parts for outer seals, gear crown, glyph rings, lock pins, energy crystal, and rear chamber.
 - Use instanced teeth/glyphs and procedural gear profiles; reserve imported assets for hero detail only.
@@ -184,6 +187,8 @@ A massive ceremonial mechanism made from concentric seals, gears, glyph rings, t
 - `bar` — advance the Oracle sequence or change active ring.
 - `phrase` — change rotational relationship, camera side, or glyph program.
 - `section` — long-form Epoch unlock state.
+
+In the Design tab, turn off Auto Performance to edit **Rock Light Intensity** under **Lighting**. The **Choreography** group has **Rhythm Response** for live musical accents, and **Build Charge** and **Drop Impact** for holding those machine states manually. With both stage controls at zero, **Machine Look**, **Pattern Change**, and **Trigger** select the pattern. **Bloom** and **Internal Haze** remain independently adjustable under **Effects**.
 - `buildProgress` — increasing lock pressure, rotational convergence, and crystal tension.
 - `drop` — bounded mechanical release, crystal expansion, and internal light reveal.
 - `overallEnergy`/`bass` — directional debris vibration and expansion plus energy-crystal pressure.
