@@ -88,7 +88,7 @@ export interface StereoScopeFrame {
 
 /** Health of the capture path, surfaced for diagnostics and UI honesty. */
 export interface StereoScopeCaptureStatus {
-  /** True once the worklet is running and producing blocks. */
+  /** True once the capture is running and producing blocks. */
   active: boolean
   /** Reason capture is unavailable; null while healthy. */
   unavailableReason: ScopeCaptureUnavailableReason | null
@@ -106,6 +106,8 @@ export type ScopeCaptureUnavailableReason =
   | 'notStarted'
   | 'workletUnsupported'
   | 'workletLoadFailed'
+  | 'workletStalled'
+  | 'fallbackStalled'
   | 'awaitingFirstBlock'
   | 'disposed'
 

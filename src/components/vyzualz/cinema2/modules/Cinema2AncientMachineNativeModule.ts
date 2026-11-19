@@ -68,9 +68,11 @@ export function createCinema2AncientMachineNativeModuleDefinition(options: {
           const auto = readBoolean(context.parameters, 'autoPerformance', true)
           const look = auto && drop > 0.05 ? 'gearSun' : auto && build > 0.18 ? 'epochEngine' : activeLook
           const quality = execution.lightingEnvironment?.quality ?? 'high'
+          const background = execution.lightingEnvironment?.environment.backgroundColor
           renderer.draw({
             viewProjection: execution.camera.viewProjectionMatrix,
             cameraPosition: execution.camera.position,
+            backgroundColor: background ? rgb(background) : undefined,
             timeSeconds: resolveTime(execution.frame), look: LOOK_INDEX[look],
             metalColor: rgb(readColor(context.parameters, 'metalColor', DEFAULT_METAL)),
             glyphColor: rgb(readColor(context.parameters, 'glyphColor', DEFAULT_GLYPH)),

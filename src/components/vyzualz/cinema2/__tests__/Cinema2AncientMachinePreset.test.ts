@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createCinemaMockWebGL } from '../../../../test/support/CinemaWebGLTestUtils'
 import { CINEMA2_ANCIENT_MACHINE_NATIVE_MODULE_TYPE_ID } from '../modules/Cinema2AncientMachineNativeModule'
-import { CINEMA2_ANCIENT_MACHINE_INSTANCE_FLOATS, buildCinema2AncientMachineLayout, packCinema2AncientMachineInstances } from '../modules/ancientMachine/Cinema2AncientMachineLayout'
+import { CINEMA2_ANCIENT_MACHINE_INSTANCE_FLOATS, buildCinema2AncientMachineLayout, buildCinema2AncientMachineShaftDebris, packCinema2AncientMachineInstances } from '../modules/ancientMachine/Cinema2AncientMachineLayout'
 import { Cinema2AncientMachineProgramController, createCinema2AncientMachineLookCycle } from '../modules/ancientMachine/Cinema2AncientMachineProgramController'
+import { ANCIENT_MACHINE_SHAFT_VERTEX_BYTES, buildCinema2AncientMachineShaft } from '../modules/ancientMachine/Cinema2AncientMachineShaft'
 import { cinema2NativeModuleRegistry } from '../modules/Cinema2ModuleRegistry'
 import { createCinema2DesignParentGroupModel } from '../parameters/Cinema2InspectorModel'
 import { Cinema2ParameterState } from '../parameters/Cinema2ParameterState'
@@ -29,6 +30,17 @@ describe('Cinema 2.0 Ancient Machine preset', () => {
     expect(first.instances.filter(instance => instance.kind === 'plate')).toHaveLength(12)
     expect(first.instances.filter(instance => instance.kind === 'plate').every(instance => Math.hypot(instance.center[0], instance.center[1]) > 4.5)).toBe(true)
     expect(packCinema2AncientMachineInstances(first.instances)).toHaveLength(444 * CINEMA2_ANCIENT_MACHINE_INSTANCE_FLOATS)
+  })
+
+  it('distributes suspended blocks through the shaft around the central mechanism', () => {
+    const debris = buildCinema2AncientMachineShaftDebris()
+    expect(debris).toEqual(buildCinema2AncientMachineShaftDebris())
+    for (const [min, max] of [[-31, -21], [-21, -10], [-10, 0], [0, 10], [10, 21], [21, 31]]) {
+      expect(debris.filter(({ center: [, , z] }) => z >= min && z < max).length).toBeGreaterThan(50)
+    }
+    expect(debris.every(({ center: [x, y, z] }) => (
+      Math.hypot(x, y) < 14 && (Math.abs(z) >= 3.7 || Math.hypot(x, y) >= 5.65)
+    ))).toBe(true)
   })
 
   it('ships all three legacy identities as authored looks and passes native gates', () => {
@@ -84,6 +96,11 @@ describe('Cinema 2.0 Ancient Machine preset', () => {
     expect(created.runtime.getModuleRuntimeSnapshot().estimatedGpuBytes).toBeGreaterThan(0)
     created.runtime.resize({ width: 640, height: 360, dpr: 1 }); created.runtime.start(); (scheduled as FrameRequestCallback | null)?.(16)
     expect(created.runtime.getRenderGraphExecutorSnapshot()).toMatchObject({ frameCount: 1, executedPassCount: 4, failedPassCount: 0 })
-    expect(gl.drawElementsInstanced).toHaveBeenCalled(); created.runtime.dispose()
+    const shaft = buildCinema2AncientMachineShaft()
+    expect(shaft.every(Number.isFinite)).toBe(true)
+    expect(gl.drawArrays).toHaveBeenCalledWith(gl.TRIANGLES, 0, shaft.byteLength / ANCIENT_MACHINE_SHAFT_VERTEX_BYTES)
+    const blockCount = buildCinema2AncientMachineLayout().instances.length + buildCinema2AncientMachineShaftDebris().length
+    expect(gl.drawElementsInstanced).toHaveBeenCalledWith(gl.TRIANGLES, 36, gl.UNSIGNED_SHORT, 0, blockCount)
+    created.runtime.dispose()
   })
 })

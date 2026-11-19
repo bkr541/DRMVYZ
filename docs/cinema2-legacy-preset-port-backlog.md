@@ -167,6 +167,8 @@ A massive ceremonial mechanism made from concentric seals, gears, glyph rings, t
 
 ### Native 3D and geometry
 
+- The Reactor Shaft visual pass surrounds the existing mechanism with a fixed cylindrical shell, receding gantry bays, mechanical supports, and foreground service catwalks. Bronze edges and static palette-linked fixtures separate the depth planes in the existing world pass.
+- Matching bronze-brown blocks drift throughout the shaft bays, from the foreground to the far bulkheads, with clearance around the crystal, catwalks, and inspection orbit.
 - World-space nested gear, ring, tooth, plate, glyph, and rail assemblies surrounding a faceted spherical energy crystal.
 - Separate depth planes and mechanical layers with real occlusion and parallax.
 - Stable named parts for outer seals, gear crown, glyph rings, lock pins, energy crystal, and rear chamber.

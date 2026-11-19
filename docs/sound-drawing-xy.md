@@ -288,11 +288,11 @@ Tests: `XyScopeOsc2.test.ts` and an OSC 2 case in `XyScopeWorkspace.test.tsx`.
 
 ### Phase Portal preset
 
-Choose **TEXT → PRESETS → PHASE PORTAL**. The typed text and selected font appear as a centered phosphor outline inside a square stereo XY display. A narrow dark outline keeps the letter edges legible where the trace crosses them.
+Choose **TEXT → PRESETS → PHASE PORTAL**. The live Stereo XY measurement runs in the center of one open canvas. Each populated text input becomes a line of beam paths above or below it. The letter positions stay anchored while the bright beam head continuously scans the strokes.
 
-Left is X and right is Y for the latest 20 ms of synchronized audio, with equal scaling on both axes. **XY Gain** sets that scale, **Hold Trace** freezes the samples, and **Graticule** toggles the divisions. Mono or unavailable audio leaves the word and graticule visible and reports the capture state.
+Both scans use the latest 20 ms of synchronized audio, with left driving X and right driving Y. The center plots the measured pairs with equal scaling on both axes. The lettering scan uses the pairs for small deflections along the letter strokes. **XY Gain** controls both responses. While text is visible, the center trace can clip at the scan limits to keep it clear of the letters. Clearing the inputs gives the trace the full stage. **Hold Trace** displays and freezes that full-stage measurement on demand. **Graticule** toggles the divisions. When the stereo worklet is blocked or stalls, the audio engine can use a muted fallback that reads both channels from the same buffer. The scope reports when no stereo trace is available.
 
-Auto Performance accents the text glow on kicks and bar starts. BPM Sync scales the glow's decay with track tempo. Both features leave the sample coordinates and letter shapes fixed. Projects saved with the original Phase Portal select this XY display automatically and carry over their phosphor color, trace intensity, Hold, and performance toggles.
+The **Effects** group controls the amount of stereo deflection (**Trace Coupling**) and how fast the scan travels (**Sweep Speed**). The scan continues during playback when stereo capture is unavailable, using its generated coordinates. **Auto Performance** accents kicks and bar starts, and **BPM Sync** scales the scan rate to the track tempo. Saved Phase Portal projects keep their settings.
 
 ## INIT
 

@@ -9,12 +9,11 @@
   --az-green: #61d6aa;
   --radius-group: 6px;
   --fw-surface-background: #1c2026;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 28px;
-  padding: 18px 2px 36px;
+  padding: 12px 2px 18px;
 }
-.ll-ln-studies > section { display: flex; flex-direction: column; }
+.ll-ln-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.ll-ln-columns { display: flex; gap: 18px; overflow-x: auto; }
+.ll-ln-study { flex: 0 0 auto; display: flex; flex-direction: column; min-width: 120px; }
 .ll-ln-studies h2 {
   margin: 0 0 10px;
   font: var(--type-window-heading);
@@ -23,13 +22,272 @@
 }
 .ll-ln-studies .fw-app-navigation { flex: 1 0 auto; min-height: 640px; }
 .ll-ln-studies .az-sidebar { box-sizing: border-box; }
+.ll-ln-studies .az-sidebar:not(.az-sidebar--collapsed) .az-nav > .az-nav-item { padding-inline: 14px 6px; }
+.ll-ln-studies .az-nav-label { min-width: 0; flex-shrink: 1; white-space: normal; }
 .ll-ln-studies .az-sidebar-account > span { pointer-events: none; }
+.ll-ln-studies .nav-medallion > .ring,
+.ll-ln-studies .nav-medallion > .ring + .a { display: none; }
 .ll-ln-studies .vz-header-avatar {
   display: grid;
   place-items: center;
   flex: 0 0 auto;
   box-sizing: border-box;
-  border: 1.5px solid rgba(74, 199, 219, .3);
-  border-radius: 50%;
-  background: rgba(74, 199, 219, .1);
+  border: 0;
+  background: transparent;
+}
+
+.ll-ln-notched {
+  --ll-ln-row-height: 46px;
+  --ll-ln-nav-pad: 16px;
+  --ll-ln-notch-height: 66px;
+  --ll-ln-selected-y: calc(var(--ll-ln-nav-pad) + (var(--ll-ln-selected-index) + .5) * var(--ll-ln-row-height));
+  --ll-ln-sweep: 380ms cubic-bezier(.22, 1, .36, 1);
+  margin-inline-end: 22px;
+}
+
+.ll-ln-studies .ll-ln-notched > .az-sidebar {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+}
+
+.ll-ln-notched > .az-sidebar::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--fw-surface-background);
+  mask-image: linear-gradient(#fff, #fff), url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 25 66'%3E%3Cpath d='M25 0C25 12 1 13 1 33S25 54 25 66Z'/%3E%3C/svg%3E");
+  mask-size: 100% 100%, 25px var(--ll-ln-notch-height);
+  mask-repeat: no-repeat;
+  mask-composite: exclude;
+  mask-position: 0 0, 100% calc(var(--ll-ln-selected-y) - var(--ll-ln-notch-height) / 2);
+  transition: mask-position var(--ll-ln-sweep);
+}
+
+.ll-ln-notched .az-nav { padding-block: var(--ll-ln-nav-pad) 14px; }
+.ll-ln-notched .az-nav-section-label,
+.ll-ln-notched .az-nav > .az-nav-item > .az-nav-fill { display: none; }
+
+.ll-ln-notched .az-sidebar .az-nav > .az-nav-item {
+  height: var(--ll-ln-row-height);
+  border: 0;
+  overflow: visible;
+}
+
+.ll-ln-studies .ll-ln-notched .az-sidebar:not(.az-sidebar--collapsed) .az-nav > .az-nav-item {
+  padding-inline: 67px 16px;
+}
+
+.ll-ln-studies .ll-ln-notched .az-sidebar:not(.az-sidebar--collapsed) .az-nav > .az-nav-item--active {
+  padding-inline-end: 38px;
+}
+
+.ll-ln-notched .az-nav > .az-nav-item .nav-medallion {
+  position: absolute;
+  inset-inline-start: 16px;
+  top: 50%;
+  width: 40px;
+  height: 40px;
+  transform: translateY(-50%);
+  transition: inset-inline-start var(--ll-ln-sweep), filter 180ms ease;
+}
+
+.ll-ln-notched .az-nav > .az-nav-item .az-nav-label { flex: 1; }
+.ll-ln-notched .az-nav > .az-nav-item--active .nav-medallion { inset-inline-start: calc(100% - 24px); }
+.ll-ln-notched .az-nav > .az-nav-item:focus-visible { background: transparent; }
+.ll-ln-notched .az-nav > .az-nav-item--active:is(:hover, :focus-visible) {
+  background: transparent;
+  color: var(--az-cyan);
+}
+
+/* Preview-only treatments share the same destinations and hit areas. */
+.ll-ln-studies :is(.ll-ln-track, .ll-ln-shutter, .ll-ln-signal, .ll-ln-brackets) .az-nav {
+  position: relative;
+  isolation: isolate;
+  padding-block: 16px 14px;
+}
+.ll-ln-studies :is(.ll-ln-track, .ll-ln-shutter, .ll-ln-signal, .ll-ln-brackets) .az-nav-section-label,
+.ll-ln-studies :is(.ll-ln-track, .ll-ln-shutter, .ll-ln-signal, .ll-ln-brackets) .az-nav-fill {
+  display: none;
+}
+.ll-ln-studies :is(.ll-ln-track, .ll-ln-shutter, .ll-ln-signal, .ll-ln-brackets) .az-nav > .az-nav-item {
+  box-sizing: border-box;
+  height: var(--ll-ln-row-height, 48px);
+  padding-block: 0;
+  border: 0;
+}
+.ll-ln-studies :is(.ll-ln-track, .ll-ln-shutter, .ll-ln-signal, .ll-ln-brackets) .az-nav > .az-nav-item--active {
+  color: var(--az-cyan);
+}
+.ll-ln-studies :is(.ll-ln-track, .ll-ln-shutter, .ll-ln-signal, .ll-ln-brackets) .az-nav > .az-nav-item--active:hover {
+  background: transparent;
+}
+
+/* Track: one inset plate glides between destinations as the next icon slides out. */
+.ll-ln-track { --ll-ln-row-height: 46px; }
+.ll-ln-track .az-nav::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  top: 19px;
+  inset-inline: 7px;
+  height: 40px;
+  box-sizing: border-box;
+  border: 1px solid rgba(var(--az-cyan-rgb), .32);
+  border-inline-start: 3px solid var(--az-cyan);
+  border-radius: 3px 9px 9px 3px;
+  background: linear-gradient(90deg, rgba(var(--az-cyan-rgb), .16), rgba(var(--az-cyan-rgb), .03));
+  transform: translateY(calc(var(--ll-ln-selected-index) * var(--ll-ln-row-height)));
+  transition: transform 340ms cubic-bezier(.2, .9, .25, 1);
+  pointer-events: none;
+}
+.ll-ln-track .az-nav > .az-nav-item .nav-medallion {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  color: var(--az-text-muted);
+  transition: transform 340ms cubic-bezier(.2, .9, .25, 1), color 160ms ease;
+}
+.ll-ln-track .az-nav > .az-nav-item--active .nav-medallion {
+  color: var(--az-cyan);
+  transform: translateX(5px) scale(1.12);
+}
+
+/* Shutter: angled faces close across the row, with compact trailing icons. */
+.ll-ln-shutter .az-nav > .az-nav-item::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 4px 0 4px 9px;
+  clip-path: polygon(15px 0, 100% 0, 100% 100%, 0 100%);
+  border-inline-end: 3px solid var(--az-cyan);
+  background: rgba(var(--az-cyan-rgb), .14);
+  transform-origin: right center;
+  transform: scaleX(0);
+  transition: transform 220ms cubic-bezier(.5, 0, .2, 1);
+}
+.ll-ln-shutter .az-nav > .az-nav-item--active::before { transform: scaleX(1); }
+.ll-ln-shutter .az-nav > .az-nav-item .az-nav-label { flex: 1; }
+.ll-ln-shutter .az-nav > .az-nav-item .nav-medallion {
+  order: 1;
+  width: 35px;
+  height: 35px;
+  flex: 0 0 35px;
+  color: var(--az-text-muted);
+  filter: grayscale(1);
+}
+.ll-ln-shutter .az-nav > .az-nav-item--active .nav-medallion {
+  color: var(--az-text);
+  filter: none;
+  animation: ll-ln-shutter-turn 360ms ease-out both;
+}
+@keyframes ll-ln-shutter-turn {
+  from { transform: perspective(100px) rotateY(-95deg); }
+  to { transform: perspective(100px) rotateY(0); }
+}
+
+/* Signal: a pulse travels along the baseline from a steadily lit icon. */
+.ll-ln-signal .az-nav > .az-nav-item::after {
+  content: '';
+  position: absolute;
+  inset-inline: 13px;
+  bottom: 4px;
+  height: 2px;
+  border-radius: 1px;
+  background: linear-gradient(90deg, var(--az-cyan), rgba(var(--az-cyan-rgb), .12));
+  transform-origin: left;
+  transform: scaleX(0);
+  opacity: 0;
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+.ll-ln-signal .az-nav > .az-nav-item--active::after {
+  opacity: 1;
+  transform: scaleX(1);
+  animation: ll-ln-signal-scan 520ms ease-out both;
+}
+.ll-ln-signal .az-nav > .az-nav-item .nav-medallion {
+  color: var(--az-text-muted);
+  opacity: .68;
+}
+.ll-ln-signal .az-nav > .az-nav-item--active .nav-medallion {
+  color: var(--az-text);
+  opacity: 1;
+  filter: drop-shadow(0 0 5px var(--az-cyan));
+  animation: ll-ln-signal-flash 480ms ease-out both;
+}
+@keyframes ll-ln-signal-scan {
+  from { transform: scaleX(0); filter: brightness(2.2); }
+  to { transform: scaleX(1); filter: brightness(1); }
+}
+@keyframes ll-ln-signal-flash {
+  0%, 100% { filter: drop-shadow(0 0 4px var(--az-cyan)); }
+  30% { filter: drop-shadow(0 0 9px var(--az-cyan)) brightness(1.6); }
+}
+
+/* Brackets: corner markers draw inward around a centered, stacked arrangement. */
+.ll-ln-brackets { --ll-ln-row-height: 58px; }
+.ll-ln-brackets .az-nav > .az-nav-item {
+  flex-direction: column;
+  justify-content: center;
+  gap: 0;
+  text-align: center;
+}
+.ll-ln-brackets .az-nav > .az-nav-item .nav-medallion {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  color: var(--az-text-muted);
+}
+.ll-ln-brackets .az-nav > .az-nav-item--active .nav-medallion {
+  color: var(--az-text);
+  transform: translateY(-2px);
+  animation: ll-ln-brackets-lift 430ms cubic-bezier(.2, .65, .4, 1) both;
+}
+.ll-ln-brackets .az-nav > .az-nav-item::before,
+.ll-ln-brackets .az-nav > .az-nav-item::after {
+  content: '';
+  position: absolute;
+  width: 11px;
+  height: 11px;
+  border: solid var(--az-cyan);
+  opacity: 0;
+  transition: opacity 180ms ease, transform 320ms cubic-bezier(.2, .8, .2, 1);
+}
+.ll-ln-brackets .az-nav > .az-nav-item::before {
+  top: 6px;
+  inset-inline-start: 12px;
+  border-width: 1px 0 0 1px;
+  transform: translate(5px, 3px);
+}
+.ll-ln-brackets .az-nav > .az-nav-item::after {
+  bottom: 6px;
+  inset-inline-end: 12px;
+  border-width: 0 1px 1px 0;
+  transform: translate(-5px, -3px);
+}
+.ll-ln-brackets .az-nav > .az-nav-item--active::before,
+.ll-ln-brackets .az-nav > .az-nav-item--active::after {
+  opacity: 1;
+  transform: translate(0);
+}
+@keyframes ll-ln-brackets-lift {
+  0% { transform: translateY(4px) scale(.86); }
+  62% { transform: translateY(-4px) scale(1.09); }
+  100% { transform: translateY(-2px) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ll-ln-notched { --ll-ln-sweep: 0ms; }
+  .ll-ln-notched .az-nav > .az-nav-item .nav-medallion { transition: none; }
+  .ll-ln-track .az-nav::before,
+  .ll-ln-studies :is(.ll-ln-track, .ll-ln-shutter, .ll-ln-signal, .ll-ln-brackets) .az-nav > .az-nav-item::before,
+  .ll-ln-studies :is(.ll-ln-track, .ll-ln-shutter, .ll-ln-signal, .ll-ln-brackets) .az-nav > .az-nav-item::after,
+  .ll-ln-studies :is(.ll-ln-track, .ll-ln-shutter, .ll-ln-signal, .ll-ln-brackets) .az-nav > .az-nav-item .nav-medallion {
+    transition: none;
+    animation: none;
+  }
 }

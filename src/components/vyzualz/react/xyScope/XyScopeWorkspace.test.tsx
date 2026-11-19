@@ -340,6 +340,13 @@ describe('Sound Drawing XY source, presets and React tab', () => {
     expect(container.querySelector('.rv-xyscope-source-grid [aria-pressed="true"]')?.textContent).toBe('TEXT')
     expect(container.querySelector('[data-phase-portal-design]')).not.toBeNull()
     expect(container.querySelector('#xyscope-osc2-orbitRange')).toBeNull()
+    const effects = container.querySelector('[data-xyscope-parent-group="effects"]')!
+    expect(effects).not.toBeNull()
+    expect(container.querySelector('[data-xyscope-parent-group="react"]')).toBeNull()
+    const coupling = effects.querySelector<HTMLInputElement>('#xyscope-phase-portal-trace-coupling')!
+    expect(effects.querySelector('#xyscope-phase-portal-sweep-speed')).not.toBeNull()
+    await act(async () => setInputValue(coupling, '0.4'))
+    expect(state().phasePortal.values.traceCoupling).toBe(.4)
     const gain = container.querySelector<HTMLInputElement>('#xyscope-phase-portal-gain')!
     await act(async () => setInputValue(gain, '2.4'))
     expect(state().phasePortal.values.gain).toBe(2.4)

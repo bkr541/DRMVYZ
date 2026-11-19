@@ -1,7 +1,66 @@
 import { ShaderCompiler } from '../../../react/shaders/runtime/ShaderCompiler'
 import { ShaderProgram } from '../../../react/shaders/runtime/ShaderProgram'
 import { assertCinema2NoGlErrors } from '../../runtime/Cinema2GpuValidation'
-import { CINEMA2_ANCIENT_MACHINE_INSTANCE_FLOATS } from './Cinema2AncientMachineLayout'
+import { CINEMA2_ANCIENT_MACHINE_INSTANCE_FLOATS, buildCinema2AncientMachineShaftDebris, packCinema2AncientMachineInstances } from './Cinema2AncientMachineLayout'
+import { ANCIENT_MACHINE_SHAFT_VERTEX_BYTES, buildCinema2AncientMachineShaft } from './Cinema2AncientMachineShaft'
+
+const DEFAULT_SHAFT_BACKGROUND = [0.004, 0.006, 0.006] as const
+
+const SHAFT_VERTEX_SOURCE = `#version 300 es
+precision highp float;
+layout(location = 0) in vec3 a_position;
+layout(location = 1) in vec3 a_normal;
+layout(location = 2) in float a_material;
+uniform mat4 u_viewProjection;
+out vec3 v_world;
+flat out vec3 v_normal;
+flat out float v_material;
+
+void main() {
+  v_world = a_position;
+  v_normal = a_normal;
+  v_material = a_material;
+  gl_Position = u_viewProjection * vec4(a_position, 1.0);
+}`
+
+const SHAFT_FRAGMENT_SOURCE = `#version 300 es
+precision highp float;
+in vec3 v_world;
+flat in vec3 v_normal;
+flat in float v_material;
+uniform vec3 u_cameraPosition;
+uniform vec3 u_backgroundColor;
+uniform vec3 u_internalColor;
+uniform vec3 u_glyphColor;
+out vec4 outColor;
+
+void main() {
+  float distanceToEye = length(u_cameraPosition - v_world);
+  float air = smoothstep(11.0, 40.0, distanceToEye);
+  vec3 airColor = vec3(0.079, 0.155, 0.182) + 1.35 * u_backgroundColor;
+  vec3 normal = normalize(v_normal);
+  vec3 color;
+  if (v_material == 3.0 || v_material == 4.0) {
+    color = (v_material == 3.0 ? u_internalColor : u_glyphColor) * (v_material == 3.0 ? 0.94 : 1.12);
+  } else {
+    vec3 viewDirection = normalize(u_cameraPosition - v_world);
+    float key = max(0.0, dot(normal, normalize(vec3(-0.46, 0.78, 0.35))));
+    float fill = max(0.0, dot(normal, normalize(vec3(0.38, -0.35, -0.70))));
+    float edge = pow(1.0 - max(0.0, dot(normal, viewDirection)), 3.0);
+    vec3 metal = v_material == 0.0 ? vec3(0.113, 0.159, 0.177) : vec3(0.215, 0.261, 0.282);
+    if (v_material == 2.0) metal = vec3(0.43, 0.283, 0.148);
+    if (v_material == 5.0) {
+      float grooves = smoothstep(0.16, 0.26, fract(v_world.z * 5.0));
+      metal *= mix(0.58, 1.13, grooves);
+    }
+    vec3 cell = floor(v_world * vec3(36.0, 32.0, 47.0));
+    float grain = fract(sin(dot(cell, vec3(12.9898, 78.233, 23.337))) * 43758.5453);
+    color = metal * (0.76 + key * 0.63 + fill * 0.36) * (0.93 + grain * 0.14);
+    color += u_internalColor * (0.024 + edge * 0.05) * (0.5 + fill);
+    if (v_material == 2.0) color += u_glyphColor * (key * 0.07 + edge * 0.08);
+  }
+  outColor = vec4(mix(color, airColor, air * 0.76), 1.0);
+}`
 
 const VERTEX_SOURCE = `#version 300 es
 precision highp float;
@@ -33,8 +92,34 @@ flat out float v_ring;
 flat out float v_group;
 flat out float v_random;
 
+vec3 rotateBlock(vec3 point, vec3 c, vec3 s) {
+  point.yz = mat2(c.x, -s.x, s.x, c.x) * point.yz;
+  point.xz = mat2(c.y, -s.y, s.y, c.y) * point.xz;
+  point.xy = mat2(c.z, -s.z, s.z, c.z) * point.xy;
+  return point;
+}
+
 void main() {
   float ring = i_ringGroupRandom.x;
+  float kind = i_sizeRotationKind.w;
+  vec3 center = i_centerSizeX.xyz;
+  vec3 size = vec3(i_centerSizeX.w, i_sizeRotationKind.xy);
+  v_uv = a_uv;
+  v_kind = kind;
+  v_ring = ring;
+  v_group = i_ringGroupRandom.y;
+  v_random = i_ringGroupRandom.z;
+  if (kind > 4.5) {
+    float drift = u_time * (0.18 + v_random * 0.15) + v_random * 31.0;
+    vec3 angles = vec3(i_reserved.xy, i_sizeRotationKind.z) + 0.16 * sin(vec3(0.77, 0.89, 1.0) * drift);
+    vec3 c = cos(angles);
+    vec3 s = sin(angles);
+    center += vec3(0.14, 0.18, 0.15) * sin(vec3(1.0, 0.83, 0.71) * drift);
+    v_world = center + rotateBlock(a_position * size, c, s);
+    v_normal = rotateBlock(a_normal, c, s);
+    gl_Position = u_viewProjection * vec4(v_world, 1.0);
+    return;
+  }
   float direction = mod(ring, 2.0) < 0.5 ? 1.0 : -max(0.05, u_counterRotation);
   float lookRate = u_look == 1 ? 1.8 : (u_look == 2 ? 0.24 : 0.55);
   float dynamicRotation = u_time * u_rotationSpeed * lookRate * direction * (0.35 + ring * 0.08);
@@ -42,9 +127,7 @@ void main() {
   float c = cos(dynamicRotation);
   float s = sin(dynamicRotation);
   mat2 ringRotation = mat2(c, -s, s, c);
-  vec3 center = i_centerSizeX.xyz;
   center.xy = ringRotation * center.xy;
-  float kind = i_sizeRotationKind.w;
   float debris = step(3.5, kind);
   float bassDrive = smoothstep(0.035, 0.88, u_bass);
   vec2 radial = normalize(center.xy + vec2(0.0001));
@@ -63,7 +146,6 @@ void main() {
   float rc = cos(authoredRotation);
   float rs = sin(authoredRotation);
   mat2 localRotation = mat2(rc, -rs, rs, rc);
-  vec3 size = vec3(i_centerSizeX.w, i_sizeRotationKind.xy);
   vec3 debrisExpansion = vec3(
     0.035 + i_ringGroupRandom.z * 0.075,
     0.045 + fract(i_ringGroupRandom.z * 3.71) * 0.085,
@@ -78,11 +160,6 @@ void main() {
   normal.xy = localRotation * normal.xy;
   v_world = center + local;
   v_normal = normal;
-  v_uv = a_uv;
-  v_kind = kind;
-  v_ring = ring;
-  v_group = i_ringGroupRandom.y;
-  v_random = i_ringGroupRandom.z;
   gl_Position = u_viewProjection * vec4(v_world, 1.0);
 }`
 
@@ -192,8 +269,19 @@ void main() {
   if (u_look == 1) cadence *= 1.24;
   if (u_look == 2) cadence *= 0.5 + u_build * 0.65;
   if (v_kind < 0.5 || v_kind > 2.5) {
-    vec3 metal = u_metalColor * (0.3 + diffuse * 0.92 + rim * 0.48);
-    metal += u_internalColor * (u_drop * 0.18 + u_build * 0.05) * (0.4 + v_random);
+    vec3 metal = u_metalColor * (0.48 + diffuse * 1.08 + rim * 0.48);
+    float edge = 1.0 - smoothstep(0.0, 0.047, min(min(v_uv.x, 1.0 - v_uv.x), min(v_uv.y, 1.0 - v_uv.y)));
+    float coreSpill = 1.0 / (1.0 + 0.65 * dot(v_world, v_world));
+    float rimFill = max(dot(normal, normalize(vec3(0.62, -0.3, 0.55))), 0.0);
+    metal += u_internalColor * (0.022 * rimFill + 0.095 * coreSpill);
+    metal += u_glyphColor * edge * (0.032 + diffuse * 0.072);
+    if (v_kind > 4.5) {
+      float overhead = max(0.0, dot(normal, normalize(vec3(-0.3, 0.85, 0.4))));
+      metal *= 0.79 + 0.41 * v_random;
+      metal += u_glyphColor * (0.084 * overhead + 0.035 * rim);
+    } else {
+      metal += u_internalColor * (u_drop * 0.18 + u_build * 0.05) * (0.4 + v_random);
+    }
     outColor = vec4(metal, 1.0);
     return;
   }
@@ -207,6 +295,7 @@ void main() {
 export interface Cinema2AncientMachineDrawState {
   viewProjection: readonly number[]
   cameraPosition: readonly [number, number, number]
+  backgroundColor?: readonly [number, number, number]
   timeSeconds: number
   look: number
   metalColor: readonly [number, number, number]
@@ -232,6 +321,9 @@ export interface Cinema2AncientMachineDrawState {
 }
 
 export class Cinema2AncientMachineRenderer {
+  private readonly shaftProgram: ShaderProgram
+  private readonly shaftVao: WebGLVertexArrayObject
+  private readonly shaftVertexCount: number
   private readonly program: ShaderProgram
   private readonly coreProgram: ShaderProgram
   private readonly vao: WebGLVertexArrayObject
@@ -266,7 +358,11 @@ export class Cinema2AncientMachineRenderer {
     gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 32, 12)
     gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 2, gl.FLOAT, false, 32, 24)
     this.createBuffer(gl.ELEMENT_ARRAY_BUFFER, box.indices)
-    this.createBuffer(gl.ARRAY_BUFFER, instances)
+    const debris = packCinema2AncientMachineInstances(buildCinema2AncientMachineShaftDebris())
+    const geometry = new Float32Array(instances.length + debris.length)
+    geometry.set(instances)
+    geometry.set(debris, instances.length)
+    this.createBuffer(gl.ARRAY_BUFFER, geometry)
     const stride = CINEMA2_ANCIENT_MACHINE_INSTANCE_FLOATS * 4
     for (let attribute = 0; attribute < 4; attribute += 1) {
       gl.enableVertexAttribArray(3 + attribute)
@@ -299,8 +395,28 @@ export class Cinema2AncientMachineRenderer {
     gl.bindVertexArray(null)
     this.indexCount = box.indices.length
     this.coreIndexCount = sphere.indices.length
-    this.instanceCount = Math.floor(instances.length / CINEMA2_ANCIENT_MACHINE_INSTANCE_FLOATS)
-    this.gpuBytes = box.vertices.byteLength + box.indices.byteLength + instances.byteLength + sphere.vertices.byteLength + sphere.indices.byteLength
+    this.instanceCount = Math.floor(geometry.length / CINEMA2_ANCIENT_MACHINE_INSTANCE_FLOATS)
+
+    const shaftResult = ShaderProgram.create(gl, new ShaderCompiler(gl), {
+      label: 'Cinema2/AncientMachine/ReactorShaft',
+      vertSrc: SHAFT_VERTEX_SOURCE,
+      fragSrc: SHAFT_FRAGMENT_SOURCE,
+      requiredUniforms: ['u_viewProjection', 'u_cameraPosition', 'u_backgroundColor', 'u_internalColor', 'u_glyphColor'],
+    })
+    if (!shaftResult.program) throw new Error(`Shader compilation failed at ${shaftResult.error.stage} for "${shaftResult.error.label}": ${shaftResult.error.log}`)
+    this.shaftProgram = shaftResult.program
+    const shaftVao = gl.createVertexArray()
+    if (!shaftVao) throw new Error('Cinema 2.0 Ancient Machine could not allocate the reactor shaft vertex array.')
+    this.shaftVao = shaftVao
+    const shaft = buildCinema2AncientMachineShaft()
+    gl.bindVertexArray(shaftVao)
+    this.createBuffer(gl.ARRAY_BUFFER, shaft)
+    gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, ANCIENT_MACHINE_SHAFT_VERTEX_BYTES, 0)
+    gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 3, gl.FLOAT, false, ANCIENT_MACHINE_SHAFT_VERTEX_BYTES, 12)
+    gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 1, gl.FLOAT, false, ANCIENT_MACHINE_SHAFT_VERTEX_BYTES, 24)
+    gl.bindVertexArray(null)
+    this.shaftVertexCount = shaft.byteLength / ANCIENT_MACHINE_SHAFT_VERTEX_BYTES
+    this.gpuBytes = box.vertices.byteLength + box.indices.byteLength + geometry.byteLength + sphere.vertices.byteLength + sphere.indices.byteLength + shaft.byteLength
     assertCinema2NoGlErrors(gl, 'Ancient Machine renderer setup')
   }
 
@@ -309,8 +425,21 @@ export class Cinema2AncientMachineRenderer {
   draw(state: Readonly<Cinema2AncientMachineDrawState>): void {
     if (this.disposed) return
     const { gl, program } = this
+    const viewProjection = new Float32Array(state.viewProjection)
+    gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); gl.depthMask(true); gl.disable(gl.BLEND)
+    gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK); gl.colorMask(true, true, true, true)
+    const shaftProgram = this.shaftProgram
+    shaftProgram.activate()
+    shaftProgram.setMat4('u_viewProjection', viewProjection)
+    shaftProgram.setVec3('u_cameraPosition', ...state.cameraPosition)
+    shaftProgram.setVec3('u_backgroundColor', ...(state.backgroundColor ?? DEFAULT_SHAFT_BACKGROUND))
+    shaftProgram.setVec3('u_internalColor', ...state.internalColor)
+    shaftProgram.setVec3('u_glyphColor', ...state.glyphColor)
+    gl.bindVertexArray(this.shaftVao)
+    gl.drawArrays(gl.TRIANGLES, 0, this.shaftVertexCount)
+
     program.activate()
-    program.setMat4('u_viewProjection', new Float32Array(state.viewProjection))
+    program.setMat4('u_viewProjection', viewProjection)
     program.setVec3('u_cameraPosition', ...state.cameraPosition)
     for (const [name, value] of Object.entries({
       u_time: state.timeSeconds, u_rotationSpeed: state.rotationSpeed, u_counterRotation: state.counterRotation,
@@ -323,15 +452,13 @@ export class Cinema2AncientMachineRenderer {
     program.setVec3('u_glyphColor', ...state.glyphColor)
     program.setVec3('u_internalColor', ...state.internalColor)
     program.setInt('u_look', state.look)
-    gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); gl.depthMask(true); gl.disable(gl.BLEND)
-    gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK); gl.colorMask(true, true, true, true)
     gl.bindVertexArray(this.vao)
     gl.drawElementsInstanced(gl.TRIANGLES, this.indexCount, gl.UNSIGNED_SHORT, 0, this.instanceCount)
     gl.bindVertexArray(null); gl.disable(gl.CULL_FACE)
 
     const coreProgram = this.coreProgram
     coreProgram.activate()
-    coreProgram.setMat4('u_viewProjection', new Float32Array(state.viewProjection))
+    coreProgram.setMat4('u_viewProjection', viewProjection)
     coreProgram.setVec3('u_cameraPosition', ...state.cameraPosition)
     coreProgram.setVec3('u_glyphColor', ...state.glyphColor)
     coreProgram.setVec3('u_internalColor', ...state.internalColor)
@@ -350,6 +477,7 @@ export class Cinema2AncientMachineRenderer {
     if (this.disposed) return
     this.disposed = true
     for (const buffer of this.buffers) this.gl.deleteBuffer(buffer)
+    this.gl.deleteVertexArray(this.shaftVao); this.shaftProgram.dispose()
     this.gl.deleteVertexArray(this.vao); this.gl.deleteVertexArray(this.coreVao)
     this.program.dispose(); this.coreProgram.dispose()
   }

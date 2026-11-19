@@ -12,28 +12,28 @@ export function XyScopePhasePortalDesignPanel() {
   return (
     <div className="rv-workspace-panel rv-xyscope-workspace-panel" data-xyscope-design="true" data-phase-portal-design="true">
       <div className="rv-workspace-panel-body"><div className="rv-inspector rv-inspector-scroll">
-        <div className="rv-ctrl-group" data-xyscope-design-groups="master-controls design react palette">
+        <div className="rv-ctrl-group" data-xyscope-design-groups="master-controls design effects palette">
           <Collapsible label="Master Controls" icon={<AppIcon kind="sliders" size={15} />}>
             <div data-xyscope-parent-group="master-controls" style={{ display: 'contents' }}>
               <ToggleRow id="xyscope-phase-portal-bpm-sync" label="BPM Sync" value={settings.bpmSync}
-                onChange={bpmSync => patch({ bpmSync })} description="Scales the lettering accent's decay with the track tempo." />
+                onChange={bpmSync => patch({ bpmSync })} description="Times the continuous beam scan to the track tempo." />
               <ToggleRow id="xyscope-phase-portal-auto" label="Auto Performance" value={settings.autoPerformance}
-                onChange={autoPerformance => patch({ autoPerformance })} description="Adds a brief glow to the letters on kicks and bar starts." />
+                onChange={autoPerformance => patch({ autoPerformance })} description="Accents the moving beam on kicks and bar starts." />
               <ToggleRow id="xyscope-phase-portal-grid" label="Graticule" value={settings.grid}
                 onChange={grid => patch({ grid })} description="Shows the zero axes and equal divisions on the scope." />
               <ToggleRow id="xyscope-phase-portal-hold" label="Hold Trace" value={settings.hold}
-                onChange={hold => patch({ hold })} description="Freezes the captured stereo samples so you can inspect them." />
+                onChange={hold => patch({ hold })} description="Shows and freezes the measured stereo trace for inspection." />
             </div>
           </Collapsible>
           <Collapsible label="Design" icon={<AppIcon kind="paintBrush" size={15} />}>
             <div data-xyscope-parent-group="design" style={{ display: 'contents' }}>
               <SliderRow id="xyscope-phase-portal-gain" label="XY Gain" value={settings.values.gain}
                 min={PHASE_PORTAL_RANGES.gain[0]} max={PHASE_PORTAL_RANGES.gain[1]} step={.1} resetValue={defaults.gain}
-                formatValue={value => `${value.toFixed(1)}×`} description="Scales the left and right channels equally around zero."
+                formatValue={value => `${value.toFixed(1)}×`} description="Scales the raw XY trace and the stereo deflection of the lettering beam."
                 onChange={gain => patch({ values: { ...settings.values, gain } })} />
               <SliderRow id="xyscope-phase-portal-intensity" label="Trace Intensity" value={settings.values.intensity}
                 min={PHASE_PORTAL_RANGES.intensity[0]} max={PHASE_PORTAL_RANGES.intensity[1]} step={1} resetValue={defaults.intensity}
-                formatValue={value => `${Math.round(value)}%`} description="Controls the brightness of the stereo trace."
+                formatValue={value => `${Math.round(value)}%`} description="Controls the brightness of the XY beam."
                 onChange={intensity => patch({ values: { ...settings.values, intensity } })} />
               <SliderRow id="xyscope-phase-portal-text-size" label="Text Size" value={settings.values.textSize}
                 min={PHASE_PORTAL_RANGES.textSize[0]} max={PHASE_PORTAL_RANGES.textSize[1]} step={.01} resetValue={defaults.textSize}
@@ -41,9 +41,16 @@ export function XyScopePhasePortalDesignPanel() {
                 onChange={textSize => patch({ values: { ...settings.values, textSize } })} />
             </div>
           </Collapsible>
-          <Collapsible label="React" icon={<AppIcon kind="waveform" size={15} />}>
-            <div data-xyscope-parent-group="react" style={{ display: 'contents' }}>
-              <div className="rv-ctrl-info">Left drives X and right drives Y from the same audio sample. Auto Performance affects the lettering glow.</div>
+          <Collapsible label="Effects" icon={<AppIcon kind="fx" size={15} />}>
+            <div data-xyscope-parent-group="effects" style={{ display: 'contents' }}>
+              <SliderRow id="xyscope-phase-portal-trace-coupling" label="Trace Coupling" value={settings.values.traceCoupling}
+                min={PHASE_PORTAL_RANGES.traceCoupling[0]} max={PHASE_PORTAL_RANGES.traceCoupling[1]} step={.01} resetValue={defaults.traceCoupling}
+                description="Controls how strongly live left and right samples deflect the beam along X and Y."
+                onChange={traceCoupling => patch({ values: { ...settings.values, traceCoupling } })} />
+              <SliderRow id="xyscope-phase-portal-sweep-speed" label="Sweep Speed" value={settings.values.sweepSpeed}
+                min={PHASE_PORTAL_RANGES.sweepSpeed[0]} max={PHASE_PORTAL_RANGES.sweepSpeed[1]} step={.05} resetValue={defaults.sweepSpeed}
+                formatValue={value => `${value.toFixed(2)}×`} description="Changes how quickly the beam travels around the lettering."
+                onChange={sweepSpeed => patch({ values: { ...settings.values, sweepSpeed } })} />
             </div>
           </Collapsible>
           <Collapsible label="Palette" icon={<AppIcon kind="colorPalette" size={15} />} bodyClassName="rv-cinema2-palette-body">

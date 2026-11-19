@@ -588,7 +588,7 @@ export function useAudioEngine(): AudioEngine {
     // Worklet loads asynchronously; a brief window at startup may miss samples.
     // Falls back to empty ring buffer if AudioWorklet is unavailable (CSP / old browser).
     ringBufRef.current = new RingBuffer(ctx.sampleRate, 60)
-    ctx.audioWorklet.addModule('/worklets/ring-buffer-processor.js')
+    ctx.audioWorklet?.addModule('/worklets/ring-buffer-processor.js')
       .then(() => {
         if (ctxRef.current !== ctx) return   // context was replaced before worklet loaded
         const worklet = new AudioWorkletNode(ctx, 'ring-buffer-processor', {
@@ -607,8 +607,7 @@ export function useAudioEngine(): AudioEngine {
 
     // Synchronized stereo scope capture. Taps masterGain in parallel with the
     // analysers and never joins the monitoring chain, so it cannot alter or
-    // delay what the user hears. Failure to load is non-fatal: the tap reports
-    // itself unavailable and Sound Drawing keeps its existing analyser path.
+    // delay what the user hears. The tap can recover with a muted stereo processor.
     const scopeTap = new StereoScopeAudioTap(ctx)
     scopeTapRef.current = scopeTap
     void scopeTap.start(masterGain).catch(() => undefined)

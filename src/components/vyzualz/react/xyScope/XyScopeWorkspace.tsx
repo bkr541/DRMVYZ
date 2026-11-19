@@ -234,7 +234,7 @@ export function XyScopeEnginePanel() {
                 value={text}
                 maxLength={XY_SCOPE_TEXT_MAX_LENGTH}
                 placeholder="Type another word"
-                description="Included in random playback when filled in."
+                description={settings.presetId === PHASE_PORTAL_PRESET_ID ? 'Drawn on its own line in the portal.' : 'Included in random playback when filled in.'}
                 onChange={value => setXyScopeSettings({ additionalTexts: settings.additionalTexts.map((entry, i) => i === index ? value : entry) })}
               />
               <IconChipButton

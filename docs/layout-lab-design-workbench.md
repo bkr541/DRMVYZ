@@ -27,7 +27,7 @@ Validation: five focused tab/popup tests, TypeScript and focused ESLint passed. 
 
 ## Left Nav Bar, Engine Dropdown and AUTH studies
 
-Left Nav Bar shows the current floating app sidebar in expanded and collapsed states. Both previews render `VyzualzSidebarLayout` and the shared sidebar stylesheet. Selection and collapse are interactive within each preview. The account area uses sample content.
+Left Nav Bar contains five previews using `VyzualzSidebarLayout` and the shared sidebar stylesheet. Select any destination to compare the bare icons and motion treatments. **Notch** moves a curved cutout down the right edge as the selected icon slides out. **Track** glides an inset plate between rows and enlarges the selected leading icon. **Shutter** folds in an angled selection with a turning trailing icon. **Signal** sends a pulse beneath the row from its glowing icon. **Brackets** frames a centered stack with moving corner markers as the icon lifts and settles. The previews follow the system reduced-motion preference. Use an individual sidebar toggle, **Expand All**, or **Collapse All** to compare the two widths. The account area uses sample content.
 
 Engine Dropdown adds **Cinema Still**, **Film Gate**, **Record Sleeve** and **Lightbox** to its five blueprint studies. The new rows use the same engine art with four crops and layouts. HEADLINER uses the supplied DJ silhouette. Cinema 2, CANVAS and LaserDMX use existing preset artwork. OpenAI ImageGen produced the remaining backdrops from these briefs. The cropped image assets for Layout Lab are stored in `public/layout-lab/`.
 

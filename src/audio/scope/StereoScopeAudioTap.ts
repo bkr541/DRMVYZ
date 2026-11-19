@@ -9,6 +9,9 @@ const WORKLET_MODULE_URL = '/worklets/stereo-scope-processor.js'
 const PROCESSOR_NAME = 'stereo-scope-processor'
 const BLOCK_FRAMES = 1024
 const RING_SECONDS = 4
+const CAPTURE_STALL_SECONDS = .4
+
+type WorkletFailure = Extract<ScopeCaptureUnavailableReason, 'workletUnsupported' | 'workletLoadFailed' | 'workletStalled'>
 
 interface StereoScopeBlockMessage {
   type: 'block'
@@ -27,24 +30,21 @@ interface StereoScopeBlockMessage {
  * node and never inserts anything into the monitoring path, so it cannot change
  * what the user hears or add latency to it.
  *
- * Capture is best-effort by contract. When AudioWorklet is unavailable (older
- * runtime, restrictive CSP) or the module fails to load, the tap reports an
- * unavailable reason and `readLatest()` returns null forever. Callers fall back
- * to the existing mono analyser path — professional scope modes degrade, the
- * engine does not.
+ * If the worklet cannot deliver blocks, a muted legacy processor reads both
+ * channels from one AudioBuffer so the fallback retains their sample alignment.
  */
 export class StereoScopeAudioTap {
   private readonly context: AudioContext
   private readonly ring: StereoScopeRingBuffer
 
   private node: AudioWorkletNode | null = null
+  private fallback: { node: ScriptProcessorNode; sink: GainNode } | null = null
   private source: AudioNode | null = null
   private disposed = false
   private started = false
-  private loadFailureReason: Extract<
-    ScopeCaptureUnavailableReason,
-    'workletUnsupported' | 'workletLoadFailed'
-  > | null = null
+  private loadFailureReason: WorkletFailure | null = null
+  private lastBlockTime = 0
+  private triedStallRecovery = false
   private observedChannelCount = 2
 
   constructor(context: AudioContext) {
@@ -62,20 +62,18 @@ export class StereoScopeAudioTap {
    * Safe to call once per tap. Resolves to true when capture is running.
    */
   async start(source: AudioNode): Promise<boolean> {
-    if (this.disposed || this.started) return this.node != null
+    if (this.disposed || this.started) return this.captureNode != null
     this.started = true
     this.source = source
 
     if (typeof AudioWorkletNode === 'undefined' || !this.context.audioWorklet) {
-      this.loadFailureReason = 'workletUnsupported'
-      return false
+      return this.startFallback('workletUnsupported')
     }
 
     try {
       await this.context.audioWorklet.addModule(WORKLET_MODULE_URL)
     } catch {
-      this.loadFailureReason = 'workletLoadFailed'
-      return false
+      return this.startFallback('workletLoadFailed')
     }
 
     // The context may have been torn down while the module loaded.
@@ -95,20 +93,67 @@ export class StereoScopeAudioTap {
       this.node = node
       // Seed the worklet's buffer pool so the first blocks are never dropped.
       for (let i = 0; i < 4; i++) this.recycle(new Float32Array(BLOCK_FRAMES), new Float32Array(BLOCK_FRAMES))
-      source.connect(node)
+      this.source?.connect(node)
+      this.lastBlockTime = this.context.currentTime
       return true
     } catch {
-      this.loadFailureReason = 'workletLoadFailed'
+      this.disconnectCapture()
+      return this.startFallback('workletLoadFailed')
+    }
+  }
+
+  private get captureNode(): AudioNode | null { return this.node ?? this.fallback?.node ?? null }
+
+  private startFallback(reason: WorkletFailure): boolean {
+    if (this.disposed) return false
+    this.loadFailureReason = reason
+    const source = this.source
+    if (!source || typeof this.context.createScriptProcessor !== 'function') return false
+    let node: ScriptProcessorNode | undefined
+    let sink: GainNode | undefined
+    try {
+      sink = this.context.createGain()
+      // Keep the fallback scheduled without adding its signal to program output.
+      sink.gain.value = 0
+      // A full 20 ms scope window fits in one callback, even at high sample rates.
+      const blockSize = Math.min(16_384, Math.max(BLOCK_FRAMES, 2 ** Math.ceil(Math.log2(this.sampleRate / 50))))
+      node = this.context.createScriptProcessor(blockSize, 2, 1)
+      node.onaudioprocess = event => {
+        if (this.fallback?.node !== node) return
+        const input = event.inputBuffer
+        const left = input.getChannelData(0), right = input.numberOfChannels > 1 ? input.getChannelData(1) : left
+        this.ring.write(left, right, Math.round(event.playbackTime * this.ring.sampleRate))
+        this.lastBlockTime = this.context.currentTime
+      }
+      node.connect(sink)
+      sink.connect(this.context.destination)
+      source.connect(node)
+      this.disconnectCapture()
+      this.ring.reset(this.ring.writeFrame)
+      this.fallback = { node, sink }
+      this.lastBlockTime = this.context.currentTime
+      this.loadFailureReason = null
+      return true
+    } catch {
+      if (node) {
+        node.onaudioprocess = null
+        try { source.disconnect(node) } catch { /* The connection may not have completed. */ }
+        try { node.disconnect() } catch { /* The graph may already be closed. */ }
+      }
+      try { sink?.disconnect() } catch { /* The graph may already be closed. */ }
       return false
     }
   }
 
   private handleMessage = (event: MessageEvent<StereoScopeBlockMessage>): void => {
-    if (this.disposed) return
+    if (this.disposed || !this.node) return
     const data = event.data
     if (!data || data.type !== 'block') return
 
     this.ring.write(data.left, data.right, data.startFrame, data.frameCount)
+    this.lastBlockTime = this.context.currentTime
+    this.loadFailureReason = null
+    this.triedStallRecovery = false
 
     // Hand the buffers straight back so the audio thread never allocates.
     this.recycle(data.left, data.right)
@@ -142,19 +187,22 @@ export class StereoScopeAudioTap {
    * The ring resets so no window straddles the switch.
    */
   reconnect(source: AudioNode): void {
-    if (this.disposed || !this.node) {
+    if (this.disposed) return
+    const node = this.captureNode
+    if (!node) {
       this.source = source
       return
     }
     if (this.source === source) return
     try {
-      this.source?.disconnect(this.node)
+      this.source?.disconnect(node)
     } catch {
       // Already disconnected — nothing to undo.
     }
     this.source = source
-    source.connect(this.node)
+    source.connect(node)
     this.ring.reset(this.ring.writeFrame)
+    this.lastBlockTime = this.context.currentTime
   }
 
   /** Discards buffered audio. Call on seek, track change, and loop wrap. */
@@ -167,13 +215,17 @@ export class StereoScopeAudioTap {
    * Returns null when capture is unavailable or the window is not yet filled.
    */
   readLatest(frameCount: number, audioTimeSeconds = 0): StereoScopeFrame | null {
-    if (this.disposed || !this.node) return null
+    if (this.node && this.captureStalled() && !this.triedStallRecovery) {
+      this.triedStallRecovery = true
+      this.startFallback('workletStalled')
+    }
+    if (this.disposed || !this.captureNode || this.captureStalled()) return null
     return this.ring.readLatest(frameCount, audioTimeSeconds)
   }
 
   getStatus(): StereoScopeCaptureStatus {
     const available = this.ring.availableFrames
-    const active = !this.disposed && this.node != null && available > 0
+    const active = !this.disposed && this.captureNode != null && available > 0 && !this.captureStalled()
     return {
       active,
       unavailableReason: active ? null : this.resolveUnavailableReason(),
@@ -188,30 +240,35 @@ export class StereoScopeAudioTap {
   private resolveUnavailableReason(): ScopeCaptureUnavailableReason {
     if (this.disposed) return 'disposed'
     if (!this.started) return 'notStarted'
+    if (this.captureStalled()) return this.node ? 'workletStalled' : 'fallbackStalled'
     if (this.loadFailureReason) return this.loadFailureReason
-    if (!this.node) return 'workletLoadFailed'
     return 'awaitingFirstBlock'
+  }
+
+  private captureStalled(): boolean {
+    return this.captureNode != null && this.context.currentTime - this.lastBlockTime >= CAPTURE_STALL_SECONDS
   }
 
   dispose(): void {
     if (this.disposed) return
     this.disposed = true
-    const node = this.node
-    if (node) {
-      node.port.onmessage = null
-      try {
-        this.source?.disconnect(node)
-      } catch {
-        // Source may already be torn down with the context.
-      }
-      try {
-        node.disconnect()
-      } catch {
-        // Zero-output node; disconnect is defensive.
-      }
-    }
-    this.node = null
+    this.disconnectCapture()
     this.source = null
     this.ring.reset()
+  }
+
+  private disconnectCapture(): void {
+    const node = this.captureNode
+    if (this.node) this.node.port.onmessage = null
+    if (this.fallback) {
+      this.fallback.node.onaudioprocess = null
+      try { this.fallback.sink.disconnect() } catch { /* The graph may already be closed. */ }
+    }
+    if (node) {
+      try { this.source?.disconnect(node) } catch { /* The source may already be disconnected. */ }
+      try { node.disconnect() } catch { /* A zero-output worklet has no downstream node. */ }
+    }
+    this.node = null
+    this.fallback = null
   }
 }

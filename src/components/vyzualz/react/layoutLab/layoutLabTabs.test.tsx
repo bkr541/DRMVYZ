@@ -127,4 +127,46 @@ describe('persistent Layout Lab tabs', () => {
     await act(async () => studies[0].querySelector<HTMLButtonElement>('.ll-auth-mode')!.click())
     expect(studies[0].querySelectorAll('input.dv-text-input')).toHaveLength(2)
   })
+
+  it('moves the first sidebar cutout with selection and switches all five preview widths', async () => {
+    await render()
+    await act(async () => tab(5).click())
+    const panel = host.querySelector('#layout-lab-tab-05-panel')!
+    const studies = [...panel.querySelectorAll('[data-left-nav-study]')]
+    expect(studies.map(study => study.querySelector('h2')?.textContent)).toEqual([
+      'Preview 1 · Notch', 'Preview 2 · Track', 'Preview 3 · Shutter', 'Preview 4 · Signal', 'Preview 5 · Brackets',
+    ])
+    expect(studies.every(study => study.querySelector('.az-sidebar--floating .az-nav-item--active'))).toBe(true)
+    const notched = studies[0].querySelector<HTMLElement>('.ll-ln-notched')!
+    const selectedIndex = () => notched.style.getPropertyValue('--ll-ln-selected-index')
+    expect(panel.querySelectorAll('.ll-ln-notched')).toHaveLength(1)
+    expect(selectedIndex()).toBe('0')
+    const bulk = (label: string) => [...panel.querySelectorAll<HTMLButtonElement>('.ll-ln-actions button')].find(button => button.textContent === label)!
+    const collapsed = () => panel.querySelectorAll('.az-sidebar--collapsed').length
+    const media = studies[0].querySelector<HTMLButtonElement>('[aria-label="Media Manager"]')!
+    await act(async () => media.click())
+    expect(selectedIndex()).toBe('5')
+    await act(async () => bulk('Collapse All').click())
+    expect(collapsed()).toBe(5)
+    expect(selectedIndex()).toBe('5')
+    const presets = studies[0].querySelector<HTMLButtonElement>('[aria-label="Preset Manager"]')!
+    await act(async () => presets.click())
+    expect(selectedIndex()).toBe('2')
+    await act(async () => studies[2].querySelector<HTMLButtonElement>('[aria-label="Expand sidebar"]')!.click())
+    expect(collapsed()).toBe(4)
+    await act(async () => bulk('Expand All').click())
+    expect(collapsed()).toBe(0)
+    expect(presets.getAttribute('aria-current')).toBe('page')
+    expect(selectedIndex()).toBe('2')
+    expect(studies[2].querySelector('[aria-label="React"]')?.getAttribute('aria-current')).toBe('page')
+    for (const [index, style] of ['track', 'shutter', 'signal', 'brackets'].entries()) {
+      const variant = studies[index + 1].querySelector<HTMLElement>(`.ll-ln-${style}`)!
+      const show = variant.querySelector<HTMLButtonElement>('[aria-label="Show Manager"]')!
+      expect(variant.style.getPropertyValue('--ll-ln-selected-index')).toBe('0')
+      await act(async () => show.click())
+      expect(show.getAttribute('aria-current')).toBe('page')
+      expect(variant.style.getPropertyValue('--ll-ln-selected-index')).toBe('3')
+    }
+    expect(presets.getAttribute('aria-current')).toBe('page')
+  })
 })

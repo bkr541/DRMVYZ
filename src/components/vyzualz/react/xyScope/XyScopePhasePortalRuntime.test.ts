@@ -64,4 +64,14 @@ describe('Phase Portal runtime', () => {
     step(capture(2), kick)
     expect(runtime.getOsc2Live()).toMatchObject({ state: 'ACCENT', source: 'stereo' })
   })
+
+  it('lays out every populated input in order, including repeat entries and text without stereo', () => {
+    const { runtime, settings, step } = start()
+    runtime.setSettings({ ...settings, text: 'Phase', additionalTexts: ['', 'Portal', 'Phase'] }, null)
+    step(null)
+    expect(runtime.getStatus()).toMatchObject({ scopeSource: 'fallback', text: 'PHASE\nPORTAL\nPHASE', letters: 16 })
+    runtime.setSettings({ ...settings, text: '', additionalTexts: ['Portal'] }, null)
+    step(capture(2))
+    expect(runtime.getStatus()).toMatchObject({ scopeSource: 'stereo', text: 'PORTAL', letters: 6 })
+  })
 })

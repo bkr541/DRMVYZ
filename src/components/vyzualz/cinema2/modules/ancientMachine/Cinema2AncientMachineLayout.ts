@@ -1,6 +1,8 @@
+import { ANCIENT_MACHINE_GANTRY_DEPTHS } from './Cinema2AncientMachineShaft'
+
 export const CINEMA2_ANCIENT_MACHINE_INSTANCE_FLOATS = 16
 
-export type Cinema2AncientMachinePartKind = 'metal' | 'glyph' | 'internal-light' | 'tooth' | 'plate'
+export type Cinema2AncientMachinePartKind = 'metal' | 'glyph' | 'internal-light' | 'tooth' | 'plate' | 'shaft-debris'
 
 export interface Cinema2AncientMachineLayoutConfig {
   ringCount: number
@@ -14,6 +16,7 @@ export interface Cinema2AncientMachineInstance {
   center: readonly [number, number, number]
   size: readonly [number, number, number]
   rotationZ: number
+  tilt?: readonly [number, number]
   kind: Cinema2AncientMachinePartKind
   ringIndex: number
   group: number
@@ -39,6 +42,7 @@ const KIND_VALUE: Readonly<Record<Cinema2AncientMachinePartKind, number>> = Obje
   'internal-light': 2,
   tooth: 3,
   plate: 4,
+  'shaft-debris': 5,
 })
 
 export function buildCinema2AncientMachineLayout(
@@ -105,10 +109,41 @@ export function packCinema2AncientMachineInstances(instances: readonly Readonly<
   instances.forEach((value, index) => {
     packed.set([
       ...value.center, value.size[0], value.size[1], value.size[2], value.rotationZ, KIND_VALUE[value.kind],
-      value.ringIndex, value.group, value.random, 0, 0, 0, 0, 0,
+      value.ringIndex, value.group, value.random, 0, value.tilt?.[0] ?? 0, value.tilt?.[1] ?? 0, 0, 0,
     ], index * CINEMA2_ANCIENT_MACHINE_INSTANCE_FLOATS)
   })
   return packed
+}
+
+/** Jittered three-dimensional placement within each clear bay, from one end of the shaft to the other. */
+export function buildCinema2AncientMachineShaftDebris(): Cinema2AncientMachineInstance[] {
+  const boundaries = [-31, ...ANCIENT_MACHINE_GANTRY_DEPTHS, 31]
+  const instances: Cinema2AncientMachineInstance[] = []
+  const countPerBay = 54
+  for (let bay = 0; bay < boundaries.length - 1; bay += 1) {
+    const start = boundaries[bay] + .92
+    const end = boundaries[bay + 1] - .92
+    for (let block = 0; block < countPerBay; block += 1) {
+      const seed = bay * countPerBay + block
+      const z = start + (end - start) * (block + hash(seed * 8 + 1)) / countPerBay
+      const angle = seed * 2.39996323 + (hash(seed * 8 + 2) - .5) * .65
+      const inner = Math.abs(z) < 3.7 ? 5.65 : 1.8
+      const radius = inner + (13.55 - inner) * Math.pow(hash(seed * 8 + 3), 1.12)
+      const x = Math.cos(angle) * radius
+      const y = Math.sin(angle) * radius
+      const orbitRadius = Math.hypot(x, z + .4)
+      // Give the catwalks, central supports and the inspection camera space.
+      if (Math.abs(x) > 5.15 && Math.abs(x) < 8.9 && y > -5.2 && y < -2.05) continue
+      if (Math.abs(z + 2.7) < .95 && Math.abs(y) < .9) continue
+      if (Math.abs(orbitRadius - 12.48) < 1.22 && Math.abs(y - 1.75) < 1.42) continue
+      const scale = .58 + hash(seed * 8 + 4) * 1.13
+      const length = scale * (.39 + .31 * hash(seed * 8 + 5))
+      const instance = makeInstance([x, y, z], [length, scale * .28, scale * .35], angle, 'shaft-debris', 0, 0)
+      instance.tilt = [(hash(seed * 8 + 6) - .5) * 2.4, (hash(seed * 8 + 7) - .5) * 2.4]
+      instances.push(instance)
+    }
+  }
+  return instances
 }
 
 function makeInstance(

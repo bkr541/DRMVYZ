@@ -16,12 +16,12 @@ import { DrawerNotice } from '../../shared/DrawerNotice'
 import { XyScopeTransportTracker } from './XyScopeTransport'
 import { publishOsc1Live } from './XyScopeOsc1Live'
 import { publishOsc2Live } from './XyScopeOsc2Live'
-import { PHASE_PORTAL_PRESET_ID } from './XyScopePhasePortalSettings'
+import { PHASE_PORTAL_PRESET_ID, PHASE_PORTAL_WINDOW_SECONDS } from './XyScopePhasePortalSettings'
 import { publishInitLive } from './XyScopeInitLive'
 import { publishOctaLive } from './XyScopeOctaLive'
 import { publishWireLive } from './XyScopeWireLive'
 
-/** Samples read from the stereo tap each frame; matches the scope window the runtime expects. */
+/** Default read size for the other Sound Drawing XY instruments. */
 const STEREO_READ_FRAMES = 2048
 /** Publisher id for the frames this surface pumps into the shared audio path. */
 export const XY_SCOPE_PUBLISHER_ID = 'react:xyScope'
@@ -150,8 +150,12 @@ export function XyScopeSurface({
         })
         previousContext = context
       }
-      let stereo = current.scopeStereoTap?.readLatest(STEREO_READ_FRAMES, audioTime) ?? null
-      if (!stereo && (settingsRef.current.settings.sourceMode === 'textV2' || settingsRef.current.settings.sourceMode === 'osc1' || settingsRef.current.settings.sourceMode === 'osc2' || settingsRef.current.settings.sourceMode === 'init' || settingsRef.current.settings.sourceMode === 'octa' || settingsRef.current.settings.sourceMode === 'wire')) stereo = monoTap.read(current.analyser, audioTime)
+      const { sourceMode, presetId } = settingsRef.current.settings
+      const phasePortal = sourceMode === 'osc2' && presetId === PHASE_PORTAL_PRESET_ID
+      const tap = current.scopeStereoTap
+      const readFrames = phasePortal && tap ? Math.max(2, Math.round(tap.sampleRate * PHASE_PORTAL_WINDOW_SECONDS)) : STEREO_READ_FRAMES
+      let stereo = tap?.readLatest(readFrames, audioTime) ?? null
+      if (!stereo && !phasePortal && (sourceMode === 'textV2' || sourceMode === 'osc1' || sourceMode === 'osc2' || sourceMode === 'init' || sourceMode === 'octa' || sourceMode === 'wire')) stereo = monoTap.read(current.analyser, audioTime)
       runtime.renderFrame({ nowSec: timestamp / 1000, context, fresh: fresh || state.discontinuity, stereo, playing: clockActive })
 
       // OSC 1 shares its effective values (Auto Performance) with the inspector about ten times a second.
@@ -233,7 +237,7 @@ export function XyScopeSurface({
       {portal && <div className="rv-xyscope-note rv-xyscope-note--top" role="status" data-phase-portal-signal="true">
         Stereo XY · {
           scopeSource === 'stereo' ? (portal.hold ? 'Stereo hold' : 'Live stereo')
-            : scopeSource === 'mono' ? 'Mono input · stereo required'
+            : scopeSource === 'mono' ? 'Mono source · XY trace unavailable'
             : isPaused ? 'Paused' : 'Capture unavailable'
         }
       </div>}

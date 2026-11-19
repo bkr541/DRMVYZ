@@ -207,6 +207,9 @@ export class XyScopeRuntime {
       this.osc2Engine.setFont(createOsc1GlyphSource(this.font))
       this.needsClear = true
     }
+    if (settings.presetId === PHASE_PORTAL_PRESET_ID && settings.sourceMode === 'osc2') {
+      this.phasePortalScope.setTexts([settings.text, ...settings.additionalTexts], this.font, settings.phasePortal.values.textSize)
+    }
     this.rebuildLayoutIfNeeded()
     if (patternChanged) this.restartChoreography()
   }
@@ -219,6 +222,11 @@ export class XyScopeRuntime {
   }
 
   getStatus(): XyScopeRuntimeStatus {
+    if (this.settings?.presetId === PHASE_PORTAL_PRESET_ID && this.settings.sourceMode === 'osc2') {
+      const { source, points, letters, text } = this.phasePortalScope
+      return { scopeSource: source === 'unavailable' ? 'fallback' : source, osc1Source: this.osc1Source,
+        points, letters, text, pattern: this.activePattern, performingPattern: this.performingPattern, phase: 'word' }
+    }
     return { scopeSource: this.settings?.sourceMode === 'wire' ? (this.wireSource === 'stereo' || this.wireSource === 'mono' ? this.wireSource : 'fallback') : this.settings?.sourceMode === 'octa' ? (this.octaSource === 'stereo' || this.octaSource === 'mono' ? this.octaSource : 'fallback') : this.settings?.sourceMode === 'init' ? (this.initSource === 'stereo' || this.initSource === 'mono' ? this.initSource : 'fallback') : this.settings?.sourceMode === 'osc1' || this.settings?.sourceMode === 'osc2' ? (this.osc1Source === 'stereo' || this.osc1Source === 'mono' ? this.osc1Source : 'fallback') : this.scope.frame.source, osc1Source: this.osc1Source, points: this.layout.totalPoints, letters: this.layout.glyphs.length, pattern: this.activePattern, performingPattern: this.performingPattern, phase: xyScopeChoreographyPhrase(this.choreographyBeat, this.params?.transitionBeats ?? 1).phase, text: this.activeText, textV2: this.settings?.sourceMode === 'textV2' && this.textV2Frame ? { state: this.textV2Frame.state, style: this.textV2Frame.style, autoPerformance: this.settings.textV2.autoPerformance, grouping: this.settings.textV2.grouping, phase: this.textV2TrajectoryFrame?.phase ?? 'word', morph: this.textV2TrajectoryFrame?.morph ?? 0 } : undefined }
   }
 
@@ -617,24 +625,22 @@ export class XyScopeRuntime {
     if (!settings.hold || reset) scope.update(playing && !discontinuity ? input.stereo : null)
     this.osc1Source = scope.source === 'unavailable' ? 'none' : scope.source
     const clock = this.clockFor(context, settings.bpmSync, playing, dt)
-    const active = settings.autoPerformance && playing
-    if (!active) scope.textPulse = 0
-    else if (!settings.hold) {
+    if (!settings.autoPerformance || !playing) scope.textPulse = 0
+    if (playing && !settings.hold && !discontinuity) {
       let accent = 0
-      if (context && input.fresh && !discontinuity) {
+      if (settings.autoPerformance && context && input.fresh) {
         if (context.kick) accent = Math.min(1, Math.max(.35, context.kickStrength || 1))
         if (context.capabilities.beatGrid && context.boundaries.barBoundary) accent = Math.max(accent, .65)
       }
-      scope.react(clock.motionDt, accent)
+      scope.advance(clock.motionDt, settings.values.sweepSpeed, accent)
     }
     this.osc2State = {
       state: settings.autoPerformance ? scope.textPulse > .15 ? 'ACCENT' : 'LISTENING' : 'MANUAL',
       confidence: context?.confidence.rhythm ?? 0,
       mapped: context?.capabilities.beatGrid ?? false,
     }
-    scope.setText(this.activeText, this.font, settings.values.textSize)
     const ctx = this.canvas.getContext('2d', { alpha: false })
-    if (ctx) scope.draw(ctx, settings, this.canvas.width / this.width)
+    if (ctx) scope.draw(ctx, settings, this.canvas.width / this.width, playing && !discontinuity)
   }
 
   private renderOsc2(input: XyScopeFrameInput, dt: number, playing: boolean): void {
