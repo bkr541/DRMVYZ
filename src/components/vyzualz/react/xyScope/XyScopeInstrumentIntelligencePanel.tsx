@@ -6,6 +6,7 @@ import { useInitLive } from './XyScopeInitLive'
 import { useOctaLive } from './XyScopeOctaLive'
 import { useOsc1Live } from './XyScopeOsc1Live'
 import { useOsc2Live } from './XyScopeOsc2Live'
+import { PHASE_PORTAL_PRESET_ID } from './XyScopeOsc2Settings'
 import { XyScopeWireIntelligencePanel } from './XyScopeWireIntelligencePanel'
 
 const SOURCE_LABELS = { stereo: 'LIVE STEREO', mono: 'LIVE MONO', shared: 'SHARED ANALYSIS', none: 'NO SIGNAL' } as const
@@ -79,15 +80,17 @@ function Osc1Performance() {
 
 function Osc2Performance() {
   const live = useOsc2Live()
-  const auto = useReactStore(state => state.xyScopeSettings.osc2.autoPerformance)
+  const portal = useReactStore(state => state.xyScopeSettings.presetId === PHASE_PORTAL_PRESET_ID ? state.xyScopeSettings.phasePortal : null)
+  const osc2Auto = useReactStore(state => state.xyScopeSettings.osc2.autoPerformance)
+  const auto = portal?.autoPerformance ?? osc2Auto
   return (
-    <Group name="OSC 2">
-      {!auto ? <AutoOnly /> : (
+    <Group name={portal ? 'Phase Portal' : 'OSC 2'}>
+      {!auto && !portal ? <AutoOnly /> : (
         <MiSection title="Performance">
           <Cells>
-            <Cell label="State" value={live?.state ?? 'LISTENING'} />
-            <Cell label="Evidence" value={evidence(live?.mapped, live?.confidence)} />
-            <Cell label="Signal" value={signal(live?.source)} />
+            {auto && <Cell label="State" value={live?.state ?? 'LISTENING'} />}
+            {auto && <Cell label="Evidence" value={evidence(live?.mapped, live?.confidence)} />}
+            <Cell label="Signal" value={portal && live?.source !== 'mono' && live?.source !== 'stereo' ? 'CAPTURE UNAVAILABLE' : signal(live?.source)} />
           </Cells>
         </MiSection>
       )}

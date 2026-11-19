@@ -6,7 +6,7 @@ import type { CanvasPresetSettings } from '../components/vyzualz/react/ReactType
  * Pure: returns a patch with only what changes, or null when every toggle already has the value.
  */
 export const CANVAS_AUTO_PERFORMANCE_ENGINES = ['cutbank', 'mutagen', 'dataBleed', 'phaseDrag', 'cellular', 'terminal', 'fluidity', 'divinity', 'vhs', 'shiftgrid'] as const
-export const XY_SCOPE_AUTO_PERFORMANCE_INSTRUMENTS = ['textV2', 'osc1', 'osc2', 'octa', 'wire', 'init'] as const
+export const XY_SCOPE_AUTO_PERFORMANCE_INSTRUMENTS = ['textV2', 'osc1', 'osc2', 'phasePortal', 'octa', 'wire', 'init'] as const
 
 type Settings = Record<string, unknown>
 interface Source {

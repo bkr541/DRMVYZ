@@ -1,15 +1,16 @@
 import { AppIcon } from '../../../shared/icons/AppIcon'
 import { useReactStore } from '../../../../stores/reactStore'
-import { Collapsible, PaletteColorRow, SliderRow, ToggleRow } from '../ReactControlRows'
+import { Collapsible, PaletteColorRow, SelectRow, SliderRow, ToggleRow } from '../ReactControlRows'
 import { IconChipButton } from '../controls/IconChipButton'
-import { OSC2_DEFAULTS } from './XyScopeOsc2Engine'
 import { useOsc2Live } from './XyScopeOsc2Live'
 import {
   DEFAULT_OSC2_SETTINGS,
+  DEFAULT_PHASE_PORTAL_SETTINGS,
   OSC2_BEAM_CONTROLS,
   OSC2_CAMERA_CONTROLS,
   OSC2_REACT_CONTROLS,
   OSC2_SCENE_CONTROLS,
+  PHASE_PORTAL_PRESET_ID,
   type Osc2ControlSpec,
 } from './XyScopeOsc2Settings'
 
@@ -34,15 +35,20 @@ export function XyScopeOsc2DesignPanel() {
   const settings = useReactStore(state => state.xyScopeSettings)
   const setSettings = useReactStore(state => state.setXyScopeSettings)
   const live = useOsc2Live()
-  const o = settings.osc2
+  const portal = settings.presetId === PHASE_PORTAL_PRESET_ID ? settings.phasePortal : null
+  const o = portal ?? settings.osc2
+  const defaults = portal ? DEFAULT_PHASE_PORTAL_SETTINGS : DEFAULT_OSC2_SETTINGS
   const auto = o.autoPerformance
   const shown = auto && live ? live.settings : o.values
-  const patch = (next: Partial<typeof o>) => setSettings({ osc2: { ...o, ...next } })
+  const patch = (next: Partial<typeof o>) => {
+    if (portal) setSettings({ phasePortal: { ...portal, ...next } })
+    else setSettings({ osc2: { ...o, ...next } })
+  }
   const setValue = (id: keyof typeof o.values, value: number | string) => patch({ values: { ...o.values, [id]: value } })
 
   const slider = (spec: Osc2ControlSpec) => (
     <SliderRow key={spec.id} id={`xyscope-osc2-${spec.id}`} label={spec.label} value={shown[spec.id]} min={spec.min} max={spec.max} step={spec.step}
-      resetValue={OSC2_DEFAULTS[spec.id]} formatValue={formatControl(spec)} description={spec.description}
+      resetValue={defaults.values[spec.id]} formatValue={formatControl(spec)} description={spec.description}
       disabled={auto && spec.id !== 'layers'} onChange={value => setValue(spec.id, value)} />
   )
 
@@ -58,6 +64,11 @@ export function XyScopeOsc2DesignPanel() {
                 description="Audio intelligence conducts the camera, depth, terrain and beam together: builds pull the camera up and back, drops push it in and open the solid. Switching off restores your values." />
               <ToggleRow id="xyscope-osc2-floor" label="Floor Grid" value={o.floor} onChange={floor => patch({ floor })} description="Shows the perspective floor the scene stands on." />
               <ToggleRow id="xyscope-osc2-hold" label="Hold Trace" value={o.hold} onChange={hold => patch({ hold })} description="Freezes the displayed trace while audio and analysis continue." />
+              {portal && <SelectRow id="xyscope-phase-portal-trace" label="Scope View" value={portal.traceMode}
+                menuBoundarySelector=".vz-inspector" placement="below"
+                options={[{ value: 'waveform', label: 'Waveform' }, { value: 'xy', label: 'Stereo XY' }]}
+                onChange={value => setSettings({ phasePortal: { ...portal, traceMode: value === 'xy' ? 'xy' : 'waveform' } })}
+                description="Waveform shows 10 ms of captured audio, with left above right. Stereo XY uses left for X and right for Y and requires two captured channels." />}
             </div>
           </Collapsible>
 
@@ -72,7 +83,9 @@ export function XyScopeOsc2DesignPanel() {
           <Collapsible label="React" icon={<AppIcon kind="waveform" size={15} color="currentColor" />}>
             <div data-xyscope-parent-group="react" style={{ display: 'contents' }}>
               {OSC2_REACT_CONTROLS.map(slider)}
-              <div className="rv-ctrl-info">Each contour slice answers one frequency region. Kicks push the camera in, stereo balance slides it sideways, and the live waveform scrolls away as terrain. Pausing returns the camera straight-on.</div>
+              <div className="rv-ctrl-info">{portal
+                ? 'Bass and builds open the cage. On a mapped drop or a strong kick during unmapped playback, it turns through 4D over four beats. The front letter outlines and the scope coordinates stay fixed.'
+                : 'Each contour slice answers one frequency region. Kicks push the camera in, stereo balance slides it sideways, and the live waveform scrolls away as terrain. Pausing returns the camera straight-on.'}</div>
             </div>
           </Collapsible>
 
@@ -85,7 +98,9 @@ export function XyScopeOsc2DesignPanel() {
         </div>
         <div className="rv-ctrl-group" data-xyscope-inspector-actions="true">
           <IconChipButton onClick={() => patch({ resetSignals: o.resetSignals + 1 })}>Reset Signals</IconChipButton>
-          <IconChipButton disabled={auto} onClick={() => setSettings({ osc2: { ...DEFAULT_OSC2_SETTINGS, resetSignals: o.resetSignals + 1 } })}>Reset OSC 2</IconChipButton>
+          {portal
+            ? <IconChipButton onClick={() => setSettings({ phasePortal: { ...DEFAULT_PHASE_PORTAL_SETTINGS, resetSignals: o.resetSignals + 1 } })}>Reset Phase Portal</IconChipButton>
+            : <IconChipButton disabled={auto} onClick={() => setSettings({ osc2: { ...DEFAULT_OSC2_SETTINGS, resetSignals: o.resetSignals + 1 } })}>Reset OSC 2</IconChipButton>}
         </div>
       </div></div>
     </div>

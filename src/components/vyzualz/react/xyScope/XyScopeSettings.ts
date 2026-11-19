@@ -14,7 +14,7 @@ import { XY_SCOPE_PATTERN_OPTIONS, type XyScopePattern } from './XyScopePatterns
 import { DEFAULT_OCTA_SETTINGS, normalizeOctaSettings, OCTA_PRESET_ID, type XyScopeOctaSettings } from './XyScopeOctaSettings'
 import { CUBES_PRESET_ID, DEFAULT_WIRE_SETTINGS, normalizeWireSettings, SOLIDS_PRESET_ID, TESSERACT_PRESET_ID, WIRE_PRESET_FIGURES, WIRE_PRESET_LOOKS, type XyScopeWireSettings } from './XyScopeWireSettings'
 import { DEFAULT_INIT_SETTINGS, INIT_PRESET_ID, normalizeInitSettings, type XyScopeInitSettings } from './XyScopeInitSettings'
-import { DEFAULT_OSC2_SETTINGS, normalizeOsc2Settings, OSC2_PRESET_ID, type XyScopeOsc2Settings } from './XyScopeOsc2Settings'
+import { DEFAULT_OSC2_SETTINGS, DEFAULT_PHASE_PORTAL_SETTINGS, normalizeOsc2Settings, normalizePhasePortalSettings, OSC2_PRESET_ID, PHASE_PORTAL_PRESET_ID, type XyScopeOsc2Settings, type XyScopePhasePortalSettings } from './XyScopeOsc2Settings'
 import { DEFAULT_OSC1_SETTINGS, normalizeOsc1Settings, OSC1_PRESET_ID, type XyScopeOsc1Settings } from './XyScopeOsc1Settings'
 
 export const XY_SCOPE_ENGINE_ID = 'xyScope' as const
@@ -285,6 +285,11 @@ export const XY_SCOPE_PRESETS: readonly XyScopePreset[] = Object.freeze([
     parameters: {} as Readonly<Record<string, XyScopeParameterValue>>,
   },
   {
+    id: PHASE_PORTAL_PRESET_ID, name: 'PHASE PORTAL', source: 'text',
+    description: 'OSC 2 text and a turning 4D tesseract, with a fixed live waveform or stereo XY trace.',
+    parameters: {} as Readonly<Record<string, XyScopeParameterValue>>,
+  },
+  {
     // INIT is an instrument preset of the OSCILATOR source: one to three oscilloscope lines, with its own inspector.
     id: INIT_PRESET_ID, name: 'INIT', source: 'oscillator',
     description: 'One to three oscilloscope lines that follow the music: stacked, side by side, overlaid or placed anywhere.',
@@ -317,7 +322,7 @@ export const XY_SCOPE_PRESETS: readonly XyScopePreset[] = Object.freeze([
 
 /** Presets that are complete instruments: choosing one switches the engine, and the engine and preset always agree. */
 const ENGINE_PRESETS: Readonly<Partial<Record<XyScopeSourceMode, string>>> = { textV2: 'textV2', osc1: OSC1_PRESET_ID, osc2: OSC2_PRESET_ID, init: INIT_PRESET_ID, octa: OCTA_PRESET_ID, wire: CUBES_PRESET_ID }
-const ENGINE_PRESET_IDS = new Set<string>([...(Object.values(ENGINE_PRESETS) as string[]), ...Object.keys(WIRE_PRESET_FIGURES)])
+const ENGINE_PRESET_IDS = new Set<string>([...(Object.values(ENGINE_PRESETS) as string[]), ...Object.keys(WIRE_PRESET_FIGURES), PHASE_PORTAL_PRESET_ID])
 
 export function getXyScopePreset(id: string | null | undefined): XyScopePreset | undefined {
   return XY_SCOPE_PRESETS.find(preset => preset.id === id)
@@ -334,6 +339,7 @@ export interface XyScopeSettings {
   textV2: XyScopeTextV2Settings
   osc1: XyScopeOsc1Settings
   osc2: XyScopeOsc2Settings
+  phasePortal: XyScopePhasePortalSettings
   init: XyScopeInitSettings
   octa: XyScopeOctaSettings
   wire: XyScopeWireSettings
@@ -359,6 +365,7 @@ export const DEFAULT_XY_SCOPE_SETTINGS: Readonly<XyScopeSettings> = Object.freez
   textV2: DEFAULT_TEXT_V2_SETTINGS,
   osc1: DEFAULT_OSC1_SETTINGS,
   osc2: DEFAULT_OSC2_SETTINGS,
+  phasePortal: DEFAULT_PHASE_PORTAL_SETTINGS,
   init: DEFAULT_INIT_SETTINGS,
   octa: DEFAULT_OCTA_SETTINGS,
   wire: DEFAULT_WIRE_SETTINGS,
@@ -404,13 +411,15 @@ export function normalizeXyScopeSettings(value: unknown): XyScopeSettings {
   const sourceMode: XyScopeSourceMode = record.sourceMode === 'textV2' || record.sourceMode === 'osc1' || record.sourceMode === 'osc2' || record.sourceMode === 'init' || record.sourceMode === 'octa' || record.sourceMode === 'wire' || record.sourceMode === 'svg' || record.sourceMode === 'oscillator' ? record.sourceMode : 'text'
   // Instrument modes and presets always agree, including projects saved before Text V2 was a preset.
   const storedPreset = record.presetId === null ? null : (typeof record.presetId === 'string' && getXyScopePreset(record.presetId) ? record.presetId : DEFAULT_XY_SCOPE_SETTINGS.presetId)
-  // WIREFRAME has several presets (one per figure); every other instrument has exactly one.
-  const presetId = sourceMode === 'wire' ? (storedPreset && WIRE_PRESET_FIGURES[storedPreset] ? storedPreset : CUBES_PRESET_ID) : ENGINE_PRESETS[sourceMode] ?? (storedPreset && ENGINE_PRESET_IDS.has(storedPreset) ? DEFAULT_XY_SCOPE_SETTINGS.presetId : storedPreset)
+  const presetId = sourceMode === 'wire' ? (storedPreset && WIRE_PRESET_FIGURES[storedPreset] ? storedPreset : CUBES_PRESET_ID)
+    : sourceMode === 'osc2' && storedPreset === PHASE_PORTAL_PRESET_ID ? PHASE_PORTAL_PRESET_ID
+    : ENGINE_PRESETS[sourceMode] ?? (storedPreset && ENGINE_PRESET_IDS.has(storedPreset) ? DEFAULT_XY_SCOPE_SETTINGS.presetId : storedPreset)
   return {
     sourceMode,
     textV2: normalizeTextV2Settings(record.textV2),
     osc1: normalizeOsc1Settings(record.osc1),
     osc2: normalizeOsc2Settings(record.osc2),
+    phasePortal: normalizePhasePortalSettings(record.phasePortal),
     init: normalizeInitSettings(record.init),
     octa: normalizeOctaSettings(record.octa),
     wire: normalizeWireSettings(record.wire),
@@ -437,7 +446,8 @@ export function applyXyScopePreset(settings: XyScopeSettings, presetId: string):
   if (!preset) return settings
   // An instrument preset switches the engine; a standard preset leaves it for its base source.
   const figure = WIRE_PRESET_FIGURES[preset.id]
-  const instrument = figure ? 'wire' as const : (Object.keys(ENGINE_PRESETS) as XyScopeSourceMode[]).find(mode => ENGINE_PRESETS[mode] === preset.id)
+  const instrument = figure ? 'wire' as const : preset.id === PHASE_PORTAL_PRESET_ID ? 'osc2' as const
+    : (Object.keys(ENGINE_PRESETS) as XyScopeSourceMode[]).find(mode => ENGINE_PRESETS[mode] === preset.id)
   const sourceMode: XyScopeSourceMode = instrument ?? getXyScopeSourceCategory(settings.sourceMode)
   // A WIREFRAME preset chooses the figure it draws, the background around it and how it changes figure; the rest of the user's WIREFRAME settings are kept.
   const wire = figure ? { ...settings.wire, values: { ...settings.wire.values, ...WIRE_PRESET_LOOKS[preset.id] } } : settings.wire

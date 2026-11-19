@@ -16,6 +16,8 @@ import { DrawerNotice } from '../../shared/DrawerNotice'
 import { XyScopeTransportTracker } from './XyScopeTransport'
 import { publishOsc1Live } from './XyScopeOsc1Live'
 import { publishOsc2Live } from './XyScopeOsc2Live'
+import { PHASE_PORTAL_PRESET_ID } from './XyScopeOsc2Settings'
+import { PHASE_PORTAL_WINDOW_MS } from './XyScopePhasePortal'
 import { publishInitLive } from './XyScopeInitLive'
 import { publishOctaLive } from './XyScopeOctaLive'
 import { publishWireLive } from './XyScopeWireLive'
@@ -62,6 +64,7 @@ export function XyScopeSurface({
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const runtimeRef = useRef<XyScopeRuntime | null>(null)
   const settings = useReactStore(state => state.xyScopeSettings)
+  const portal = settings.presetId === PHASE_PORTAL_PRESET_ID ? settings.phasePortal : null
   const resolution = useXyScopeFont(isXyScopeTextSource(settings.sourceMode) ? settings.fontId : null)
   const svg = useXyScopeSvg(settings.svgMediaId, settings.sourceMode === 'svg')
   const [scopeSource, setScopeSource] = useState<'stereo' | 'mono' | 'fallback'>('fallback')
@@ -156,7 +159,14 @@ export function XyScopeSurface({
       if (settingsRef.current.settings.sourceMode === 'osc1') {
         if (timestamp - lastLivePublish >= 100) { lastLivePublish = timestamp; livePublished = true; publishOsc1Live(runtime.getOsc1Live()) }
       } else if (settingsRef.current.settings.sourceMode === 'osc2') {
-        if (timestamp - lastLivePublish >= 100) { lastLivePublish = timestamp; livePublished = true; publishOsc2Live(runtime.getOsc2Live()) }
+        if (timestamp - lastLivePublish >= 100) {
+          lastLivePublish = timestamp; livePublished = true
+          const live = runtime.getOsc2Live()
+          publishOsc2Live(live)
+          if (settingsRef.current.settings.presetId === PHASE_PORTAL_PRESET_ID) {
+            setScopeSource(live?.source === 'stereo' || live?.source === 'mono' ? live.source : 'fallback')
+          }
+        }
       } else if (settingsRef.current.settings.sourceMode === 'init') {
         if (timestamp - lastLivePublish >= 100) { lastLivePublish = timestamp; livePublished = true; publishInitLive(runtime.getInitLive()) }
       } else if (settingsRef.current.settings.sourceMode === 'octa') {
@@ -221,6 +231,13 @@ export function XyScopeSurface({
         </div>
       )}
       <canvas ref={canvasRef} className="rv-xyscope-canvas" data-xyscope-output-canvas="true" />
+      {portal && <div className="rv-xyscope-note rv-xyscope-note--top" role="status" data-phase-portal-signal="true">
+        {portal.traceMode === 'xy' ? 'Stereo XY' : `Waveform · ${PHASE_PORTAL_WINDOW_MS} ms`} · {
+          scopeSource === 'stereo' ? (portal.hold ? 'Stereo hold' : 'Live stereo')
+            : scopeSource === 'mono' ? (portal.traceMode === 'xy' ? 'Mono input · stereo required' : portal.hold ? 'Mono hold' : 'Live mono')
+            : isPaused ? 'Paused' : 'Capture unavailable'
+        }
+      </div>}
       {resolution.status === 'loading' && settings.fontId && (
         <div className="rv-xyscope-note rv-xyscope-note--top" role="status">Loading font…</div>
       )}

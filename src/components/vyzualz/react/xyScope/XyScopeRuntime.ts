@@ -38,7 +38,9 @@ import { DEFAULT_OSC1_LETTER } from './XyScopeOsc1Settings'
 import type { Osc1LiveSnapshot } from './XyScopeOsc1Live'
 import { Osc2Engine } from './XyScopeOsc2Engine'
 import { Osc2AutoPerformance } from './XyScopeOsc2Performance'
-import { BeatClock, type BeatClockFrame } from './XyScopeBeatClock'
+import { BeatClock, REFERENCE_BPM, type BeatClockFrame } from './XyScopeBeatClock'
+import { PhasePortal, PhasePortalScope, PHASE_PORTAL_SCENE_HEIGHT } from './XyScopePhasePortal'
+import { PHASE_PORTAL_PRESET_ID } from './XyScopeOsc2Settings'
 import { StandardAutoPerformance } from './XyScopeStandardPerformance'
 import type { Osc2LiveSnapshot } from './XyScopeOsc2Live'
 import { OctaEngine } from './XyScopeOctaEngine'
@@ -117,6 +119,11 @@ export class XyScopeRuntime {
   private osc2Text: string | null = null
   private osc2ResetSeen = -1
   private osc2AutoOn = false
+  private readonly phasePortal = new PhasePortal()
+  private readonly phasePortalScope = new PhasePortalScope()
+  private phasePortalActive = false
+  private phasePortalPrevious: SharedPerformanceContext | null = null
+  private phasePortalBassHit = false
   private readonly initEngine = new InitEngine()
   private readonly initRenderer: InitRenderer
   private readonly initAuto = new InitAutoPerformance()
@@ -172,7 +179,7 @@ export class XyScopeRuntime {
   private needsClear = true
   private disposed = false
 
-  constructor(canvas: HTMLCanvasElement) {
+  constructor(private readonly canvas: HTMLCanvasElement) {
     this.beam = new XyScopeBeamRenderer(canvas)
     this.osc1Renderer = new Osc1Renderer(canvas)
     this.initRenderer = new InitRenderer(canvas)
@@ -220,6 +227,7 @@ export class XyScopeRuntime {
   /** A track change or engine restart: every letter returns to the authored pattern and the trail is wiped. */
   reset(): void {
     this.resetOsc1Signals()
+    if (this.phasePortalActive) this.osc2ResetSeen = -1
     this.textV2.reset()
     this.textV2Trajectory.reset()
     this.textV2TrajectoryFrame = null
@@ -420,8 +428,8 @@ export class XyScopeRuntime {
 
   /** Live values for the inspector: the effective scene settings while Auto Performance runs. */
   getOsc2Live(): Osc2LiveSnapshot | null {
-    const o = this.settings?.osc2
-    if (!o || this.settings?.sourceMode !== 'osc2') return null
+    if (this.settings?.sourceMode !== 'osc2') return null
+    const o = this.settings.presetId === PHASE_PORTAL_PRESET_ID ? this.settings.phasePortal : this.settings.osc2
     return { ...this.osc2State, settings: o.autoPerformance && this.osc2Output ? this.osc2Output : o.values, source: this.osc1Source }
   }
 
@@ -585,16 +593,31 @@ export class XyScopeRuntime {
   }
 
   private renderOsc2(input: XyScopeFrameInput, dt: number, playing: boolean): void {
-    const settings = this.settings!, o = settings.osc2, engine = this.osc2Engine
-    if (this.lastSource !== 'osc2') { this.lastSource = 'osc2'; this.osc1Renderer.clear(); this.needsClear = false }
+    const settings = this.settings!, engine = this.osc2Engine
+    const portalSettings = settings.presetId === PHASE_PORTAL_PRESET_ID ? settings.phasePortal : null
+    const o = portalSettings ?? settings.osc2
+    const variantChanged = this.phasePortalActive !== (portalSettings != null)
+    const entering = this.lastSource !== 'osc2'
+    this.lastSource = 'osc2'
+    this.phasePortalActive = portalSettings != null
+    engine.setPhasePortal(portalSettings ? this.phasePortal : null)
     if (this.osc1Renderer.resize(this.width, this.height)) this.needsClear = true
-    if (this.osc2ResetSeen !== o.resetSignals || input.context?.seekDetected) {
+    const discontinuity = portalSettings ? input.fresh && hasXyScopeDiscontinuity(input.context) : input.context?.seekDetected
+    const reset = variantChanged || (entering && portalSettings != null) || this.osc2ResetSeen !== o.resetSignals || discontinuity
+    if (reset) {
       this.osc2ResetSeen = o.resetSignals
-      engine.reset(); this.osc1Analyzer.reset(); this.osc1Conductor.reset(); this.osc2Auto.reset(); this.osc2Output = null; this.osc1Renderer.clear()
+      engine.reset(); this.osc1Analyzer.reset(); this.osc1Conductor.reset(); this.osc2Auto.reset(); this.osc2Output = null
+      this.phasePortal.reset()
+      this.phasePortalScope.reset()
+      this.phasePortalPrevious = null
+      this.phasePortalBassHit = false
+      if (portalSettings) this.beatClock.reset()
     }
-    if (this.needsClear) { this.osc1Renderer.clear(); this.needsClear = false }
     const display = (this.words.length > 0 ? this.activeText : '').slice(0, 16)
-    if (display !== this.osc2Text) { this.osc2Text = display; engine.setText(display); this.osc1Renderer.clear() }
+    const textChanged = display !== this.osc2Text
+    if (textChanged) { this.osc2Text = display; engine.setText(display) }
+    const redraw = entering || reset || textChanged || this.needsClear
+    if (redraw) { this.osc1Renderer.clear(); this.needsClear = false }
 
     let features: Osc1Features
     if (playing && input.stereo) {
@@ -614,20 +637,46 @@ export class XyScopeRuntime {
     if (this.osc2AutoOn !== o.autoPerformance) {
       this.osc2AutoOn = o.autoPerformance
       this.osc1Conductor.reset(); this.osc2Auto.reset(); this.osc2Output = null
+      if (portalSettings) this.phasePortal.reset()
     }
     let effective = o.values
+    let build = 0
     if (o.autoPerformance && playing) {
       // Section evidence and beam character come from the shared conductor; the 3D mapping is OSC 2's own.
       const base = { ...o.values }
       const conducted = this.osc1Conductor.update(dt, features, { structure: osc1StructureFromContext(input.context), mode: 0, base: { ...base, motion: 88, depth: 90, readability: 80, rotation: 70, correlation: 75, axisX: 100, axisY: 100, shear: 48, attack: 12, release: 145, sensitivity: 72, harmonics: 65 }, letterCount: 0 })
       this.osc2Output = this.osc2Auto.update(dt, features, conducted, o.values)
+      build = conducted.build
       this.osc2State = { state: conducted.state, confidence: conducted.confidence, mapped: conducted.mapped }
       effective = this.osc2Output
     } else if (o.autoPerformance && this.osc2Output) effective = this.osc2Output
     else this.osc2State = { state: o.autoPerformance ? 'LISTENING' : 'MANUAL', confidence: 0, mapped: false }
     engine.setSettings(effective, o.floor)
-    engine.tick(dt, features, playing, this.clockFor(input.context, o.bpmSync, playing, dt))
-    this.osc1Renderer.render(engine, { dt, settings: effective, grid: false, hold: o.hold })
+    const clock = this.clockFor(input.context, o.bpmSync, playing, dt)
+    engine.tick(dt, features, playing, clock, !portalSettings || input.stereo != null)
+    if (portalSettings) {
+      const c = input.context
+      const mapped = c?.capabilities.sections === true
+      const active = playing && o.autoPerformance
+      const drop = active && input.fresh && mapped && resolveXyScopeTriggerEventId(c, this.phasePortalPrevious, 'drop', 0) != null
+      const bassOnset = playing ? (features.onsets?.[0] ?? 0) : 0
+      const localKick = bassOnset >= .55 && !this.phasePortalBassHit
+      const kick = c?.capabilities.rhythmEvents ? input.fresh && c.kick : localKick
+      if (bassOnset >= .55 || bassOnset < .24) this.phasePortalBassHit = bassOnset >= .55
+      if (input.fresh) this.phasePortalPrevious = c
+      const beats = playing ? clock.motionDt * REFERENCE_BPM / 60 : 0
+      this.phasePortal.tick(beats, active ? engine.f.bass : 0, build, drop, active && !mapped && kick && !discontinuity, engine.fitWidth)
+      if (!o.hold || reset) this.phasePortalScope.update(playing && !discontinuity ? input.stereo : null)
+      this.osc1Source = this.phasePortalScope.source === 'unavailable' ? 'none' : this.phasePortalScope.source
+    }
+    this.osc1Renderer.render(engine, {
+      dt, settings: effective, grid: false, hold: o.hold && !(portalSettings && redraw),
+      stageHeight: portalSettings ? PHASE_PORTAL_SCENE_HEIGHT : 1,
+    })
+    if (portalSettings) {
+      const ctx = this.canvas.getContext('2d', { alpha: false })
+      if (ctx) this.phasePortalScope.draw(ctx, portalSettings.traceMode, o.values.color, this.canvas.width / this.width)
+    }
   }
 
   /**

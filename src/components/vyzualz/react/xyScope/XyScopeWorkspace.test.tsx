@@ -332,6 +332,23 @@ describe('Sound Drawing XY source, presets and React tab', () => {
     expect(container.querySelector<HTMLInputElement>('#xyscope-osc2-orbitRange')!.disabled).toBe(true)
   })
 
+  it('loads Phase Portal from TEXT and saves its Scope View through the Design inspector', async () => {
+    await act(async () => root.render(<><XyScopeEnginePanel /><XyScopePresetsPanel /><XyScopeDesignPanel /></>))
+    await act(async () => container.querySelector<HTMLElement>('[data-xyscope-preset-id="phase-portal"]')!.click())
+    const state = () => useReactStore.getState().xyScopeSettings
+    expect(state().presetId).toBe('phase-portal')
+    expect(container.querySelector('.rv-xyscope-source-grid [aria-pressed="true"]')?.textContent).toBe('TEXT')
+    const view = container.querySelector<HTMLButtonElement>('#xyscope-phase-portal-trace')!
+    expect(view.textContent).toContain('Waveform')
+    await act(async () => view.click())
+    const xy = Array.from(document.querySelectorAll<HTMLElement>('[role="option"]')).find(el => el.textContent?.includes('Stereo XY'))!
+    await act(async () => xy.click())
+    expect(state().phasePortal.traceMode).toBe('xy')
+    await act(async () => container.querySelector<HTMLElement>('[data-xyscope-preset-id="osc2"]')!.click())
+    expect(container.querySelector('#xyscope-phase-portal-trace')).toBeNull()
+    expect(state().phasePortal.traceMode).toBe('xy')
+  })
+
   it('offers INIT under the OSCILATOR source with an Input group, the four standard groups and its own controls', async () => {
     await act(async () => root.render(<><XyScopeEnginePanel /><XyScopePresetsPanel /><XyScopeDesignPanel /></>))
     const sourceCard = [...container.querySelectorAll<HTMLElement>('.rv-sound-source-card')].find(el => el.textContent === 'OSCILATOR')!
@@ -498,7 +515,7 @@ describe('Sound Drawing XY source, presets and React tab', () => {
   it('filters instrument presets by source and searches within that source', async () => {
     await act(async () => root.render(<><XyScopeEnginePanel /><XyScopePresetsPanel /></>))
     const ids = () => [...container.querySelectorAll('[data-xyscope-preset-id]')].map(el => el.getAttribute('data-xyscope-preset-id'))
-    expect(ids()).toEqual(['textV2', 'conversation', 'clean-scope', 'storm', 'osc1', 'osc2'])
+    expect(ids()).toEqual(['textV2', 'conversation', 'clean-scope', 'storm', 'osc1', 'osc2', 'phase-portal'])
     const source = (label: string) => [...container.querySelectorAll<HTMLElement>('.rv-sound-source-card')].find(el => el.textContent === label)!
     await act(async () => source('OSCILATOR').click())
     expect(ids()).toEqual(['conversation', 'clean-scope', 'storm', 'init', 'octa'])
@@ -506,7 +523,7 @@ describe('Sound Drawing XY source, presets and React tab', () => {
     expect(ids()).toEqual(['conversation', 'clean-scope', 'storm'])
     await act(async () => source('TEXT').click())
     await act(async () => setInputValue(container.querySelector<HTMLInputElement>('input[aria-label="Search Sound Drawing XY presets"]')!, 'OSC'))
-    expect(ids()).toEqual(['textV2', 'osc1', 'osc2'])
+    expect(ids()).toEqual(['textV2', 'osc1', 'osc2', 'phase-portal'])
   })
 
   it('renders this engine in the left panel through the shared engine panel', async () => {

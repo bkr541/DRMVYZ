@@ -32,6 +32,8 @@ export interface Osc1RenderOptions {
   settings: Osc1BeamSettings
   grid: boolean
   hold: boolean
+  /** Share of the output height available to the scene when it has a separate reference trace. */
+  stageHeight?: number
   /** A wide tinted halo around the bright lines (a phosphor bloom much larger than the default). `amount` 0 turns it off. */
   halo?: { amount: number; color: string }
   background?: string
@@ -76,7 +78,7 @@ export class Osc1Renderer {
   get beamSamples(): number { return this.phosphor.deposits }
 
   /** One frame: scan every letter into the phosphor (unless held), then composite to the output canvas. */
-  render<L extends Osc1ScanStream>(engine: Osc1Scannable<L>, { dt, settings: s, grid, hold, halo, background = BACKGROUND }: Osc1RenderOptions): void {
+  render<L extends Osc1ScanStream>(engine: Osc1Scannable<L>, { dt, settings: s, grid, hold, stageHeight = 1, halo, background = BACKGROUND }: Osc1RenderOptions): void {
     const { W, H, phosphor } = this
     if (!this.ctx || !this.rasterCtx || !this.raster || !this.imageData || W === 0) return
     if (!hold) {
@@ -87,7 +89,8 @@ export class Osc1Renderer {
       const count = engine.letters.length
       const fixedLayout = engine.absolute === true
       const total = fixedLayout ? (engine.fitWidth ?? 6) : engine.letters.reduce((sum, l) => sum + l.advance + .30, 0)
-      const size = Math.min(H * .40, W * .82 / Math.max(1, total)), cy = H * (engine.anchorY ?? .52)
+      const stage = H * stageHeight
+      const size = Math.min(stage * .40, W * .82 / Math.max(1, total)), cy = stage * (engine.anchorY ?? .52)
       let cursor = W / 2 - total * size / 2
       const out = this.out
       for (let i = 0; i < count; i++) {

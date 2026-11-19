@@ -3,6 +3,8 @@
 import { OSC2_DEFAULTS, OSC2_RANGES, type Osc2ControlKey, type Osc2Settings } from './XyScopeOsc2Engine'
 
 export const OSC2_PRESET_ID = 'osc2'
+export const PHASE_PORTAL_PRESET_ID = 'phase-portal'
+export type PhasePortalTraceMode = 'waveform' | 'xy'
 
 export interface Osc2ControlSpec {
   id: Osc2ControlKey
@@ -52,29 +54,49 @@ export const DEFAULT_OSC2_SETTINGS: Readonly<XyScopeOsc2Settings> = Object.freez
   autoPerformance: false, bpmSync: true, floor: true, hold: false, resetSignals: 0, values: Object.freeze({ ...OSC2_DEFAULTS }),
 })
 
+export interface XyScopePhasePortalSettings extends XyScopeOsc2Settings {
+  traceMode: PhasePortalTraceMode
+}
+
+export const DEFAULT_PHASE_PORTAL_SETTINGS: Readonly<XyScopePhasePortalSettings> = Object.freeze({
+  ...DEFAULT_OSC2_SETTINGS,
+  autoPerformance: true,
+  floor: false,
+  traceMode: 'waveform',
+  values: Object.freeze({
+    ...OSC2_DEFAULTS, depth: .74, layers: 4, orbitRange: 14, elevation: 9,
+    kickDolly: .28, terrain: .38, persistence: 70, scan: 36,
+  }),
+})
+
 const HEX_COLOR = /^#[0-9a-fA-F]{6}$/
 const finiteOr = (value: unknown, fallback: number) => typeof value === 'number' && Number.isFinite(value) ? value : fallback
 
-export function normalizeOsc2Values(value: unknown): Osc2Settings {
+export function normalizeOsc2Values(value: unknown, defaults = OSC2_DEFAULTS): Osc2Settings {
   const record = value && typeof value === 'object' ? value as Record<string, unknown> : {}
-  const out = { ...OSC2_DEFAULTS } as Osc2Settings & Record<Osc2ControlKey, number>
+  const out = { ...defaults } as Osc2Settings & Record<Osc2ControlKey, number>
   for (const key of Object.keys(OSC2_RANGES) as Osc2ControlKey[]) {
     const [lo, hi] = OSC2_RANGES[key]
-    out[key] = Math.min(hi, Math.max(lo, finiteOr(record[key], OSC2_DEFAULTS[key])))
+    out[key] = Math.min(hi, Math.max(lo, finiteOr(record[key], defaults[key])))
   }
   out.layers = Math.round(out.layers)
-  out.color = typeof record.color === 'string' && HEX_COLOR.test(record.color) ? record.color.toLowerCase() : OSC2_DEFAULTS.color
+  out.color = typeof record.color === 'string' && HEX_COLOR.test(record.color) ? record.color.toLowerCase() : defaults.color
   return out
 }
 
-export function normalizeOsc2Settings(value: unknown): XyScopeOsc2Settings {
+export function normalizeOsc2Settings(value: unknown, defaults = DEFAULT_OSC2_SETTINGS): XyScopeOsc2Settings {
   const record = value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
   return {
-    autoPerformance: typeof record.autoPerformance === 'boolean' ? record.autoPerformance : false,
-    bpmSync: typeof record.bpmSync === 'boolean' ? record.bpmSync : true,
-    floor: typeof record.floor === 'boolean' ? record.floor : true,
-    hold: typeof record.hold === 'boolean' ? record.hold : false,
+    autoPerformance: typeof record.autoPerformance === 'boolean' ? record.autoPerformance : defaults.autoPerformance,
+    bpmSync: typeof record.bpmSync === 'boolean' ? record.bpmSync : defaults.bpmSync,
+    floor: typeof record.floor === 'boolean' ? record.floor : defaults.floor,
+    hold: typeof record.hold === 'boolean' ? record.hold : defaults.hold,
     resetSignals: Math.max(0, Math.min(1e9, Math.round(finiteOr(record.resetSignals, 0)))),
-    values: normalizeOsc2Values(record.values),
+    values: normalizeOsc2Values(record.values, defaults.values),
   }
+}
+
+export function normalizePhasePortalSettings(value: unknown): XyScopePhasePortalSettings {
+  const record = value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
+  return { ...normalizeOsc2Settings(record, DEFAULT_PHASE_PORTAL_SETTINGS), traceMode: record.traceMode === 'xy' ? 'xy' : 'waveform' }
 }

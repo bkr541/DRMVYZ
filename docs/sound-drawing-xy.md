@@ -123,7 +123,7 @@ Cinema 2.0 and Headliner use **Effects** as the third group. Sound Drawing XY us
 
 Pattern Change defaults to **on** so the engine performs when it is first opened. The Clean Scope preset turns it off, retaining the Word performance; Motion Amount or Audio Reactivity at zero provides a still word.
 
-The left rail has SOURCE and MEDIA tabs. SOURCE has TEXT, SVG, OSCILATOR and WIREFRAME cards with persisted selection. TEXT holds the standard **Input** group with the word (up to 16 characters, drawn in capitals) and Font dropdown. SVG holds its own **Input** group with an uploaded SVG selector and processing mode. MEDIA remains a disabled placeholder; uploads are managed in Media Manager; a disabled tab can never be the open tab (`disabledLeftTabs` in `reactWorkspaceComposition.ts`). The PRESETS tab follows the selected source. TEXT includes Text V2, Converse, Clean Scope, Storm, OSC 1 and OSC 2; OSCILATOR includes INIT and OCTA alongside the three shared parameter presets. SVG offers the three shared parameter presets. The TEXT card stays active for Text V2, OSC 1 and OSC 2; OSCILATOR stays active for INIT and OCTA; WIREFRAME offers CUBES, SOLIDS and TESSERACT. Clicking an already active source card keeps its current instrument. A shared parameter preset returns an instrument to its base source (TEXT or OSCILATOR), sets Master Controls, the Pattern group, and React values and leaves the word, font, letters, beam and palette alone. A manual edit keeps the preset id and the card shows Modified.
+The left rail has SOURCE and MEDIA tabs. SOURCE has TEXT, SVG, OSCILATOR and WIREFRAME cards with persisted selection. TEXT holds the standard **Input** group with the word (up to 16 characters, drawn in capitals) and Font dropdown. SVG holds its own **Input** group with an uploaded SVG selector and processing mode. MEDIA remains a disabled placeholder; uploads are managed in Media Manager; a disabled tab can never be the open tab (`disabledLeftTabs` in `reactWorkspaceComposition.ts`). The PRESETS tab follows the selected source. TEXT includes Text V2, Converse, Clean Scope, Storm, OSC 1, OSC 2 and Phase Portal; OSCILATOR includes INIT and OCTA alongside the three shared parameter presets. SVG offers the three shared parameter presets. The TEXT card stays active for Text V2, OSC 1, OSC 2 and Phase Portal; OSCILATOR stays active for INIT and OCTA; WIREFRAME offers CUBES, SOLIDS and TESSERACT. Clicking an already active source card keeps its current instrument. A shared parameter preset returns an instrument to its base source (TEXT or OSCILATOR), sets Master Controls, the Pattern group, and React values and leaves the word, font, letters, beam and palette alone. A manual edit keeps the preset id and the card shows Modified.
 
 `XY_SCOPE_PARAMETERS` is the single source of truth for labels, ranges, defaults and visibility; the panel, the store normalizer and the runtime all read it.
 
@@ -285,6 +285,14 @@ OSC 2 is a second instrument preset (`sourceMode: 'osc2'`, `presetId: 'osc2'`) t
 - The shared beam scanner (`XyScopeOsc1Renderer.ts`) now accepts any engine whose streams report absolute screen positions.
 
 Tests: `XyScopeOsc2.test.ts` and an OSC 2 case in `XyScopeWorkspace.test.tsx`.
+
+### Phase Portal preset
+
+Choose **TEXT → PRESETS → PHASE PORTAL**. The preset uses OSC 2's text inputs, fonts, contour slices, and waveform terrain, with separately saved settings. The front contour stays fixed and bright. Rear slices follow the camera, and the hypercube beam fades out around the front contours so it can turn without obscuring the word.
+
+Auto Performance opens the cage with bass and mapped builds. A mapped drop cues one complete 4D turn over four beats, followed by a four-beat resolve. During unmapped playback a strong kick can cue a turn. BPM Sync follows the track grid when available and uses the shared 100 BPM reference otherwise. Turning Auto Performance off lets you adjust the scene directly.
+
+**Design → Master Controls → Scope View** selects the reference trace in the lower strip. **Waveform** draws a triggered 10 ms window at fixed gain, with left above right for stereo and a single trace for mono. **Stereo XY** plots simultaneous left and right samples on equally scaled axes. The strip identifies the input and shows the graticule alone when capture is unavailable or when stereo is required. **Hold Trace** freezes the displayed capture and scene. The reference trace uses captured PCM and keeps its scale and position through camera moves and beat changes.
 
 ## INIT
 
