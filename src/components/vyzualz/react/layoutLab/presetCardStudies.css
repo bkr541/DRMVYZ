@@ -23,7 +23,7 @@
 .ll-preset-favorite:hover, .ll-preset-favorite[aria-pressed='true'] { color: var(--ll-preset-accent); border-color: #4ac7db88; }
 .ll-preset-indicator, .ll-preset-key { display: none; }
 
-/* 01–05 — framed scenes with a centered title band and corner actions. */
+/* 01–05 — framed scenes with distinct title treatments and corner actions. */
 .ll-preset-study--captioned { --ll-card-h: 94px; --ll-caption-bg: #111a20; --ll-caption-ink: #edf4f7; }
 .ll-preset-study--captioned .ll-preset-select { background: var(--ll-caption-bg); }
 .ll-preset-study--captioned .ll-preset-copy {
@@ -33,12 +33,19 @@
 .ll-preset-study--captioned .ll-preset-selection { top: 8px; left: 8px; right: auto; bottom: auto; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 4px; background: #091217; }
 .ll-preset-study--captioned .ll-preset-favorite { top: 8px; right: 8px; background: #091217; }
 
-/* 01 — an edge-to-edge cinema still with a charcoal title band. */
-.ll-preset-study--poster .ll-preset-card { border-radius: 8px; }
-/* 02 — a photographic mat around an inset image. */
-.ll-preset-study--print { --ll-caption-bg: #1c252b; }
+/* 01 — a full-width scene above a name-only caption. */
+.ll-preset-study--poster .ll-preset-card { height: auto; border-radius: 8px; }
+.ll-preset-study--poster .ll-preset-select { display: flex; flex-direction: column; }
+.ll-preset-study--poster .ll-preset-image { position: relative; inset: auto; flex: none; width: 100%; aspect-ratio: 16 / 9; }
+.ll-preset-study--poster .ll-preset-copy { position: static; align-self: stretch; flex: 1; padding: 5px 8px; border-top: 1px solid #ffffff18; background: var(--ll-caption-bg); }
+/* 02 — full-bleed artwork with a charcoal fade beneath the name. */
+.ll-preset-study--print { --ll-caption-bg: #24292d; }
 .ll-preset-study--print .ll-preset-select { border-radius: 3px; }
-.ll-preset-study--print .ll-preset-image { inset: 6px; border-radius: 2px; }
+.ll-preset-study--print .ll-preset-copy {
+  align-items: end;
+  padding-bottom: 5px;
+  background: linear-gradient(to top, var(--ll-caption-bg), #24292ddb 26%, transparent 68%);
+}
 /* 03 — a full-width scene with a colored seam. */
 .ll-preset-study--gallery { --ll-caption-bg: #0a1117; }
 .ll-preset-study--gallery .ll-preset-card { border-radius: 3px; }

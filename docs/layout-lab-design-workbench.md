@@ -41,7 +41,7 @@ AUTH contains **Backstage**, **Signal Room**, **Studio Pass** and **Marquee**. E
 
 ## Preset card studies
 
-The 21 studies in Preset Cards use the same 148.5px width, with heights from 56px to 108px depending on the design. Each card shows the preset name centered over its artwork. Selection and favorites are local to each study.
+The 21 studies in Preset Cards use a 148.5px card width. In 01 Cinema Classic, the preset name sits in a compact caption below a 16:9 thumbnail. In 02 Matte Frame, the artwork fills the card, and the name sits over a dark gray gradient that fades upward from the bottom. The other studies center the preset name over the artwork. Selection and favorites are local to each study.
 
 ## Performance Pad studies
 

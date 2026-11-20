@@ -1407,7 +1407,8 @@ export function MediaUploadModal({
                 previewReady={fontPreviewReady.has(activeFont.id)}
                 onNameChange={name => patchActiveFont({ name })}
                 onPreviewTextChange={setFontPreviewText}
-                tagsAndCollections={tagsAndCollectionsRow}
+                tagsField={tagsField}
+                collectionsField={collectionsField}
               />
             ) : lockedAudioRole ? (
               <>

@@ -13,8 +13,8 @@ const PRESETS = [
   { id: 'drmvyz.cinema2.electric-storm', name: 'Electric Storm', color: '#88b8e8', key: '4', wrap: true },
 ] as const
 const DESIGNS = [
-  { id: 'poster', name: 'Cinema classic', detail: 'Full-width thumbnail · charcoal title band', captioned: true },
-  { id: 'print', name: 'Matte frame', detail: 'Inset thumbnail · photographic border', captioned: true },
+  { id: 'poster', name: 'Cinema classic', detail: 'Full-width thumbnail · name below the image', captioned: true },
+  { id: 'print', name: 'Matte frame', detail: 'Full-bleed thumbnail · charcoal title fade', captioned: true },
   { id: 'gallery', name: 'Accent gallery', detail: 'Wide thumbnail · color seam', captioned: true },
   { id: 'strip', name: 'Light folio', detail: 'Panoramic thumbnail · light title band', captioned: true },
   { id: 'monitor', name: 'Studio panel', detail: 'Recessed thumbnail · inset rail', captioned: true },

@@ -26,6 +26,12 @@ retain their warning tone. Supporting copy is connected with aria-describedby.
 The shared prompt overlay sits at 1500, above Media Upload (1400), so warnings
 launched from upload windows remain visible.
 
+Font Upload shares the image and video upload dialog's compact field grid and
+underline inputs. Type, Font Name, and Collections share the first row on
+desktop. Preview Text and Tags sit beside the live specimen on desktop and
+reflow below it on narrow screens. Read-only font details use the same
+responsive metadata grid.
+
 ## Information popovers
 
 The shared InfoPopover now always has a centered 42px icon badge, a centered
