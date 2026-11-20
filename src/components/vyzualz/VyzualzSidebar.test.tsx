@@ -25,22 +25,17 @@ afterEach(() => {
 })
 
 describe('VyzualzSidebar workspace navigation', () => {
-  it('keeps the legacy brand toggle and its collapse semantics', () => {
+  it('always uses the collapsed notch rail without an expansion control', () => {
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
 
     act(() => {
-      root?.render(<VyzualzSidebar compact appView="react" />)
+      root?.render(<VyzualzSidebar appView="react" />)
     })
 
-    const logo = container.querySelector<HTMLButtonElement>('.az-sidebar .az-logo')!
-    expect(container.querySelectorAll('.az-logo')).toHaveLength(1)
-    expect(logo.getAttribute('aria-expanded')).toBe('false')
-    expect(container.querySelector('.az-sidebar--collapsed')).not.toBeNull()
-    act(() => logo.click())
-    expect(logo.getAttribute('aria-expanded')).toBe('true')
-    expect(container.querySelector('.az-sidebar--collapsed')).toBeNull()
+    expect(container.querySelector('.az-sidebar--collapsed.az-sidebar--notched')).not.toBeNull()
+    expect(container.querySelector('.az-logo, .fw-sidebar-toggle, [title="Expand sidebar"], [title="Collapse sidebar"]')).toBeNull()
   })
 
   it('disables Show Manager while Live Input is selected', () => {
@@ -51,7 +46,7 @@ describe('VyzualzSidebar workspace navigation', () => {
     root = createRoot(container)
 
     act(() => {
-      root?.render(<VyzualzSidebar compact appView="react" onAppViewChange={onAppViewChange} />)
+      root?.render(<VyzualzSidebar appView="react" onAppViewChange={onAppViewChange} />)
     })
 
     const showManagerItem = container.querySelector<HTMLButtonElement>('[aria-label="Show Manager"]')
@@ -65,7 +60,7 @@ describe('VyzualzSidebar workspace navigation', () => {
   it('places one icon-only notification button above Profile and follows the active workspace', async () => {
     container = document.createElement('div'); document.body.appendChild(container); root = createRoot(container)
     useNotificationStore.getState().pushEvent('media-manager', { title: 'Media finished', message: 'Ready.' })
-    await act(async () => root?.render(<VyzualzSidebar compact appView="media" />))
+    await act(async () => root?.render(<VyzualzSidebar appView="media" />))
     const footer = container.querySelector('.az-sidebar-account')!
     const bell = footer.querySelector<HTMLButtonElement>('.az-sidebar-notifications')!
     expect(bell.textContent).toBe('')
@@ -74,7 +69,7 @@ describe('VyzualzSidebar workspace navigation', () => {
     expect(bell.nextElementSibling?.classList.contains('vz-profile-control')).toBe(true)
     await act(async () => bell.click())
     expect(document.body.querySelector('[role="dialog"][aria-label="Notifications"]')?.textContent).toContain('Media finished')
-    await act(async () => root?.render(<VyzualzSidebar compact appView="lyrics" />))
+    await act(async () => root?.render(<VyzualzSidebar appView="lyrics" />))
     expect(document.body.querySelector('[role="dialog"][aria-label="Notifications"]')).toBeNull()
     expect(container.querySelector('.az-sidebar-notifications')?.getAttribute('aria-label')).toBe('Notifications')
   })
@@ -88,7 +83,6 @@ describe('VyzualzSidebar workspace navigation', () => {
     act(() => {
       root?.render(
         <VyzualzSidebar
-          compact
           appView="lyrics"
           onAppViewChange={onAppViewChange}
         />,

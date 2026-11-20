@@ -400,8 +400,6 @@ describe('LyricManagerView track-first workflow', () => {
       <ApplicationWorkspaceFrame
         appView="lyrics"
         onAppViewChange={() => undefined}
-        sidebarCollapsed
-        onSidebarCollapsedChange={() => undefined}
       >
         <LyricManagerView onBack={() => undefined} />
       </ApplicationWorkspaceFrame>,
@@ -423,8 +421,6 @@ describe('LyricManagerView track-first workflow', () => {
       <ApplicationWorkspaceFrame
         appView="lyrics"
         onAppViewChange={() => undefined}
-        sidebarCollapsed
-        onSidebarCollapsedChange={() => undefined}
       >
         <LyricManagerView onBack={() => undefined} />
       </ApplicationWorkspaceFrame>,

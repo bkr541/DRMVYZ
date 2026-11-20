@@ -6,7 +6,7 @@ Click a tab to select it. Click the selected tab again, double-click a tab, or p
 
 Names and the selected slot persist in localStorage under `drmvyz.layoutLab.tabs.v1`, as `{ version: 1, tabs: [{ id, name }], activeTabId }`. Storage belongs to this browser/application origin; clearing its data removes saved names. If saving fails, Layout Lab displays a session-only message.
 
-The former Preset Cards slot (`layout-lab-tab-02`) was retired when Matte Frame became the [production poster style](react-preset-thumbnails.md). Saved workspaces keep the names and IDs of the seven remaining slots. A workspace last opened on the retired slot defaults to Tab 1.
+The former Preset Cards slot (`layout-lab-tab-02`) was retired when Matte Frame became the [production poster style](react-preset-thumbnails.md). Saved workspaces keep the names and IDs of the remaining slots. The Left nav bar slot (`layout-lab-tab-05`) and its mockups are also retired after promotion to the production sidebar. A workspace last opened on either retired slot defaults to Tab 1.
 
 ## Permanent content references
 
@@ -15,10 +15,10 @@ The former Preset Cards slot (`layout-lab-tab-02`) was retired when Matte Frame 
 | Tab 1 | `layout-lab-tab-01` | `layout-lab-tab-01-panel` |
 | Engine dropdown | `layout-lab-tab-03` | `layout-lab-tab-03-panel` |
 | Nav bar icons | `layout-lab-tab-04` | `layout-lab-tab-04-panel` |
-| Left nav bar | `layout-lab-tab-05` | `layout-lab-tab-05-panel` |
 | Tab 6 | `layout-lab-tab-06` | `layout-lab-tab-06-panel` |
 | Tab 7 | `layout-lab-tab-07` | `layout-lab-tab-07-panel` |
 | AUTH | `layout-lab-tab-08` | `layout-lab-tab-08-panel` |
+| Record Listing | `layout-lab-tab-09` | `layout-lab-tab-09-panel` |
 
 Renaming changes only `name`. Future elements must be associated with these permanent IDs, never a label or a slug derived from a label. Tab wrappers and panels expose `data-layout-lab-tab-id`; each tab's `aria-controls` points to its panel. Panels remain mounted while switching tabs. To locate a renamed study in a later session, read its current label and permanent ID from the DOM or the stored mapping above. This storage schema saves tab metadata, not study data.
 
@@ -26,9 +26,7 @@ The `layoutLab/` directory contains the tab metadata, study components, styles a
 
 Validation: five focused tab/popup tests, TypeScript and focused ESLint passed. The actual popup browser check verified seven equally sized tabs with shared 11px/700 typography, rename/cancel, focus restoration, saved names and selection after reopening, and permanent panel references. Its screenshot is under ignored `artifacts/layout-lab-tabs/`. No production build was run for this local workspace change.
 
-## Left Nav Bar, Engine Dropdown and AUTH studies
-
-Left Nav Bar contains five previews using `VyzualzSidebarLayout` and the shared sidebar stylesheet. Select any destination to compare the bare icons and motion treatments. **Notch** moves a curved cutout down the right edge as the selected icon moves into the cutout. Its active icon is 52px (inactive 40px), anchored 44px inside the rail’s right edge so it sits farther within the bar. The cutout is 44px wide × 64px tall with a circular 24px-radius inner curve centered on the icon, reaching 42px into the rail and easing back into the straight edge. **Track** glides an inset plate between rows and enlarges the selected leading icon. **Shutter** folds in an angled selection with a turning trailing icon. **Signal** sends a pulse beneath the row from its glowing icon. **Brackets** frames a centered stack with moving corner markers as the icon lifts and settles. The previews follow the system reduced-motion preference. Use an individual sidebar toggle, **Expand All**, or **Collapse All** to compare the two widths. The account area uses sample content.
+## Engine Dropdown and AUTH studies
 
 Engine Dropdown adds **Cinema Still**, **Film Gate**, **Record Sleeve** and **Lightbox** to its five blueprint studies. The new rows use the same engine art with four crops and layouts. HEADLINER uses the supplied DJ silhouette. Cinema 2, CANVAS and LaserDMX use existing preset artwork. OpenAI ImageGen produced the remaining backdrops from these briefs. The cropped image assets for Layout Lab are stored in `public/layout-lab/`.
 
@@ -67,3 +65,14 @@ Accent Rail adjustment: its background numbers remain right-aligned at 4px and f
 React's existing store-free `PerformancePad` now uses Accent Rail for compact density: 40px height, 5px corners, left-aligned 8.5px titles, a 2px vertical inset marker, and a 32px outlined shortcut at right: 4px/top: 50%. Compact and Lab type roles share canonical typography rules. Expanded density retains Performance Manager's Full styling. The Lab continues rendering its own isolated mockups; it imports no production pad component.
 
 Accent Rail production validation: 11 focused component/engine tests and focused ESLint passed. Browser comparisons at 1600×1000, 1280×844 and 1180×844 verified matching normal/selected colors, card geometry, typography, inset marker and right-aligned vertically centered numbers against the Lab study. A focused final check verified matching press halos and immediate pointer/shortcut release. Expanded Full typography and corners were retained. Screenshot: `artifacts/layout-lab-tabs/react-accent-rail.png` (ignored).
+
+## Record Listing
+
+Record Listing contains three columns: Presets, Audio Tracks and 3D Models. Each
+column has its own production `LibraryViewToggle` and independently switches
+between grid and list views. The cards reuse `ReactPresetCard`, `AudioTrackCard`
+and the store-free `ModelLibraryCard` presentation also used by Media Manager.
+Production styles are scoped to this study. Sample metadata and thumbnail assets
+are local; selection, favorites and the loaded indicator do not affect application
+data, load audio or activate presets. Existing tab names and permanent IDs survive
+the addition of the new slot.

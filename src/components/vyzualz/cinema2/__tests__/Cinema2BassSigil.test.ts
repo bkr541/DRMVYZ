@@ -29,14 +29,18 @@ async function setup() {
   const defaults=Object.fromEntries(Object.entries(manifest.modules![0].parameterBindings!).map(([name,ref])=>[name,manifest.parameters!.find(p=>p.id===ref.$ref)!.defaultValue]))
   const values={...defaults}
   controller.attach(gltf.scene)
+  // Stand-in for the scene module's slot: a user model is normalized by its loader (longest side 2, centered) and added under its own placed root.
+  const placed=new THREE.Group(),model=new THREE.Group(),box=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),new THREE.MeshStandardMaterial())
+  model.name='Cinema2UserModel';model.add(box);model.scale.setScalar(2);model.position.set(0,-.5,0);placed.add(model)
+  controller.attach(model,true,[],'user-model:test:1')
   let elapsed=0,editRevision=0
   const edit=()=>{editRevision++}
   const step=(options:{sourcePresent?:boolean;bpm?:number;hostSync?:boolean;paused?:boolean;time?:number;track?:string;event?:string;beat?:number}={}, supplied?:Cinema2ModuleFrameReadContext)=> {
     elapsed=options.time??elapsed+1/30
     const frame=supplied??{deltaTimeSec:1/30,elapsedTimeSec:elapsed,timestampMs:elapsed*1000,contextGeneration:1,transport:{sourcePresent:options.sourcePresent!==false,playing:options.sourcePresent!==false&&!options.paused,animationActive:options.sourcePresent!==false&&!options.paused,paused:options.paused??false,timeSec:elapsed,trackId:options.track??'track',bpm:options.bpm??120,bpmSync:options.hostSync??false},audio:options.event?{upstream:{timeSec:elapsed},rhythm:{beat:{id:options.event},beatIndex:{available:true,value:options.beat??0},fixedClocks:{4:{boundary:null},16:{boundary:null}}},structure:{analyzedPhrases:{available:false},semanticMoments:{available:false}}}:undefined}
-    controller.update({frame,parameters:{get:(name:string)=>values[name],getEditRevision:()=>editRevision},targets:{}} as unknown as Cinema2ModuleUpdateContext);controller.beforeDraw();gltf.scene.updateMatrixWorld(true)
+    controller.update({frame,parameters:{get:(name:string)=>values[name],getEditRevision:()=>editRevision},targets:{}} as unknown as Cinema2ModuleUpdateContext);controller.beforeDraw();gltf.scene.updateMatrixWorld(true);placed.updateMatrixWorld(true)
   }
-  return {controller,root:gltf.scene,originalSphere,template,values,step,edit}
+  return {controller,root:gltf.scene,originalSphere,template,values,step,edit,model,placed}
 }
 
 it('compiles once under its existing identity and restores the complete original environment',()=>{
@@ -48,18 +52,22 @@ it('compiles once under its existing identity and restores the complete original
   expect(createHash('sha256').update(readFileSync(source)).digest('hex')).toBe('3b74af78b57b0dd24727a06f41a16064af3044ded52118700fbe6008cb1843cc')
   expect(manifest.effects??[]).toHaveLength(5);expect(manifest.choreography!.rules.length).toBeGreaterThan(20)
 })
-it('exposes canonical shared controls, six distinct colors, and eight real programs',()=>{
+it('exposes canonical shared controls, a background plus two sphere colors, and eight real programs',()=>{
   const parameters=manifest.parameters!
   expect(parameters.find(p=>p.label==='BPM Sync')).toMatchObject({type:'boolean',designParentGroup:'master-controls'})
   expect(parameters.find(p=>p.label==='Trigger')?.options).toEqual(CINEMA2_AFTERHOURS_TRIGGER_OPTIONS)
-  expect(parameters.filter(p=>p.type==='color'&&p.designParentGroup==='palette')).toHaveLength(6)
+  expect(parameters.filter(p=>p.type==='color'&&p.designParentGroup==='palette').map(p=>p.label)).toEqual(['Background','Membrane','Particles'])
+  // The model is chosen from the Source tab, so its control is hidden from the inspector.
+  expect(parameters.find(p=>p.defaultValue==='default-model')).toMatchObject({type:'string',exposure:'hidden',metadata:{editor:'user-model-selector'}})
+  expect(manifest.modules![0].config?.userModel).toMatchObject({node:'bass-sigil-model',neutralFloor:false})
   expect(parameters.find(p=>p.label==='Pattern')?.options).toHaveLength(8)
   const samples=BASS_SIGIL_PATTERN_IDS.map(pattern=>[0,.8,1.5].flatMap(phase=>deformBassSigilPoint(pattern,.6,.4,.7,phase,1)))
   expect(new Set(samples.map(p=>JSON.stringify(p))).size).toBe(8)
 })
-it('preserves original mesh counts, UVs and template geometry while animating private instances',async()=>{
+it('removes the original logo and keeps the sphere, particles and glow, with their UVs and template geometry, while animating private instances',async()=>{
   const {root,controller,step,originalSphere,template}=await setup()
-  let count=0;root.traverse(o=>{if((o as THREE.Mesh).isMesh)count++});expect(count).toBe(11)
+  let count=0;root.traverse(o=>{if((o as THREE.Mesh).isMesh)count++});expect(count).toBe(4)
+  for(const name of ['Object_4','Object_6','Object_8','Object_10','Object_12','Object_14','Object_24'])expect(root.getObjectByName(name),name).toBeUndefined()
   const sphere=root.getObjectByName('Object_18') as THREE.Mesh
   expect(sphere.geometry).not.toBe(originalSphere)
   expect(sphere.geometry.getAttribute('uv').array).toEqual(originalSphere.getAttribute('uv').array)
@@ -75,8 +83,8 @@ it('honors the preset BPM Sync independently of host sync, and holds pause, zero
   const s=await setup();s.step();s.step();const phase=s.controller.inspect().phase
   for(let i=0;i<10;i++)s.step({paused:true});expect(s.controller.inspect().phase).toBe(phase)
   s.values.motionRate=0;for(let i=0;i<10;i++)s.step();expect(s.controller.inspect().phase).toBe(phase)
-  s.values.motionRate=0;s.values.logoSpinRate=0;s.values.logoSway=0;s.step();const pose=s.root.getObjectByName('Object_10')!.matrixWorld.clone()
-  for(let i=0;i<10;i++)s.step();expect(s.root.getObjectByName('Object_10')!.matrixWorld.elements).toEqual(pose.elements)
+  s.values.motionRate=0;s.values.logoSpinRate=0;s.values.logoSway=0;s.step();const pose=s.model.matrixWorld.clone()
+  for(let i=0;i<10;i++)s.step();expect(s.model.matrixWorld.elements).toEqual(pose.elements)
   s.controller.dispose()
 })
 it('manual pattern edits hold through duplicate events without turning Pattern Change off',async()=>{
@@ -96,9 +104,9 @@ it('clears motion and pattern progression on track/seek discontinuities and disp
   s.controller.dispose();expect(disposed).toBe(true);expect(s.controller.inspect().ownedGeometryCount).toBe(0)
 })
 
-it('rotates and sways the complete original logo independently, with real manual orientation and spin and sway at zero',async()=>{
+it('rotates and sways the user model independently of the sphere, with real manual orientation and spin and sway at zero',async()=>{
   const s=await setup();s.values.motionRate=0;s.step()
-  const logo=s.root.getObjectByName('Object_6')!,sphere=s.root.getObjectByName('Object_18')!
+  const logo=s.model,sphere=s.root.getObjectByName('Object_18')!
   const before=logo.matrixWorld.clone(),shell=sphere.matrixWorld.clone()
   for(let i=0;i<20;i++)s.step()
   expect(logo.matrixWorld.elements).not.toEqual(before.elements)
@@ -112,7 +120,7 @@ it('rotates and sways the complete original logo independently, with real manual
   s.controller.dispose()
 })
 
-it('gives the logo ambient idle motion while respecting an explicit idle pause',async()=>{
+it('gives the model ambient idle motion while respecting an explicit idle pause',async()=>{
   const s=await setup();s.step({sourcePresent:false});for(let i=0;i<10;i++)s.step({sourcePresent:false})
   expect(s.controller.inspect().logoSpinPhase).toBeGreaterThan(0)
   const held=s.controller.inspect().logoSpinPhase
@@ -159,4 +167,27 @@ it('routes all eleven canonical Triggers through the native controller without r
   s.step({},second);expect(s.controller.inspect().pattern,option.value).toBe('countercurrent')
   s.controller.dispose()
  }
+})
+
+it('places the model at the anchor, scaled to fit inside the sphere, and follows Model Scale and Model Bounce',async()=>{
+  const s=await setup();s.values.logoSpinRate=0;s.values.logoSway=0;s.values.motionRate=0;s.values.coreTravel=0;s.values.heroScale=1;s.step()
+  const size=(m:THREE.Object3D)=>new THREE.Box3().setFromObject(m).getSize(new THREE.Vector3())
+  const base=size(s.model).x
+  expect(base).toBeGreaterThan(0)
+  s.values.heroScale=1.5;s.step();expect(size(s.model).x).toBeCloseTo(base*1.5,3)
+  s.values.heroScale=1;s.step()
+  const resting=new THREE.Box3().setFromObject(s.model).getCenter(new THREE.Vector3()).y
+  s.values.coreTravel=1;s.values.motionRate=1;for(let i=0;i<12;i++)s.step()
+  expect(new THREE.Box3().setFromObject(s.model).getCenter(new THREE.Vector3()).y).not.toBeCloseTo(resting,3)
+  s.controller.dispose()
+})
+it('shows nothing in the middle with no model chosen, hides the model at zero Intensity, and forgets a removed model',async()=>{
+  const s=await setup(),stand=new THREE.Group();stand.add(new THREE.Mesh(new THREE.BoxGeometry(1,1,1),new THREE.MeshStandardMaterial()))
+  s.controller.attach(stand,true,[],'user-model-default');expect(stand.visible).toBe(false)
+  expect(s.model.visible).toBe(true);s.step();expect(s.model.visible).toBe(true)
+  s.values.intensity=0;s.step();expect(s.model.visible).toBe(false)
+  s.values.intensity=1;s.step();expect(s.model.visible).toBe(true)
+  s.controller.detach(s.model);s.model.matrixAutoUpdate=true;s.model.position.set(5,0,0);s.model.updateMatrix()
+  const frozen=s.model.matrix.clone();s.step();expect(s.model.matrix.elements).toEqual(frozen.elements)
+  s.controller.dispose()
 })

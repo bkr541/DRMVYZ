@@ -6,11 +6,11 @@ import workspaceStyles from './layoutLab/layoutLabWorkspace.css?inline'
 import { PerformancePadStudies } from './layoutLab/PerformancePadStudies'
 import { EngineDropdownStudies } from './layoutLab/EngineDropdownStudies'
 import { NavIconStudies } from './layoutLab/NavIconStudies'
-import { LeftNavBarStudies } from './layoutLab/LeftNavBarStudies'
 import { AuthStudies } from './layoutLab/AuthStudies'
-import { LAYOUT_LAB_AUTH_TAB_ID, LAYOUT_LAB_STORAGE_KEY, readLayoutLabTabs } from './layoutLab/layoutLabTabs'
+import { RecordListingStudies } from './layoutLab/RecordListingStudies'
+import { LAYOUT_LAB_AUTH_TAB_ID, LAYOUT_LAB_RECORD_LISTING_TAB_ID, LAYOUT_LAB_STORAGE_KEY, readLayoutLabTabs } from './layoutLab/layoutLabTabs'
 
-/** Local-only workspace. Shared CSS supplies the standard design without mounting production components. */
+/** Visual workspace. Preview actions remain local; Record Listing reuses production presentation. */
 export function LayoutLabMockup() {
   const [workspace, setWorkspace] = useState(readLayoutLabTabs)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -83,8 +83,8 @@ export function LayoutLabMockup() {
       {tab.id === 'layout-lab-tab-01' && <PerformancePadStudies />}
       {tab.id === 'layout-lab-tab-03' && <EngineDropdownStudies />}
       {tab.id === 'layout-lab-tab-04' && <NavIconStudies />}
-      {tab.id === 'layout-lab-tab-05' && <LeftNavBarStudies />}
       {tab.id === LAYOUT_LAB_AUTH_TAB_ID && <AuthStudies />}
+      {tab.id === LAYOUT_LAB_RECORD_LISTING_TAB_ID && <RecordListingStudies />}
     </section>)}
   </main>
 }

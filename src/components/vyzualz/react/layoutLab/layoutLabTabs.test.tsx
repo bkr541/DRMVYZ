@@ -35,6 +35,39 @@ async function key(value: string) {
 }
 
 describe('persistent Layout Lab tabs', () => {
+  it('adds Record Listing with independent production grid/list cards and local selection', async () => {
+    window.localStorage.setItem(LAYOUT_LAB_STORAGE_KEY, JSON.stringify({
+      version: 1, activeTabId: 'layout-lab-tab-03', tabs: [{ id: 'layout-lab-tab-03', name: 'My engine menu' }],
+    }))
+    await render()
+    expect(tab(3).textContent).toBe('My engine menu')
+    expect(tab(9).textContent).toBe('Record Listing')
+    await act(async () => tab(9).click())
+    const panel = host.querySelector('#layout-lab-tab-09-panel')!
+    const presets = panel.querySelector('[data-record-section="presets"]')!
+    const audio = panel.querySelector('[data-record-section="audio"]')!
+    const models = panel.querySelector('[data-record-section="models"]')!
+    expect(presets.querySelectorAll('.rv-preset-card')).toHaveLength(4)
+    expect(audio.querySelectorAll('.vz-track-row')).toHaveLength(4)
+    expect(models.querySelectorAll('.mm-model-card')).toHaveLength(4)
+    await act(async () => presets.querySelector<HTMLButtonElement>('[aria-label="List view"]')!.click())
+    expect(presets.getAttribute('data-view')).toBe('list')
+    expect(presets.querySelector('.rv-preset-spotlight-card--poster')).toBeNull()
+    expect(audio.getAttribute('data-view')).toBe('list')
+    expect(models.getAttribute('data-view')).toBe('grid')
+    await act(async () => audio.querySelector<HTMLButtonElement>('[aria-label="Grid view"]')!.click())
+    expect(audio.getAttribute('data-view')).toBe('grid')
+    await act(async () => models.querySelector<HTMLButtonElement>('[aria-label="List view"]')!.click())
+    expect(models.querySelectorAll('.mm-model-card--list')).toHaveLength(4)
+    const model = models.querySelectorAll<HTMLButtonElement>('.mm-model-card-select')[1]
+    await act(async () => model.click())
+    expect(model.getAttribute('aria-pressed')).toBe('true')
+    await act(async () => models.querySelector<HTMLButtonElement>('[aria-label="Grid view"]')!.click())
+    expect(models.querySelectorAll('.mm-model-card-select')[1].getAttribute('aria-pressed')).toBe('true')
+    await act(async () => audio.querySelector<HTMLButtonElement>('[aria-label="Load Midnight Circuit"]')!.click())
+    expect(audio.querySelector('[aria-label="Loaded"]')).not.toBeNull()
+  })
+
   it('keeps content identity through renaming, switching tabs and reopening', async () => {
     await render()
     expect(host.querySelectorAll('[role="tab"]')).toHaveLength(7)
@@ -87,11 +120,11 @@ describe('persistent Layout Lab tabs', () => {
     await key('Enter')
     expect(tab(1).textContent).toBe('Tab 1')
     await act(async () => tab(1).dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true })))
-    expect(tab(8).getAttribute('aria-selected')).toBe('true')
-    await act(async () => tab(8).dispatchEvent(new KeyboardEvent('keydown', { key: 'F2', bubbles: true })))
+    expect(tab(9).getAttribute('aria-selected')).toBe('true')
+    await act(async () => tab(9).dispatchEvent(new KeyboardEvent('keydown', { key: 'F2', bubbles: true })))
     await type('Geometry')
     await act(async () => input().blur())
-    expect(tab(8).textContent).toBe('Geometry')
+    expect(tab(9).textContent).toBe('Geometry')
   })
 
   it('recovers invalid saved state and reports unavailable persistence', async () => {
@@ -127,12 +160,12 @@ describe('persistent Layout Lab tabs', () => {
   it('adds AUTH to saved workspaces and previews both forms independently', async () => {
     window.localStorage.setItem(LAYOUT_LAB_STORAGE_KEY, JSON.stringify({
       version: 1,
-      activeTabId: 'layout-lab-tab-05',
-      tabs: [{ id: 'layout-lab-tab-05', name: 'My navigation' }],
+      activeTabId: 'layout-lab-tab-03',
+      tabs: [{ id: 'layout-lab-tab-03', name: 'My engine menu' }],
     }))
     await render()
-    expect(tab(5).textContent).toBe('My navigation')
-    expect(tab(5).getAttribute('aria-selected')).toBe('true')
+    expect(tab(3).textContent).toBe('My engine menu')
+    expect(tab(3).getAttribute('aria-selected')).toBe('true')
     expect(tab(8).textContent).toBe('AUTH')
     await act(async () => tab(8).click())
     const studies = [...host.querySelectorAll('#layout-lab-tab-08-panel [data-auth-study]')]
@@ -148,45 +181,24 @@ describe('persistent Layout Lab tabs', () => {
     expect(studies[0].querySelectorAll('input.dv-text-input')).toHaveLength(2)
   })
 
-  it('moves the first sidebar cutout with selection and switches all five preview widths', async () => {
+  it('removes the retired left nav tab from saved workspaces without renumbering other tabs', async () => {
+    window.localStorage.setItem(LAYOUT_LAB_STORAGE_KEY, JSON.stringify({
+      version: 1,
+      activeTabId: 'layout-lab-tab-05',
+      tabs: [
+        { id: 'layout-lab-tab-05', name: 'My navigation' },
+        { id: 'layout-lab-tab-06', name: 'My geometry' },
+      ],
+    }))
     await render()
-    await act(async () => tab(5).click())
-    const panel = host.querySelector('#layout-lab-tab-05-panel')!
-    const studies = [...panel.querySelectorAll('[data-left-nav-study]')]
-    expect(studies.map(study => study.querySelector('h2')?.textContent)).toEqual([
-      'Preview 1 · Notch', 'Preview 2 · Track', 'Preview 3 · Shutter', 'Preview 4 · Signal', 'Preview 5 · Brackets',
-    ])
-    expect(studies.every(study => study.querySelector('.az-sidebar--floating .az-nav-item--active'))).toBe(true)
-    const notched = studies[0].querySelector<HTMLElement>('.ll-ln-notched')!
-    const selectedIndex = () => notched.style.getPropertyValue('--ll-ln-selected-index')
-    expect(panel.querySelectorAll('.ll-ln-notched')).toHaveLength(1)
-    expect(selectedIndex()).toBe('0')
-    const bulk = (label: string) => [...panel.querySelectorAll<HTMLButtonElement>('.ll-ln-actions button')].find(button => button.textContent === label)!
-    const collapsed = () => panel.querySelectorAll('.az-sidebar--collapsed').length
-    const media = studies[0].querySelector<HTMLButtonElement>('[aria-label="Media Manager"]')!
-    await act(async () => media.click())
-    expect(selectedIndex()).toBe('5')
-    await act(async () => bulk('Collapse All').click())
-    expect(collapsed()).toBe(5)
-    expect(selectedIndex()).toBe('5')
-    const presets = studies[0].querySelector<HTMLButtonElement>('[aria-label="Preset Manager"]')!
-    await act(async () => presets.click())
-    expect(selectedIndex()).toBe('2')
-    await act(async () => studies[2].querySelector<HTMLButtonElement>('[aria-label="Expand sidebar"]')!.click())
-    expect(collapsed()).toBe(4)
-    await act(async () => bulk('Expand All').click())
-    expect(collapsed()).toBe(0)
-    expect(presets.getAttribute('aria-current')).toBe('page')
-    expect(selectedIndex()).toBe('2')
-    expect(studies[2].querySelector('[aria-label="React"]')?.getAttribute('aria-current')).toBe('page')
-    for (const [index, style] of ['track', 'shutter', 'signal', 'brackets'].entries()) {
-      const variant = studies[index + 1].querySelector<HTMLElement>(`.ll-ln-${style}`)!
-      const show = variant.querySelector<HTMLButtonElement>('[aria-label="Show Manager"]')!
-      expect(variant.style.getPropertyValue('--ll-ln-selected-index')).toBe('0')
-      await act(async () => show.click())
-      expect(show.getAttribute('aria-current')).toBe('page')
-      expect(variant.style.getPropertyValue('--ll-ln-selected-index')).toBe('3')
-    }
-    expect(presets.getAttribute('aria-current')).toBe('page')
+    expect(host.querySelector('[data-layout-lab-tab-id="layout-lab-tab-05"]')).toBeNull()
+    expect(host.querySelector('[data-left-nav-study], .az-sidebar')).toBeNull()
+    expect(tab(1).getAttribute('aria-selected')).toBe('true')
+    expect(tab(6).textContent).toBe('My geometry')
+    await act(async () => tab(4).dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })))
+    expect(tab(6).getAttribute('aria-selected')).toBe('true')
+    const saved = JSON.parse(window.localStorage.getItem(LAYOUT_LAB_STORAGE_KEY)!)
+    expect(saved.tabs.some((item: { id: string }) => item.id === 'layout-lab-tab-05')).toBe(false)
+    expect(saved.activeTabId).toBe('layout-lab-tab-06')
   })
 })

@@ -25,7 +25,7 @@ afterEach(() => { fixture.admin = false; if (root) act(() => root?.unmount()); c
 
 describe('Admin entrance and workspace', () => {
   it('puts no Admin button in the left navigation for an account that is not an admin', () => {
-    mount(<VyzualzSidebar compact appView="react" />)
+    mount(<VyzualzSidebar appView="react" />)
     expect(container!.querySelector('[aria-label="Admin"]')).toBeNull()
     expect(container!.querySelector('[aria-label="Profile and settings"]')).not.toBeNull()
   })
@@ -33,14 +33,14 @@ describe('Admin entrance and workspace', () => {
   it('shows it for an admin, directly above Profile, opens the Admin view and marks it current', () => {
     fixture.admin = true
     const onAppViewChange = vi.fn()
-    mount(<VyzualzSidebar compact appView="react" onAppViewChange={onAppViewChange} />)
+    mount(<VyzualzSidebar appView="react" onAppViewChange={onAppViewChange} />)
     const button = container!.querySelector<HTMLButtonElement>('[aria-label="Admin"]')!
     expect(button).not.toBeNull()
     expect(button.nextElementSibling?.getAttribute('aria-label')).toBe('Profile and settings')
     act(() => button.click())
     expect(onAppViewChange).toHaveBeenCalledWith('admin')
     expect(button.getAttribute('aria-current')).toBeNull()
-    act(() => root?.render(<VyzualzSidebar compact appView="admin" onAppViewChange={onAppViewChange} />))
+    act(() => root?.render(<VyzualzSidebar appView="admin" onAppViewChange={onAppViewChange} />))
     expect(container!.querySelector('[aria-label="Admin"]')?.getAttribute('aria-current')).toBe('page')
   })
 

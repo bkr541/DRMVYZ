@@ -34,13 +34,10 @@ afterEach(async () => {
 
 function Harness({ children, initialView = 'react' }: { children?: React.ReactNode; initialView?: AppView }) {
   const [appView, setAppView] = useState<AppView>(initialView)
-  const [collapsed, setCollapsed] = useState(true)
   return (
     <ApplicationWorkspaceFrame
       appView={appView}
       onAppViewChange={setAppView}
-      sidebarCollapsed={collapsed}
-      onSidebarCollapsedChange={setCollapsed}
     >
       {children ?? <main data-testid="feature-content" />}
     </ApplicationWorkspaceFrame>
@@ -76,13 +73,14 @@ describe('application floating chrome (every workspace)', () => {
     expect(frame?.querySelectorAll('[data-workspace-slot="header"]')).toHaveLength(1)
     expect(frame?.querySelectorAll('[data-workspace-slot="navigation"]')).toHaveLength(1)
     expect(frame?.querySelectorAll('[data-workspace-slot="stage"]')).toHaveLength(1)
-    expect(frame?.querySelectorAll('.fw-app-navigation .fw-sidebar-toggle')).toHaveLength(1)
+    expect(frame?.querySelectorAll('.fw-app-navigation .fw-sidebar-toggle')).toHaveLength(0)
+    expect(frame?.querySelector('.az-sidebar--collapsed.az-sidebar--notched')).not.toBeNull()
     expect(frame?.querySelector('.fw-app-header .fw-sidebar-toggle')).toBeNull()
     expect(frame?.querySelectorAll('[aria-label="Layout Lab"]')).toHaveLength(1)
     const lab = frame?.querySelector('.az-sidebar-account > .fw-layout-lab-launcher')
     expect(lab).not.toBeNull()
     expect(lab?.nextElementSibling?.classList.contains('fw-mobile-preview-launcher')).toBe(true)
-    expect(lab?.nextElementSibling?.nextElementSibling?.classList.contains('fw-sidebar-toggle')).toBe(true)
+    expect(lab?.nextElementSibling?.nextElementSibling?.classList.contains('az-sidebar-notifications')).toBe(true)
     expect(frame?.querySelector('.fw-app-header [data-app-icon="brand"]')).toBeNull()
     expect(frame?.querySelector('.fw-app-header')?.textContent).not.toContain('DRMVYZ')
     expect(frame?.querySelectorAll('.az-sidebar')).toHaveLength(1)
@@ -92,7 +90,7 @@ describe('application floating chrome (every workspace)', () => {
   it('uses one unbranded global header on the Preset Manager route', async () => {
     await render(<Harness initialView="presetManager"><main className="pmv-root" aria-label="Preset Manager" /></Harness>)
     expect(host.querySelectorAll('.fw-app-header')).toHaveLength(1)
-    expect(host.querySelectorAll('.fw-app-navigation .fw-sidebar-toggle')).toHaveLength(1)
+    expect(host.querySelectorAll('.fw-app-navigation .fw-sidebar-toggle')).toHaveLength(0)
     expect(host.querySelector('.fw-app-navigation .az-logo')).toBeNull()
     expect(host.querySelector('.fw-app-header-fallback')).toBeNull()
     expect(host.querySelector('.fw-app-content > .pmv-root')).not.toBeNull()
@@ -162,7 +160,7 @@ describe('application floating chrome (every workspace)', () => {
     expect(frame.querySelector(':scope > .az-shell.fw-app-shell')).not.toBeNull()
     expect(frame.querySelectorAll('[data-app-icon="brand"]')).toHaveLength(0)
     expect(frame.querySelector('.fw-app-navigation .az-logo')).toBeNull()
-    expect(frame.querySelector('.fw-app-navigation .fw-sidebar-toggle')).not.toBeNull()
+    expect(frame.querySelector('.fw-app-navigation .fw-sidebar-toggle')).toBeNull()
     expect(frame.querySelector('[data-workspace-slot="stage"] [data-testid="feature-content"]')).not.toBeNull()
     expect([...frame.querySelectorAll('.az-nav .az-nav-item')].map(item => item.getAttribute('aria-label'))).toEqual([
       'React', 'Performance Manager', 'Preset Manager', 'Show Manager', 'Lyric Manager', 'Media Manager',
@@ -173,7 +171,7 @@ describe('application floating chrome (every workspace)', () => {
     expect(host.querySelectorAll('[data-app-icon="brand"]')).toHaveLength(0)
   })
 
-  it('keeps controlled collapse through route changes, with live sidebar width on .az-root', async () => {
+  it('stays collapsed through route changes and moves the notch to the selected button', async () => {
     let notifyResize: (() => void) | undefined
     vi.stubGlobal('ResizeObserver', class {
       constructor(callback: () => void) { notifyResize = callback }
@@ -182,19 +180,23 @@ describe('application floating chrome (every workspace)', () => {
     })
     const original = HTMLElement.prototype.getBoundingClientRect
     HTMLElement.prototype.getBoundingClientRect = function () {
-      return { ...original.call(this), width: this.classList.contains('az-sidebar--collapsed') ? 72 : 240 }
+      return { ...original.call(this),
+        width: this.classList.contains('az-sidebar--collapsed') ? 72 : 240,
+        top: this.getAttribute('aria-label') === 'Lyric Manager' ? 200 : 0,
+        height: this.classList.contains('az-nav-item') ? 46 : 0,
+      }
     }
     try {
       await render(<Harness />)
       const frame = host.querySelector<HTMLElement>('.az-root')!
       expect(frame.style.getPropertyValue('--vz-sidebar-width')).toBe('72px')
-      await act(async () => host.querySelector<HTMLButtonElement>('.fw-app-navigation .fw-sidebar-toggle')!.click())
-      expect(host.querySelector('.az-sidebar--collapsed')).toBeNull()
-      await act(async () => notifyResize?.())
-      expect(frame.style.getPropertyValue('--vz-sidebar-width')).toBe('240px')
       await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Lyric Manager"]')!.click())
-      expect(host.querySelector('.az-sidebar--collapsed')).toBeNull()
-      expect(host.querySelector('.fw-app-navigation .fw-sidebar-toggle')?.getAttribute('aria-expanded')).toBe('true')
+      await act(async () => notifyResize?.())
+      const sidebar = host.querySelector<HTMLElement>('.az-sidebar--collapsed.az-sidebar--notched')!
+      expect(sidebar).not.toBeNull()
+      expect(sidebar.style.getPropertyValue('--az-sidebar-selected-y')).toBe('223px')
+      expect(frame.style.getPropertyValue('--vz-sidebar-width')).toBe('72px')
+      expect(host.querySelector('[title="Expand sidebar"], [title="Collapse sidebar"]')).toBeNull()
     } finally {
       HTMLElement.prototype.getBoundingClientRect = original
     }

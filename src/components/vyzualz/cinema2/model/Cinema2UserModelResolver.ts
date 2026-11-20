@@ -7,6 +7,7 @@ import { describeCinema2LoadedModel } from '../modules/three/Cinema2ThreeAssetMe
 import { disposeObject, measureObject, type Cinema2ThreeLoadedAsset } from '../modules/three/Cinema2ThreeAssetCache'
 import { cinema2ThreeDecoderPool, readCinema2GlbRequirements, type Cinema2ThreeDecoderPool } from '../modules/three/Cinema2ThreeDecoders'
 import type { Cinema2ThreeLibrary } from '../modules/three/Cinema2ThreeLibrary'
+import { assertImageBudget, scanGlbContainer } from '../../../../features/models/import/glbContainer'
 import type { UserModelBinding } from './Cinema2ModelBinding'
 export type Cinema2UserModelStatus = 'loading' | 'ready' | 'error' | 'missing' | 'unauthorized'
 export class Cinema2UserModelError extends Error {
@@ -20,8 +21,16 @@ export interface Cinema2UserModelResolverOptions {
   decoders?: Cinema2ThreeDecoderPool
 }
 function fail(message: string): never { throw new Cinema2UserModelError('error', message) }
-/** Private generated-model profile: embedded static triangle geometry and PBR; no textures, skins or animations. */
-export function validateCinema2UserGlb(buffer: ArrayBuffer): void {
+export interface Cinema2UserGlbProfile {
+  /** An imported GLB may carry embedded textures (held to the import budgets) and animations (kept in the file but never played). */
+  imported?: boolean
+}
+/**
+ * Private model profile: embedded static triangle geometry and PBR. A generated model has no textures, skins or animations. An imported model
+ * may have embedded textures (the same size and memory budgets as the import) and animations, which are ignored; skins are refused for both
+ * because the scene bridge clones meshes per instance and cannot do that for a skeleton.
+ */
+export function validateCinema2UserGlb(buffer: ArrayBuffer, profile: Cinema2UserGlbProfile = {}): void {
   const view = new DataView(buffer)
   if (buffer.byteLength < 20 || buffer.byteLength > MODEL_MAX_FILE_BYTES || view.getUint32(0, true) !== 0x46546c67 || view.getUint32(4, true) !== 2 || view.getUint32(8, true) !== buffer.byteLength || view.getUint32(16, true) !== 0x4e4f534a) fail('The saved model is not a valid bounded GLB.')
   const length = view.getUint32(12, true)
@@ -32,7 +41,11 @@ export function validateCinema2UserGlb(buffer: ArrayBuffer): void {
   }
   const rejectUris = (value: unknown): void => { if (!value || typeof value !== 'object') return; for (const [key, child] of Object.entries(value)) { if (key === 'uri') fail('External or URI-based model resources are unsupported.'); rejectUris(child) } }
   rejectUris(json)
-  if (json.images?.length || json.textures?.length || json.skins?.length || json.animations?.length) fail('Private models must be static generated meshes without textures or skins.')
+  if (json.skins?.length) fail('Models with a skeleton (skins) cannot be used in a Cinema 2.0 preset. Export the model without a rig.')
+  if (profile.imported) {
+    try { assertImageBudget(scanGlbContainer(buffer).images) } catch (error) { fail(error instanceof Error ? error.message : 'The model textures exceed the runtime budget.') }
+    if ((json.images?.length ?? 0) > 64) fail('The model has more than 64 embedded images.')
+  } else if (json.images?.length || json.textures?.length || json.animations?.length) fail('Private models must be static generated meshes without textures or skins.')
   if ((json.nodes?.length ?? 0) > 2048 || (json.materials?.length ?? 0) > 128 || (json.accessors?.length ?? 0) > 8192) fail('Model structure exceeds the runtime budget.')
   if (json.accessors?.some(a => !Number.isInteger(a.count) || a.count < 1 || a.count > 1_000_000) || json.buffers?.some(b => !Number.isInteger(b.byteLength) || b.byteLength < 1 || b.byteLength > MODEL_MAX_FILE_BYTES) || (json.bufferViews ?? []).reduce((sum, v) => sum + v.byteLength, 0) > MODEL_MAX_FILE_BYTES * 2 || json.bufferViews?.some(v => !Number.isInteger(v.byteLength) || v.byteLength < 1 || v.byteLength > MODEL_MAX_FILE_BYTES)) fail('Decoded buffers exceed the model resource budget.')
   let triangles = 0
@@ -89,7 +102,7 @@ export class Cinema2UserModelResolver {
       buffer = bytes.buffer; break
     }
     if (!buffer) fail('No model bytes were received.')
-    validateCinema2UserGlb(buffer); checkAbort(signal)
+    validateCinema2UserGlb(buffer, { imported: asset.kind === 'imported' }); checkAbort(signal)
     const requirements = readCinema2GlbRequirements(buffer), loader = new library.GLTFLoader()
     if (requirements.meshopt) loader.setMeshoptDecoder(library.MeshoptDecoder as never)
     const lease = requirements.decoders.length ? await this.decoders.lease(requirements.decoders) : null

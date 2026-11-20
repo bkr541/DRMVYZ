@@ -1,9 +1,10 @@
-/** Existing shipped artifacts available for inspection in Media Manager. */
-export const BUILTIN_MODELS = [{
-  id: 'builtin-conduit-dvydrm-wordmark',
-  name: 'DVYDRM Wordmark',
-  description: 'The original 3D DVYDRM wordmark used in Conduit, with pearl letters, chrome ring and amber edge materials.',
-  url: '/cinema2/models/conduit-wordmark.glb',
-  thumbnailUrl: '/cinema2/models/conduit-wordmark-thumbnail.webp',
-}] as const
-export type BuiltinModel = typeof BUILTIN_MODELS[number]
+/** A shipped model the Media Manager can open. The list is empty: models in the library are the user's own (generated or imported). */
+export interface BuiltinModel {
+  id: string
+  name: string
+  description: string
+  /** Public URL of the GLB. */
+  url: string
+  thumbnailUrl: string
+}
+export const BUILTIN_MODELS: readonly BuiltinModel[] = []

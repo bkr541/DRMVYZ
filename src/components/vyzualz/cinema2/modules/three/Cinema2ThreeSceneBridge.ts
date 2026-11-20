@@ -1,5 +1,6 @@
 import type * as ThreeNamespace from 'three'
 import type { Cinema2RenderQualityLevel } from '../../contracts/Cinema2NativePresetManifest'
+import { Cinema2UserModelTextureTier } from './Cinema2UserModelTextureTier'
 import type { Cinema2ModuleRenderExecutionContext } from '../Cinema2ModuleContracts'
 import { Cinema2GlStateGuard } from './Cinema2GlStateGuard'
 import { applyCinema2CameraFrame, Cinema2ThreeLightRig } from './Cinema2ThreeCameraLightMapping'
@@ -302,6 +303,8 @@ export class Cinema2ThreeSceneBridge {
   private quality: Cinema2RenderQualityLevel | null = null
   private appliedOverrides: Readonly<Cinema2ThreeMaterialOverrides> | null = null
   private userModelPalette = false
+  /** Smaller copies of a user model's large textures on the lower quality tiers. */
+  private readonly userTextures: Cinema2UserModelTextureTier
   private disposed = false
   /** Shared by every glowing material, so one write a frame drives them all. */
   private readonly glowUniforms: GlowUniforms
@@ -324,6 +327,7 @@ export class Cinema2ThreeSceneBridge {
     this.getEnvironment = host.getEnvironment
     this.loadEnvironment = host.loadEnvironment
     this.guard = new Cinema2GlStateGuard(gl)
+    this.userTextures = new Cinema2UserModelTextureTier(THREE)
     this.scene = new THREE.Scene()
     this.camera = new THREE.PerspectiveCamera()
     this.spinMatrix = new THREE.Matrix4()
@@ -510,6 +514,7 @@ export class Cinema2ThreeSceneBridge {
       for (const owned of placed.materials) owned.material.dispose()
       this.placed.splice(index, 1)
     }
+    this.userTextures.release()
     this.upgraded = false
     this.addInstance({ ...instance, userModel: true })
     this.appliedOverrides = null; this.quality = null
@@ -604,6 +609,7 @@ export class Cinema2ThreeSceneBridge {
       this.scene.remove(root)
       for (const { material } of materials) material.dispose()
     }
+    this.userTextures.release()
     for (const { light } of this.panels) this.scene.remove(light)
     this.panels.length = 0
     for (const { light } of this.atlHoeLights) this.scene.remove(light)
@@ -670,6 +676,8 @@ export class Cinema2ThreeSceneBridge {
         material.needsUpdate = true
       }
     }
+    // A user model's large textures drop to 1024 px on low and 2048 px on medium; high keeps them as saved.
+    for (const { materials, userModel } of this.placed) if (userModel) this.userTextures.apply(materials.map(owned => owned.material), quality)
     this.appliedOverrides = null // clearcoat and panel visibility depend on the tier: reapply them
     const limit = CINEMA2_THREE_PANEL_LIMITS[quality]
     this.panels.forEach(({ light }, index) => { light.visible = index < limit })

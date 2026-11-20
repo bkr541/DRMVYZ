@@ -21769,8 +21769,9 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   box-shadow: none;
 }
 
-/* The left navigation bar shares the dock's surface (#1c2026) so the two read as one frame around the workspace. */
-[data-theme] .az-root .az-sidebar {
+/* Solid legacy rails share the dock's surface. The notched rail draws its own
+ * masked surface; its host must stay transparent so the cutout shows the page. */
+[data-theme] .az-root .az-sidebar:not(.az-sidebar--notched) {
   background: #1c2026;
 }
 

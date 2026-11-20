@@ -1,3 +1,4 @@
+import { createCinema2UserModelParameter } from '../model/Cinema2UserModelBaseEnvironment'
 import { finishBassSigil } from './Cinema2BassSigilFinish'
 import { bassSigilPerformance, BASS_SIGIL_SCORE_CHANNELS } from './Cinema2BassSigilPerformance'
 import { withCinema2MoodDrives } from './Cinema2MoodConductorAuthoring'
@@ -26,7 +27,7 @@ export const bassSigilParameterId = (name: string) => cinema2StableId<Cinema2Par
 const base = { section: 'Design', exposure: 'primary', persistence: 'preset', reset: 'authored-default' } as const
 const number = (name: string, label: string, group: Cinema2ParameterManifest['designParentGroup'], value: number, min: number, max: number, order: number): Cinema2ParameterManifest => ({ ...base, id: bassSigilParameterId(name), label, type: 'float', defaultValue: value, min, max, step: .01, designParentGroup: group, order })
 const bind = (name: string) => cinema2Ref(bassSigilParameterId(name))
-const bindings = Object.fromEntries(['autoPerformance','reactivity','scoreAmount','bpmSync','intensity','pattern','patternChange','trigger','motionRate','geometryExtent','coreTravel','membraneScale','particleDensity','tunnelDepth','heroScale','logoSpinRate','logoSway','logoHeading','logoPitch','logoRoll','membraneOpacity','glow',...Object.keys(BASS_SIGIL_PALETTE).map(role=>`${role}Color`)].map(name=>[name,bind(name)]))
+const bindings = Object.fromEntries([ ['userModel', bind('model')] as const, ...['autoPerformance','reactivity','scoreAmount','bpmSync','intensity','pattern','patternChange','trigger','motionRate','geometryExtent','coreTravel','membraneScale','particleDensity','tunnelDepth','heroScale','logoSpinRate','logoSway','logoHeading','logoPitch','logoRoll','membraneOpacity','glow',...Object.keys(BASS_SIGIL_PALETTE).map(role=>`${role}Color`)].map(name=>[name,bind(name)] as const)])
 const parameters: readonly Cinema2ParameterManifest[] = [
     { ...base, id: bassSigilParameterId('bpmSync'), label: 'BPM Sync', type: 'boolean', defaultValue: true, designParentGroup: 'master-controls', order: 0, description: 'Locks native motion to shared tempo. Off runs at the 120 BPM reference; the host toggle does not override this choice.' },
     number('intensity','Intensity','master-controls',1,0,2,1),
@@ -38,16 +39,16 @@ const parameters: readonly Cinema2ParameterManifest[] = [
     { ...base, id: bassSigilParameterId('trigger'), label: 'Trigger', type: 'enum', defaultValue: 'bar4', options: CINEMA2_AFTERHOURS_TRIGGER_OPTIONS, designParentGroup: 'design', group: 'Pattern', order: 2, visibleWhen: [{ kind: 'parameter-equals', parameterId: bassSigilParameterId('patternChange'), value: true }] },
     number('motionRate','Motion Rate','design',1,0,2,11),
     { ...number('geometryExtent','Geometry Extent','design',.35,0,1,12), description: 'Deformation strength in the native variants. Reference Vortex keeps the original sphere shape and animates its rotation.' },
-    number('coreTravel','Core Travel','design',.25,0,1,13),
+    { ...number('coreTravel','Model Bounce','design',.25,0,1,13), description: 'How far the model bobs with the motion and the kick.' },
     number('membraneScale','Membrane Scale','design',1,.65,1.4,14),
     number('particleDensity','Particle Density','design',1,0,1,15),
     number('tunnelDepth','Tunnel Depth','design',1,.5,1.5,16),
-    number('heroScale','Hero Scale','design',1,.75,1.15,17),
-    { ...number('logoSpinRate','Logo Spin Rate','design',.25,0,2,1), group: 'Logo' },
-    { ...number('logoSway','Logo Sway','design',.35,0,1,2), group: 'Logo' },
-    { ...number('logoHeading','Logo Heading','design',0,-180,180,3), group: 'Logo' },
-    { ...number('logoPitch','Logo Pitch','design',0,-90,90,4), group: 'Logo' },
-    { ...number('logoRoll','Logo Roll','design',0,-180,180,5), group: 'Logo' },
+    { ...number('heroScale','Model Scale','design',1,.5,1.5,17), description: 'Size of the model inside the sphere. 1 fits it within the sphere.' },
+    { ...number('logoSpinRate','Model Spin Rate','design',.25,0,2,1), group: 'Model' },
+    { ...number('logoSway','Model Sway','design',.35,0,1,2), group: 'Model' },
+    { ...number('logoHeading','Model Heading','design',0,-180,180,3), group: 'Model' },
+    { ...number('logoPitch','Model Pitch','design',0,-90,90,4), group: 'Model' },
+    { ...number('logoRoll','Model Roll','design',0,-180,180,5), group: 'Model' },
     { ...base, id: bassSigilParameterId('cameraMode'), label: 'Camera Mode', type: 'enum', defaultValue: 'omnidirectional', options: [{ value: 'manual', label: 'Manual Orbit' }, { value: 'horizontal', label: 'Horizontal Orbit' }, { value: 'omnidirectional', label: 'Omnidirectional Orbit' }], designParentGroup: 'design', group: 'Camera', order: 0, description: 'Orbit the entire original sphere. Manual gives full heading/elevation control; Omnidirectional travels around, above and below it.' },
     { ...number('cameraSpeed','Camera Speed','design',1,0,2,1), group: 'Camera', visibleWhen: [{ kind: 'parameter-not-equals', parameterId: bassSigilParameterId('cameraMode'), value: 'manual' }], description: 'Speed of automatic camera travel. Zero holds its current position; independent of geometry and logo motion.' },
     { ...number('cameraHeading','Camera Heading','design',0,-180,180,2), group: 'Camera', visibleWhen: [{ kind: 'parameter-equals', parameterId: bassSigilParameterId('cameraMode'), value: 'manual' }] },
@@ -60,7 +61,9 @@ const parameters: readonly Cinema2ParameterManifest[] = [
     number('flares','Flares','effects',.15,0,.6,13),
     number('finishMix','Tone Finish','effects',1,0,1,14),
     number('membraneOpacity','Membrane Opacity','effects',1,0,1,0),
-    number('glow','Core Glow','effects',1,0,2,1),
+    { ...number('glow','Model Glow','effects',.3,0,2,1), description: 'The soft halo behind the model.' },
+    // The model is chosen from the left Source tab (a pinned version of one of the user's models); it has no control in the Design tab.
+    { ...createCinema2UserModelParameter(bassSigilParameterId('model')), exposure: 'hidden' },
     { ...base, id: bassSigilParameterId('background'), label: 'Background', type: 'color', defaultValue: [0,0,0,1], designParentGroup: 'palette', order: 0 },
     ...Object.entries(BASS_SIGIL_PALETTE).map(([role,color],i): Cinema2ParameterManifest => ({ ...base, id: bassSigilParameterId(`${role}Color`), label: role[0].toUpperCase()+role.slice(1), type: 'color', defaultValue: color, designParentGroup: 'palette', order: i+1 })),
   ]
@@ -72,8 +75,8 @@ const orbitPoints = Array.from({ length: 12 }, (_,i) => {
 /** Complete original artifact with shared musical choreography, Mood policy and depth-aware finishing. */
 const authored: Readonly<Cinema2NativePresetManifest> = {
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID, schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
-  id: CINEMA2_BASS_SIGIL_PRESET_ID, revision: 2,
-  metadata: { name: 'Bass Sigil', description: 'The original Bass Sigil sphere, particle fields and 3D logo with eight native programs, omnidirectional camera, musical geometry score, shared Auto Performance and cinematic finishing.', tags: ['reference', 'crate', '3d'] },
+  id: CINEMA2_BASS_SIGIL_PRESET_ID, revision: 3,
+  metadata: { name: 'Bass Sigil', description: 'The original Bass Sigil cellular sphere and particle fields around a 3D model you choose, with eight native programs, omnidirectional camera, musical geometry score, shared Auto Performance and cinematic finishing.', tags: ['reference', 'crate', '3d'] },
   capabilities: [
     { id: 'render.webgl2', requirement: 'required', purpose: 'Render the original hero, cellular sphere and particles.' },
     { id: 'render.depth', requirement: 'required', purpose: 'Preserve true depth between the hero, open cells and particles.' },
@@ -85,7 +88,7 @@ const authored: Readonly<Cinema2NativePresetManifest> = {
     ...(['audio.transport','audio.bands','audio.features','music.rhythm-events','music.downbeat','music.phrase','music.drop','music.vocal-presence','visual-director.significance'] as const).map(id=>({id,requirement:'optional' as const,purpose:'Shared tempo, available audio features and canonical events; no local detection.'})),
   ],
   parameters,
-  modules: [{ id: moduleId, typeId: CINEMA2_BASS_SIGIL_MODULE_TYPE_ID, version: 1, parameters: {...Object.fromEntries(Object.entries(bindings).map(([name,ref])=>[name,parameters.find(p=>p.id===ref.$ref)!.defaultValue!])),...Object.fromEntries(BASS_SIGIL_SCORE_CHANNELS.map(name=>[name,0]))}, parameterBindings: bindings, config: { hdr:true, instances: [{ asset: 'cinema2-crate-bass-sigil', node: model, preserveMaterials: true, spin: false }] } }],
+  modules: [{ id: moduleId, typeId: CINEMA2_BASS_SIGIL_MODULE_TYPE_ID, version: 1, parameters: {...Object.fromEntries(Object.entries(bindings).map(([name,ref])=>[name,parameters.find(p=>p.id===ref.$ref)!.defaultValue!])),...Object.fromEntries(BASS_SIGIL_SCORE_CHANNELS.map(name=>[name,0]))}, parameterBindings: bindings, config: { hdr:true, userModel: { node: model, neutralFloor: false, spin: false }, instances: [{ asset: 'cinema2-crate-bass-sigil', node: model, preserveMaterials: true, spin: false }] } }],
   scene: { nodes: [{ id: root, kind: 'group', coordinateSpace: 'world' }, { id: model, kind: 'module', parent: cinema2Ref(root), module: cinema2Ref(moduleId) }], roots: [cinema2Ref(root)] },
   cameras: [{ id: camera, label: 'Sphere orbit', projection: 'perspective', fovDegrees: 40, minAspect: 16 / 9, minAspectAnchor: 0, near: .05, far: 100, target: [0,0,0],
     rig: { kind: 'path', points: orbitPoints, durationSeconds: 32, loop: true },

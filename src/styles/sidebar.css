@@ -255,3 +255,81 @@
 .az-sidebar--collapsed .az-nav-section-label { display: none; }
 /* The footer only holds the license/version block, which needs the expanded width. */
 .az-sidebar--collapsed .az-sidebar-footer { display: none; }
+
+/* Production rail: Layout Lab Preview 1, permanently collapsed. Keep these
+ * styles here so production never depends on the workbench's mockup CSS. */
+.az-sidebar.az-sidebar--notched {
+  --az-notch-height: 64px;
+  --az-notch-width: 44px;
+  --az-notch-sweep: 380ms cubic-bezier(.22, 1, .36, 1);
+  box-sizing: border-box;
+  width: 72px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+  border-radius: var(--radius-group, 6px);
+  transition: none;
+}
+.az-sidebar--notched::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--fw-surface-background, var(--az-sidebar));
+  mask-image: linear-gradient(#fff, #fff), url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 44 64'%3E%3Cpath d='M44 0C44 5 35 8 26 8C12.745 8 2 18.745 2 32S12.745 56 26 56C35 56 44 59 44 64Z'/%3E%3C/svg%3E");
+  mask-size: 100% 100%, var(--az-notch-width) var(--az-notch-height);
+  mask-repeat: no-repeat;
+  mask-composite: exclude;
+  mask-position: 0 0, 100% calc(var(--az-sidebar-selected-y, 39px) - var(--az-notch-height) / 2);
+  transition: mask-position var(--az-notch-sweep);
+}
+.az-sidebar--notched::after {
+  content: '';
+  position: absolute;
+  pointer-events: none;
+  inset-inline-end: 0;
+  top: calc(var(--az-sidebar-selected-y, 39px) - var(--az-notch-height) / 2);
+  width: var(--az-notch-width);
+  height: var(--az-notch-height);
+  background: var(--az-cyan);
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 44 64'%3E%3Cpath d='M44 0C44 5 35 8 26 8C12.745 8 2 18.745 2 32S12.745 56 26 56C35 56 44 59 44 64' fill='none' stroke='white' stroke-width='1.5'/%3E%3C/svg%3E");
+  mask-size: 100% 100%;
+  mask-repeat: no-repeat;
+  transition: top var(--az-notch-sweep);
+}
+.az-sidebar--notched .az-nav { padding-block: 16px 14px; }
+.az-sidebar--notched .az-nav-section-label,
+.az-sidebar--notched .az-nav-fill,
+.az-sidebar--notched .nav-medallion > .ring,
+.az-sidebar--notched .nav-medallion > .ring + .a { display: none; }
+.az-sidebar.az-sidebar--notched .az-nav-item {
+  height: 46px;
+  border: 0;
+  overflow: visible;
+}
+.az-sidebar--notched .az-nav-item .nav-medallion {
+  position: absolute;
+  inset-inline-start: 16px;
+  top: 50%;
+  width: 40px;
+  height: 40px;
+  transform: translateY(-50%);
+  transition: inset-inline-start var(--az-notch-sweep), filter 180ms ease;
+}
+.az-sidebar--notched .az-nav-item--active .nav-medallion {
+  width: 52px;
+  height: 52px;
+  inset-inline-start: calc(100% - 44px);
+}
+.az-sidebar--notched .az-nav-item:focus-visible { background: transparent; }
+.az-sidebar--notched .az-nav-item--active:is(:hover, :focus-visible) {
+  background: transparent;
+  color: var(--az-cyan);
+}
+@media (prefers-reduced-motion: reduce) {
+  .az-sidebar--notched { --az-notch-sweep: 0ms; }
+  .az-sidebar--notched .az-nav-item .nav-medallion { transition: none; }
+}

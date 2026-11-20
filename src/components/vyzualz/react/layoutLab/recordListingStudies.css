@@ -1,0 +1,17 @@
+.ll-records {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(280px, 1fr));
+  gap: 18px;
+  min-height: 100%;
+  align-items: start;
+  color: var(--color-text);
+  font: var(--type-field-value);
+}
+.ll-records, .ll-records * { box-sizing: border-box; }
+.ll-records-column { min-width: 0; border: 1px solid var(--color-border-subtle); border-radius: var(--radius-group, 6px); background: var(--color-panel-alt); overflow: hidden; }
+.ll-records-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; padding: 0 12px; border-bottom: 1px solid var(--color-border-subtle); background: var(--color-panel); }
+.ll-records-heading h2 { display: flex; align-items: center; gap: 10px; margin: 0; font: var(--type-window-heading); letter-spacing: var(--type-window-heading-tracking); text-transform: uppercase; }
+.ll-records .ll-records-items { padding: 12px; margin: 0; gap: 8px; --mm-model-list-card-height: 58px; }
+.ll-records .ll-records-items--grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; }
+.ll-records .ll-records-items--list { display: flex; flex-direction: column; }
+.ll-records-audio-context { display: contents; }

@@ -33,7 +33,6 @@ function ReactShellFixture({ onStageMount }: { onStageMount: () => void }) {
   const [leftCollapsed, setLeftCollapsed] = useState(false)
   const [rightCollapsed, setRightCollapsed] = useState(false)
   const [stageFocus, setStageFocus] = useState(false)
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(true)
 
   const stageRef = useCallback((node: HTMLCanvasElement | null) => {
     if (node) onStageMount()
@@ -43,8 +42,6 @@ function ReactShellFixture({ onStageMount }: { onStageMount: () => void }) {
     <ApplicationWorkspaceFrame
       appView="react"
       onAppViewChange={() => undefined}
-      sidebarCollapsed={sidebarCollapsed}
-      onSidebarCollapsedChange={setSidebarCollapsed}
     >
       <main className="vz-main">
         <div className="rv-shell rv-shell--floating" data-stage-focus={stageFocus ? 'true' : undefined}>
@@ -83,12 +80,14 @@ describe('Phase 03 React floating shell', () => {
     expect(APP_VIEWS.every(view => FLOATING_APP_VIEWS[view])).toBe(true)
   })
 
-  it('keeps a single brand/header and portals the original feature-owned controls', async () => {
+  it('keeps one header, a fixed rail, and the original feature-owned controls', async () => {
     await act(async () => root.render(<ReactShellFixture onStageMount={() => undefined} />))
-    expect(host.querySelectorAll('.fw-app-header .az-logo')).toHaveLength(1)
+    expect(host.querySelectorAll('.fw-app-header .az-logo')).toHaveLength(0)
+    expect(host.querySelector('.az-sidebar--collapsed.az-sidebar--notched')).not.toBeNull()
+    expect(host.querySelector('.fw-sidebar-toggle')).toBeNull()
     expect(host.querySelector('.fw-app-navigation .az-logo')).toBeNull()
     expect(host.querySelectorAll('[data-react-header-controls]')).toHaveLength(1)
-    expect(host.querySelectorAll('[aria-label="Layout Lab"]')).toHaveLength(1)
+    expect(host.querySelectorAll('.fw-app-header [aria-label="Layout Lab"]')).toHaveLength(1)
     expect(host.querySelector('.fw-app-header-controls > .vz-header')).not.toBeNull()
     expect(host.querySelector('.rv-shell > .vz-header')).toBeNull()
   })
@@ -107,7 +106,7 @@ describe('Phase 03 React floating shell', () => {
     expect(host.querySelector('.rv-shell')?.getAttribute('data-stage-focus')).toBe('true')
     await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Stage Focus"]')!.click())
     expect(host.querySelector('.rv-shell')?.getAttribute('data-stage-focus')).toBeNull()
-    await act(async () => host.querySelector<HTMLButtonElement>('.fw-app-header .az-logo')!.click())
+    expect(host.querySelector('.fw-sidebar-toggle')).toBeNull()
     expect(host.querySelector('[data-testid="visual-stage"]')).toBe(originalStage)
     expect(mountCount).toBe(1)
   })

@@ -11,6 +11,7 @@ import { NoticeCard } from '../react/controls/NoticeCard'
 import { IconChipButton } from '../react/controls/IconChipButton'
 import { Collapsible } from '../react/ReactControlRows'
 import { computeVirtualMediaWindow, MEDIA_SHEET_GAP } from './mediaLibraryWindow'
+import { ModelLibraryCard } from './ModelLibraryCard'
 
 const MODEL_LIST_ROW_HEIGHT = 64
 
@@ -111,25 +112,12 @@ export function ModelLibraryCards({ search, favorites, viewMode, activeId, onSel
         {rows.slice(windowed.startIndex, windowed.endIndex).map(row => {
           const asset = row.kind === 'saved' ? row.asset : null
           const model = row.kind === 'builtin' ? row.model : row.asset
-          const type = !asset ? 'Conduit' : asset.status === 'deletion_pending' ? 'Deletion pending' : asset.currentVersion ? `${asset.kind === 'imported' ? 'GLB' : '3D'} · v${asset.currentVersion}` : 'Draft record'
-          return <div key={`${row.kind}:${model.id}`} className={`mm-model-card ${grid ? 'vz-media-card vz-media-card--sheet' : 'mm-model-card--list'}`}>
-            <button type="button" className="mm-model-card-select" aria-label={`Select 3D model ${model.name}`} aria-pressed={activeId === model.id} title={model.name}
-              onClick={() => { if (row.kind === 'builtin') onSelectBuiltin?.(row.model); else onSelect(row.asset) }}>
-              <span className="mm-model-card-preview">
-                {row.kind === 'builtin' ? <img src={row.model.thumbnailUrl} alt="" loading="lazy" decoding="async" />
-                  : <ModelThumbnail key={row.asset.currentVersion} asset={row.asset} />}
-              </span>
-              {grid ? <>
-                <span className="vz-media-type-badge" title={type}>{type}</span>
-                <span className="vz-media-sheet-name">{model.name}</span>
-              </> : <span className="mm-model-card-text">
-                <span className="mm-model-card-name" title={model.name}>{model.name}</span>
-                <span className="mm-model-card-type">{type}</span>
-              </span>}
-            </button>
-            {asset && <button type="button" className="mm-model-favorite" aria-label={`Favorite model ${asset.name}`} aria-pressed={asset.favorite}
-              disabled={busy === asset.id || asset.status === 'deletion_pending'} onClick={() => { void favorite(asset) }}><AppIcon kind="star" size={12} /></button>}
-          </div>
+          const type = !asset ? 'Built-in' : asset.status === 'deletion_pending' ? 'Deletion pending' : asset.currentVersion ? `${asset.kind === 'imported' ? 'GLB' : '3D'} · v${asset.currentVersion}` : 'Draft record'
+          return <ModelLibraryCard key={`${row.kind}:${model.id}`} name={model.name} type={type} view={viewMode} selected={activeId === model.id}
+            onSelect={() => { if (row.kind === 'builtin') onSelectBuiltin?.(row.model); else onSelect(row.asset) }}
+            preview={row.kind === 'builtin' ? <img src={row.model.thumbnailUrl} alt="" loading="lazy" decoding="async" /> : <ModelThumbnail key={row.asset.currentVersion} asset={row.asset} />}
+            favorite={asset?.favorite} favoriteDisabled={!!asset && (busy === asset.id || asset.status === 'deletion_pending')}
+            onToggleFavorite={asset ? () => { void favorite(asset) } : undefined} />
         })}
       </div>
       {windowed.bottomSpacer > 0 && <div style={{ height: windowed.bottomSpacer }} aria-hidden="true" />}

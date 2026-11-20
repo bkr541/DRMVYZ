@@ -10,7 +10,8 @@ interface SidebarLayoutProps {
   floating: boolean
   appView?: AppView
   onAppViewChange?: (view: AppView) => void
-  toggleCollapsed(): void
+  toggleCollapsed?: () => void
+  notched?: boolean
   showManagerUnavailable?: boolean
   isAdmin?: boolean
   asideRef?: Ref<HTMLElement>
@@ -22,11 +23,11 @@ interface SidebarLayoutProps {
 /** Store-free sidebar markup shared by the app and Layout Lab. */
 export function VyzualzSidebarLayout({
   isCollapsed, floating, appView, onAppViewChange, toggleCollapsed, showManagerUnavailable = false,
-  isAdmin = false, asideRef, utilityControls, notifications, profile,
+  isAdmin = false, asideRef, utilityControls, notifications, profile, notched = false,
 }: SidebarLayoutProps) {
   return (
-    <aside ref={asideRef} className={`az-sidebar${isCollapsed ? ' az-sidebar--collapsed' : ''}${floating ? ' az-sidebar--floating' : ''}`}>
-      {!floating && (
+    <aside ref={asideRef} className={`az-sidebar${isCollapsed ? ' az-sidebar--collapsed' : ''}${floating ? ' az-sidebar--floating' : ''}${notched ? ' az-sidebar--notched' : ''}`}>
+      {!floating && toggleCollapsed && (
         <VyzualzBrandToggle collapsed={isCollapsed} onToggle={toggleCollapsed} />
       )}
 
@@ -127,7 +128,7 @@ export function VyzualzSidebarLayout({
       </div>
       <div className="az-sidebar-account">
         {utilityControls}
-        {floating && <button
+        {floating && toggleCollapsed && <button
           type="button"
           className="fw-sidebar-toggle az-sidebar-utility"
           title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}

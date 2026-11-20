@@ -3311,8 +3311,6 @@ describe('ShowManagerView production shell', () => {
       root?.render(
         <ApplicationWorkspaceFrame
           appView="showManager"
-          sidebarCollapsed
-          onSidebarCollapsedChange={() => undefined}
           onAppViewChange={() => undefined}
         >
           <ShowManagerView />

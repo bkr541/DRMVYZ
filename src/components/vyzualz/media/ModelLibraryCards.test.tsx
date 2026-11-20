@@ -3,6 +3,7 @@
 import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+vi.mock('../../../features/models/domain/builtinModels', () => ({ BUILTIN_MODELS: [{ id: 'builtin-test-model', name: 'Test Model', description: 'A shipped model used by these tests.', url: '/cinema2/models/test-model.glb', thumbnailUrl: '/cinema2/models/test-model-thumbnail.webp' }] }))
 const mocks = vi.hoisted(() => ({ list: vi.fn(), update: vi.fn(), sign: vi.fn(), collectionBuiltins: vi.fn() }))
 vi.mock('../../../features/models/data/modelAssetRepository', () => ({ modelAssetRepository: { list: mocks.list, update: mocks.update, signedUrl: mocks.sign, listBuiltinModelsInCollection: mocks.collectionBuiltins } }))
 vi.mock('../../../stores/mediaStore', () => ({ useMediaStore: (select: (s: { accountId: string }) => unknown) => select({ accountId: 'owner' }) }))
@@ -49,7 +50,7 @@ describe('model card paging and interactions', () => {
     for (const viewMode of ['grid', 'list'] as const) {
       await render({ viewMode, onSelectBuiltin: vi.fn() })
       const thumbnail = (name: string) => host.querySelector<HTMLImageElement>(`[aria-label="Select 3D model ${name}"] .mm-model-card-preview img`)
-      expect(thumbnail('DVYDRM Wordmark')?.getAttribute('src')).toBe('/cinema2/models/conduit-wordmark-thumbnail.webp')
+      expect(thumbnail('Test Model')?.getAttribute('src')).toBe('/cinema2/models/test-model-thumbnail.webp')
       expect(thumbnail('Model shared-id')?.src).toBe(savedUrl)
     }
     expect(mocks.sign).toHaveBeenCalledWith('shared-id', 1, 'thumbnailPath')
@@ -75,16 +76,16 @@ describe('model card paging and interactions', () => {
 })
 
 
-it('shows the original Conduit wordmark in the model library and keeps it out of unrelated filtered lists',async()=>{
+it('shows the shipped test model in the model library and keeps it out of unrelated filtered lists',async()=>{
  const select=vi.fn();await render({onSelectBuiltin:select})
- await act(async()=>host.querySelector<HTMLButtonElement>('[aria-label="Select 3D model DVYDRM Wordmark"]')!.click())
- expect(select).toHaveBeenCalledWith(expect.objectContaining({url:'/cinema2/models/conduit-wordmark.glb'}))
- await render({onSelectBuiltin:select,search:'DVYDRM'});expect(host.textContent).toContain('DVYDRM Wordmark')
- await render({onSelectBuiltin:select,search:'unrelated'});expect(host.textContent).not.toContain('DVYDRM Wordmark')
- await render({onSelectBuiltin:select,favorites:true});expect(host.textContent).not.toContain('DVYDRM Wordmark')
- await render({onSelectBuiltin:select,collectionId:'collection'});expect(host.textContent).not.toContain('DVYDRM Wordmark')
- mocks.collectionBuiltins.mockResolvedValue(['builtin-conduit-dvydrm-wordmark'])
+ await act(async()=>host.querySelector<HTMLButtonElement>('[aria-label="Select 3D model Test Model"]')!.click())
+ expect(select).toHaveBeenCalledWith(expect.objectContaining({url:'/cinema2/models/test-model.glb'}))
+ await render({onSelectBuiltin:select,search:'Test'});expect(host.textContent).toContain('Test Model')
+ await render({onSelectBuiltin:select,search:'unrelated'});expect(host.textContent).not.toContain('Test Model')
+ await render({onSelectBuiltin:select,favorites:true});expect(host.textContent).not.toContain('Test Model')
+ await render({onSelectBuiltin:select,collectionId:'collection'});expect(host.textContent).not.toContain('Test Model')
+ mocks.collectionBuiltins.mockResolvedValue(['builtin-test-model'])
  await render({onSelectBuiltin:select,collectionId:'assigned-collection'})
- expect(host.textContent).toContain('DVYDRM Wordmark')
+ expect(host.textContent).toContain('Test Model')
  expect(mocks.collectionBuiltins).toHaveBeenLastCalledWith('assigned-collection')
 })

@@ -3,6 +3,7 @@
 import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+vi.mock('../models/domain/builtinModels', () => ({ BUILTIN_MODELS: [{ id: 'builtin-test-model', name: 'Test Model', description: 'A shipped model used by these tests.', url: '/cinema2/models/test-model.glb', thumbnailUrl: '/cinema2/models/test-model-thumbnail.webp' }] }))
 const mocks = vi.hoisted(() => ({ browser: {} as Record<string, unknown>, actions: { onSave: vi.fn(), onDelete: vi.fn(), saving: false, deleting: false }, import: vi.fn(), collections: [] }))
 vi.mock('../../stores/mediaStore', () => ({ useMediaStore: Object.assign((selector: (state: unknown) => unknown) => selector({ items: [{ id: 'image-1', dbId: 'image-1', type: 'image', name: 'Logo' }], openImportMediaModal: mocks.import, openCollectionEditor: vi.fn(), collections: mocks.collections }), { getState: () => ({ items: [], ensureMediaSigned: vi.fn() }) }) }))
 vi.mock('../../stores/audioStore', () => ({ useAudioStore: (selector: (state: unknown) => unknown) => selector({ savedTracks: [{ id: 'track-1' }] }) }))

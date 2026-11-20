@@ -4,9 +4,20 @@ The single application shell is `ApplicationWorkspaceFrame` (selected by
 `VyzualzView` and `FLOATING_APP_VIEWS` in `appView.ts`). Its
 `FloatingWorkspaceFrame` marks `[data-workspace-layout="floating"]`, with
 `data-app-workspace` naming the current view. The frame owns **one** 60px
-header, the brand/sidebar toggle, the navigation rail and the content slot.
+header, the navigation rail and the content slot.
 `ApplicationHeaderControls` portals feature-owned actions into that header;
 it does **not** copy, recreate or rebind those actions.
+
+The production navigation rail is permanently collapsed at 72px and has no
+expand/collapse control or expansion state. It follows Layout Lab's Preview 1
+Notch design: bare 40px icons, a 52px active icon, and a 44px × 64px cutout
+centered on the selected button. The notch follows navigation, window resizing,
+and the admin-only button in the account area. Production styling lives in
+`src/styles/sidebar.css`. The retired Left Nav Bar tab and its mockups have been
+removed from Layout Lab. Theme and legacy
+sidebar background rules exclude the notched rail: only its masked pseudo-element
+paints the surface, leaving the cutout transparent to the page background.
+A 1.5px edge in the main cyan token traces the inner notch curve and moves with it.
 
 `WorkspaceRegion` marks a semantic layout **region** (`header`, `navigation`,
 `stage`, `left`, `right`, `lower`, `audio`, `tools`); it is not a styled panel

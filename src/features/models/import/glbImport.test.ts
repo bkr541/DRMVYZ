@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { BoxGeometry, Group, Mesh, MeshStandardMaterial, Texture } from 'three'
-import { glb } from './glbContainer.test'
+import { glb } from '../__tests__/glbFixtures'
 import type { ModelAssetRepository } from '../data/modelAssetRepository'
 import type { ModelAsset } from '../domain/modelAssetTypes'
 

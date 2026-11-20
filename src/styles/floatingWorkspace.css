@@ -123,11 +123,15 @@
   flex: 0 0 auto;
 }
 
-[data-workspace-layout='floating'] .fw-app-navigation > .az-sidebar {
+[data-workspace-layout='floating'] .fw-app-navigation > .az-sidebar:not(.az-sidebar--notched) {
   border: 1px solid var(--fw-surface-border);
   border-radius: var(--fw-surface-radius);
   background: var(--fw-surface-background);
   box-shadow: var(--fw-surface-shadow);
+}
+
+[data-workspace-layout='floating'] .fw-app-navigation > .az-sidebar--notched {
+  border-radius: var(--fw-surface-radius);
 }
 
 [data-workspace-layout='floating'] .fw-app-content {

@@ -1,7 +1,7 @@
 import { cinema2Ref, cinema2StableId, type Cinema2ChoreographyRuleManifest, type Cinema2ChoreographyRuleId, type Cinema2ChoreographyActionId, type Cinema2ModuleId, type Cinema2ParameterId, type Cinema2ChoreographyContinuousSourcePath } from '../contracts/Cinema2NativePresetManifest'
 import type { Cinema2MoodDrive } from './Cinema2MoodConductorAuthoring'
 
-export const BASS_SIGIL_SCORE_CHANNELS = ['barLeft','barMiddle','barRight','shellTwist','shellRelease'] as const
+export const BASS_SIGIL_SCORE_CHANNELS = ['modelPulse','shellTwist','shellRelease'] as const
 export function bassSigilPerformance(moduleId: Cinema2ModuleId, pid: (name:string)=>Cinema2ParameterId) {
   const target=(property:string)=>({kind:'module' as const,ref:cinema2Ref(moduleId),property})
   const nonzero=(name:string)=>({kind:'parameter-not-equals' as const,parameterId:pid(name),value:0})
@@ -17,7 +17,7 @@ export function bassSigilPerformance(moduleId: Cinema2ModuleId, pid: (name:strin
     enabledWhen:[nonzero(property)],source:{signal:'continuous',capability:'visual-director.significance',path,clamp:[0,1]},
     actions:[{id:cinema2StableId<Cinema2ChoreographyActionId>(`bass-sigil-director-${name}-drive`),target:target(property),operation:'multiply',value:factor}],
   })
-  const rules=[cue('kick','barLeft',0,.22),cue('kick','barMiddle',.125,.24),cue('kick','barRight',.25,.26),cue('snare','shellTwist',0,.35),cue('drop','shellRelease',0,1.4),director('extent','director.intensity','geometryExtent',1.18),director('sway','director.momentum','logoSway',1.15)]
+  const rules=[cue('kick','modelPulse',0,.24),cue('snare','shellTwist',0,.35),cue('drop','shellRelease',0,1.4),director('extent','director.intensity','geometryExtent',1.18),director('sway','director.momentum','logoSway',1.15)]
   const drives: Cinema2MoodDrive[]=[
     {id:'calm-rate',target:target('motionRate'),source:'mood.calm',operation:'multiply',value:.65},
     {id:'calm-travel',target:target('coreTravel'),source:'mood.calm',operation:'multiply',value:.55},

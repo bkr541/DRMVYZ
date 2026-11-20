@@ -11,9 +11,13 @@ import { Cinema2MainframePatternController } from './mainframe/Cinema2MainframeP
 import { BASS_SIGIL_PALETTE, BASS_SIGIL_PATTERN_IDS, deformBassSigilPoint, type BassSigilPattern } from './bassSigil/Cinema2BassSigilMotion'
 
 export const CINEMA2_BASS_SIGIL_MODULE_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('bass-sigil-native')
-const ROLE: Record<string, keyof typeof BASS_SIGIL_PALETTE | 'backing' | 'glow'> = {
-  textBlack: 'wordmark', edge: 'edge', textRed: 'core', sphere: 'membrane', dots: 'particles', material: 'backing', bgShine: 'backing', glowBg: 'glow',
-}
+/** The original logo is not part of this preset: its nodes are removed when the scene is built. These are the sphere, its particles and the glow behind the model. */
+const ROLE: Record<string, keyof typeof BASS_SIGIL_PALETTE | 'glow'> = { sphere: 'membrane', dots: 'particles', glowBg: 'glow' }
+const LOGO_NODES = ['Object_4','Object_6','Object_8','Object_10','Object_12','Object_14','Object_24']
+/** The user's model is normalized to a longest side of 2. This is the longest side it is given in the scene (the logo it replaced was 6 wide), so it sits inside the sphere; Model Scale adjusts it from there. */
+const MODEL_EXTENT = 4.5
+/** The scene module's neutral stand-in for "no model chosen". */
+const DEFAULT_MODEL_ASSET_ID = 'user-model-default'
 interface Rest { object: THREE.Object3D; position: THREE.Vector3; quaternion: THREE.Quaternion; scale: THREE.Vector3 }
 interface Surface { material: THREE.MeshStandardMaterial; role: typeof ROLE[string]; color: THREE.Color; emissive: THREE.Color; opacity: number; glow: number }
 const restOf = (object: THREE.Object3D): Rest => ({ object, position: object.position.clone(), quaternion: object.quaternion.clone(), scale: object.scale.clone() })
@@ -34,6 +38,11 @@ export class Cinema2BassSigilModelController {
   private readonly owned: THREE.BufferGeometry[] = []
   private readonly moving: Rest[] = []
   private hero: THREE.Group | null = null
+  private assetRoot: THREE.Object3D | null = null
+  /** Scale of the source asset's rig, so the model's size can be set in scene units. */
+  private rigScale = 1
+  private userRoot: THREE.Object3D | null = null
+  private userBase: THREE.Matrix4 | null = null
   private heroRest: THREE.Vector3 | null = null
   private logoPhase = 0
   private logoSpinPhase = 0
@@ -53,24 +62,27 @@ export class Cinema2BassSigilModelController {
   private pattern: BassSigilPattern = 'reference-vortex'
 
   constructor(private readonly library: Cinema2ThreeLibrary) {}
-  attach(root: THREE.Object3D) {
+  attach(root: THREE.Object3D, userModel?: boolean, _clips?: readonly THREE.AnimationClip[], assetId?: string) {
+    if (userModel) { this.attachUserModel(root, assetId); return }
     const { THREE } = this.library
     root.updateMatrixWorld(true)
     const edge = root.getObjectByName('Object_24')
-    if (!edge) throw new Error('Bass Sigil original wordmark is missing.')
+    if (!edge) throw new Error('Bass Sigil source geometry is missing.')
     const bounds = new THREE.Box3().setFromObject(edge), center = bounds.getCenter(new THREE.Vector3()), scale = 6 / bounds.getSize(new THREE.Vector3()).x
     const rig = new THREE.Group(), children = [...root.children]
     root.add(rig); children.forEach(child => rig.add(child)); rig.scale.setScalar(scale); rig.position.copy(center).multiplyScalar(-scale)
-    // These source parents share the same local source coordinate frame.
-    const meshNames = ['Object_4','Object_6','Object_8','Object_10','Object_12','Object_14','Object_24']
+    // The original logo is removed (only the sphere, particles and glow remain). Its place at the middle of the sphere is kept as an anchor, so the
+    // user's model gets the same spin, sway, heading, pitch, roll and scale the logo had.
     const hero = new THREE.Group(), sourceParent = edge.parent!.parent!
     sourceParent.add(hero); hero.position.copy(center)
-    for (const name of meshNames) {
-      const object = root.getObjectByName(name)?.parent
-      if (!object) throw new Error(`Bass Sigil original part is missing: ${name}`)
-      object.position.sub(center); hero.add(object)
+    for (const name of LOGO_NODES) {
+      const node = root.getObjectByName(name)?.parent
+      if (!node) throw new Error(`Bass Sigil source part is missing: ${name}`)
+      node.removeFromParent()
     }
     this.hero = hero
+    this.assetRoot = root
+    this.rigScale = scale
     this.heroRest = hero.position.clone()
     this.sphere = root.getObjectByName('Object_18') as THREE.Mesh
     if (!this.sphere?.isMesh) throw new Error('Bass Sigil original cellular sphere is missing.')
@@ -80,7 +92,7 @@ export class Cinema2BassSigilModelController {
       const mesh = root.getObjectByName(name) as THREE.Mesh
       mesh.geometry = mesh.geometry.clone(); this.owned.push(mesh.geometry); this.particles.push(mesh)
     }
-    for (const name of ['Object_18','Object_20','Object_22','Object_10','Object_12','Object_14','Object_4','Object_8']) {
+    for (const name of ['Object_18','Object_20','Object_22']) {
       this.moving.push(restOf(root.getObjectByName(name)!.parent!))
     }
     root.traverse(object => {
@@ -94,6 +106,16 @@ export class Cinema2BassSigilModelController {
       }
     })
   }
+  /** The scene module's slot attaches the chosen model (or its neutral stand-in, which is hidden: with no model chosen the middle is empty). */
+  private attachUserModel(model: THREE.Object3D, assetId?: string) {
+    if (assetId === DEFAULT_MODEL_ASSET_ID) { model.visible = false; return }
+    model.updateMatrix()
+    // The model is normalized by its loader (centered, longest side 2); that local transform is kept and the anchor's transform is applied on top each frame.
+    this.userBase = model.matrix.clone()
+    model.matrixAutoUpdate = false
+    this.userRoot = model
+  }
+  detach(model: THREE.Object3D) { if (this.userRoot === model) { this.userRoot = null; this.userBase = null } }
   update(context: Cinema2ModuleUpdateContext) {
     this.context = context
     const { frame, parameters } = context, time = frame.transport?.timeSec ?? frame.audio?.upstream.timeSec ?? frame.elapsedTimeSec
@@ -134,6 +156,24 @@ export class Cinema2BassSigilModelController {
     this.performingPhase=performance.reason==='drop' ? (beats-performance.startBeat)*Math.PI/4 : null
     this.previousTime = time; this.sourceIdentity = identity; this.generation = frame.contextGeneration; this.audioGeneration = audioGeneration
   }
+  /** Puts the user's model where the anchor is: the anchor's transform inside the source asset, expressed in the model's own placed root. */
+  private followUserModel(master: number, travel: number, score: number, phase: number) {
+    const model = this.userRoot, hero = this.hero, base = this.userBase, assetRoot = this.assetRoot
+    if (!model || !hero || !base || !assetRoot) return
+    model.visible = master > 0
+    const pulse = score * this.number('modelPulse', 0, 0, 1)
+    hero.position.y += Math.sin(phase * 4) * travel * .8 + pulse * travel * 2
+    const { THREE } = this.library
+    this.chain ??= new THREE.Matrix4(); this.fit ??= new THREE.Matrix4()
+    this.chain.identity()
+    for (let node: THREE.Object3D | null = hero; node && node !== assetRoot.parent; node = node.parent) { node.updateMatrix(); this.chain.premultiply(node.matrix) }
+    const size = MODEL_EXTENT / (2 * this.rigScale) * (1 + pulse * .08)
+    this.fit.makeScale(size, size, size)
+    model.matrix.copy(this.chain).multiply(this.fit).multiply(base)
+    model.matrixWorldNeedsUpdate = true
+  }
+  private chain: THREE.Matrix4 | null = null
+  private fit: THREE.Matrix4 | null = null
   private number(name: string, fallback: number, min: number, max: number) {
     const value = this.context?.parameters.get(name)
     return typeof value === 'number' && Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback
@@ -144,7 +184,7 @@ export class Cinema2BassSigilModelController {
     const phase = this.performingPhase??this.phase
     const extent = this.number('geometryExtent', .35, 0, 1), travel = this.number('coreTravel', .25, 0, 1)
     const master = this.number('intensity', 1, 0, 2), depth = this.number('tunnelDepth', 1, .5, 1.5)
-    this.hero.scale.setScalar(this.number('heroScale', 1, .75, 1.15))
+    this.hero.scale.setScalar(this.number('heroScale', 1, .5, 1.5))
     const logoPhase = this.logoPhase, sway = this.number('logoSway', .35, 0, 1)
     const radians = Math.PI / 180
     this.hero.rotation.set(
@@ -190,12 +230,6 @@ export class Cinema2BassSigilModelController {
       position.setXYZ(i,point[0]*c-point[1]*s,point[0]*s+point[1]*c,point[2])
     }
     position.needsUpdate = true; this.sphere.geometry.computeVertexNormals(); this.sphere.geometry.computeBoundingSphere()
-    for(let i=3;i<6;i++) {
-      const rest = this.moving[i], stroke = Math.sin(phase*4+(i-3)*1.7)
-      const cue=this.number(['barLeft','barMiddle','barRight'][i-3],0,0,1)
-      rest.object.position.y += stroke*travel*1.6 + cue*score*travel*3
-      rest.object.position.z += Math.cos(phase*4+(i-3)*1.7)*travel*.25
-    }
     if(this.transition) {
       const t=Math.min(1,Math.max(0,(this.beats-this.transition.start)/this.transition.duration)),blend=t*t*(3-2*t)
       this.moving.forEach((rest,i)=>{const from=this.transition!.poses[i];rest.object.position.lerpVectors(from.position,rest.object.position.clone(),blend);rest.object.quaternion.slerpQuaternions(from.quaternion,rest.object.quaternion.clone(),blend);rest.object.scale.lerpVectors(from.scale,rest.object.scale.clone(),blend)})
@@ -203,6 +237,7 @@ export class Cinema2BassSigilModelController {
       if(t>=1)this.transition=null
       position.needsUpdate=true;this.sphere.geometry.computeVertexNormals();this.sphere.geometry.computeBoundingSphere()
     }
+    this.followUserModel(master, travel, score, phase)
     const density = this.number('particleDensity', 1, 0, 1)
     for(const mesh of this.particles) {
       const count = mesh.geometry.index?.count ?? mesh.geometry.attributes.position.count
@@ -221,13 +256,13 @@ export class Cinema2BassSigilModelController {
         }
       }
       material.color.multiplyScalar(master); material.emissive.multiplyScalar(master)
-      material.emissiveIntensity = surface.glow * (role==='core'||role==='glow' ? glow : 1)
+      material.emissiveIntensity = surface.glow * (role==='glow' ? glow : 1)
       material.opacity = surface.opacity * (role==='membrane' ? opacity : role==='glow' ? Math.min(1,glow) : 1) * (master===0 ? 0 : 1)
       if(role==='glow')material.color.multiplyScalar(glow)
     }
   }
   inspect() { return { ...this.policy.inspect(), basePattern:this.basePattern, overrideReason:this.autoReason, pattern: this.pattern, phase: this.phase, logoPhase: this.logoPhase, logoSpinPhase: this.logoSpinPhase, source: 'cinema2-crate-bass-sigil', ownedGeometryCount: this.owned.length } }
-  dispose() { this.owned.forEach(g=>g.dispose()); this.owned.length=0; this.surfaces.length=0; this.particles.length=0; this.moving.length=0; this.hero=null; this.heroRest=null; this.sphere=null; this.sphereBase=null; this.context=null; this.clock.reset(); this.selection.reset(); this.policy.reset(); this.auto.reset(); this.transition=null }
+  dispose() { this.owned.forEach(g=>g.dispose()); this.owned.length=0; this.surfaces.length=0; this.particles.length=0; this.moving.length=0; this.hero=null; this.assetRoot=null; this.userRoot=null; this.userBase=null; this.chain=null; this.fit=null; this.heroRest=null; this.sphere=null; this.sphereBase=null; this.context=null; this.clock.reset(); this.selection.reset(); this.policy.reset(); this.auto.reset(); this.transition=null }
 }
 export const cinema2BassSigilModuleDefinition = createCinema2ThreeSceneModuleDefinition({
   typeId: CINEMA2_BASS_SIGIL_MODULE_TYPE_ID, resourceKey: 'bass-sigil-native:bridge', createModelController: library => new Cinema2BassSigilModelController(library),

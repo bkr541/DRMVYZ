@@ -1,4 +1,5 @@
 import {afterEach,expect,it,vi} from 'vitest'
+vi.mock('../domain/builtinModels', () => ({ BUILTIN_MODELS: [{ id: 'builtin-test-model', name: 'Test Model', description: 'A shipped model used by these tests.', url: '/cinema2/models/test-model.glb', thumbnailUrl: '/cinema2/models/test-model-thumbnail.webp' }] }))
 import {BoxGeometry, Group, Mesh, MeshStandardMaterial} from 'three'
 const load=vi.hoisted(()=>vi.fn())
 vi.mock('../data/loadModelPreview',()=>({loadBuiltinModelPreview:load}))

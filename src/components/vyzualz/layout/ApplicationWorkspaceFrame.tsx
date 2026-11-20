@@ -40,8 +40,6 @@ export function ApplicationHeaderControls({ children, fallbackWhenUnavailable = 
 interface ApplicationWorkspaceFrameProps {
   appView: AppView
   onAppViewChange: (view: AppView) => void
-  sidebarCollapsed: boolean
-  onSidebarCollapsedChange: (collapsed: boolean) => void
   children: ReactNode
 }
 
@@ -49,8 +47,6 @@ interface ApplicationWorkspaceFrameProps {
 export function ApplicationWorkspaceFrame({
   appView,
   onAppViewChange,
-  sidebarCollapsed,
-  onSidebarCollapsedChange,
   children,
 }: ApplicationWorkspaceFrameProps) {
   const [layoutLabOpen, setLayoutLabOpen] = useState(false)
@@ -80,9 +76,6 @@ export function ApplicationWorkspaceFrame({
             <WorkspaceRegion slot="navigation" className="fw-app-navigation">
               <VyzualzSidebar
                 variant="floating"
-                compact
-                collapsed={sidebarCollapsed}
-                onCollapsedChange={onSidebarCollapsedChange}
                 appView={appView}
                 onAppViewChange={onAppViewChange}
                 utilityControls={<>

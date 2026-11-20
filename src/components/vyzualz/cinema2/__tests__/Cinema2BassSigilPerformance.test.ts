@@ -24,20 +24,18 @@ it('rejects partial Mood policy tags and keeps effects connected to original sce
  }
 })
 
-it('scores sequential bar cues, respects hard off, and clears a delayed cue on a seek',()=>{
+it('scores a kick cue onto the model, respects hard off, and clears a delayed cue on a seek',()=>{
  const stage=moodStage(manifest),music=moodMusic();stage.state.setPersistentValue(pid('reactivity'),1)
  const step=(options={})=>stage.choreography.update(music.next(options))
  const read=(p:string)=>stage.read('bass-sigil-core',p)
  step();step({event:'kick',eventId:1});step()
- expect(read('barLeft')).toBeGreaterThan(0);expect(read('barMiddle')).toBe(0);expect(read('barRight')).toBe(0)
- step();step();expect(read('barMiddle')).toBeGreaterThan(0)
- step();step();expect(read('barRight')).toBeGreaterThan(0)
- for(let i=0;i<20;i++)step();expect(read('barRight')).toBe(0)
+ expect(read('modelPulse')).toBeGreaterThan(0)
+ for(let i=0;i<30;i++)step();expect(read('modelPulse')).toBe(0)
  stage.state.setPersistentValue(pid('scoreAmount'),0);step({event:'kick',eventId:2});for(let i=0;i<6;i++)step()
- expect(read('barLeft')).toBe(0);expect(read('barMiddle')).toBe(0);expect(read('barRight')).toBe(0)
+ expect(read('modelPulse')).toBe(0)
  stage.state.setPersistentValue(pid('scoreAmount'),.5);step({event:'kick',eventId:3})
  const next=music.next();stage.choreography.update({...next,transport:{...next.transport!,timeSec:0}})
- expect(read('barMiddle')).toBe(0);stage.choreography.dispose()
+ expect(read('modelPulse')).toBe(0);stage.choreography.dispose()
 })
 
 it('resolves saved policy without mood and holds silent patterns while allowing a drop override and bounded restoration',()=>{

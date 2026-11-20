@@ -11,8 +11,8 @@ export const BASS_SIGIL_PATTERNS = [
 ] as const
 export type BassSigilPattern = typeof BASS_SIGIL_PATTERNS[number]['value']
 export const BASS_SIGIL_PATTERN_IDS = BASS_SIGIL_PATTERNS.map(p => p.value)
+/** The colors of the sphere and its particles. The model in the middle keeps its own materials. */
 export const BASS_SIGIL_PALETTE = {
-  wordmark: [0, 0, 0, 1], edge: [.906, .906, .906, 1], core: [1, 0, 0, 1],
   membrane: [1, 1, 1, 1], particles: [.36, .557, 1, 1],
 } as const
 export function deformBassSigilPoint(pattern: BassSigilPattern, x: number, y: number, z: number, phase: number, extent: number): readonly [number, number, number] {
