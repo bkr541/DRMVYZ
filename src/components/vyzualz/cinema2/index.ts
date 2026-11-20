@@ -1211,13 +1211,14 @@ export {
 } from './modules/ancientMachine/Cinema2AncientMachineLayout'
 
 export {
-  CINEMA2_ANCIENT_MACHINE_LOOKS,
+  CINEMA2_ANCIENT_MACHINE_PATTERNS,
+  CINEMA2_ANCIENT_MACHINE_PATTERN_IDS,
+  CINEMA2_ANCIENT_MACHINE_PATTERN_STATES,
   CINEMA2_ANCIENT_MACHINE_TRIGGER_IDS,
-  Cinema2AncientMachineProgramController,
-  createCinema2AncientMachineLookCycle,
-  type Cinema2AncientMachineLook,
+  type Cinema2AncientMachinePattern,
+  type Cinema2AncientMachinePatternState,
   type Cinema2AncientMachineTriggerId,
-} from './modules/ancientMachine/Cinema2AncientMachineProgramController'
+} from './modules/ancientMachine/Cinema2AncientMachinePatterns'
 
 export { Cinema2AncientMachineRenderer, type Cinema2AncientMachineDrawState } from './modules/ancientMachine/Cinema2AncientMachineRenderer'
 
@@ -1392,7 +1393,7 @@ export {
   CINEMA2_ANCIENT_MACHINE_INTENSITY_ID,
   CINEMA2_ANCIENT_MACHINE_INTERNAL_COLOR_ID,
   CINEMA2_ANCIENT_MACHINE_LOCK_ID,
-  CINEMA2_ANCIENT_MACHINE_LOOK_ID,
+  CINEMA2_ANCIENT_MACHINE_PATTERN_ID,
   CINEMA2_ANCIENT_MACHINE_METAL_COLOR_ID,
   CINEMA2_ANCIENT_MACHINE_MODULE_ID,
   CINEMA2_ANCIENT_MACHINE_MOTION_SAFETY_ID,

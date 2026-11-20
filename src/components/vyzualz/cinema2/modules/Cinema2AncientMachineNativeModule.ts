@@ -5,18 +5,17 @@ import type { Cinema2ModuleCreateContext, Cinema2ModuleDiagnostic, Cinema2Module
 import { resolveCinema2AfterhoursTriggerEventIdentity } from './Cinema2AfterhoursNativeModule'
 import { resolveCinema2MainframePlaybackState, resolveCinema2MainframeSourceIdentity, selectCinema2MainframeAudio } from './mainframe/Cinema2MainframeAudioDelivery'
 import { Cinema2MainframeBeatClockResolver, resolveCinema2MainframeTimeSec } from './mainframe/Cinema2MainframePatternEngine'
-import { resolveCinema2MainframeTriggerEventIdentity } from './mainframe/Cinema2MainframePatternController'
+import { Cinema2MainframePatternController, createCinema2MainframePatternCycle, resolveCinema2MainframeTriggerEventIdentity } from './mainframe/Cinema2MainframePatternController'
+import { Cinema2PatternAutoPerformance } from './mainframe/Cinema2PatternAutoPerformance'
 import { shouldResetCinema2MainframeDropState } from './mainframe/Cinema2MainframeMusicAdapter'
 import { CINEMA2_ANCIENT_MACHINE_LAYOUT_CONFIG, buildCinema2AncientMachineLayout, packCinema2AncientMachineInstances, type Cinema2AncientMachineLayoutConfig } from './ancientMachine/Cinema2AncientMachineLayout'
-import { CINEMA2_ANCIENT_MACHINE_LOOKS, CINEMA2_ANCIENT_MACHINE_TRIGGER_IDS, Cinema2AncientMachineProgramController, createCinema2AncientMachineLookCycle, type Cinema2AncientMachineLook } from './ancientMachine/Cinema2AncientMachineProgramController'
+import { CINEMA2_ANCIENT_MACHINE_PATTERN_IDS, CINEMA2_ANCIENT_MACHINE_PATTERN_STATES, CINEMA2_ANCIENT_MACHINE_TRIGGER_IDS, type Cinema2AncientMachinePattern, type Cinema2AncientMachinePatternState } from './ancientMachine/Cinema2AncientMachinePatterns'
 import { Cinema2AncientMachineRenderer } from './ancientMachine/Cinema2AncientMachineRenderer'
 
 export const CINEMA2_ANCIENT_MACHINE_NATIVE_MODULE_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('ancient-machine-native')
 export const CINEMA2_ANCIENT_MACHINE_NATIVE_MODULE_VERSION = 1 as const
-export { CINEMA2_ANCIENT_MACHINE_LOOKS, CINEMA2_ANCIENT_MACHINE_TRIGGER_IDS }
-export type { Cinema2AncientMachineLook, Cinema2AncientMachineTriggerId } from './ancientMachine/Cinema2AncientMachineProgramController'
-
-const LOOK_INDEX: Readonly<Record<Cinema2AncientMachineLook, number>> = Object.freeze({ oracleLock: 0, gearSun: 1, epochEngine: 2 })
+export { CINEMA2_ANCIENT_MACHINE_PATTERN_IDS, CINEMA2_ANCIENT_MACHINE_TRIGGER_IDS }
+export type { Cinema2AncientMachinePattern, Cinema2AncientMachineTriggerId } from './ancientMachine/Cinema2AncientMachinePatterns'
 const DEFAULT_METAL = Object.freeze([0.19, 0.17, 0.12, 1]) as Cinema2Color
 const DEFAULT_GLYPH = Object.freeze([0.84, 0.71, 0.38, 1]) as Cinema2Color
 const DEFAULT_INTERNAL = Object.freeze([0.22, 0.88, 0.82, 1]) as Cinema2Color
@@ -47,14 +46,22 @@ export function createCinema2AncientMachineNativeModuleDefinition(options: {
       const rockMaterial = import.meta.env.DEV
         ? context.textures?.acquire(CINEMA2_LOCAL_ANCIENT_MACHINE_ROCK_ASSET_ID, 'high')
         : undefined
-      const initialLook = readEnum(context.parameters, 'look', CINEMA2_ANCIENT_MACHINE_LOOKS, 'oracleLock')
+      const initialPattern = readEnum(context.parameters, 'pattern', CINEMA2_ANCIENT_MACHINE_PATTERN_IDS, 'oracle-lock')
       const patternControls = new Cinema2PatternControlResolver<typeof CINEMA2_ANCIENT_MACHINE_TRIGGER_IDS[number]>()
-      const controller = new Cinema2AncientMachineProgramController(
-        createCinema2AncientMachineLookCycle(index => context.randomness.sample('ancient-machine-look-cycle', index)),
-        initialLook,
+      const controller = new Cinema2MainframePatternController<Cinema2AncientMachinePattern>(
+        createCinema2MainframePatternCycle<Cinema2AncientMachinePattern>(index => context.randomness.sample('ancient-machine-pattern-cycle', index), CINEMA2_ANCIENT_MACHINE_PATTERN_IDS),
+        initialPattern,
       )
+      // Auto Performance owns one thing: which pattern is on stage during a build (Build Charge) or a drop (Drop Impact), and, with Pattern Change off, a
+      // pattern chosen by how the passage feels. The user's Pattern, Pattern Change and Trigger are never written to.
+      const performance = new Cinema2PatternAutoPerformance<Cinema2AncientMachinePattern>({
+        buildPattern: 'build-charge', dropPattern: 'drop-impact', buildMaxBeats: 32, dropBeats: 8,
+        mood: { options: { calm: ['oracle-lock', 'epoch-engine'], driving: ['gear-sun', 'counter-orrery'], tense: ['epoch-engine', 'counter-orrery'], peak: ['gear-sun', 'counter-orrery'] } },
+      })
       const beatClock = new Cinema2MainframeBeatClockResolver()
-      let activeLook = initialLook
+      let onStage: Cinema2AncientMachinePatternState = CINEMA2_ANCIENT_MACHINE_PATTERN_STATES[initialPattern]
+      let previousEditRevision: number | null = null
+      let previousAuthored: Cinema2AncientMachinePattern | null = null
       let previousTimeSec: number | null = null
       let previousBeat: number | null = null
       let previousSourceIdentity: string | null = null
@@ -67,11 +74,9 @@ export function createCinema2AncientMachineNativeModuleDefinition(options: {
         execute(execution: Cinema2ModuleRenderExecutionContext) {
           if (!execution.depthAvailable) throw new Error(`Cinema 2.0 Ancient Machine module "${context.module.id}" requires depth.`)
           if (!execution.camera) throw new Error(`Cinema 2.0 Ancient Machine module "${context.module.id}" requires a camera.`)
-          const auto = readBoolean(context.parameters, 'autoPerformance', true)
-          const rhythm = auto || readBoolean(context.parameters, 'rhythmResponse', false)
-          const build = clamp(readNumber(context.parameters, auto ? 'buildAmount' : 'manualBuild', 0), 0, 1)
-          const drop = clamp(readNumber(context.parameters, auto ? 'dropAccent' : 'manualDrop', 0), 0, 1)
-          const look = drop > 0.05 ? 'gearSun' : build > 0.18 ? 'epochEngine' : activeLook
+          // The pattern's own build and drop, plus Auto Performance's live build and drop (zero without it; both are scaled by Music Reactivity).
+          const build = clamp(onStage.build + readNumber(context.parameters, 'buildAmount', 0), 0, 1)
+          const drop = clamp(onStage.drop + readNumber(context.parameters, 'dropAccent', 0), 0, 1)
           const quality = execution.lightingEnvironment?.quality ?? 'high'
           const background = execution.lightingEnvironment?.environment.backgroundColor
           renderer.draw({
@@ -79,25 +84,25 @@ export function createCinema2AncientMachineNativeModuleDefinition(options: {
             cameraPosition: execution.camera.position,
             backgroundColor: background ? rgb(background) : undefined,
             rockMaterialTexture: rockMaterial?.texture ?? null,
-            timeSeconds: resolveTime(execution.frame), look: LOOK_INDEX[look],
+            timeSeconds: resolveTime(execution.frame), look: onStage.look,
             metalColor: rgb(readColor(context.parameters, 'metalColor', DEFAULT_METAL)),
             glyphColor: rgb(readColor(context.parameters, 'glyphColor', DEFAULT_GLYPH)),
             internalColor: rgb(readColor(context.parameters, 'internalColor', DEFAULT_INTERNAL)),
             intensity: clamp(readNumber(context.parameters, 'intensity', 0.82), 0, 2),
             rockLightIntensity: clamp(readNumber(context.parameters, 'rockLightIntensity', 1), 0, 4),
-            rotationSpeed: clamp(readNumber(context.parameters, 'rotationSpeed', 0.35), -2, 2),
-            counterRotation: clamp(readNumber(context.parameters, 'counterRotation', 0.72), 0, 2),
-            mechanicalDepth: clamp(readNumber(context.parameters, 'mechanicalDepth', 1), 0.25, 2),
+            rotationSpeed: clamp(readNumber(context.parameters, 'rotationSpeed', 0.35) * onStage.rotation, -2, 2),
+            counterRotation: clamp(readNumber(context.parameters, 'counterRotation', 0.72) * onStage.counterRotation, 0, 2),
+            mechanicalDepth: clamp(readNumber(context.parameters, 'mechanicalDepth', 1) * onStage.depth, 0.25, 2),
             lockProgress: clamp(readNumber(context.parameters, 'lockProgress', 0.82), 0, 1),
             aperture: clamp(readNumber(context.parameters, 'aperture', 0.12) + drop * 0.55, 0, 1),
-            glyphDensity: clamp(readNumber(context.parameters, 'glyphDensity', 0.86), 0, 1),
-            energy: rhythm ? clamp(readNumber(context.parameters, 'overallEnergy', 0), 0, 1) : 0,
-            bass: rhythm ? clamp(readNumber(context.parameters, 'bassPressure', 0), 0, 1) : 0,
-            beat: rhythm ? clamp(readNumber(context.parameters, 'beatAccent', 0), 0, 1) : 0,
-            kick: rhythm ? clamp(readNumber(context.parameters, 'kickAccent', 0), 0, 1) : 0,
-            snare: rhythm ? clamp(readNumber(context.parameters, 'snareAccent', 0), 0, 1) : 0,
-            downbeat: rhythm ? clamp(readNumber(context.parameters, 'downbeatAccent', 0), 0, 1) : 0,
-            phrase: rhythm ? clamp(readNumber(context.parameters, 'phraseAccent', 0), 0, 1) : 0,
+            glyphDensity: clamp(readNumber(context.parameters, 'glyphDensity', 0.86) * onStage.glyphDensity, 0, 1),
+            energy: clamp(readNumber(context.parameters, 'overallEnergy', 0), 0, 1),
+            bass: clamp(readNumber(context.parameters, 'bassPressure', 0), 0, 1),
+            beat: clamp(readNumber(context.parameters, 'beatAccent', 0), 0, 1),
+            kick: clamp(readNumber(context.parameters, 'kickAccent', 0), 0, 1),
+            snare: clamp(readNumber(context.parameters, 'snareAccent', 0), 0, 1),
+            downbeat: clamp(readNumber(context.parameters, 'downbeatAccent', 0), 0, 1),
+            phrase: clamp(readNumber(context.parameters, 'phraseAccent', 0), 0, 1),
             build, drop, quality: quality === 'low' ? 0 : quality === 'medium' ? 0.55 : 1,
           })
         },
@@ -106,7 +111,6 @@ export function createCinema2AncientMachineNativeModuleDefinition(options: {
       return {
         lifecycle: {
           update: ({ parameters, frame }: Cinema2ModuleUpdateContext) => {
-            const authoredLook = readEnum(parameters, 'look', CINEMA2_ANCIENT_MACHINE_LOOKS, 'oracleLock')
             const savedPatternChange = readBoolean(parameters, 'patternChange', false)
             const savedTrigger = readEnum(parameters, 'trigger', CINEMA2_ANCIENT_MACHINE_TRIGGER_IDS, 'bar4')
             const audio = selectCinema2MainframeAudio(frame.audio, frame.transport?.trackId)
@@ -127,11 +131,21 @@ export function createCinema2AncientMachineNativeModuleDefinition(options: {
             const triggerFrame = acceptedFrame.transport ? { ...acceptedFrame, transport: { ...acceptedFrame.transport, sourcePresent: true } } : acceptedFrame
             const dropEventId = playback === 'playing' ? resolveCinema2AfterhoursTriggerEventIdentity(triggerFrame, 'drop', previousTimeSec) : null
             const triggerEventId = reset ? null : resolveCinema2MainframeTriggerEventIdentity(acceptedFrame, trigger, previousTimeSec, dropEventId, { previousBeat, current: timing })
-            activeLook = controller.update({ authoredLook, patternChange, trigger, triggerEventId, reset }).activeLook
+            const authored = readEnum(parameters, 'pattern', CINEMA2_ANCIENT_MACHINE_PATTERN_IDS, 'oracle-lock')
+            const editRevision = parameters.getEditRevision?.('pattern') ?? 0
+            const edited = (previousEditRevision != null && editRevision !== previousEditRevision) || (previousAuthored != null && authored !== previousAuthored)
+            const base = controller.update({ authoredPattern: authored, patternChange, trigger, triggerEventId, absoluteBeat: timing.beats, reset })
+            const buildCharge = frame.mood?.silence && frame.mood.silence > 0.5 ? 0 : frame.director?.context.build.available ? frame.director.context.build.value ?? 0 : 0
+            const performing = performance.update({
+              enabled: readBoolean(parameters, 'autoPerformance', false) && playback === 'playing', absoluteBeat: timing.beats, buildCharge, dropEventId,
+              patternEdited: edited, reset, basePattern: base.activePattern, patternChange, mood: frame.mood, deltaTimeSec: frame.deltaTimeSec, seed: sourceIdentity,
+            })
+            onStage = CINEMA2_ANCIENT_MACHINE_PATTERN_STATES[performing.pattern ?? base.activePattern]
+            previousEditRevision = editRevision; previousAuthored = authored
             previousTimeSec = timeSec; previousBeat = timing.beats; previousSourceIdentity = sourceIdentity
             previousTrackId = frame.transport?.trackId; previousContextGeneration = frame.contextGeneration; previousPlayback = playback
           },
-          dispose: () => { rockMaterial?.release(); controller.reset(); beatClock.reset(); patternControls.reset() },
+          dispose: () => { rockMaterial?.release(); controller.reset(); performance.reset(); beatClock.reset(); patternControls.reset() },
         },
         render: { providers: Object.freeze([provider]) },
         inspect: () => patternControls.inspect(),

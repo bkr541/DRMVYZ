@@ -3,14 +3,15 @@ import { createCinemaMockWebGL } from '../../../../test/support/CinemaWebGLTestU
 import { Cinema2AudioIntelligenceBridge } from '../audio/Cinema2AudioIntelligenceBridge'
 import { CINEMA2_ANCIENT_MACHINE_NATIVE_MODULE_TYPE_ID } from '../modules/Cinema2AncientMachineNativeModule'
 import { ANCIENT_MACHINE_CORE_MAX_RADIUS, ANCIENT_MACHINE_CORE_RADIUS, CINEMA2_ANCIENT_MACHINE_INSTANCE_FLOATS, buildCinema2AncientMachineLayout, buildCinema2AncientMachineShaftDebris, packCinema2AncientMachineInstances } from '../modules/ancientMachine/Cinema2AncientMachineLayout'
-import { Cinema2AncientMachineProgramController, createCinema2AncientMachineLookCycle } from '../modules/ancientMachine/Cinema2AncientMachineProgramController'
+import { CINEMA2_ANCIENT_MACHINE_PATTERN_IDS, CINEMA2_ANCIENT_MACHINE_PATTERN_STATES } from '../modules/ancientMachine/Cinema2AncientMachinePatterns'
+import { Cinema2MainframePatternController, createCinema2MainframePatternCycle } from '../modules/mainframe/Cinema2MainframePatternController'
 import { ANCIENT_MACHINE_ROCK_VARIANT_COUNT, buildCinema2AncientMachineRockGeometry } from '../modules/ancientMachine/Cinema2AncientMachineRockGeometry'
 import { ANCIENT_MACHINE_COLLAR_CENTER_Z, ANCIENT_MACHINE_COLLAR_INNER_RADIUS, ANCIENT_MACHINE_SHAFT_VERTEX_BYTES, buildCinema2AncientMachineShaft } from '../modules/ancientMachine/Cinema2AncientMachineShaft'
 import { cinema2NativeModuleRegistry } from '../modules/Cinema2ModuleRegistry'
 import { createCinema2DesignParentGroupModel } from '../parameters/Cinema2InspectorModel'
 import { Cinema2ParameterState } from '../parameters/Cinema2ParameterState'
 import { CINEMA2_AFTERHOURS_TRIGGER_OPTIONS } from '../presets/Cinema2AfterhoursPreset'
-import { CINEMA2_ANCIENT_MACHINE_AUTO_PERFORMANCE_ID, CINEMA2_ANCIENT_MACHINE_BUILD_CHARGE_ID, CINEMA2_ANCIENT_MACHINE_CAMERA_ID, CINEMA2_ANCIENT_MACHINE_DROP_IMPACT_ID, CINEMA2_ANCIENT_MACHINE_LOOK_ID, CINEMA2_ANCIENT_MACHINE_PATTERN_CHANGE_ID, CINEMA2_ANCIENT_MACHINE_PRESET_ID, CINEMA2_ANCIENT_MACHINE_PRESET_MANIFEST, CINEMA2_ANCIENT_MACHINE_RHYTHM_RESPONSE_ID, CINEMA2_ANCIENT_MACHINE_ROCK_LIGHT_ID, CINEMA2_ANCIENT_MACHINE_TRIGGER_ID } from '../presets/Cinema2AncientMachinePreset'
+import { CINEMA2_ANCIENT_MACHINE_AUTO_PERFORMANCE_ID, CINEMA2_ANCIENT_MACHINE_CAMERA_ID, CINEMA2_ANCIENT_MACHINE_PATTERN_CHANGE_ID, CINEMA2_ANCIENT_MACHINE_PRESET_ID, CINEMA2_ANCIENT_MACHINE_PRESET_MANIFEST, CINEMA2_ANCIENT_MACHINE_ROCK_LIGHT_ID, CINEMA2_ANCIENT_MACHINE_TRIGGER_ID, CINEMA2_ANCIENT_MACHINE_PATTERN_ID, CINEMA2_ANCIENT_MACHINE_REACTIVITY_ID } from '../presets/Cinema2AncientMachinePreset'
 import { CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS } from '../presets/Cinema2FirstPartyPresetCatalog'
 import { validateCinema2PresetAuthoringConventions } from '../presets/Cinema2PresetAuthoring'
 import { compileCinema2NativePreset } from '../presets/Cinema2PresetCompiler'
@@ -69,12 +70,13 @@ describe('Cinema 2.0 Ancient Machine preset', () => {
     }
   })
 
-  it('ships all three legacy identities as authored looks and passes native gates', () => {
+  it('ships six Patterns, the three legacy identities among them, and passes native gates', () => {
     expect(CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS.find(candidate => candidate.manifest.id === CINEMA2_ANCIENT_MACHINE_PRESET_ID)).toMatchObject({ role: 'keeper' })
     expect(cinema2NativePresetRegistry.get(CINEMA2_ANCIENT_MACHINE_PRESET_ID)).not.toBeNull()
     expect(cinema2NativeModuleRegistry.get(CINEMA2_ANCIENT_MACHINE_NATIVE_MODULE_TYPE_ID, 1)).not.toBeNull()
-    expect(CINEMA2_ANCIENT_MACHINE_PRESET_MANIFEST.parameters?.find(parameter => parameter.id === CINEMA2_ANCIENT_MACHINE_LOOK_ID)).toMatchObject({
-      defaultValue: 'oracleLock', options: [{ value: 'oracleLock' }, { value: 'gearSun' }, { value: 'epochEngine' }],
+    expect(CINEMA2_ANCIENT_MACHINE_PRESET_MANIFEST.parameters?.find(parameter => parameter.id === CINEMA2_ANCIENT_MACHINE_PATTERN_ID)).toMatchObject({
+      label: 'Pattern', defaultValue: 'oracle-lock',
+      options: [{ value: 'oracle-lock' }, { value: 'gear-sun' }, { value: 'epoch-engine' }, { value: 'build-charge' }, { value: 'drop-impact' }, { value: 'counter-orrery' }],
     })
     expect(CINEMA2_ANCIENT_MACHINE_PRESET_MANIFEST.choreography?.rules.find(rule => rule.source.signal === 'continuous' && rule.source.path === 'audio.bands.bass')).toMatchObject({
       priority: 11,
@@ -104,14 +106,23 @@ describe('Cinema 2.0 Ancient Machine preset', () => {
     expect(restored.getValue(CINEMA2_ANCIENT_MACHINE_TRIGGER_ID)).toBe('drop')
   })
 
-  it('cycles deterministically without repeats and returns authority when disabled', () => {
-    const cycle = createCinema2AncientMachineLookCycle(index => [0.8, 0.2][index] ?? 0.5)
-    const controller = new Cinema2AncientMachineProgramController(cycle)
-    const base = { authoredLook: 'oracleLock' as const, patternChange: true, trigger: 'bar4' as const }
-    expect(controller.update({ ...base, triggerEventId: 'bar:1' }).activeLook).toBe('oracleLock')
-    const advanced = controller.update({ ...base, triggerEventId: 'bar:2' }); expect(advanced.activeLook).not.toBe('oracleLock')
+  it('cycles the six Patterns deterministically without repeats and returns authority when disabled', () => {
+    const cycle = createCinema2MainframePatternCycle(index => [0.8, 0.2][index] ?? 0.5, CINEMA2_ANCIENT_MACHINE_PATTERN_IDS)
+    expect([...cycle].sort()).toEqual([...CINEMA2_ANCIENT_MACHINE_PATTERN_IDS].sort())
+    const controller = new Cinema2MainframePatternController(cycle, 'oracle-lock')
+    const base = { authoredPattern: 'oracle-lock' as const, patternChange: true, trigger: 'bar4' as const, absoluteBeat: 0 }
+    expect(controller.update({ ...base, triggerEventId: 'bar:1' }).activePattern).toBe('oracle-lock')
+    const advanced = controller.update({ ...base, triggerEventId: 'bar:2' }); expect(advanced.activePattern).not.toBe('oracle-lock')
     expect(controller.update({ ...base, triggerEventId: 'bar:2' }).changed).toBe(false)
-    expect(controller.update({ ...base, patternChange: false, triggerEventId: 'bar:3' }).activeLook).toBe('oracleLock')
+    expect(controller.update({ ...base, patternChange: false, triggerEventId: 'bar:3' }).activePattern).toBe('oracle-lock')
+  })
+
+  it('makes every Pattern a different state of the machine, and the Design tab has no Choreography group', () => {
+    const states = CINEMA2_ANCIENT_MACHINE_PATTERN_IDS.map(id => JSON.stringify(CINEMA2_ANCIENT_MACHINE_PATTERN_STATES[id]))
+    expect(new Set(states).size).toBe(6)
+    const labels = (CINEMA2_ANCIENT_MACHINE_PRESET_MANIFEST.parameters ?? []).map(parameter => `${parameter.group ?? ''}/${parameter.label}`)
+    expect(labels.some(label => label.startsWith('Choreography/'))).toBe(false)
+    for (const removed of ['Rhythm Response', 'Build Charge', 'Drop Impact', 'Machine Look']) expect(labels.some(label => label.endsWith(`/${removed}`))).toBe(false)
   })
 
   it('renders through the production registry, orbit camera, depth and four-pass graph', () => {
@@ -136,52 +147,94 @@ describe('Cinema 2.0 Ancient Machine preset', () => {
     created.runtime.dispose()
   })
 
-  it('lets manual stage and rock brightness coexist with live rhythm response', () => {
-    const gl = createCinemaMockWebGL()
-    gl.getUniformLocation = vi.fn((_program, name: string) => ({ name }) as unknown as WebGLUniformLocation)
-    let scheduled: FrameRequestCallback | null = null
-    let audio = humMusicFrame({ frameId: 1, timeSec: 10, energy: 0.8, trackId: 'ancient-machine-test' })
-    const bridge = new Cinema2AudioIntelligenceBridge({
-      getFrame: () => audio,
-      getPublicationMeta: () => ({ sequence: audio.frameId, publishedAtMs: audio.timeSec * 1000, publisherId: 'ancient-machine-test', kind: 'frame' }),
-    })
-    const { runtime, error } = Cinema2Runtime.create(new FakeCanvas(gl) as unknown as HTMLCanvasElement, {
-      presetId: CINEMA2_ANCIENT_MACHINE_PRESET_ID,
-      audioIntelligenceBridge: bridge,
-      transportSource: { getState: () => ({ sourcePresent: true, playing: true, analysisActive: true, paused: false, trackId: audio.trackId, timeSec: audio.timeSec }) },
-      requestAnimationFrame: vi.fn(callback => { scheduled = callback; return 1 }),
-      cancelAnimationFrame: vi.fn(),
-    })
-    if (!runtime) throw new Error(String(error))
-    runtime.resize({ width: 640, height: 360, dpr: 1 })
-    runtime.start()
-    const frame = () => {
-      audio = humMusicFrame({ frameId: audio.frameId + 1, timeSec: audio.timeSec + 0.05, energy: 0.8, trackId: 'ancient-machine-test' })
-      scheduled?.(audio.timeSec * 1000)
+  describe('through the production runtime', () => {
+    function start(options: { build?: number; playing?: boolean } = {}) {
+      const gl = createCinemaMockWebGL()
+      gl.getUniformLocation = vi.fn((_program, name: string) => ({ name }) as unknown as WebGLUniformLocation)
+      let scheduled: FrameRequestCallback | null = null
+      let audio = humMusicFrame({ frameId: 1, timeSec: 10, energy: 0.8, buildProgress: options.build ?? 0, buildConfidence: options.build ? 1 : 0, trackId: 'ancient-machine-test' })
+      const bridge = new Cinema2AudioIntelligenceBridge({
+        getFrame: () => audio,
+        getPublicationMeta: () => ({ sequence: audio.frameId, publishedAtMs: audio.timeSec * 1000, publisherId: 'ancient-machine-test', kind: 'frame' }),
+      })
+      const { runtime, error } = Cinema2Runtime.create(new FakeCanvas(gl) as unknown as HTMLCanvasElement, {
+        presetId: CINEMA2_ANCIENT_MACHINE_PRESET_ID, audioIntelligenceBridge: bridge,
+        transportSource: { getState: () => ({ sourcePresent: true, playing: options.playing ?? true, analysisActive: true, paused: false, trackId: audio.trackId, timeSec: audio.timeSec }) },
+        requestAnimationFrame: vi.fn(callback => { scheduled = callback; return 1 }), cancelAnimationFrame: vi.fn(),
+      })
+      if (!runtime) throw new Error(String(error))
+      runtime.resize({ width: 640, height: 360, dpr: 1 }); runtime.start()
+      const frame = (extra: Partial<Parameters<typeof humMusicFrame>[0]> = {}) => {
+        audio = humMusicFrame({ frameId: audio.frameId + 1, timeSec: audio.timeSec + 0.05, energy: 0.8, buildProgress: options.build ?? 0, buildConfidence: options.build ? 1 : 0, trackId: 'ancient-machine-test', ...extra })
+        scheduled?.(audio.timeSec * 1000)
+      }
+      const uniform = (name: string, method: 'uniform1f' | 'uniform1i' = 'uniform1f') =>
+        vi.mocked(gl[method]).mock.calls.filter(([location]) => (location as { name?: string } | null)?.name === name).at(-1)?.[1]
+      return { runtime, state: runtime.getParameterState(), frame, uniform }
     }
-    const uniform = (name: string, method: 'uniform1f' | 'uniform1i' = 'uniform1f') =>
-      vi.mocked(gl[method]).mock.calls.filter(([location]) => (location as { name?: string } | null)?.name === name).at(-1)?.[1]
-    const state = runtime.getParameterState()
-    state.setPersistentValue(CINEMA2_ANCIENT_MACHINE_AUTO_PERFORMANCE_ID, false)
-    state.setPersistentValue(CINEMA2_ANCIENT_MACHINE_ROCK_LIGHT_ID, 2.4)
-    state.setPersistentValue(CINEMA2_ANCIENT_MACHINE_BUILD_CHARGE_ID, 0.6)
-    frame()
-    expect(uniform('u_rockLightIntensity')).toBeCloseTo(2.4)
-    expect(uniform('u_build')).toBeCloseTo(0.6)
-    expect(uniform('u_look', 'uniform1i')).toBe(2)
-    expect(uniform('u_energy')).toBe(0)
-    state.setPersistentValue(CINEMA2_ANCIENT_MACHINE_RHYTHM_RESPONSE_ID, true)
-    state.setPersistentValue(CINEMA2_ANCIENT_MACHINE_DROP_IMPACT_ID, 0.7)
-    frame()
-    expect(uniform('u_energy')).toBeGreaterThan(0)
-    expect(uniform('u_drop')).toBeCloseTo(0.7)
-    expect(uniform('u_look', 'uniform1i')).toBe(1)
-    state.setPersistentValue(CINEMA2_ANCIENT_MACHINE_AUTO_PERFORMANCE_ID, true)
-    frame()
-    expect(uniform('u_build')).toBe(0)
-    expect(uniform('u_drop')).toBe(0)
-    expect(uniform('u_look', 'uniform1i')).toBe(0)
-    runtime.dispose()
+
+    it('puts each Pattern on the shader as its own state', () => {
+      const { runtime, state, frame, uniform } = start()
+      state.setPersistentValue(CINEMA2_ANCIENT_MACHINE_AUTO_PERFORMANCE_ID, false)
+      const seen = new Set<string>()
+      const expected = { 'oracle-lock': [0, 0, 0], 'gear-sun': [1, 0, 0], 'epoch-engine': [2, 0, 0], 'build-charge': [2, 0.85, 0], 'drop-impact': [1, 0, 0.85], 'counter-orrery': [3, 0, 0] } as const
+      for (const id of CINEMA2_ANCIENT_MACHINE_PATTERN_IDS) {
+        state.setPersistentValue(CINEMA2_ANCIENT_MACHINE_PATTERN_ID, id); frame()
+        const [look, build, drop] = expected[id]
+        expect(uniform('u_look', 'uniform1i'), id).toBe(look)
+        expect(uniform('u_build') as number, id).toBeCloseTo(build)
+        expect(uniform('u_drop') as number, id).toBeCloseTo(drop)
+        seen.add(JSON.stringify([uniform('u_look', 'uniform1i'), uniform('u_build'), uniform('u_drop'), uniform('u_rotationSpeed'), uniform('u_counterRotation'), uniform('u_mechanicalDepth'), uniform('u_glyphDensity')]))
+      }
+      expect(seen.size).toBe(6)
+      runtime.dispose()
+    })
+
+    it('reacts to the music without any switch, scaled by Music Reactivity, alongside the manual rock brightness', () => {
+      const { runtime, state, frame, uniform } = start()
+      state.setPersistentValue(CINEMA2_ANCIENT_MACHINE_AUTO_PERFORMANCE_ID, false)
+      state.setPersistentValue(CINEMA2_ANCIENT_MACHINE_ROCK_LIGHT_ID, 2.4)
+      frame()
+      expect(uniform('u_rockLightIntensity')).toBeCloseTo(2.4)
+      expect(uniform('u_energy') as number).toBeGreaterThan(0)
+      state.setPersistentValue(CINEMA2_ANCIENT_MACHINE_REACTIVITY_ID, 0); frame()
+      expect(uniform('u_energy')).toBe(0)
+      runtime.dispose()
+    })
+
+    it('with Auto Performance on, puts Build Charge on stage during a build and returns to the authored Pattern when it ends', () => {
+      const { runtime, state, frame, uniform } = start()
+      state.setPersistentValue(CINEMA2_ANCIENT_MACHINE_PATTERN_ID, 'gear-sun')
+      state.setPersistentValue(CINEMA2_ANCIENT_MACHINE_AUTO_PERFORMANCE_ID, true)
+      // Auto Performance does not take over a build already under way, so it is on before this one starts.
+      for (let i = 0; i < 20; i += 1) frame({ buildProgress: 0, buildConfidence: 0 })
+      expect(uniform('u_look', 'uniform1i')).toBe(1)
+      for (let i = 0; i < 80; i += 1) frame({ buildProgress: Math.min(0.9, i / 40), buildConfidence: 1 })
+      expect(uniform('u_look', 'uniform1i'), 'a build is on stage').toBe(2)
+      expect(uniform('u_build') as number).toBeGreaterThan(0.8)
+      // The saved Pattern is never rewritten.
+      expect(state.getValue(CINEMA2_ANCIENT_MACHINE_PATTERN_ID)).toBe('gear-sun')
+      for (let i = 0; i < 400; i += 1) frame({ buildProgress: 0, buildConfidence: 0 })
+      expect(uniform('u_look', 'uniform1i'), 'the authored Pattern resumes').toBe(1)
+      runtime.dispose()
+    })
+
+    it('with Auto Performance on, puts Drop Impact on stage on a drop and then returns to the authored Pattern', () => {
+      const { runtime, state, frame, uniform } = start()
+      state.setPersistentValue(CINEMA2_ANCIENT_MACHINE_AUTO_PERFORMANCE_ID, true)
+      for (let i = 0; i < 20; i += 1) frame()
+      expect(uniform('u_look', 'uniform1i')).toBe(0)
+      expect(uniform('u_drop')).toBe(0)
+      const at = 10 + 0.05 * 24
+      for (let i = 0; i < 10; i += 1) frame({ dropMoments: [{ id: 'drop-1', timeSec: at }], dropConfidence: 1 })
+      expect(uniform('u_drop') as number, 'the drop is on stage').toBeGreaterThan(0.8)
+      expect(uniform('u_look', 'uniform1i')).toBe(1)
+      expect(state.getValue(CINEMA2_ANCIENT_MACHINE_PATTERN_ID)).toBe('oracle-lock')
+      for (let i = 0; i < 600; i += 1) frame({ dropMoments: [{ id: 'drop-1', timeSec: at }], dropConfidence: 1 })
+      expect(uniform('u_look', 'uniform1i'), 'the authored Pattern resumes').toBe(0)
+      expect(uniform('u_drop')).toBe(0)
+      runtime.dispose()
+    })
   })
 
   it('builds distinct rock silhouettes with outward-facing facets inside the original brick bounds', () => {

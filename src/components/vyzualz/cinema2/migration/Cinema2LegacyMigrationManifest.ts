@@ -7,7 +7,7 @@ import {
 } from '../presets/Cinema2AfterhoursPreset'
 import {
   CINEMA2_ANCIENT_MACHINE_AUTO_PERFORMANCE_ID,
-  CINEMA2_ANCIENT_MACHINE_LOOK_ID,
+  CINEMA2_ANCIENT_MACHINE_PATTERN_ID,
   CINEMA2_ANCIENT_MACHINE_PRESET_ID,
 } from '../presets/Cinema2AncientMachinePreset'
 import { CINEMA2_CATHEDRAL_PRESET_ID } from '../presets/Cinema2CathedralPreset'
@@ -91,7 +91,8 @@ const ancientMachineLook = (
   look: 'oracleLock' | 'gearSun' | 'epochEngine',
 ): Readonly<Record<string, Cinema2JsonValue>> => Object.freeze({
   [CINEMA2_ANCIENT_MACHINE_AUTO_PERFORMANCE_ID]: false,
-  [CINEMA2_ANCIENT_MACHINE_LOOK_ID]: look,
+  // The legacy look names are the first three Pattern ids.
+  [CINEMA2_ANCIENT_MACHINE_PATTERN_ID]: ({ oracleLock: 'oracle-lock', gearSun: 'gear-sun', epochEngine: 'epoch-engine' } as const)[look],
 })
 
 const constellationLook = (

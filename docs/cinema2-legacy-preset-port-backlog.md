@@ -188,7 +188,7 @@ A massive ceremonial mechanism made from concentric seals, gears, glyph rings, t
 - `phrase` — change rotational relationship, camera side, or glyph program.
 - `section` — long-form Epoch unlock state.
 
-In the Design tab, turn off Auto Performance to edit **Rock Light Intensity** under **Lighting**. The **Choreography** group has **Rhythm Response** for live musical accents, and **Build Charge** and **Drop Impact** for holding those machine states manually. With both stage controls at zero, **Machine Look**, **Pattern Change**, and **Trigger** select the pattern. **Bloom** and **Internal Haze** remain independently adjustable under **Effects**.
+In the Design tab, turn off Auto Performance to edit **Rock Light Intensity** under **Lighting**. **Pattern** offers six patterns: Oracle Lock, Gear Sun, Epoch Engine, Build Charge, Drop Impact, and Counter Orrery. **Pattern Change** and **Trigger** advance through them like Mainframe, and Auto Performance puts Build Charge and Drop Impact on stage for builds and drops. Audio accents are always on and scale with Music Reactivity (revision 2 removed the old Choreography group, so saved settings reset once). **Bloom** and **Internal Haze** remain independently adjustable under **Effects**.
 - `buildProgress` — increasing lock pressure, rotational convergence, and crystal tension.
 - `drop` — bounded mechanical release, crystal expansion, and internal light reveal.
 - `overallEnergy`/`bass` — directional debris vibration and expansion plus energy-crystal pressure.
@@ -211,7 +211,7 @@ In the Design tab, turn off Auto Performance to edit **Rock Light Intensity** un
 ### User controls
 
 - Master Intensity, Auto Performance, BPM Sync, Camera Motion.
-- Machine Look, Ring Count, Gear Density, Glyph Density, Tooth Density.
+- Pattern, Ring Count, Gear Density, Glyph Density, Tooth Density.
 - Rotation Speed, Counter-Rotation, Mechanical Depth, Lock Progress, Crystal Expansion.
 - Progression Mode, Pattern Trigger, Unlock Response, Drop Release.
 - Metal Color, Glyph Color, Internal Light Color, Background Color.
@@ -219,11 +219,11 @@ In the Design tab, turn off Auto Performance to edit **Rock Light Intensity** un
 
 ### Completion checklist
 
-- [x] Oracle Lock, Gear Sun, and Epoch Engine are represented as authored Machine Looks.
+- [x] Oracle Lock, Gear Sun, and Epoch Engine are represented as authored Patterns (alongside Build Charge, Drop Impact, and Counter Orrery).
 - [x] Native instanced rings, teeth, glyphs, pins, plates, and spherical energy-crystal geometry have stable addresses and real depth.
 - [x] Pattern Change and conditional Trigger controls use Mainframe's persistent, deterministic, no-repeat event contract.
 - [x] Pause, seek, track, context-generation, and playback resets return pattern authority safely.
-- [x] Manual Machine Look edits reclaim authority and Auto Performance remains separately user-controlled.
+- [x] Manual Pattern edits reclaim authority and Auto Performance remains separately user-controlled.
 - [x] Native authoring, compiler, production runtime, render-pass, resource, persistence, and focused lint checks pass.
 - [x] Low/medium/high geometry and atmosphere behavior are visually approved.
 - [x] Real-browser aspect-ratio acceptance and preset-switch/context-loss checks pass.

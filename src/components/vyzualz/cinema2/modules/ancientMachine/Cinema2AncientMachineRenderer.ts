@@ -140,7 +140,7 @@ void main() {
     return;
   }
   float direction = mod(ring, 2.0) < 0.5 ? 1.0 : -max(0.05, u_counterRotation);
-  float lookRate = u_look == 1 ? 1.8 : (u_look == 2 ? 0.24 : 0.55);
+  float lookRate = u_look == 1 ? 1.8 : (u_look == 2 ? 0.24 : (u_look == 3 ? 0.95 : 0.55));
   float dynamicRotation = u_time * u_rotationSpeed * lookRate * direction * (0.35 + ring * 0.08);
   dynamicRotation += u_build * direction * ring * 0.018;
   const vec3 crystalCenter = ${GLSL_CRYSTAL_CENTER};
@@ -149,8 +149,10 @@ void main() {
   vec3 reference = abs(radial.y) > 0.92 ? vec3(1.0, 0.0, 0.0) : vec3(0.0, 1.0, 0.0);
   vec3 tangent = normalize(cross(reference, radial));
   vec3 bitangent = cross(radial, tangent);
-  float tilt = ring * 2.39996323;
-  vec3 axis = normalize(vec3(cos(tilt) * 0.52, sin(tilt) * 0.52, 0.85));
+  // Look 3 (Counter Orrery) nests the rings as gimbals: each tilts a fixed step from the last. The others scatter them by the golden angle.
+  float tilt = u_look == 3 ? ring * 0.62 : ring * 2.39996323;
+  float tumble = u_look == 3 ? 1.15 : 0.52;
+  vec3 axis = normalize(vec3(cos(tilt) * tumble, sin(tilt) * tumble, 0.85));
   float c = cos(dynamicRotation);
   float s = sin(dynamicRotation);
   float debris = step(3.5, kind);
@@ -296,6 +298,7 @@ float glyphEmission() {
   if (u_look == 0) cadence *= 0.64 + 0.36 * step(mod(v_ring, 4.0), 0.5);
   if (u_look == 1) cadence *= 1.24;
   if (u_look == 2) cadence *= 0.5 + u_build * 0.65;
+  if (u_look == 3) cadence *= 0.55 + 0.45 * step(mod(v_ring, 2.0), 0.5);
   return (0.12 + cadence * 2.5 + u_snare * 0.42 + u_drop * 1.25) * u_intensity;
 }
 
