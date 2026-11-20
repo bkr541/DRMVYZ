@@ -1,6 +1,7 @@
 import { cinema2BeamLatticeModuleDefinition } from './Cinema2BeamLatticeNativeModule'
 import { cinema2MoireOrbModuleDefinition } from './Cinema2MoireOrbNativeModule'
 import { cinema2BassSigilModuleDefinition } from './Cinema2BassSigilNativeModule'
+import { cinema2ChamberModuleDefinition } from './Cinema2ChamberNativeModule'
 import { cinema2OpenDecksClubModuleDefinition } from './Cinema2OpenDecksClubModule'
 import { cinema2NeonForestNativeModuleDefinition } from './Cinema2NeonForestNativeModule'
 import { cinema2OrbitalNativeModuleDefinition } from './Cinema2OrbitalNativeModule'
@@ -171,6 +172,8 @@ const moireOrbRegistration = cinema2NativeModuleRegistry.register(cinema2MoireOr
 if (!moireOrbRegistration.ok) throw new Error('Cinema 2.0 Moire Orb module registration failed.')
 const bassSigilRegistration = cinema2NativeModuleRegistry.register(cinema2BassSigilModuleDefinition)
 if (!bassSigilRegistration.ok) throw new Error('Cinema 2.0 Bass Sigil module registration failed.')
+const chamberRegistration = cinema2NativeModuleRegistry.register(cinema2ChamberModuleDefinition)
+if (!chamberRegistration.ok) throw new Error('Cinema 2.0 Chamber module registration failed.')
 const openDecksClubRegistration = cinema2NativeModuleRegistry.register(cinema2OpenDecksClubModuleDefinition)
 if (!openDecksClubRegistration.ok) throw new Error('Cinema 2.0 Open Decks club module registration failed.')
 const threeSceneRegistration = cinema2NativeModuleRegistry.register(cinema2ThreeSceneModuleDefinition)

@@ -40,22 +40,17 @@ describe('Auto Performance across the Cinema 2.0 catalog', () => {
     ))
   })
 
-  it('registers CHAMBER as a visible scene preview with four empty Design groups', () => {
-    const declaration = staticReferences.find(({ manifest }) => manifest.id === CINEMA2_CHAMBER_PRESET_ID)
+  it('registers CHAMBER as a performance preset with Auto Performance, not a static reference', () => {
+    expect(staticReferences.find(({ manifest }) => manifest.id === CINEMA2_CHAMBER_PRESET_ID)).toBeUndefined()
+    const declaration = performancePresets.find(({ manifest }) => manifest.id === CINEMA2_CHAMBER_PRESET_ID)
     expect(declaration?.manifest.metadata).toMatchObject({ name: 'CHAMBER' })
     const compiled = cinema2NativePresetRegistry.compile(CINEMA2_CHAMBER_PRESET_ID, { availableCapabilities: CAPABILITIES })
     if (!compiled.ok) throw new Error(JSON.stringify(compiled.diagnostics))
-    const { manifest } = compiled.plan
-    expect(manifest.parameters ?? []).toEqual([])
-    expect(manifest.effects ?? []).toEqual([])
-    expect(manifest.choreography).toBeUndefined()
+    const autoPerformance = (compiled.plan.manifest.parameters ?? []).filter(parameter => parameter.label === 'Auto Performance')
+    expect(autoPerformance).toHaveLength(1)
+    expect(autoPerformance[0]).toMatchObject({ type: 'boolean', designParentGroup: 'master-controls', defaultValue: false })
     const state = new Cinema2ParameterState(compiled.plan.parameters)
-    expect(createCinema2DesignParentGroupModel(compiled.plan, state.getSnapshot())).toEqual([
-      { id: 'master-controls', label: 'Master Controls', controls: [], groups: [] },
-      { id: 'design', label: 'Design', controls: [], groups: [] },
-      { id: 'effects', label: 'Effects', controls: [], groups: [] },
-      { id: 'palette', label: 'Palette', controls: [], groups: [] },
-    ])
+    expect(createCinema2DesignParentGroupModel(compiled.plan, state.getSnapshot()).map(group => group.id)).toEqual(['master-controls', 'design', 'effects', 'palette'])
   })
 
   describe.each(ADDED)('%s', slug => {
