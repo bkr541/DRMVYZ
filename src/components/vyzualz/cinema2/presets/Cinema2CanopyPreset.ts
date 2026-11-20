@@ -87,7 +87,6 @@ const BACKGROUND = color(0.012, 0.016, 0.025), PRIMARY = color(0.3, 0.91, 1), SE
 const base = Object.freeze({ section: 'Design', exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const, modulatable: false, choreographable: false, automatable: false })
 type Parent = 'master-controls' | 'design' | 'effects'
 const float = (id: Cinema2ParameterId, label: string, description: string, defaultValue: number, min: number, max: number, step: number, parent: Parent, group: string, order: number) => Object.freeze({ ...base, id, label, description, type: 'float' as const, defaultValue, min, max, step, designParentGroup: parent, group, order })
-const integer = (id: Cinema2ParameterId, label: string, description: string, defaultValue: number, min: number, max: number, parent: Parent, group: string, order: number) => Object.freeze({ ...base, id, label, description, type: 'integer' as const, defaultValue, min, max, step: 1, designParentGroup: parent, group, order })
 const toggle = (id: Cinema2ParameterId, label: string, description: string, defaultValue: boolean, parent: Parent, group: string, order: number) => Object.freeze({ ...base, id, label, description, type: 'boolean' as const, defaultValue, designParentGroup: parent, group, order })
 const palette = (id: Cinema2ParameterId, label: string, description: string, value: Cinema2Color, order: number) => Object.freeze({ ...base, id, label, description, type: 'color' as const, defaultValue: value, designParentGroup: 'palette' as const, group: 'Roles', order })
 
@@ -107,10 +106,10 @@ const viewportTarget = (id: Cinema2RenderTargetId, depth = false) => Object.free
 })
 
 const CINEMA2_CANOPY_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
-  schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID, schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION, id: CINEMA2_CANOPY_PRESET_ID, revision: 1,
+  schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID, schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION, id: CINEMA2_CANOPY_PRESET_ID, revision: 2,
   metadata: Object.freeze({
     name: 'CANOPY',
-    description: 'A suspended field of luminous LED rods under an overhead grid. Six formations move the rods themselves, and the music lifts, lowers and lights them.',
+    description: 'Crown Observatory surrounds the original moving canopy with two elevated rings of suspended LEDs.',
     tags: Object.freeze(['keeper', '3d', 'installation', 'led', 'rods']),
   }),
   capabilities: Object.freeze([
@@ -154,10 +153,11 @@ const CINEMA2_CANOPY_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetManif
       visibleWhen: Object.freeze([Object.freeze({ kind: 'parameter-equals' as const, parameterId: P.patternChange, value: true })]),
       designParentGroup: 'design' as const, group: 'Pattern', order: 3,
     }),
-    integer(P.rows, 'Rows', 'How many rows of rods hang front to back. More rows deepen the canopy.', CANOPY_DEFAULT_STRUCTURE.rows, L.rows.min, L.rows.max, 'design', 'Structure', 4),
-    integer(P.columns, 'Columns', 'How many rods hang across each row. More columns widen the canopy.', CANOPY_DEFAULT_STRUCTURE.columns, L.columns.min, L.columns.max, 'design', 'Structure', 5),
-    float(P.rowSpacing, 'Row Spacing', 'The distance between rows, front to back.', CANOPY_DEFAULT_STRUCTURE.rowSpacing, L.rowSpacing.min, L.rowSpacing.max, 0.01, 'design', 'Structure', 6),
-    float(P.columnSpacing, 'Column Spacing', 'The distance between rods across a row.', CANOPY_DEFAULT_STRUCTURE.columnSpacing, L.columnSpacing.min, L.columnSpacing.max, 0.01, 'design', 'Structure', 7),
+    // Keep old serialized values valid without exposing them or binding them to the fixed grid.
+    ...([['rows', 'Rows'], ['columns', 'Columns'], ['rowSpacing', 'Row Spacing'], ['columnSpacing', 'Column Spacing']] as const).map(([key, label]) => Object.freeze({
+      ...base, id: P[key], label, exposure: 'hidden' as const, defaultValue: CANOPY_DEFAULT_STRUCTURE[key], ...L[key],
+      type: key === 'rows' || key === 'columns' ? 'integer' as const : 'float' as const,
+    })),
     float(P.rodLength, 'Rod Length', 'The physical length of each luminous rod.', CANOPY_DEFAULT_STRUCTURE.rodLength, L.rodLength.min, L.rodLength.max, 0.01, 'design', 'Structure', 8),
     float(P.lengthVariation, 'Length Variation', 'How much each rod\'s length differs from its neighbours, the same way every time.', CANOPY_DEFAULT_STRUCTURE.lengthVariation, L.lengthVariation.min, L.lengthVariation.max, 0.01, 'design', 'Structure', 9),
     float(P.motionAmount, 'Motion Amount', 'How far the formation moves. At 0 the rods stand in the formation\'s resting shape and nothing moves, whatever the music does.', 0.55, 0, 1, 0.01, 'design', 'Motion', 10),
@@ -184,7 +184,6 @@ const CINEMA2_CANOPY_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetManif
     id: CINEMA2_CANOPY_MODULE_ID, typeId: CINEMA2_CANOPY_NATIVE_MODULE_TYPE_ID, version: 1, enabled: true,
     parameters: Object.freeze({
       masterIntensity: 0.78, bpmSync: true, autoPerformance: false, pattern: CANOPY_DEFAULT_PATTERN, patternChange: false, trigger: 'bar4',
-      rows: CANOPY_DEFAULT_STRUCTURE.rows, columns: CANOPY_DEFAULT_STRUCTURE.columns, rowSpacing: CANOPY_DEFAULT_STRUCTURE.rowSpacing, columnSpacing: CANOPY_DEFAULT_STRUCTURE.columnSpacing,
       rodLength: CANOPY_DEFAULT_STRUCTURE.rodLength, lengthVariation: CANOPY_DEFAULT_STRUCTURE.lengthVariation,
       motionAmount: 0.55, motionSpeed: 1, heightRange: 0.6, symmetry: true, idleGlow: 0.28, accentStrength: 0.55,
       primaryColor: PRIMARY, secondaryColor: SECONDARY, accentColor: ACCENT, structureColor: STRUCTURE,
@@ -192,7 +191,6 @@ const CINEMA2_CANOPY_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetManif
     parameterBindings: Object.freeze({
       masterIntensity: cinema2Ref(P.masterIntensity), bpmSync: cinema2Ref(P.bpmSync), autoPerformance: cinema2Ref(P.autoPerformance),
       pattern: cinema2Ref(P.pattern), patternChange: cinema2Ref(P.patternChange), trigger: cinema2Ref(P.trigger),
-      rows: cinema2Ref(P.rows), columns: cinema2Ref(P.columns), rowSpacing: cinema2Ref(P.rowSpacing), columnSpacing: cinema2Ref(P.columnSpacing),
       rodLength: cinema2Ref(P.rodLength), lengthVariation: cinema2Ref(P.lengthVariation),
       motionAmount: cinema2Ref(P.motionAmount), motionSpeed: cinema2Ref(P.motionSpeed), heightRange: cinema2Ref(P.heightRange), symmetry: cinema2Ref(P.symmetry),
       idleGlow: cinema2Ref(P.idleGlow), accentStrength: cinema2Ref(P.accentStrength),
@@ -242,15 +240,15 @@ const CINEMA2_CANOPY_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetManif
   layers: Object.freeze([Object.freeze({ id: LAYER, label: 'CANOPY Array', source: cinema2Ref(ROOT), role: 'world', depthPolicy: 'read-write' as const, order: 0 })]),
   cameras: Object.freeze([Object.freeze({
     id: CINEMA2_CANOPY_CAMERA_ID,
-    label: 'CANOPY Underside',
+    label: 'Crown Observatory',
     projection: 'perspective' as const,
-    fovDegrees: 46,
+    fovDegrees: 54,
     // Composed at 16:9; on a narrower Stage the vertical view widens instead of the sides of the canopy being cropped.
     minAspect: 16 / 9,
     near: 0.1,
     far: 100,
-    transform: Object.freeze({ position: vec3(3.1, 1.4, 9) }),
-    target: vec3(0, 3.8, 0),
+    transform: Object.freeze({ position: vec3(1.14, 0.66, 3.96) }),
+    target: vec3(-0.94, 3.47, -3.18),
     rig: Object.freeze({ kind: 'static' as const }),
     // Camera Motion scales a slow drift and bank (0 = locked off). It is the only camera movement CANOPY has.
     motion: cinema2CinematicMotion('gentle', {
@@ -261,7 +259,7 @@ const CINEMA2_CANOPY_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetManif
       maxPositionOffset: vec3(0.8, 0.4, 0.8),
       maxTargetOffset: vec3(0.3, 0.2, 0.3),
       minFovDegrees: 42,
-      maxFovDegrees: 52,
+      maxFovDegrees: 58,
     }),
   })]),
   environment: Object.freeze({
@@ -312,8 +310,7 @@ const moduleTarget = (property: string) => cinema2AutoTargets.module(CINEMA2_CAN
  * CANOPY with the shared Mood Conductor and Auto Performance. With Auto Performance on, the passage's mood moves the array around its authored
  * values and the music chooses Pattern Change and the Trigger. Master Intensity, Motion Amount and Motion Speed follow how active the passage is
  * (and settle in a calm one); the rods travel further on a peak and a drop; Idle Glow, Accent Strength and Bloom follow the passage and flare on
- * a drop. The structure (rows, columns, spacing, length) and Camera Motion stay the user's: the layout is rebuilt when they change, and Camera
- * Motion is bound to the camera, not to a target the music can move.
+ * a drop. The grid is fixed. Rod length and variation remain under manual control, and Camera Motion stays bound to the camera.
  */
 export const CINEMA2_CANOPY_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = withCinema2MoodDrives(CINEMA2_CANOPY_AUTHORED_PRESET_MANIFEST, {
   idPrefix: 'canopy-auto',

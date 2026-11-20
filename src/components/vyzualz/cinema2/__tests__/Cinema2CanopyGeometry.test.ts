@@ -44,11 +44,11 @@ const hangs = (pattern: CanopyPatternId, phase: number, design: Partial<CanopyDe
 const maxDifference = (a: readonly number[], b: readonly number[]) => Math.max(...a.map((value, index) => Math.abs(value - b[index]!)))
 
 describe('CANOPY layout', () => {
-  it('builds the default 8 x 8 array of 64 rods with stable row-major addresses', () => {
+  it('builds the default 12 x 12 array of 144 rods with stable row-major addresses', () => {
     const layout = layoutOf()
-    expect(layout.fixtures).toHaveLength(64)
-    expect(layout.fixtures.map(fixture => fixture.index)).toEqual(Array.from({ length: 64 }, (_, index) => index))
-    layout.fixtures.forEach(fixture => expect(fixture.index).toBe(fixture.row * 8 + fixture.column))
+    expect(layout.fixtures).toHaveLength(144)
+    expect(layout.fixtures.map(fixture => fixture.index)).toEqual(Array.from({ length: 144 }, (_, index) => index))
+    layout.fixtures.forEach(fixture => expect(fixture.index).toBe(fixture.row * 12 + fixture.column))
     expect(layout.scale).toBe(1)
   })
 
@@ -64,8 +64,8 @@ describe('CANOPY layout', () => {
     const zs = layout.fixtures.map(fixture => fixture.z)
     expect(Math.min(...xs)).toBeCloseTo(-Math.max(...xs), 6)
     expect(Math.min(...zs)).toBeCloseTo(-Math.max(...zs), 6)
-    expect(Math.max(...xs) - Math.min(...xs)).toBeCloseTo(7 * 1.08, 6)
-    expect(Math.max(...zs) - Math.min(...zs)).toBeCloseTo(7 * 1, 6)
+    expect(Math.max(...xs) - Math.min(...xs)).toBeCloseTo(11 * 1.4, 6)
+    expect(Math.max(...zs) - Math.min(...zs)).toBeCloseTo(11 * 1.4, 6)
   })
 
   it('changes the actual rod count with Rows and Columns, from 4 to 12 on each axis, and never past the cap', () => {
@@ -75,14 +75,14 @@ describe('CANOPY layout', () => {
     expect(layoutOf({ rows: 12, columns: 12 }).fixtures).toHaveLength(144)
     expect(layoutOf({ rows: 99, columns: 99 }).fixtures.length).toBeLessThanOrEqual(CANOPY_MAX_RODS)
     expect(clampCanopyStructure({ rows: 2, columns: 2 })).toMatchObject({ rows: 4, columns: 4 })
-    expect(clampCanopyStructure({ rows: Number.NaN })).toMatchObject({ rows: 8 })
+    expect(clampCanopyStructure({ rows: Number.NaN })).toMatchObject({ rows: 12 })
   })
 
   it('makes Row and Column Spacing real distances and Rod Length a real length', () => {
     const wide = layoutOf({ columnSpacing: 1.4 })
     const narrow = layoutOf({ columnSpacing: 0.75 })
-    expect(wide.fixtures[7]!.x - wide.fixtures[0]!.x).toBeCloseTo(7 * 1.4, 6)
-    expect(narrow.fixtures[7]!.x - narrow.fixtures[0]!.x).toBeCloseTo(7 * 0.75, 6)
+    expect(wide.fixtures[11]!.x - wide.fixtures[0]!.x).toBeCloseTo(11 * 1.4, 6)
+    expect(narrow.fixtures[11]!.x - narrow.fixtures[0]!.x).toBeCloseTo(11 * 0.75, 6)
     const short = layoutOf({ rodLength: 0.6, lengthVariation: 0 })
     const long = layoutOf({ rodLength: 2.1, lengthVariation: 0 })
     expect(short.fixtures.every(fixture => fixture.length === 0.6)).toBe(true)
@@ -99,16 +99,15 @@ describe('CANOPY layout', () => {
 
   it('splits the rods into two colour banks by alternating column', () => {
     const layout = layoutOf()
-    expect(layout.fixtures.filter(fixture => fixture.bank === 0)).toHaveLength(32)
+    expect(layout.fixtures.filter(fixture => fixture.bank === 0)).toHaveLength(72)
     expect(layout.fixtures.every(fixture => fixture.bank === fixture.column % 2)).toBe(true)
   })
 
-  it('scales an oversized array to stay in frame and leaves the default untouched', () => {
+  it('fits the full-sized default grid without shrinking its world spacing', () => {
     expect(resolveCanopyFitScale(clampCanopyStructure({}))).toBe(1)
     const big = clampCanopyStructure({ rows: 12, columns: 12, rowSpacing: 1.4, columnSpacing: 1.4 })
     const scale = resolveCanopyFitScale(big)
-    expect(scale).toBeLessThan(1)
-    expect(scale).toBeGreaterThan(0.3)
+    expect(scale).toBe(1)
     const bounds = resolveCanopyBounds(buildCanopyLayout(big))
     expect(bounds.max[0]).toBeLessThanOrEqual(CANOPY_FRAME_HALF_WIDTH + 1e-6)
     expect(bounds.max[2]).toBeLessThanOrEqual(CANOPY_FRAME_HALF_DEPTH + 1e-6)
@@ -119,15 +118,15 @@ describe('CANOPY instance packing', () => {
   it('writes rails, stems and caps as one box batch and every diffuser into the fixed diffuser region', () => {
     const layout = layoutOf()
     const counts = canopyInstanceCounts(layout)
-    expect(counts).toEqual({ boxes: 16 + 128, diffusers: 64, total: 16 + 128 + 64 })
-    const state = createCanopyRodState(64)
+    expect(counts).toEqual({ boxes: 24 + 288, diffusers: 144, total: 24 + 288 + 144 })
+    const state = createCanopyRodState(144)
     const out = new Float32Array(CANOPY_MAX_INSTANCES * CANOPY_INSTANCE_FLOATS)
     packCanopyInstances(layout, state, out)
     const kind = (instance: number) => out[instance * CANOPY_INSTANCE_FLOATS + 3]
-    for (let i = 0; i < 16; i += 1) expect(kind(i)).toBe(CANOPY_KIND.rail)
-    for (let i = 16; i < 80; i += 1) expect(kind(i)).toBe(CANOPY_KIND.stem)
-    for (let i = 80; i < 144; i += 1) expect(kind(i)).toBe(CANOPY_KIND.cap)
-    for (let i = 0; i < 64; i += 1) expect(kind(CANOPY_MAX_BOX_INSTANCES + i)).toBe(CANOPY_KIND.diffuser)
+    for (let i = 0; i < 24; i += 1) expect(kind(i)).toBe(CANOPY_KIND.rail)
+    for (let i = 24; i < 168; i += 1) expect(kind(i)).toBe(CANOPY_KIND.stem)
+    for (let i = 168; i < 312; i += 1) expect(kind(i)).toBe(CANOPY_KIND.cap)
+    for (let i = 0; i < 144; i += 1) expect(kind(CANOPY_MAX_BOX_INSTANCES + i)).toBe(CANOPY_KIND.diffuser)
     expect(Array.from(out).every(Number.isFinite)).toBe(true)
   })
 
@@ -158,7 +157,7 @@ describe('CANOPY instance packing', () => {
 })
 
 describe('CANOPY patterns', () => {
-  const context = { rows: 8, columns: 8, symmetry: true, skew: 0 }
+  const context = { rows: 12, columns: 12, symmetry: true, skew: 0 }
   const fixtures = layoutOf().fixtures
   const restOf = (pattern: CanopyPatternId) => fixtures.map(fixture => evaluateCanopyPattern(pattern, fixture, { ...context, phase: 0 }).rest)
 
@@ -191,8 +190,8 @@ describe('CANOPY patterns', () => {
 
   it('hangs Waterfall high at the front and low at the back', () => {
     const rest = restOf('waterfall')
-    const row = (r: number) => rest.slice(r * 8, r * 8 + 8).reduce((s, v) => s + v, 0) / 8
-    expect(row(7)).toBeLessThan(row(0) - 0.4)
+    const row = (r: number) => rest.slice(r * 12, r * 12 + 12).reduce((s, v) => s + v, 0) / 12
+    expect(row(11)).toBeLessThan(row(0) - 0.4)
   })
 
   it('hangs Crown low at the centre and lifts the rim', () => {

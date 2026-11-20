@@ -1,19 +1,30 @@
 # Cinema 2.0 crate previews
 
-Five original static previews, Beam Lattice’s original animated GLB, the Bass Sigil native performance and Moire Orb’s Resonance Reactor expose the owner’s `3D Cinema 2.0 Crate` files for inspection and development. All source GLBs remain byte-for-byte copies in `public/cinema2/models/crate/`. The five original static previews retain fixed framing, authored hierarchy/materials and no added motion or controls. Beam Lattice keeps the reference-video presentation as its default and adds seven native geometry programs with shared musical choreography and Mood-driven Auto Performance. Bass Sigil and Moire Orb animate private instances of their original artifacts; their implementation and review status are described below.
+The Cinema 2.0 crate presets use the owner’s `3D Cinema 2.0 Crate` files. The source GLBs live in `public/cinema2/models/crate/`. Glitch Array, Glyph Sphere, Nested Pulse, and Wireframe Portal build static 3D environments from those artifacts. Paradox Weave’s Parallax Cipher uses an authored camera move. Beam Lattice, Bass Sigil and Moire Orb have their own performances described below.
 
 | Preset | Source GLB | Appearance |
 | --- | --- | --- |
 | Moire Orb | `geometry_texture_effect_spheres.glb` | Original translucent core in Resonance Reactor, with 48 ring segments and 12 moving fixtures |
 | Beam Lattice | `lasers_-_vj.glb` | Reference yellow laser field, seven native bank programs, shared choreography and Auto/Mood |
-| Wireframe Portal | `lightweight.glb` | Thin chamfered cube frame |
-| Glyph Sphere | `oyes.glb` | White segmented marks wrapped around a sphere |
-| Paradox Weave | `paradox_abstract_art_of_python.glb` | Interwoven angular planes and a red inner detail |
-| Nested Pulse | `pulse_cubed.glb` | Nested translucent square frames |
+| Wireframe Portal | `lightweight.glb` | Corner Truss, with connected bays of chamfered cube frames |
+| Glyph Sphere | `oyes.glb` | Glyph Armillary, with a white glyph core and three tilted glyph bands |
+| Paradox Weave | `paradox_abstract_art_of_python.glb` | Parallax Cipher, with staggered angular plates and 3D lettering that aligns from a single viewpoint |
+| Nested Pulse | `pulse_cubed.glb` | Frame Cascade, with nested translucent frame assemblies at staggered heights and depths |
 | Bass Sigil | `skrillex_-_vj_-_flash_warning.glb` | Original wordmark, red core, cellular sphere and particle meshes with eight native programs, musical choreography and shared Auto Performance |
-| Glitch Array | `stroboscopic_glitch_-_photosensitivity_warning.glb` | A floor array of dark beveled cubes |
+| Glitch Array | `stroboscopic_glitch_-_photosensitivity_warning.glb` | Suspended Matrix, with tilted, staggered grids of beveled cubes |
 
-The stable preset IDs are `drmvyz.cinema2.crate-<slug>`; definitions and framing live in `Cinema2CratePresets.ts`. The stock Three scene module now accepts `preserveMaterials: true` for shipped instances, using the same material-preservation path as its existing neutral model floor. Spin is explicitly off. The five original static previews have no model normalization or mesh edits. Bass Sigil’s controller normalizes presentation and animates private source-mesh instances, leaving its source GLB intact.
+The stable preset IDs are `drmvyz.cinema2.crate-<slug>`. The crate manifests use the shared Three scene module for asset loading, material ownership, and rendering. The four environments assemble private scene objects over the shared GLB geometry and textures, with preset-specific fixed framing and a static bloom and color pass. Spin is off for all four.
+
+### Static lighting families
+
+Each family has named scene groups and its own fixture materials. Repeated fixtures share instanced draws by group and material. The scene inspection reports the available families. Design controls, animation playback, choreography, and Audio Intelligence remain outside this visual pass.
+
+| Environment | Lighting families |
+| --- | --- |
+| Suspended Matrix | Central, overhead, foreground, and rear cell lights, plus bank rails and amber checkpoints |
+| Glyph Armillary | White glyph core, three independently tinted glyph bands, index ticks, and joint lights |
+| Frame Cascade | Outer edge lights, corner lights, and inner rungs |
+| Corner Truss | Frame rails, edge runs, cross-braces, chamfered joints, bay links, and wayfinding pins |
 
 The Paradox file requires the older `KHR_materials_pbrSpecularGlossiness` extension. A small GLTFLoader plugin maps its diffuse/specular/gloss factors to physical material properties during decoding, avoiding the loader's white fallback. This supports factor-based legacy materials; specular/glossiness textures remain rejected by both the asset validator and loader. Source bytes remain untouched.
 
@@ -21,11 +32,29 @@ Every source embeds CC BY 4.0 author, title and source metadata. Credits are ret
 
 Initial crate validation: the three new crate tests verify native compilation/registration, the absence of controls and choreography, byte-for-byte file hashes, and legacy diffuse/gloss decoding. The eighteen shared Three scene tests, asset pipeline tests, TypeScript, focused ESLint and asset inventory check passed. All eight thumbnails were generated through the production runtime and visually reviewed in ignored `artifacts/cinema2-crate/production.png`. Thumbnails live in `public/preset-artwork/`.
 
-The fixed view is an inspection baseline, not a recreation of Sketchfab's viewer settings: these GLBs contain no cameras, and external viewer lighting/post-processing is not embedded in them. Later camera controls, animation, audio mapping and stage enhancements are intentionally left for a separate phase.
+The source GLBs contain no cameras or external viewer lighting. The four static environments use authored fixed cameras to show their expanded geometry.
+
+## Paradox Weave — Parallax Cipher
+
+Edit **Cipher Text** under **Design → Typography**. It starts at `PARADOX` and uses SAY IT’s beveled glyph assets, layout, and 12-character Basic Latin limit. Every character occupies its own world-space depth. Mesh scale and placement are calculated along rays from the reveal camera so the lettering projects into a readable line during the camera holds.
+
+The local development preview can use Chopsic by Chequered Ink for the beveled lettering. Generate the local mesh and metrics from the supplied TTF with `node scripts/cinema2-assets/generate-say-it-glyphs.mjs artifacts/parallax-cipher/chopsic.glb artifacts/parallax-cipher/chopsic-metrics.json /path/to/Chopsic-K6Dp.ttf`. The optional assets stay in the ignored workspace for personal, noncommercial preview. The shipped fallback is Anton. [Chopsic by Chequered Ink](https://chequered.ink/product/chopsic/)
+
+The original weave and red accent sit behind the lettering. Staggered banks of the source plates fill both sides of the scene. The 24-second camera path holds the reveal, moves to oblique viewpoints, and returns to the reveal. Plate banks countertwist and the glyphs turn as the view moves. Plate and letter motion follows the shared beat clock (see Controls below). The cyan and magenta near and far contours, letter bevels, registration dots, and red marker are named lighting families.
+
+**Controls (revision 3).** Under **Master Controls**: **BPM Sync** (locks the plate and letter motion to the track tempo, or a fixed 120 BPM when off), **Intensity**, **Audio Reactivity** and **Auto Performance** (off by default). Under **Design → Pattern**: **Pattern**, **Pattern Change** and **Trigger** with six patterns (Reading Line, Open Gate, Collapse, Counter Spiral, Cascade, Shatter), using the shared Mainframe pattern controller and trigger list; a manual pick takes effect at once and a Trigger-driven change eases in over two beats. Under **Design → Geometry**: **Plate Spread**, **Bank Twist**, **Weave Scale** and **Letter Depth**. Under **Design → Lighting**: **Near Contours**, **Far Contours**, **Letter Bevels**, **Registration Dots** and **Red Marker**. **Bloom** is under **Effects**, and five palette colors (**Left Bank**, **Right Bank**, **Letters**, **Weave**, **Red Marker**) are under **Palette**. Every material's authored color is scaled by chosen / authored, so the defaults reproduce the original look. The word stays readable at the camera's reveal hold in every pattern; Shatter throws the letters off the line for a fraction of each beat and they settle back.
+
+**Audio and choreography.** Every route targets one of the preset's own controls (so the Inspector shows each moving and Auto Performance locks it) and scales with **Audio Reactivity**; at 0 the music moves nothing. Continuous: bass widens the walls and swells the weave, the mids turn the banks, the highs light the near and far rim lines, overall energy lifts Intensity, and vocal presence lights the letter bevels. Events: a kick swells the weave and flashes the red marker, a snare flashes the registration dots and the bevels, a drop lifts Bloom, Plate Spread and Intensity. With **Auto Performance** on, the shared Mood Conductor also moves the controls (calm relaxes the twist and dims the near lines, a build pulls the weave in and lights the far banks, a peak lights everything, a shock flares the bevels, silence fades every light) and the shared coverage step drives any remaining numeric control.
+
+**Pattern authority.** Manual Pattern selection sets the base Pattern; the effective Trigger (the saved one, or the music's while Auto Performance is on) may advance it while Pattern Change is on; Auto Performance may substitute **Collapse** for a build and **Shatter** for a drop (and, with Pattern Change off, a pattern chosen by the passage's feel on musical boundaries); the base resumes afterwards. The saved Pattern, Pattern Change and Trigger are never written by automation, a manual Pattern edit is never undone by an event already present, and turning Auto Performance off restores the saved values at once.
+
+**Camera (revision 3).** **Camera Mode** under **Design → Camera** has three modes: **Reveal Hold** (the single sightline where the word reads, at every moment), **Immersive Path** (the default: the authored 24-second swing out and back) and **Manual View** (an orbit around the weave starting from the same view, with **Camera Heading** ±45°, **Camera Elevation** −15° to 30° and **Camera Distance** 10 to 18, shown only in this mode). **View Motion Speed** (Immersive Path only) scales the travel, and zero holds the view. With **BPM Sync** on the path runs at the track tempo divided by 120 times its authored speed (rate clamped to 0.5 to 1.75; the loop is 12 bars at 120 BPM), and at its authored speed with it off. **Zoom on Kick** (Master Controls, on by default) punches the lens in about 1.8° on every kick; only the field of view changes, so the letters stay aligned. No sway, bob or roll is added to the camera, because they would pull the letters off their sightline. A safety box keeps every view, Manual View included, outside the nearest plate banks. The letters' recoil and the banks' follow-through are driven by the camera that is actually drawing, in every mode and at every speed, so Manual View and Reveal Hold behave consistently.
+
+The thumbnail is regenerated through the production runtime (`scripts/generate-preset-artwork.mjs`) and shows the reveal hold.
 
 ## Bass Sigil original-environment checkpoint
 
-Bass Sigil retains its existing identity and now uses `Cinema2BassSigilPreset.ts` with a dedicated native controller acting on the **original** `cinema2-crate-bass-sigil` asset. All original meshes/textures remain supplied; no replacement environment or derived asset is shipped. The withdrawn P1 substitution is documented only as history. P2 adds manual controls, six palette roles, shared-tempo motion, canonical Pattern controls and eight native programs, P3 subsequently adds basic bounded Audio Intelligence response routes; P4–P7 add scored geometry, shared Director/Mood policy, bounded build/drop programs and depth-aware finishing. The final captures have user visual-direction approval; representative musicality review remains outstanding. See the [performance and acceptance report](BASS_SIGIL/P4-P8-performance-and-acceptance.md). See the [P2 report](BASS_SIGIL/P2-original-environment-and-native-motion.md). Other crate references remain static.
+Bass Sigil retains its existing identity and now uses `Cinema2BassSigilPreset.ts` with a dedicated native controller acting on the **original** `cinema2-crate-bass-sigil` asset. All original meshes/textures remain supplied; no replacement environment or derived asset is shipped. The withdrawn P1 substitution is documented only as history. P2 adds manual controls, six palette roles, shared-tempo motion, canonical Pattern controls and eight native programs, P3 subsequently adds basic bounded Audio Intelligence response routes; P4–P7 add scored geometry, shared Director/Mood policy, bounded build/drop programs and depth-aware finishing. The final captures have user visual-direction approval; representative musicality review remains outstanding. See the [performance and acceptance report](BASS_SIGIL/P4-P8-performance-and-acceptance.md). See the [P2 report](BASS_SIGIL/P2-original-environment-and-native-motion.md).
 
 Bass Sigil’s current basic audio mapping, playback checks and shared target-limit correction are documented in the [P3 report](BASS_SIGIL/P3-audio-reactivity-report.md).
 

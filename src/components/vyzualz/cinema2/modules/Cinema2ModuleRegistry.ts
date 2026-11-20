@@ -21,6 +21,7 @@ import { cinema2AfterhoursNativeModuleDefinition } from './Cinema2AfterhoursNati
 import { cinema2HumNNativeModuleDefinition } from './Cinema2HumNNativeModule'
 import { cinema2ThresholdNativeModuleDefinition } from './Cinema2ThresholdNativeModule'
 import { cinema2ThreeSceneModuleDefinition } from './Cinema2ThreeSceneModule'
+import { cinema2CratePresentationModules } from './Cinema2CratePresentationModule'
 import { cinema2SayItNativeModuleDefinition } from './Cinema2SayItNativeModule'
 import { cinema2DepthNativeModuleDefinition } from './Cinema2DepthNativeModule'
 import { cinema2BlockshiftNativeModuleDefinition } from './Cinema2BlockshiftNativeModule'
@@ -175,6 +176,10 @@ if (!openDecksClubRegistration.ok) throw new Error('Cinema 2.0 Open Decks club m
 const threeSceneRegistration = cinema2NativeModuleRegistry.register(cinema2ThreeSceneModuleDefinition)
 if (!threeSceneRegistration.ok) {
   throw new Error(`Cinema 2.0 Three scene module registration failed: ${threeSceneRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
+}
+for (const definition of cinema2CratePresentationModules) {
+  const result = cinema2NativeModuleRegistry.register(definition)
+  if (!result.ok) throw new Error(`Cinema 2.0 crate presentation module registration failed for "${definition.typeId}".`)
 }
 const orbitalRegistration = cinema2NativeModuleRegistry.register(cinema2OrbitalNativeModuleDefinition)
 if (!orbitalRegistration.ok) throw new Error('Cinema 2.0 ORBITAL module registration failed.')

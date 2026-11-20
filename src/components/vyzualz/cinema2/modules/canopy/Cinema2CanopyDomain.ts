@@ -50,7 +50,7 @@ export interface CanopyStructure {
 }
 
 export const CANOPY_DEFAULT_STRUCTURE: Readonly<CanopyStructure> = Object.freeze({
-  rows: 8, columns: 8, rowSpacing: 1, columnSpacing: 1.08, rodLength: 1.45, lengthVariation: 0.22,
+  rows: 12, columns: 12, rowSpacing: 1.4, columnSpacing: 1.4, rodLength: 1.45, lengthVariation: 0.22,
 })
 
 export const CANOPY_STRUCTURE_LIMITS = Object.freeze({
@@ -62,9 +62,9 @@ export const CANOPY_STRUCTURE_LIMITS = Object.freeze({
   lengthVariation: Object.freeze({ min: 0, max: 0.65 }),
 })
 
-/** The widest X/Z extent the camera frames at full scale: the default array with a margin. Larger arrays are scaled down uniformly to fit. */
-export const CANOPY_FRAME_HALF_WIDTH = 4
-export const CANOPY_FRAME_HALF_DEPTH = 3.8
+/** Crown Observatory accommodates the full authored grid at world scale. */
+export const CANOPY_FRAME_HALF_WIDTH = 7.9
+export const CANOPY_FRAME_HALF_DEPTH = 7.9
 
 export interface CanopyAddress {
   readonly index: number
@@ -93,7 +93,7 @@ export function clampCanopyStructure(input: Partial<Readonly<CanopyStructure>>):
   })
 }
 
-/** Uniform scale that keeps an oversized array inside the camera's fixed frame. 1 for anything up to the default array and a margin. */
+/** Uniform scale that keeps the fixture bounds inside the installation. */
 export function resolveCanopyFitScale(structure: Readonly<CanopyStructure>): number {
   const halfWidth = ((structure.columns - 1) / 2) * structure.columnSpacing + CANOPY_CAP_WIDTH
   const halfDepth = ((structure.rows - 1) / 2) * structure.rowSpacing + CANOPY_CAP_WIDTH

@@ -111,9 +111,10 @@ export interface Cinema2ThreeSceneOptions {
     /** Opt-in ordering for proxy controllers that hide the source mesh. */
     afterVisibility?: boolean
     /** Original asset clips are supplied for explicit controller opt-in; the bridge never starts them itself. */
-    attach(root: ThreeNamespace.Object3D, userModel?: boolean, animations?: readonly ThreeNamespace.AnimationClip[]): void
+    attach(root: ThreeNamespace.Object3D, userModel?: boolean, animations?: readonly ThreeNamespace.AnimationClip[], assetId?: string): void
     detach?(root: ThreeNamespace.Object3D): void
-    beforeDraw?(quality: Cinema2RenderQualityLevel): void
+    /** `camera` is the final world camera for this draw (after the rig, the user controls and the safety clamp). */
+    beforeDraw?(quality: Cinema2RenderQualityLevel, camera?: Readonly<{ position: readonly [number, number, number] }>): void
     dispose?(): void
   }>
   panels?: readonly Cinema2ThreePanelSpec[]
@@ -492,7 +493,7 @@ export class Cinema2ThreeSceneBridge {
         owned.slot.mesh.receiveShadow ||= inList(shadows.receive)
       }
     }
-    this.options.modelController?.attach(model, instance.userModel, instance.asset.animations)
+    this.options.modelController?.attach(model, instance.userModel, instance.asset.animations, instance.asset.id)
     root.add(model)
     this.scene.add(root)
     this.placed.push({ preserveMaterials: instance.preserveMaterials === true, userModel: instance.userModel === true, node: instance.node, spin: instance.spin === true, root, materials })
@@ -566,9 +567,9 @@ export class Cinema2ThreeSceneBridge {
       this.applySegments(segments)
       this.applyMainframe(mainframe)
       this.applyAtlHoe(atlHoe)
-      if (!this.options.modelController?.afterVisibility) this.options.modelController?.beforeDraw?.(lighting.quality)
+      if (!this.options.modelController?.afterVisibility) this.options.modelController?.beforeDraw?.(lighting.quality, camera)
       this.applyPartVisibility(placement?.parts ?? null)
-      if (this.options.modelController?.afterVisibility) this.options.modelController.beforeDraw?.(lighting.quality)
+      if (this.options.modelController?.afterVisibility) this.options.modelController.beforeDraw?.(lighting.quality, camera)
       this.place(exec, spinRadians, placement?.scale ?? 1, placement?.view ?? null)
       applyCinema2CameraFrame(this.camera, camera)
       if (this.particleFields.length > 0) {

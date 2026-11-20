@@ -4,7 +4,7 @@
 // emissive tube that follows every outer glyph contour. A separate generated
 // metrics file keeps layout, kerning and mesh lookup deterministic.
 //
-//   node scripts/cinema2-assets/generate-say-it-glyphs.mjs [out.glb] [out.metrics.json]
+//   node scripts/cinema2-assets/generate-say-it-glyphs.mjs [out.glb] [out.metrics.json] [local-font.ttf]
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -20,16 +20,17 @@ const outputPath = process.argv[2]
 const metricsPath = process.argv[3]
   ? resolve(process.argv[3])
   : join(root, 'src/components/vyzualz/cinema2/modules/sayIt/Cinema2SayItGlyphMetrics.generated.json')
-const fontPath = join(root, 'scripts/cinema2-assets/sources/anton/Anton-Regular.ttf')
+const localFontPath = process.argv[4] ? resolve(process.argv[4]) : null
+const fontPath = localFontPath ?? join(root, 'scripts/cinema2-assets/sources/anton/Anton-Regular.ttf')
 
 const FIRST_CODE_POINT = 0x20
 const LAST_CODE_POINT = 0x7e
 const FALLBACK_CODE_POINT = 0x3f
 const FONT_SIZE = 2
 const DEPTH = 0.3
-const BEVEL = 0.045
+const BEVEL = localFontPath ? 0.022 : 0.045
 const CREASE_ANGLE = (36 * Math.PI) / 180
-const LED_RADIUS = 0.052
+const LED_RADIUS = localFontPath ? 0.016 : 0.052
 const LED_Z = DEPTH / 2 + 0.012
 const LED_RADIAL_SEGMENTS = 6
 const LED_SAMPLES_PER_UNIT = 14
@@ -46,6 +47,7 @@ const MATERIALS = {
 
 const fontBytes = readFileSync(fontPath)
 const font = opentype.parse(fontBytes.buffer.slice(fontBytes.byteOffset, fontBytes.byteOffset + fontBytes.byteLength))
+const family = localFontPath ? (font.getEnglishName('fontFamily') || 'Local font') : 'Anton'
 const scale = FONT_SIZE / font.unitsPerEm
 
 function meshName(codePoint) {
@@ -204,16 +206,16 @@ const result = writeGlb(
   outputPath,
   meshes,
   MATERIALS,
-  'DRMVYZ scripts/cinema2-assets/generate-say-it-glyphs.mjs (Anton Regular, OFL-1.1)',
-  'say-it-glyphs-v1',
+  localFontPath ? `DRMVYZ local glyph preview (${family})` : 'DRMVYZ scripts/cinema2-assets/generate-say-it-glyphs.mjs (Anton Regular, OFL-1.1)',
+  localFontPath ? 'local-preview-glyphs' : 'say-it-glyphs-v1',
 )
 const metrics = {
   version: 1,
   repertoire: { firstCodePoint: FIRST_CODE_POINT, lastCodePoint: LAST_CODE_POINT, fallbackCodePoint: FALLBACK_CODE_POINT },
   font: {
-    family: 'Anton',
-    source: 'scripts/cinema2-assets/sources/anton/Anton-Regular.ttf',
-    license: 'OFL-1.1',
+    family,
+    source: localFontPath ? 'User-provided local font' : 'scripts/cinema2-assets/sources/anton/Anton-Regular.ttf',
+    license: localFontPath ? 'See the source font license' : 'OFL-1.1',
     unitsPerEm: font.unitsPerEm,
     fontSize: FONT_SIZE,
     ascender: Number((font.ascender * scale).toFixed(6)),

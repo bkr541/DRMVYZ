@@ -383,20 +383,12 @@ describe('CANOPY authority', () => {
     expect(Array.from(dark.emission).every(value => value === 0)).toBe(true)
   })
 
-  it('leaves Rows, Columns and the spacing to the user: nothing in the music changes the rod count', () => {
-    const h = setupCanopy({ rows: 6, columns: 5 })
-    expect(loud(h)).toMatchObject({ rows: 6, columns: 5, rodCount: 30 })
-  })
-
-  it('rebuilds the array at once when Rows or Columns change, and keeps every rod\'s state sized to it', () => {
-    const h = setupCanopy({ rows: 8, columns: 8 })
-    play(h, 0, 0.2)
-    expect(h.inspect().hang).toHaveLength(64)
-    h.values.set('rows', 12); h.values.set('columns', 4)
-    h.update(canopyFrame({ time: 1 }))
-    expect(h.inspect()).toMatchObject({ rows: 12, columns: 4, rodCount: 48 })
-    expect(h.inspect().hang).toHaveLength(48)
-    expect(h.inspect().emission).toHaveLength(48)
+  it('keeps the fixed grid at 12 × 12 while audio drives its rods', () => {
+    const h = setupCanopy({ rows: 6, columns: 5, rowSpacing: 0.75, columnSpacing: 0.75 })
+    const inspection = loud(h)
+    expect(inspection).toMatchObject({ rows: 12, columns: 12, rodCount: 144, fitScale: 1 })
+    expect(inspection.hang).toHaveLength(144)
+    expect(inspection.emission).toHaveLength(144)
   })
 
   it('ignores a cue it does not recognise and does not queue the same delivery twice', () => {

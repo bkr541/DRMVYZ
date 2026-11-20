@@ -1,9 +1,13 @@
 # Cinema 2.0 CANOPY
 
-A black concert-installation space with a field of suspended LED rods. Each rod hangs on a thin stem, under a cap, from an overhead mounting grid, and carries its own light. Six formations move the rods themselves; the music lifts, lowers and lights them.
+Crown Observatory places the camera inside a circular steel installation, looking up through two staggered rings toward CANOPY's overhead array. Each rod hangs below a cap on a thin stem. The original array performs its six formations across the center, and the near and far arcs give that motion depth.
 
 - Preset id `drmvyz.cinema2.canopy`, native module `canopy-native` v1, first-party keeper.
-- World-space. One native module draws everything as two instanced batches (boxes: grid rails, stems and caps; one low-poly cylinder per diffuser). The engine owns camera, background, bloom and finish. No scene lights: every rod's light is shader emission.
+- One native world module shares box and diffuser meshes between the live array and the observatory. The static installation uses two instanced batches, and the live array uses two independently uploaded batches. The engine owns camera, background, bloom, and finish.
+
+## Observatory lighting
+
+The inner ring has 48 hanging rods and the outer ring has 64. The installation has named groups for inner rods, outer rods, ring strips, amber joint lights, perimeter lights, and the two wraparound LED screens. The screens follow the curve of the wall above and below the purple divider. Their built-in pixel patterns animate with playback and use the existing rod palette and Master Intensity. The original grid retains its existing Audio Intelligence and choreography. The default camera is fixed inside the inner ring, with the same optional Camera Motion control.
 - Implementation plan: `docs/DRMVYZ_Cinema2_CANOPY_Implementation_Plan/`. Where this document and the plan differ, this document describes what was built (see *Differences from the plan*).
 
 ## Files
@@ -14,6 +18,7 @@ A black concert-installation space with a field of suspended LED rods. Each rod 
 | `cinema2/modules/Cinema2CanopyNativeModule.ts` | Module definition, update + render provider, cue delivery, test seam |
 | `cinema2/modules/canopy/Cinema2CanopyDomain.ts` | Pattern ids, limits, structure clamps, fit scale, deterministic hash |
 | `cinema2/modules/canopy/Cinema2CanopyLayout.ts` | Rod addresses and positions, rails, instance packing |
+| `cinema2/modules/canopy/Cinema2CanopyObservatory.ts` | Surrounding ring geometry, mounting hardware, and static fixture groups |
 | `cinema2/modules/canopy/Cinema2CanopyPatterns.ts` | The six formations (pure functions of rod, phase and symmetry) |
 | `cinema2/modules/canopy/Cinema2CanopyChoreography.ts` | Rod solver: formation + music + authority → cap heights, light, accent |
 | `cinema2/modules/canopy/Cinema2CanopyOrchestration.ts` | Shared clock, shared drop coordinator, shared reactivity, shared pattern controller; phase and crossfade |
@@ -23,11 +28,9 @@ A black concert-installation space with a field of suspended LED rods. Each rod 
 
 ## The rods
 
-Default 8 rows × 8 columns = 64 rods, row-major addresses, centred on the origin (rows run front +Z to back -Z). Rows and Columns each run 4–12; total is capped at 144. Spacing, Rod Length and Length Variation are real world distances; length variation is a fixed per-rod hash, never random.
+The live grid has 12 rows × 12 columns and stays centred on the origin. The 144 rods are addressed row by row from front (+Z) to back (−Z), with 1.40 world units between neighbours on both axes. Older saved presets use the fixed grid while retaining their other settings. Rod Length and Length Variation are world distances. Length variation uses a deterministic per-rod hash.
 
-An array wider or deeper than the camera frames at full scale (the default plus a margin) is scaled down uniformly about the array's mid-height so it stays in frame. The default array is never scaled.
-
-Caps hang between 0.14 and 1.95 below the mounting plane (Y 4.6) and never lower than a tip height of 0.9, so no rod can leave the frame or reach the camera at any control setting.
+Caps hang between 0.14 and 1.95 below the mounting plane (Y 4.6), with rod tips at or above Y 0.9.
 
 ## Controls
 
@@ -35,14 +38,12 @@ All under the generic Design Inspector hierarchy; there is no CANOPY-specific In
 
 | Parent › group | Control | Default / range | Consumer | Visible result |
 |---|---|---|---|---|
-| Master Controls › Output | Master Intensity | 0.78, 0–1 | rod emission multiplier | 0 = no emitted light; dark rods, caps and grid remain |
+| Master Controls › Output | Master Intensity | 0.78, 0–1 | rod and installation emission multiplier | 0 = unlit rods and screens, with their structures still visible |
 | Master Controls › Timing | BPM Sync | on | pattern clock | see *BPM Sync* |
 | Master Controls › Performance | Auto Performance | off | solver + bloom rule | see *Auto Performance* |
 | Design › Pattern | Pattern | Waterfall (6 options) | formation | rod heights change at once |
 | Design › Pattern | Pattern Change | off | shared pattern controller | on: each qualified Trigger advances the formation |
 | Design › Pattern | Trigger | Every 4 Bars (the 11 canonical options) | shared trigger resolver | visible only while Pattern Change is on; value kept when hidden |
-| Design › Structure | Rows, Columns | 8, 8 (4–12) | layout | rod count and depth/width |
-| Design › Structure | Row Spacing, Column Spacing | 1.0, 1.08 (0.75–1.4) | layout | real distances |
 | Design › Structure | Rod Length, Length Variation | 1.45 (0.6–2.1), 0.22 (0–0.65) | layout | physical length |
 | Design › Motion | Motion Amount | 0.55, 0–1 | solver | 0 = nothing moves; the formation stands in its rest shape |
 | Design › Motion | Motion Speed | 1, 0.3–2 | phase rate | formation cycles faster or slower (phase stays continuous when edited) |
@@ -109,7 +110,7 @@ The preset toggle is the single authority for this preset's motion clock; the Au
 
 ## Auto Performance
 
-Off by default. It never changes Pattern, Pattern Change, Trigger, any palette colour, Rows, Columns, spacing, or any control set to zero. On, it adds only:
+Off by default. The grid dimensions and spacing are fixed. On, it adds only:
 
 1. a buildup compresses the height range further (25% instead of 12%);
 2. a drop releases the array up to 1.3× instead of 1× and lifts the light a little more;
@@ -121,7 +122,6 @@ It does not substitute a temporary pattern; the UI makes no such promise.
 
 | Property | User base | Music | Visual Director | Auto Performance | Manual edit |
 |---|---|---|---|---|---|
-| Rows, Columns, spacing | Absolute | none | none | never | rebuilt at once |
 | Rod Length / variation | Absolute | none | none | never | immediate |
 | Height Range | Hard ceiling on pattern travel | adds within it | scales hits ±10% | compression/release magnitudes only | immediate; 0 stops pattern travel |
 | Motion Amount | Hard | cannot override | none | cannot override | 0 stops all rod movement, music included |
@@ -143,9 +143,9 @@ It does not substitute a temporary pattern; the UI makes no such promise.
 - **Browser capture** is `scripts/cinema2-assets/capture-canopy.mjs` on the Marquee/Mainframe style harness (real runtime, Vite, headless Chrome) rather than a `run-cinema2-canopy-browser.mjs` Playwright suite.
 - **Fit scale** keeps large arrays framed; the plan left over-large arrays to the camera.
 
-## Verification
+## Original CANOPY release verification
 
-All of this was run on the final build; the run that produced it is described here so it can be repeated.
+These results and release gates describe the original 8×8 CANOPY release. Use `scripts/cinema2-assets/capture-canopy.mjs` for current Crown Observatory captures.
 
 | What | How | Result |
 |---|---|---|

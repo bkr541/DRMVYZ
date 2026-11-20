@@ -4,6 +4,7 @@ import type { Cinema2JsonValue } from '../contracts/Cinema2NativePresetManifest'
 import { cinema2CanopyNativeModuleDefinition } from '../modules/Cinema2CanopyNativeModule'
 import type { Cinema2ModuleCreateContext } from '../modules/Cinema2ModuleContracts'
 import { CANOPY_INSTANCE_FLOATS, CANOPY_MAX_BOX_INSTANCES, CANOPY_MAX_INSTANCES } from '../modules/canopy/Cinema2CanopyLayout'
+import { buildCanopyObservatory, CANOPY_OBSERVATORY_LIGHT_GROUPS, CANOPY_OBSERVATORY_SCREEN_KIND } from '../modules/canopy/Cinema2CanopyObservatory'
 import { Cinema2CanopyRenderer, buildBox, buildCylinder } from '../modules/canopy/Cinema2CanopyRenderer'
 import { CINEMA2_CANOPY_PARAMETER_IDS, CINEMA2_CANOPY_PRESET_ID, CINEMA2_CANOPY_PRESET_MANIFEST } from '../presets/Cinema2CanopyPreset'
 import { Cinema2Runtime } from '../runtime/Cinema2Runtime'
@@ -61,36 +62,38 @@ function build(overrides: Record<string, Cinema2JsonValue> = {}) {
 }
 
 describe('CANOPY native rendering', () => {
-  it('draws the whole array as exactly two instanced batches: boxes and diffusers', () => {
+  it('draws the observatory and live array in separate instanced batches', () => {
     const { gl, update, execute } = build()
     update(1)
     execute()
-    expect(gl.__calls.drawInstancedCount).toBe(2)
+    expect(gl.__calls.drawInstancedCount).toBe(4)
     const draws = (gl.drawElementsInstanced as ReturnType<typeof vi.fn>).mock.calls
-    // 16 rails + 64 stems + 64 caps, then 64 diffusers.
-    expect(draws.map(call => call[4])).toEqual([16 + 64 + 64, 64])
+    const installation = buildCanopyObservatory()
+    // 24 rails + 144 stems + 144 caps, then 144 diffusers.
+    expect(draws.map(call => call[4])).toEqual([installation.boxCount, installation.rodCount, 24 + 144 * 2, 144])
     expect(gl.__calls.drawCount).toBe(0)
   })
 
-  it('draws more instances when Rows and Columns grow, still in two batches', () => {
-    const { gl, update, execute } = build({ rows: 12, columns: 12 })
+  it('keeps the live batch counts fixed when old dimensions are supplied', () => {
+    const { gl, update, execute } = build({ rows: 4, columns: 5, rowSpacing: .75, columnSpacing: .75 })
     update(1)
     execute()
     const draws = (gl.drawElementsInstanced as ReturnType<typeof vi.fn>).mock.calls
-    expect(draws.map(call => call[4])).toEqual([24 + 144 * 2, 144])
-    expect(gl.__calls.drawInstancedCount).toBe(2)
+    const installation = buildCanopyObservatory()
+    expect(draws.map(call => call[4])).toEqual([installation.boxCount, installation.rodCount, 24 + 144 * 2, 144])
+    expect(gl.__calls.drawInstancedCount).toBe(4)
   })
 
-  it('uploads only the used part of each instance region every frame', () => {
-    const { gl, update, execute } = build({ rows: 4, columns: 4 })
+  it('uploads only the live grid instance regions every frame', () => {
+    const { gl, update, execute } = build()
     update(1)
     execute()
     const uploads = (gl.bufferSubData as ReturnType<typeof vi.fn>).mock.calls
     expect(uploads).toHaveLength(2)
     expect(uploads[0]![1]).toBe(0)
-    expect(uploads[0]![4]).toBe((8 + 16 * 2) * CANOPY_INSTANCE_FLOATS)
+    expect(uploads[0]![4]).toBe((24 + 144 * 2) * CANOPY_INSTANCE_FLOATS)
     expect(uploads[1]![1]).toBe(CANOPY_MAX_BOX_INSTANCES * CANOPY_INSTANCE_FLOATS * 4)
-    expect(uploads[1]![4]).toBe(16 * CANOPY_INSTANCE_FLOATS)
+    expect(uploads[1]![4]).toBe(144 * CANOPY_INSTANCE_FLOATS)
   })
 
   it('allocates the instance buffer once, for the largest array, and creates no resources while drawing', () => {
@@ -104,10 +107,10 @@ describe('CANOPY native rendering', () => {
     expect(gl.__calls.createdPrograms).toBe(created.createdPrograms)
   })
 
-  it('compiles one program, makes two vertex arrays and reports its GPU bytes to the host', () => {
+  it('compiles one program, makes four vertex arrays and reports its GPU bytes to the host', () => {
     const { gl, reportGpuBytes } = build()
     expect(gl.__calls.createdPrograms).toBe(1)
-    expect(gl.__calls.createdVertexArrays).toBe(2)
+    expect(gl.__calls.createdVertexArrays).toBe(4)
     const [bytes] = reportGpuBytes.mock.calls[0] as [number]
     expect(bytes).toBeGreaterThan(CANOPY_MAX_INSTANCES * CANOPY_INSTANCE_FLOATS * 4)
     expect(bytes).toBeLessThan(1_000_000)
@@ -146,13 +149,40 @@ describe('CANOPY native rendering', () => {
     expect(gl.__calls.deletedBuffers).toBe(gl.__calls.createdBuffers)
   })
 
-  it('rebuilds cleanly on a new context: a second renderer on a fresh context draws the same two batches', () => {
+  it('rebuilds all four batches cleanly on a fresh context', () => {
     const first = build()
     first.update(1); first.execute()
     first.leases.forEach(lease => lease.value.dispose())
     const second = build()
     second.update(1); second.execute()
-    expect(second.gl.__calls.drawInstancedCount).toBe(2)
+    expect(second.gl.__calls.drawInstancedCount).toBe(4)
+  })
+
+  it('builds two full rings with independent groups for the surrounding fixtures', () => {
+    const { instances, boxCount, rodCount } = buildCanopyObservatory()
+    expect(rodCount).toBe(112)
+    const groups = new Set<number>()
+    const rings = new Map<number, number>()
+    const screenCounts = [0, 0]
+    for (let i = 0; i < instances.length; i += CANOPY_INSTANCE_FLOATS) {
+      const role = instances[i + 11]!
+      if (role) groups.add(role)
+      if (instances[i + 3] === CANOPY_OBSERVATORY_SCREEN_KIND) {
+        const bank = instances[i + 9]!
+        const height = instances[i + 1]!
+        const halfHeight = instances[i + 5]! / 2
+        expect(Math.hypot(instances[i]!, instances[i + 2]!)).toBeCloseTo(11.08)
+        if (bank === 0) expect(height - halfHeight).toBeGreaterThan(4.32)
+        else expect(height + halfHeight).toBeLessThan(4.32)
+        screenCounts[bank] = screenCounts[bank]! + 1
+      }
+      if (i < boxCount * CANOPY_INSTANCE_FLOATS) continue
+      const radius = Math.round(Math.hypot(instances[i]!, instances[i + 2]!) * 100)
+      rings.set(radius, (rings.get(radius) ?? 0) + 1)
+    }
+    expect(rings).toEqual(new Map([[580, 48], [855, 64]]))
+    expect(screenCounts).toEqual([96, 96])
+    expect(groups.size).toBe(CANOPY_OBSERVATORY_LIGHT_GROUPS.length)
   })
 
   it('uses no scene lights: the manifest declares none and the renderer needs none', () => {
@@ -188,33 +218,43 @@ describe('CANOPY native rendering', () => {
   })
 
   describe('through the production runtime', () => {
-    it('starts as one active native module with the authored camera and a clean render graph, and draws two batches', () => {
+    it('starts as one active module with the camera inside the inner ring and a clean render graph', () => {
       const { gl, runtime } = runtimeSession()
       expect(runtime.getModuleRuntimeSnapshot()).toMatchObject({ activeModuleCount: 1, failedModuleCount: 0 })
       expect(runtime.getModuleRuntimeSnapshot().estimatedGpuBytes).toBeGreaterThan(0)
       expect(runtime.getRenderGraphExecutorSnapshot()).toMatchObject({ frameCount: 1, failedPassCount: 0 })
+      const [x, , z] = runtime.getCameraRuntimeSnapshot().camera.position
+      expect(Math.hypot(x, z)).toBeLessThan(5.8)
       const draws = (gl.drawElementsInstanced as ReturnType<typeof vi.fn>).mock.calls
-      expect(draws.slice(0, 2).map(call => call[4])).toEqual([144, 64])
+      expect(draws.slice(2, 4).map(call => call[4])).toEqual([312, 144])
       runtime.dispose()
     })
 
     it('reconstructs everything cleanly after disposal and re-entry, with the authored controls restored', () => {
       const first = runtimeSession()
-      first.runtime.getParameterState().setPersistentValue(CINEMA2_CANOPY_PARAMETER_IDS.rows, 5)
+      const state = first.runtime.getParameterState()
+      const previousSave = JSON.parse(state.serialize())
+      const ids = CINEMA2_CANOPY_PARAMETER_IDS
+      Object.assign(previousSave.values, {
+        [ids.rows]: 5, [ids.columns]: 8, [ids.rowSpacing]: 1, [ids.columnSpacing]: 1.08,
+        [ids.rodLength]: 1.8,
+      })
+      expect(state.restore(previousSave)).toMatchObject({ ok: true })
       first.frame()
       const drawn = (gl: typeof first.gl) => (gl.drawElementsInstanced as ReturnType<typeof vi.fn>).mock.calls.slice(-2).map(call => call[4])
-      expect(drawn(first.gl)).toEqual([(5 + 8) + 5 * 8 * 2, 5 * 8])
+      expect(drawn(first.gl)).toEqual([312, 144])
+      expect(state.getValue(ids.rodLength)).toBeCloseTo(1.8)
       first.runtime.dispose()
       expect(first.gl.__calls.deletedBuffers).toBe(first.gl.__calls.createdBuffers)
       expect(first.gl.__calls.deletedPrograms).toBe(first.gl.__calls.createdPrograms)
       const second = runtimeSession()
       expect(second.runtime.getModuleRuntimeSnapshot()).toMatchObject({ activeModuleCount: 1, failedModuleCount: 0 })
-      expect(second.runtime.getParameterState().getValue(CINEMA2_CANOPY_PARAMETER_IDS.rows)).toBe(8)
-      expect(drawn(second.gl)).toEqual([144, 64])
+      expect(second.runtime.getParameterState().getValue(CINEMA2_CANOPY_PARAMETER_IDS.rows)).toBe(12)
+      expect(drawn(second.gl)).toEqual([312, 144])
       second.runtime.dispose()
     })
 
-    it('rebuilds the array and keeps every frame valid as Pattern, Rows and the colours change live', () => {
+    it('rebuilds the array and keeps every frame valid as Pattern, Rod Length and the colours change live', () => {
       const { runtime, frame } = runtimeSession()
       const state = runtime.getParameterState()
       for (const pattern of ['crosswave', 'crown', 'splitWings', 'checkerLift', 'downpour', 'waterfall']) {
@@ -222,8 +262,8 @@ describe('CANOPY native rendering', () => {
         frame()
         expect(runtime.getRenderGraphExecutorSnapshot().failedPassCount).toBe(0)
       }
-      for (const rows of [4, 12, 8]) {
-        expect(state.setPersistentValue(CINEMA2_CANOPY_PARAMETER_IDS.rows, rows)).toMatchObject({ ok: true })
+      for (const length of [.6, 2.1, 1.45]) {
+        expect(state.setPersistentValue(CINEMA2_CANOPY_PARAMETER_IDS.rodLength, length)).toMatchObject({ ok: true })
         frame()
         expect(runtime.getModuleRuntimeSnapshot().failedModuleCount).toBe(0)
       }
@@ -245,7 +285,7 @@ describe('CANOPY native rendering', () => {
       frame()
       expect(runtime.getModuleRuntimeSnapshot().failedModuleCount).toBe(0)
       const draws = (gl.drawElementsInstanced as ReturnType<typeof vi.fn>).mock.calls.slice(-2).map(call => call[4])
-      expect(draws[1]).toBe(48)
+      expect(draws[1]).toBe(144)
       runtime.dispose()
     })
   })

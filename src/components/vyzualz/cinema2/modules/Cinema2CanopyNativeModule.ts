@@ -33,6 +33,7 @@ import {
 } from './canopy/Cinema2CanopyLayout'
 import { Cinema2CanopyOrchestration } from './canopy/Cinema2CanopyOrchestration'
 import { Cinema2CanopyRenderer, type CanopyDrawState } from './canopy/Cinema2CanopyRenderer'
+import { CANOPY_OBSERVATORY_LIGHT_GROUPS } from './canopy/Cinema2CanopyObservatory'
 
 export const CINEMA2_CANOPY_NATIVE_MODULE_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('canopy-native')
 export const CINEMA2_CANOPY_NATIVE_MODULE_VERSION = 1 as const
@@ -58,6 +59,7 @@ export interface Cinema2CanopyModuleInspection {
   readonly rodCount: number
   readonly instanceCount: number
   readonly fitScale: number
+  readonly installationLightGroups: readonly string[]
   readonly authoredPattern: CanopyPatternId
   readonly activePattern: CanopyPatternId
   readonly patternChange: boolean
@@ -115,6 +117,8 @@ export function createCinema2CanopyNativeModuleDefinition(
             instances,
             boxCount: counts.boxes,
             diffuserCount: counts.diffusers,
+            installationIntensity: clampCanopy(readNumber(p, 'masterIntensity', 0.78), 0, 1),
+            screenTimeSeconds: execution.frame.elapsedTimeSec,
           })
         },
       })
@@ -167,6 +171,7 @@ export function createCinema2CanopyNativeModuleDefinition(
           rodCount: layout.fixtures.length,
           instanceCount: counts.total,
           fitScale: layout.scale,
+          installationLightGroups: CANOPY_OBSERVATORY_LIGHT_GROUPS,
           authoredPattern: design.pattern,
           activePattern: orchestration.inspect().activePattern,
           patternChange: design.patternChange,
@@ -213,17 +218,14 @@ function resolveDesign(parameters: Parameters): Readonly<ResolvedDesign> {
     idleGlow: clampCanopy(readNumber(parameters, 'idleGlow', 0.28), 0, 0.6),
     accentStrength: clampCanopy(readNumber(parameters, 'accentStrength', 0.55), 0, 1),
     structure: clampCanopyStructure({
-      rows: readNumber(parameters, 'rows', CANOPY_DEFAULT_STRUCTURE.rows),
-      columns: readNumber(parameters, 'columns', CANOPY_DEFAULT_STRUCTURE.columns),
-      rowSpacing: readNumber(parameters, 'rowSpacing', CANOPY_DEFAULT_STRUCTURE.rowSpacing),
-      columnSpacing: readNumber(parameters, 'columnSpacing', CANOPY_DEFAULT_STRUCTURE.columnSpacing),
+      ...CANOPY_DEFAULT_STRUCTURE,
       rodLength: readNumber(parameters, 'rodLength', CANOPY_DEFAULT_STRUCTURE.rodLength),
       lengthVariation: readNumber(parameters, 'lengthVariation', CANOPY_DEFAULT_STRUCTURE.lengthVariation),
     }),
   })
 }
 
-const structureKey = (s: Readonly<CanopyStructure>) => `${s.rows}|${s.columns}|${s.rowSpacing}|${s.columnSpacing}|${s.rodLength}|${s.lengthVariation}`
+const structureKey = (s: Readonly<CanopyStructure>) => `${s.rodLength}|${s.lengthVariation}`
 
 function validateModule(module: Readonly<Cinema2ModuleManifest>): readonly Cinema2ModuleDiagnostic[] {
   const diagnostics: Cinema2ModuleDiagnostic[] = []

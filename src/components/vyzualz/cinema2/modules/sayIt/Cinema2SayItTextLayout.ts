@@ -55,7 +55,7 @@ interface GlyphMetric {
   maxY: number
 }
 
-const metrics = metricsJson as {
+export interface Cinema2GlyphMetrics {
   version: number
   repertoire: { firstCodePoint: number; lastCodePoint: number; fallbackCodePoint: number }
   font: { family: string; lineAdvance: number }
@@ -63,18 +63,21 @@ const metrics = metricsJson as {
   kerning: Record<string, number>
 }
 
+const metrics: Cinema2GlyphMetrics = metricsJson
+
 export const CINEMA2_SAY_IT_GLYPH_METRICS_VERSION = metrics.version
 export const CINEMA2_SAY_IT_FONT_FAMILY = metrics.font.family
 
 export function resolveCinema2SayItTextLayout(
   input: unknown,
   options: Readonly<Cinema2SayItLayoutOptions>,
+  fontMetrics: Readonly<Cinema2GlyphMetrics> = metrics,
 ): Readonly<Cinema2SayItTextLayout> {
   const sanitized = sanitizeCinema2SayItText(input, options.lineMode === 'one' ? 1 : 2)
   const scale = clamp(options.glyphScale, 0.35, 1.5)
   const tracking = clamp(options.tracking, -0.15, 0.5) * scale
-  const lineStep = metrics.font.lineAdvance * clamp(options.lineSpacing, 0.55, 1.2) * scale
-  const lineLayouts = sanitized.lines.map((line, lineIndex) => layoutLine(line, lineIndex, tracking, scale))
+  const lineStep = fontMetrics.font.lineAdvance * clamp(options.lineSpacing, 0.55, 1.2) * scale
+  const lineLayouts = sanitized.lines.map((line, lineIndex) => layoutLine(line, lineIndex, tracking, scale, fontMetrics))
   const maxWidth = Math.max(0, ...lineLayouts.map(line => line.width))
   const rawGlyphs: Array<Cinema2SayItLayoutGlyph & { bounds: readonly [number, number, number, number] }> = []
 
@@ -200,7 +203,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function layoutLine(line: string, lineIndex: number, tracking: number, scale: number) {
+function layoutLine(line: string, lineIndex: number, tracking: number, scale: number, fontMetrics: Readonly<Cinema2GlyphMetrics>) {
   const characters = Array.from(line)
   const placements: Array<{
     character: string
@@ -212,20 +215,20 @@ function layoutLine(line: string, lineIndex: number, tracking: number, scale: nu
   let penX = 0
   for (let index = 0; index < characters.length; index += 1) {
     const character = characters[index]!
-    const codePoint = character.codePointAt(0) ?? metrics.repertoire.fallbackCodePoint
-    const metric = glyphMetric(codePoint)
+    const codePoint = character.codePointAt(0) ?? fontMetrics.repertoire.fallbackCodePoint
+    const metric = glyphMetric(codePoint, fontMetrics)
     placements.push({ character, codePoint, characterIndex: lineIndex * CINEMA2_SAY_IT_MAX_CHARACTERS_PER_LINE + index, penX, metric })
     penX += metric.advance * scale
     if (index + 1 < characters.length) {
       const next = characters[index + 1]!.codePointAt(0) ?? metrics.repertoire.fallbackCodePoint
-      penX += (metrics.kerning[`${codePoint}:${next}`] ?? 0) * scale + tracking
+      penX += (fontMetrics.kerning[`${codePoint}:${next}`] ?? 0) * scale + tracking
     }
   }
   return { lineIndex, width: penX, placements }
 }
 
-function glyphMetric(codePoint: number): GlyphMetric {
-  return metrics.glyphs[String(codePoint)] ?? metrics.glyphs[String(metrics.repertoire.fallbackCodePoint)]!
+function glyphMetric(codePoint: number, fontMetrics: Readonly<Cinema2GlyphMetrics> = metrics): GlyphMetric {
+  return fontMetrics.glyphs[String(codePoint)] ?? fontMetrics.glyphs[String(fontMetrics.repertoire.fallbackCodePoint)]!
 }
 
 function clamp(value: number, min: number, max: number): number {

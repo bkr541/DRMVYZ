@@ -57,7 +57,7 @@ export interface CanopyLayout {
   readonly rails: readonly Readonly<CanopyRail>[]
 }
 
-/** Instances are 12 floats: center xyz + kind, size xyz + emission, accent, bank, unlit floor, spare. */
+/** Instances are 12 floats: center xyz + kind, size xyz + emission, accent, bank, yaw, light group. */
 export const CANOPY_INSTANCE_FLOATS = 12
 /** The instance buffer is allocated once for the largest array: boxes (rails, stems, caps) first, then the diffusers. */
 export const CANOPY_MAX_BOX_INSTANCES = CANOPY_MAX_AXIS * 2 + CANOPY_MAX_RODS * 2

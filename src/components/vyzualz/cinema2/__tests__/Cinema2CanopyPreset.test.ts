@@ -47,7 +47,7 @@ describe('Cinema 2.0 CANOPY preset', () => {
       expect(labels('master-controls')).toEqual(['Output: Master Intensity', 'Timing: BPM Sync', 'Performance: Auto Performance'])
       expect(labels('design')).toEqual([
         'Pattern: Pattern', 'Pattern: Pattern Change', 'Pattern: Trigger',
-        'Structure: Rows', 'Structure: Columns', 'Structure: Row Spacing', 'Structure: Column Spacing', 'Structure: Rod Length', 'Structure: Length Variation',
+        'Structure: Rod Length', 'Structure: Length Variation',
         'Motion: Motion Amount', 'Motion: Motion Speed', 'Motion: Height Range', 'Motion: Symmetry',
       ])
       expect(labels('effects')).toEqual(['Light: Idle Glow', 'Light: Accent Strength', 'Light: Bloom Amount', 'Camera: Camera Motion'])

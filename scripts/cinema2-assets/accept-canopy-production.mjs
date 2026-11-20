@@ -151,8 +151,8 @@ async function heroAndAspects() {
     const shot = await capture(name, { width, height })
     shots.push({ ...shot, label: `${name} ${width}x${height}` })
     const b = litBounds(shot.pixels)
-    check('B01/B02', `${name}: the whole canopy is inside the frame with a margin`, b.minX >= 6 && b.minY >= 6 && b.maxX <= width - 7 && b.maxY <= height - 7, `lit box ${b.minX},${b.minY}–${b.maxX},${b.maxY} of ${width}x${height}`)
-    check('B01', `${name}: the array is 64 rods and no light is a false hit`, shot.probe.hang.length === 64 && shot.probe.musicActive === false && shot.probe.emission.every(e => e < 0.4))
+    check('B01/B02', `${name}: the installation fills the view from inside`, b.width >= width * 0.7 && b.height >= height * 0.45, `lit bounds ${b.width}×${b.height} of ${width}×${height}`)
+    check('B01', `${name}: the grid holds 144 rods and stays at rest`, shot.probe.hang.length === 144 && shot.probe.musicActive === false && shot.probe.emission.every(e => e < 0.4))
   }
   await sheet('hero', shots, 4, 480)
 }
@@ -192,17 +192,9 @@ async function controls() {
   const tile = (shot, label) => cases.push({ ...shot, label })
   const run = async (name, params, extra = {}) => { const shot = await capture(`ctl-${name}`, { params, ...extra }); tile(shot, name); return shot }
 
-  const rows4 = await run('rows-4', { [P('rows')]: 4 }); const rows12 = await run('rows-12', { [P('rows')]: 12 })
-  check('C01', 'Rows 4 / 12 give 32 and 96 rods and a different picture', rows4.probe.hang.length === 32 && rows12.probe.hang.length === 96 && diffFraction(rows4.pixels, rows12.pixels) > 0.03)
-  const cols4 = await run('columns-4', { [P('columns')]: 4 }); const cols12 = await run('columns-12', { [P('columns')]: 12 })
-  check('C01', 'Columns 4 / 12 give 32 and 96 rods and a clearly different width', cols4.probe.hang.length === 32 && cols12.probe.hang.length === 96 && litBounds(cols12.pixels).width > litBounds(cols4.pixels).width * 1.2, `${litBounds(cols4.pixels).width}px → ${litBounds(cols12.pixels).width}px`)
-  const big = await run('grid-12x12-spacing-1.4', { [P('rows')]: 12, [P('columns')]: 12, [P('row-spacing')]: 1.4, [P('column-spacing')]: 1.4, [P('rod-length')]: 2.1 })
-  const bb = litBounds(big.pixels)
-  check('A', 'the largest array (144 rods, widest spacing, longest rods) stays inside the frame', big.probe.hang.length === 144 && bb.minX >= 4 && bb.minY >= 4 && bb.maxX <= 1915 && bb.maxY <= 1075, `box ${bb.minX},${bb.minY}–${bb.maxX},${bb.maxY}`)
-  const rs1 = await run('row-spacing-0.75', { [P('row-spacing')]: 0.75 }); const rs2 = await run('row-spacing-1.4', { [P('row-spacing')]: 1.4 })
-  check('C01', 'Row Spacing changes the depth of the canopy', diffFraction(rs1.pixels, rs2.pixels) > 0.03)
-  const cs1 = await run('column-spacing-0.75', { [P('column-spacing')]: 0.75 }); const cs2 = await run('column-spacing-1.4', { [P('column-spacing')]: 1.4 })
-  check('C01', 'Column Spacing changes the width of the canopy', litBounds(cs2.pixels).width > litBounds(cs1.pixels).width * 1.2)
+  const legacy = await run('legacy-grid', { [P('rows')]: 4, [P('columns')]: 5, [P('row-spacing')]: 0.75, [P('column-spacing')]: 0.9 })
+  check('C01', 'previous grid values leave the 12×12 layout intact',
+    legacy.probe.rows === 12 && legacy.probe.columns === 12 && diffFraction(legacy.pixels, base.pixels) < 0.001)
   const rl1 = await run('rod-length-0.6', { [P('rod-length')]: 0.6, [P('length-variation')]: 0 }); const rl2 = await run('rod-length-2.1', { [P('rod-length')]: 2.1, [P('length-variation')]: 0 })
   const rodPixels = d => count(d, isCyan) + count(d, isViolet)
   check('C01', 'Rod Length changes the physical length of the rods (about 3.5 times the lit rod area, and a taller canopy)', rodPixels(rl2.pixels) > rodPixels(rl1.pixels) * 2.2 && litBounds(rl2.pixels).height > litBounds(rl1.pixels).height * 1.15, `rod pixels ${rodPixels(rl1.pixels)} → ${rodPixels(rl2.pixels)} · ${litBounds(rl1.pixels).height}px → ${litBounds(rl2.pixels).height}px tall`)
@@ -262,7 +254,7 @@ async function audio() {
   const snare = await capture('audio-snare', { scenario: 'steady', timeSec: 3.55, params: { [P('motion-amount')]: 1 } })
   const set = a => new Set(a.flatMap((v, i) => (v > 0.05 ? [i] : [])))
   const kickSet = set(kick.probe.accent), snareSet = set(snare.probe.accent)
-  check('A02', 'a kick and a snare light different rods, and neither lights them all', kickSet.size > 8 && snareSet.size > 8 && ![...kickSet].some(i => snareSet.has(i)) && kickSet.size + snareSet.size <= 64, `kick ${kickSet.size} rods · snare ${snareSet.size} rods`)
+  check('A02', 'a kick and a snare light different rods, and neither lights them all', kickSet.size > 8 && snareSet.size > 8 && ![...kickSet].some(i => snareSet.has(i)) && kickSet.size + snareSet.size <= 144, `kick ${kickSet.size} rods · snare ${snareSet.size} rods`)
   check('A02', 'a kick moves rods, not only their light', maxAbsDiff(idle.probe.hang, kick.probe.hang) > 0.05)
   const bass = await capture('audio-bass', { scenario: 'bass', timeSec: 3.3, params: { [P('motion-amount')]: 1 } })
   const steady = await capture('audio-steady-same-time', { scenario: 'steady', timeSec: 3.3, params: { [P('motion-amount')]: 1 } })
@@ -348,7 +340,7 @@ async function lifecycleAndPerformance() {
     const shot = await s.shot('lifecycle-after-recovery')
     check('L04', 'the picture after recovery is not black', totalLuma(shot.pixels) > 2)
   } finally { await s.close() }
-  for (const [label, entry] of [['default 8x8 · 1080p · high', { params: {} }], ['12x12 max · 1080p · high', { params: { [P('rows')]: 12, [P('columns')]: 12 } }], ['8x8 · 1080p · low', { quality: 'low', params: {} }]]) {
+  for (const [label, entry] of [['12×12 · 1080p · high', { quality: 'high' }], ['12×12 · 1080p · low', { quality: 'low' }]]) {
     const s2 = await session({ scenario: 'steady', timeSec: 2, ...entry })
     try {
       const profile = await s2.page.evaluate(() => globalThis.__canopyProduction.profile(180))
