@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Group } from 'three'
-const mocks = vi.hoisted(() => ({ media: {} as Record<string, unknown>, prepare: vi.fn(), generate: vi.fn(), getVersion: vi.fn(), load: vi.fn(), fromTrace: vi.fn(), organization: vi.fn(), versions: vi.fn(), inspect: vi.fn(), download: vi.fn(), draft: vi.fn(), save: vi.fn(), metadata: vi.fn(), verify: vi.fn(), capture: vi.fn(), cancel: vi.fn(), remove: vi.fn(), get: vi.fn() }))
+const mocks = vi.hoisted(() => ({ media: {} as Record<string, unknown>, prepare: vi.fn(), generate: vi.fn(), getVersion: vi.fn(), load: vi.fn(), fromTrace: vi.fn(), organization: vi.fn(), versions: vi.fn(), inspect: vi.fn(), download: vi.fn(), draft: vi.fn(), save: vi.fn(), metadata: vi.fn(), verify: vi.fn(), capture: vi.fn(), cancel: vi.fn(), remove: vi.fn(), get: vi.fn(), exportGlb: vi.fn(), inspectGlb: vi.fn(), importGlb: vi.fn() }))
 vi.mock('../../../stores/mediaStore', () => ({ useMediaStore: { getState: () => mocks.media } }))
 vi.mock('../generator/createModelArtifact', () => ({ createDefaultModelRecipe: () => structuredClone(recipe), createModelArtifact: mocks.generate, createModelArtifactFromTrace: mocks.fromTrace }))
 vi.mock('../trace/imageInput', () => ({ prepareModelInput: mocks.prepare }))
@@ -8,6 +8,8 @@ vi.mock('../data/modelAssetRepository', async importOriginal => ({ ...await impo
 vi.mock('../data/modelEditorArtifacts', () => ({ inspectModelSource: mocks.inspect, downloadModelArtifact: mocks.download, verifyPublishedModel: mocks.verify }))
 vi.mock('./modelViewportBridge', () => ({ captureModelPreview: mocks.capture }))
 vi.mock('../data/loadModelPreview', () => ({ loadModelPreview: mocks.load }))
+vi.mock('../export/exportGlb', () => ({ exportModelGlb: mocks.exportGlb }))
+vi.mock('../import/glbImport', () => ({ inspectGlbFile: mocks.inspectGlb, importGlbModel: mocks.importGlb }))
 import { useModelEditorStore, selectModelEditorNeedsGuard, selectModelCanSave } from './modelEditorStore'
 import { recipe, stats, MODEL_ID, USER_A } from '../__tests__/modelAssetFixtures'
 import type { UploadedMedia } from '../../../stores/mediaStore'
@@ -197,7 +199,10 @@ describe('model save and edit lifecycle', () => {
     const importedVersion = { generatorRecipe: null, geometryStats: { ...stats, imported: { fileName: 'Diamond.glb', imageCount: 2, maxImageSide: 4096 } } }
     const open = async () => {
       mocks.getVersion.mockResolvedValue(importedVersion); mocks.load.mockResolvedValue(artifact())
+      mocks.versions.mockResolvedValue([{ version: 1, ...importedVersion }])
       useModelEditorStore.getState().load(imported()); await flush()
+      // The edit session is created after a lazy module import, which takes longer than a microtask flush.
+      await vi.waitFor(() => expect(useModelEditorStore.getState().builtinEdit).not.toBeNull())
     }
 
     it('opens the saved GLB directly, without looking for a source snapshot or trace or rebuilding the geometry', async () => {
@@ -219,11 +224,73 @@ describe('model save and edit lifecycle', () => {
       expect(useModelEditorStore.getState()).toMatchObject({ dirty: false, status: 'ready', name: 'Pure Diamond' })
     })
 
-    it('does not offer Save As New Model, which would need a generated recipe', async () => {
+    const inspection = { fileName: 'Diamond.glb', bytes: new ArrayBuffer(16), stats: { ...stats, imported: { fileName: 'Diamond.glb', imageCount: 2, maxImageSide: 4096 } }, thumbnail: new Blob(['png'], { type: 'image/png' }), warnings: [] }
+    const edited = async () => {
+      await open(); mocks.exportGlb.mockResolvedValue(new Blob(['edited'], { type: 'model/gltf-binary' })); mocks.inspectGlb.mockResolvedValue(inspection)
+      useModelEditorStore.getState().editBuiltin({ scale: 1.5, rotation: [0, 45, 0] })
+    }
+
+    it('starts an edit session and treats geometry edits as unsaved changes that can be restored', async () => {
       await open()
-      useModelEditorStore.getState().setMetadata({ name: 'Copy' })
-      expect(await useModelEditorStore.getState().save('Copy of Diamond')).toEqual({ ok: false })
-      expect(mocks.metadata).not.toHaveBeenCalled(); expect(mocks.save).not.toHaveBeenCalled()
+      expect(useModelEditorStore.getState().builtinEdit?.values).toMatchObject({ scale: 1, rotation: [0, 0, 0] })
+      useModelEditorStore.getState().editBuiltin({ scale: 1.5 })
+      expect(useModelEditorStore.getState()).toMatchObject({ dirty: true })
+      expect(selectModelCanSave(useModelEditorStore.getState())).toBe(true)
+      expect(selectModelEditorNeedsGuard(useModelEditorStore.getState())).toBe(true)
+      useModelEditorStore.getState().resetBuiltinEdits()
+      expect(useModelEditorStore.getState().dirty).toBe(false)
+    })
+
+    it('saves edits as the next immutable version: exports, re-checks the exported file, publishes, then reloads it', async () => {
+      await edited()
+      mocks.save.mockResolvedValue({ version: 2, geometryStats: inspection.stats })
+      mocks.metadata.mockImplementation(async (id, version, meta) => ({ ...imported(), currentVersion: version, ...meta }))
+      mocks.getVersion.mockResolvedValue(importedVersion)
+      expect(await useModelEditorStore.getState().save()).toMatchObject({ ok: true, id: MODEL_ID, version: 2 })
+      expect(mocks.exportGlb).toHaveBeenCalledTimes(1)
+      expect(mocks.inspectGlb.mock.calls[0]![0]).toMatchObject({ name: 'Diamond.glb' })
+      const saved = mocks.save.mock.calls[0]![0]
+      expect(saved).toMatchObject({ modelAssetId: MODEL_ID, expectedVersion: 1, generatorRecipe: null, geometryStats: inspection.stats })
+      expect(saved.files.glb.data).toBe(inspection.bytes); expect(saved.files.thumbnail.contentType).toBe('image/png')
+      expect(mocks.metadata).toHaveBeenCalledWith(MODEL_ID, 2, expect.objectContaining({ name: 'Saved logo' }))
+      expect(mocks.draft).not.toHaveBeenCalled()
+      await vi.waitFor(() => expect(useModelEditorStore.getState().builtinEdit?.values.scale).toBe(1))
+      expect(useModelEditorStore.getState()).toMatchObject({ dirty: false, status: 'ready', activeVersion: 2 })
+      expect(useModelEditorStore.getState().builtinEdit?.values.scale).toBe(1)
+    })
+
+    it('keeps the edits and does not publish when the exported GLB fails its checks', async () => {
+      await edited(); mocks.inspectGlb.mockRejectedValue(new Error('An embedded texture is 16384 × 16384; the limit is 8192 pixels on a side.'))
+      expect(await useModelEditorStore.getState().save()).toEqual({ ok: false })
+      expect(mocks.save).not.toHaveBeenCalled()
+      expect(useModelEditorStore.getState()).toMatchObject({ dirty: true, saveFailure: true, error: expect.stringContaining('limit is 8192') })
+      expect(useModelEditorStore.getState().builtinEdit?.values.scale).toBe(1.5)
+    })
+
+    it('Save As New Model exports the edits into a separate imported model with the current tags, and leaves the original alone', async () => {
+      await edited()
+      const copy = { ...imported(), id: 'c0000000-0000-4000-8000-000000000009', name: 'Diamond copy', currentVersion: 1 }
+      mocks.importGlb.mockResolvedValue(copy); mocks.getVersion.mockResolvedValue(importedVersion)
+      useModelEditorStore.getState().setMetadata({ tags: ['Logo'] })
+      expect(await useModelEditorStore.getState().save('Diamond copy')).toMatchObject({ ok: true, id: copy.id, version: 1 })
+      expect(mocks.importGlb).toHaveBeenCalledWith(inspection, expect.objectContaining({ name: 'Diamond copy', tags: ['Logo'] }), expect.anything())
+      expect(mocks.save).not.toHaveBeenCalled(); expect(mocks.metadata).not.toHaveBeenCalled()
+    })
+
+    it('Save As New Model without edits copies the stored original GLB', async () => {
+      await open(); mocks.inspectGlb.mockResolvedValue(inspection)
+      mocks.download.mockResolvedValue(new Blob(['original'], { type: 'model/gltf-binary' }))
+      mocks.importGlb.mockResolvedValue({ ...imported(), id: 'c0000000-0000-4000-8000-000000000009', currentVersion: 1 }); mocks.getVersion.mockResolvedValue(importedVersion)
+      expect(await useModelEditorStore.getState().save('Copy')).toMatchObject({ ok: true })
+      expect(mocks.exportGlb).not.toHaveBeenCalled(); expect(mocks.download).toHaveBeenCalledWith(MODEL_ID, 1, 'glbPath', expect.anything())
+    })
+
+    it('says so when the version saved but the title and tags did not', async () => {
+      await edited(); mocks.save.mockResolvedValue({ version: 2, geometryStats: inspection.stats }); mocks.getVersion.mockResolvedValue(importedVersion)
+      mocks.metadata.mockRejectedValue(new Error('offline'))
+      expect(await useModelEditorStore.getState().save()).toMatchObject({ ok: true, version: 2 })
+      await flush()
+      expect(useModelEditorStore.getState().warnings.join(' ')).toMatch(/Version 2 was saved, but/)
     })
 
     it('keeps the edits and offers a retry when the metadata save fails', async () => {

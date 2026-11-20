@@ -176,11 +176,17 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
             </>}
             {modelSelected && !builtinModel && <>
               <HeaderIconKey
-                label={modelAsset?.kind === 'imported' ? 'Download Original GLB' : 'Download GLB'}
+                label={modelAsset?.kind === 'imported' ? (builtinEdited ? 'Download Edited GLB' : 'Download Original GLB') : 'Download GLB'}
                 icon={<HeaderActionIcon action="download" />}
                 disabled={modelDownloadDisabled || modelGenerationPending}
                 onClick={() => { void useModelEditorStore.getState().download('glb') }}
               />
+              {modelAsset?.kind === 'imported' && <HeaderIconKey
+                label="Restore Original"
+                icon={<HeaderActionIcon action="restore" />}
+                disabled={builtinActionsDisabled}
+                onClick={() => useModelEditorStore.getState().resetBuiltinEdits()}
+              />}
               <HeaderIconKey
                 label="Download Preview PNG"
                 icon={<HeaderActionIcon action="capture" />}

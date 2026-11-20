@@ -99,6 +99,8 @@ export const useModelEditorStore = create<ModelEditorState>((set, get) => {
   function dirty() {
     const s = get()
     const metadataChanged = JSON.stringify(metadata(s)) !== JSON.stringify(s.savedMetadata)
+    // An imported model has no recipe; its geometry edits live in the same edit session a built-in model uses.
+    if (s.asset?.kind === 'imported') return metadataChanged || selectBuiltinModelEdited(s)
     return s.builtinModel ? metadataChanged : !s.asset?.currentVersion || metadataChanged || JSON.stringify(s.recipe) !== JSON.stringify(s.savedRecipe)
   }
   function disposeCurrent() { const s = get(); s.model?.dispose(); if (s.artifact && s.artifact !== s.model) s.artifact.dispose() }
@@ -119,23 +121,67 @@ export const useModelEditorStore = create<ModelEditorState>((set, get) => {
       return { ok: false }
     }
   }
-  /** An imported model has one immutable GLB; saving changes only its title, description, favorite, tags and collections. */
-  async function saveImportedMetadata(asNewName?: string): Promise<ModelSaveOutcome> {
+  /**
+   * Saving an imported model. Without geometry edits only the title, description, favorite, tags and collections change, on the same version.
+   * With edits, the edited model is exported to a new GLB, checked exactly like an import, and saved as the next immutable version (the
+   * original stays available as the earlier version). Save As New Model makes a separate imported model from the edited (or unedited) GLB.
+   */
+  async function saveImportedModel(asNewName?: string): Promise<ModelSaveOutcome> {
     const state = get(), asset = state.asset
-    if (!asset || asNewName || !selectModelCanSave(state)) return { ok: false }
-    const form = { ...metadata(state), name: state.name.trim(), tags: [...new Set(state.tags.map(t => t.trim()))].sort(), collectionIds: [...new Set(state.collectionIds)].sort() }
+    if (!asset || !state.model || busy(state)) return { ok: false }
+    const form = { ...metadata(state), name: (asNewName ?? state.name).trim(), tags: [...new Set(state.tags.map(t => t.trim()))].sort(), collectionIds: [...new Set(state.collectionIds)].sort() }
     try { text(form.name); if (form.description) text(form.description, 4000); parseModelOrganization({ tags: form.tags, collection_ids: form.collectionIds }) } catch (error) { set({ error: message(error) }); return { ok: false } }
-    const { token } = start(); set({ status: 'saving', progress: 'Saving model metadata…', saveFailure: false, error: null })
-    try {
-      const canonical = await modelAssetRepository.updateMetadata(asset.id, asset.currentVersion, form)
-      if (!current(token)) return { ok: false }
-      set(s => ({ asset: canonical, name: canonical.name, description: canonical.description, favorite: canonical.favorite, tags: form.tags, collectionIds: form.collectionIds,
-        savedMetadata: form, dirty: false, status: 'ready', saveFailure: false, error: null, progress: null, libraryRevision: s.libraryRevision + 1 }))
-      return { ok: true, id: canonical.id, version: canonical.currentVersion }
-    } catch (error) {
-      if (current(token)) set({ status: 'ready', dirty: true, saveFailure: true, progress: null, error: message(error) })
-      return { ok: false }
+    const edited = selectBuiltinModelEdited(state)
+    if (!asNewName && !edited && !selectModelCanSave(state)) return { ok: false }
+    const { signal, token } = start()
+    const fail = (error: unknown) => {
+      if (!current(token)) return { ok: false } as const
+      set({ status: 'ready', dirty: true, saveFailure: true, progress: null, error: message(error) })
+      return { ok: false } as const
     }
+    set({ status: 'saving', progress: edited ? 'Exporting the edited GLB…' : 'Saving model metadata…', saveFailure: false, error: null })
+    try {
+      if (!edited && !asNewName) {
+        const canonical = await modelAssetRepository.updateMetadata(asset.id, asset.currentVersion, form)
+        if (!current(token)) return { ok: false }
+        set(s => ({ asset: canonical, name: canonical.name, description: canonical.description, favorite: canonical.favorite, tags: form.tags, collectionIds: form.collectionIds,
+          savedMetadata: form, dirty: false, status: 'ready', saveFailure: false, error: null, progress: null, libraryRevision: s.libraryRevision + 1 }))
+        return { ok: true, id: canonical.id, version: canonical.currentVersion }
+      }
+      const [{ inspectGlbFile, importGlbModel }, { exportModelGlb }, artifacts] = await Promise.all([
+        import('../import/glbImport'), import('../export/exportGlb'), import('../data/modelEditorArtifacts'),
+      ])
+      const version = get().versions.find(v => v.version === get().activeVersion)
+      const fileName = version?.geometryStats.imported?.fileName ?? `${form.name}.glb`
+      const bytes = edited ? await exportModelGlb(state.model.group, signal) : await artifacts.downloadModelArtifact(asset.id, state.activeVersion, 'glbPath', signal)
+      if (!current(token)) return { ok: false }
+      // The same checks and budgets as an import, on the file that would actually be stored, and a fresh thumbnail of it.
+      set({ progress: 'Checking the new GLB…' })
+      const inspection = await inspectGlbFile(new File([bytes], fileName, { type: 'model/gltf-binary' }), signal)
+      if (!current(token)) return { ok: false }
+      set({ progress: asNewName ? 'Creating the new model…' : 'Saving the new version…' })
+      if (asNewName) {
+        const created = await importGlbModel(inspection, { name: form.name, description: form.description, tags: form.tags, collectionIds: form.collectionIds }, { signal })
+        if (!current(token)) return { ok: false }
+        set(s => ({ libraryRevision: s.libraryRevision + 1 }))
+        get().load(created)
+        return { ok: true, id: created.id, version: created.currentVersion }
+      }
+      const published = await modelAssetRepository.saveVersion({
+        modelAssetId: asset.id, operationId: crypto.randomUUID(), expectedVersion: asset.currentVersion, generatorRecipe: null, geometryStats: inspection.stats, signal,
+        files: { glb: { data: inspection.bytes, contentType: 'model/gltf-binary' }, ...(inspection.thumbnail ? { thumbnail: { data: inspection.thumbnail, contentType: 'image/png' as const } } : {}) },
+      })
+      if (!current(token)) return { ok: false }
+      let canonical: ModelAsset = { ...asset, currentVersion: published.version, status: 'ready' }
+      let metadataProblem: string | null = null
+      try { canonical = await modelAssetRepository.updateMetadata(asset.id, published.version, form) } catch (error) { metadataProblem = message(error) }
+      if (!current(token)) return { ok: false }
+      set(s => ({ libraryRevision: s.libraryRevision + 1, dirty: false }))
+      // Reload so the editor shows the saved version with a fresh edit session on top of it.
+      get().load(canonical)
+      if (metadataProblem) set({ warnings: [`Version ${published.version} was saved, but the title, tags and collections were not: ${metadataProblem} Edit them and save again.`] })
+      return { ok: true, id: canonical.id, version: published.version }
+    } catch (error) { return fail(error) }
   }
   return {
     ...baseline(), libraryRevision: 0,
@@ -181,6 +227,7 @@ export const useModelEditorStore = create<ModelEditorState>((set, get) => {
       if (sameBuiltinEdits(values, builtinEdit.values)) return
       const stats = builtinEdit.apply(values)
       set({ model: { ...model, stats }, builtinEdit: { ...builtinEdit, values }, builtinExportError: null })
+      if (get().asset?.kind === 'imported') set({ dirty: dirty(), error: null, saveFailure: false })
     },
     resetBuiltinEdits() {
       const edit = get().builtinEdit
@@ -215,7 +262,13 @@ export const useModelEditorStore = create<ModelEditorState>((set, get) => {
           set({ model: loaded, recipe: version.generatorRecipe, savedRecipe: version.generatorRecipe, ...savedMeta, savedMetadata: savedMeta,
             versions, sourceMediaId: asset.sourceMediaId, confirmed: true, sourceInfo: version.geometryStats.source ?? null, status: 'ready' })
           // An imported model has no source snapshot, trace or recipe to rebuild from: the saved GLB is the model.
-          if (!version.generatorRecipe) return
+          if (!version.generatorRecipe) {
+            const { createBuiltinModelEdit } = await import('../geometry/builtinModelEdits')
+            if (!current(token)) return
+            const edit = createBuiltinModelEdit(loaded.group, loaded.stats)
+            set({ builtinEdit: { ...edit, values: edit.original, exported: null } })
+            return
+          }
           const { downloadModelArtifact } = await import('../data/modelEditorArtifacts')
           const [sourceResult, traceResult] = await Promise.allSettled([
             downloadModelArtifact(asset.id, selectedVersion, 'sourceSnapshotPath', signal), downloadModelArtifact(asset.id, selectedVersion, 'traceSvgPath', signal),
@@ -309,7 +362,7 @@ export const useModelEditorStore = create<ModelEditorState>((set, get) => {
       const { builtinModel } = get()
       if (builtinModel) return asNewName ? { ok: false } : saveBuiltinOrganization(builtinModel)
       stopTimer()
-      if (get().asset?.kind === 'imported') return saveImportedMetadata(asNewName)
+      if (get().asset?.kind === 'imported') return saveImportedModel(asNewName)
       if (asNewName) set({ name: asNewName, saveTarget: null, publishedVersion: null, pendingOperationId: null, dirty: true })
       const s = get()
       if (!s.name.trim() || !s.recipe || !s.model || (s.needsConfirmation && !s.confirmed)) { set({ error: 'Prepare a named, confirmed model before saving.' }); return { ok: false } }
@@ -397,9 +450,11 @@ export const useModelEditorStore = create<ModelEditorState>((set, get) => {
       try { const more = await modelAssetRepository.listVersions(asset.id, versions.at(-1)?.version); if (get().id === id) set({ versions: [...new Map([...versions, ...more].map(v => [v.version, v])).values()] }) } catch (error) { set({ error: message(error) }) }
     },
     async download(kind) {
-      const state = get(), { builtinModel, builtinEdit, model } = state
-      if (builtinModel && kind === 'glb') {
-        if (!model || !builtinEdit || !selectBuiltinModelEdited(state) || busy(state)) return
+      const state = get(), { builtinEdit, model } = state
+      const builtinModel = state.builtinModel ?? (state.asset?.kind === 'imported' ? { name: state.name } : null)
+      // A built-in or imported model with geometry edits downloads the edited GLB; without edits an imported model downloads its stored original.
+      if (builtinModel && kind === 'glb' && builtinEdit && selectBuiltinModelEdited(state)) {
+        if (!model || busy(state)) return
         const { signal, token } = start()
         set({ builtinExporting: true, builtinExportError: null })
         try {
@@ -415,6 +470,7 @@ export const useModelEditorStore = create<ModelEditorState>((set, get) => {
         }
         return
       }
+      if (state.builtinModel && kind === 'glb') return
       try {
         const s = get(), helpers = await import('../data/modelEditorArtifacts')
         const blob = kind === 'png' ? s.model ? await captureModelPreview(s.model.group, undefined, 1024, false) : null
