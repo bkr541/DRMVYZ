@@ -1,8 +1,17 @@
 import type * as ThreeNamespace from 'three'
 import type { Cinema2RenderQualityLevel } from '../../contracts/Cinema2NativePresetManifest'
 
-/** Longest side a user model's textures keep on each quality tier. High keeps them as they were saved. */
-export const CINEMA2_USER_MODEL_TEXTURE_SIDE: Readonly<Record<Cinema2RenderQualityLevel, number>> = Object.freeze({ low: 1024, medium: 2048, high: Number.POSITIVE_INFINITY })
+/** Longest side a user model's textures may keep on each quality tier, however much memory they leave free. */
+export const CINEMA2_USER_MODEL_TEXTURE_SIDE: Readonly<Record<Cinema2RenderQualityLevel, number>> = Object.freeze({ low: 1024, medium: 2048, high: 4096 })
+
+/**
+ * GPU memory a user model's textures may use on each tier (width x height x 4, plus a third more for mipmaps). The engine's GPU budgets are 96, 160 and 256 MB
+ * (performance, balanced, quality) and they also have to cover the render targets (measured 43, 64 and 95 MB at 1080p, more on a high-density display),
+ * shadows, geometry and effects. What is left for a model's textures is about 20, 48 and 96 MB. A model that fits keeps every map at the tier's longest side;
+ * one that does not (a single 4096 px map is 90 MB) has its largest maps halved, one at a time, until it fits.
+ */
+export const CINEMA2_USER_MODEL_TEXTURE_BYTES: Readonly<Record<Cinema2RenderQualityLevel, number>> = Object.freeze({ low: 20 * 1024 * 1024, medium: 48 * 1024 * 1024, high: 96 * 1024 * 1024 })
+const MINIMUM_SIDE = 256
 
 const TEXTURE_SLOTS = ['map', 'emissiveMap', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'alphaMap', 'bumpMap', 'displacementMap', 'lightMap', 'clearcoatMap', 'clearcoatNormalMap', 'clearcoatRoughnessMap', 'transmissionMap', 'thicknessMap', 'specularIntensityMap', 'specularColorMap', 'sheenColorMap', 'sheenRoughnessMap', 'iridescenceMap', 'iridescenceThicknessMap', 'anisotropyMap'] as const
 type Slot = typeof TEXTURE_SLOTS[number]
@@ -26,7 +35,7 @@ export class Cinema2UserModelTextureTier {
 
   /** Applies a tier to the materials; returns how many texture slots changed. */
   apply(materials: readonly ThreeNamespace.Material[], quality: Cinema2RenderQualityLevel): number {
-    const cap = CINEMA2_USER_MODEL_TEXTURE_SIDE[quality]
+    const caps = this.fit(materials, quality)
     let changed = 0
     for (const material of materials) {
       const slots = material as unknown as Record<Slot, ThreeNamespace.Texture | null | undefined>
@@ -34,11 +43,34 @@ export class Cinema2UserModelTextureTier {
         const current = slots[slot]
         if (!current) continue
         const original = this.originals.get(current) ?? current
-        const next = this.tiered(original, cap)
+        const next = this.tiered(original, caps.get(original) ?? Number.POSITIVE_INFINITY)
         if (next !== current) { slots[slot] = next; changed++ }
       }
     }
     return changed
+  }
+
+  /** The longest side each of these materials' (original) textures may keep on this tier: the tier's own limit, then the largest maps halved until the set fits the tier's memory allowance. */
+  fit(materials: readonly ThreeNamespace.Material[], quality: Cinema2RenderQualityLevel): ReadonlyMap<ThreeNamespace.Texture, number> {
+    const textures = new Set<ThreeNamespace.Texture>()
+    for (const material of materials) {
+      const slots = material as unknown as Record<Slot, ThreeNamespace.Texture | null | undefined>
+      for (const slot of TEXTURE_SLOTS) { const current = slots[slot]; if (current) textures.add(this.originals.get(current) ?? current) }
+    }
+    const allowance = CINEMA2_USER_MODEL_TEXTURE_BYTES[quality], tierSide = CINEMA2_USER_MODEL_TEXTURE_SIDE[quality]
+    const sides = new Map<ThreeNamespace.Texture, number>()
+    for (const texture of textures) { const longest = longestSide(texture); sides.set(texture, longest > 0 ? Math.min(longest, tierSide) : tierSide) }
+    for (;;) {
+      if (textureBytes(textures, sides) <= allowance) break
+      let largest: ThreeNamespace.Texture | null = null, largestBytes = 0
+      for (const texture of textures) {
+        const side = sides.get(texture)!, bytes = textureBytes([texture], side)
+        if (side > MINIMUM_SIDE && bytes > largestBytes) { largest = texture; largestBytes = bytes }
+      }
+      if (!largest) break
+      sides.set(largest, Math.max(MINIMUM_SIDE, Math.floor(sides.get(largest)! / 2)))
+    }
+    return sides
   }
 
   /** Disposes every smaller copy made so far. The originals belong to the model's cache and are left alone. */
@@ -86,4 +118,22 @@ export class Cinema2UserModelTextureTier {
     context.drawImage(source, 0, 0, sw, sh, 0, 0, width, height)
     return canvas as unknown as CanvasImageSource
   }
+}
+
+function longestSide(texture: ThreeNamespace.Texture): number {
+  const image = texture.image as Drawable | null
+  return image && image.width > 0 && image.height > 0 ? Math.max(image.width, image.height) : 0
+}
+
+/** GPU bytes of these textures when none keeps a longer side than its limit (one number for all, or one per texture): the same estimate the engine's memory budget uses. */
+export function textureBytes(textures: Iterable<ThreeNamespace.Texture>, limit: number | ReadonlyMap<ThreeNamespace.Texture, number> = Number.POSITIVE_INFINITY): number {
+  let bytes = 0
+  for (const texture of textures) {
+    const image = texture.image as Drawable | null
+    if (!image || !(image.width > 0) || !(image.height > 0)) continue
+    const cap = typeof limit === 'number' ? limit : limit.get(texture) ?? Number.POSITIVE_INFINITY
+    const scale = Math.min(1, cap / Math.max(image.width, image.height))
+    bytes += Math.max(1, Math.round(image.width * scale)) * Math.max(1, Math.round(image.height * scale)) * 4 * (texture.generateMipmaps ? 1.34 : 1)
+  }
+  return bytes
 }

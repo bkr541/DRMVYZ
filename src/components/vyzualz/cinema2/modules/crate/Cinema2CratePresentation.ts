@@ -3,9 +3,6 @@ import type { Cinema2Vector3 } from '../../contracts/Cinema2NativePresetManifest
 import type { Cinema2ThreeLibrary } from '../three/Cinema2ThreeLibrary'
 
 export const CINEMA2_CRATE_PRESENTATIONS = {
-  'glitch-array': {
-    name: 'Suspended Matrix', camera: [5.8, 4.1, 11.4], target: [0, .15, -4.5], fov: 52, background: [.012, .022, .032, 1],
-  },
   'glyph-sphere': {
     name: 'Glyph Armillary', camera: [5.7, 2.8, 11], target: [0, 0, -.3], fov: 46, background: [.018, .017, .037, 1],
   },
@@ -60,7 +57,6 @@ export class Cinema2CratePresentation {
     scene.name = CINEMA2_CRATE_PRESENTATIONS[this.id].name
     this.backdrop(scene)
     switch (this.id) {
-      case 'glitch-array': this.suspendedMatrix(scene, source); break
       case 'glyph-sphere': this.glyphArmillary(scene, source[0]!); break
       case 'nested-pulse': this.frameCascade(scene, source); break
       case 'wireframe-portal': this.cornerTruss(scene, source[0]!); break
@@ -206,71 +202,6 @@ export class Cinema2CratePresentation {
     plane.position.copy(focalPoint).addScaledVector(awayFromCamera, 35)
     plane.lookAt(cameraPosition)
     root.add(plane)
-  }
-
-  private suspendedMatrix(root: Three.Object3D, source: readonly Mesh[]): void {
-    const { THREE } = this
-    const graphite = [
-      { color: 0x263746, emissive: 0x111a24 },
-      { color: 0x344857, emissive: 0x141e2d },
-      { color: 0x23343d, emissive: 0x0f1f24 },
-    ].map(colors => this.ownMaterial(new THREE.MeshStandardMaterial({ ...colors, roughness: .32, metalness: .62 })))
-    const banks = [
-      { name: 'central-grid', position: [-.7, -1.55, -.7], angles: [.03, .12, -.08], scale: .60, rows: [0, 5], role: 'grid-cells' },
-      { name: 'ceiling-grid', position: [-.8, 3.55, -6.9], angles: [.56, -.16, -.18], scale: .66, rows: [0, 5], role: 'overhead-cells' },
-      { name: 'left-bank', position: [-5.4, -.5, 2.6], angles: [.36, .32, .54], scale: .75, rows: [0, 2], role: 'foreground-cells' },
-      { name: 'right-bank', position: [5.2, .4, .7], angles: [-.35, -.42, -.5], scale: .71, rows: [2, 5], role: 'foreground-cells' },
-      { name: 'rear-bank', position: [-3.7, .35, -10.4], angles: [.56, .28, .32], scale: .66, rows: [1, 5], role: 'rear-cells' },
-      { name: 'rear-shear', position: [4.1, -.25, -11], angles: [-.47, -.22, -.28], scale: .70, rows: [0, 4], role: 'rear-cells' },
-      { name: 'lower-bank', position: [1.7, -4.4, -6.9], angles: [-.42, .58, .12], scale: .7, rows: [0, 4], role: 'rear-cells' },
-      { name: 'high-left-fragment', position: [-6.5, 4.6, -6.4], angles: [.27, .45, .28], scale: .43, rows: [2, 3], role: 'rear-cells' },
-      { name: 'high-right-fragment', position: [5.8, 4.1, -12.4], angles: [.27, -.17, -.21], scale: .51, rows: [0, 2], role: 'rear-cells' },
-    ] as const
-    const center = new THREE.Box3()
-    const bounds = source.map(mesh => {
-      const box = new THREE.Box3().setFromObject(mesh)
-      center.union(box)
-      return box
-    })
-    const origin = center.getCenter(new THREE.Vector3())
-    const accent = this.emission('matrix-checkpoints', 0xff9d5d, 2.1)
-
-    banks.forEach((bank, bankIndex) => {
-      const group = this.assembly(root, bank.name, bank)
-      const faceLamps = this.family(group, bank.role)
-      const rails = this.family(group, 'matrix-bank-rails')
-      const checkpoints = this.family(group, 'matrix-checkpoints')
-      const marked = this.emission(bank.role, 0xb7fff6, 2.55)
-      const dim = this.emission(bank.role, 0x4094b7, .82)
-      const shift = bankIndex > 1 ? 1 : 0
-      const translation = new THREE.Matrix4()
-      const matrices: Three.Matrix4[] = []
-      source.forEach((mesh, index) => {
-        const box = bounds[index]!
-        const cell = box.getCenter(new THREE.Vector3())
-        const row = Math.round(cell.z / 2)
-        const col = Math.round(cell.x / 2)
-        if (row < bank.rows[0] || row > bank.rows[1] || (shift && (row * 7 + col * 11 + bankIndex) % 13 === 0)) return
-        const nudge = shift && row > 2 ? .7 * (bankIndex % 2 ? 1 : -1) : 0
-        const elevation = shift && (col + row + bankIndex) % 5 === 0 ? .36 : 0
-        translation.makeTranslation(-origin.x + nudge, -origin.y + elevation, -origin.z)
-        const matrix = new THREE.Matrix4().multiplyMatrices(translation, mesh.matrixWorld)
-        matrices.push(matrix)
-        const x = cell.x - origin.x + nudge
-        const y = box.max.y - origin.y + elevation + .09
-        const z = cell.z - origin.z
-        this.lamp(faceLamps, [x, y, z + .34], [index % 4 === 0 ? .71 : .33, .08, .075], index % 6 === 0 ? marked : dim)
-        if ((row + col * 3) % 7 === 0) this.lamp(checkpoints, [x - .31, y + .06, z - .41], [.14, .14, .14], accent)
-      })
-      // All source cubes have the same geometry; their individual authored transforms are retained.
-      this.mountBatch(group, source[0]!.geometry, graphite[bankIndex % graphite.length]!, matrices)
-      const side = bankIndex % 2 ? 1 : -1
-      const railX = side * 6.2
-      this.bar(rails, [railX, -.03, bank.rows[0] * 2 - origin.z], [railX, -.03, bank.rows[1] * 2 - origin.z], .033,
-        this.emission('matrix-bank-rails', 0x8ae4e8, bankIndex > 3 ? .75 : 1.8))
-    })
-    this.staticLight(root, 'matrix-cyan-bounce', [-2.4, 3.5, 1.8], 0x51d9ed, 38, 16)
-    this.staticLight(root, 'matrix-amber-bounce', [4.6, -1, -4], 0xff8b53, 50, 13)
   }
 
   private glyphArmillary(root: Three.Object3D, source: Mesh): void {

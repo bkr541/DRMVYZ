@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import * as THREE from 'three'
-import { CINEMA2_USER_MODEL_TEXTURE_SIDE, Cinema2UserModelTextureTier } from '../modules/three/Cinema2UserModelTextureTier'
+import { CINEMA2_USER_MODEL_TEXTURE_BYTES, CINEMA2_USER_MODEL_TEXTURE_SIDE, Cinema2UserModelTextureTier, textureBytes } from '../modules/three/Cinema2UserModelTextureTier'
 
 /** A canvas stand-in that records what was drawn, since the test environment has no 2D canvas. */
 function fakeCanvasFactory() {
@@ -16,11 +16,12 @@ const texture = (side: number, colorSpace: string = THREE.SRGBColorSpace) => {
 }
 
 describe('user model texture tiers', () => {
-  it('caps the longest side at 1024 on low, 2048 on medium, and leaves high as saved', () => {
-    expect(CINEMA2_USER_MODEL_TEXTURE_SIDE.low).toBe(1024); expect(CINEMA2_USER_MODEL_TEXTURE_SIDE.medium).toBe(2048); expect(CINEMA2_USER_MODEL_TEXTURE_SIDE.high).toBe(Infinity)
+  it('limits the longest side to 1024 on low, 2048 on medium and 4096 on high, and gives each tier a memory allowance', () => {
+    expect(CINEMA2_USER_MODEL_TEXTURE_SIDE).toEqual({ low: 1024, medium: 2048, high: 4096 })
+    expect(CINEMA2_USER_MODEL_TEXTURE_BYTES.low).toBeLessThan(CINEMA2_USER_MODEL_TEXTURE_BYTES.medium); expect(CINEMA2_USER_MODEL_TEXTURE_BYTES.medium).toBeLessThan(CINEMA2_USER_MODEL_TEXTURE_BYTES.high)
   })
 
-  it('swaps a smaller copy into the material on low, keeping the texture settings, and restores the original on high', () => {
+  it('swaps a smaller copy into the material on low, keeping the texture settings, and steps down to what the memory allowance permits on high', () => {
     const { factory, created } = fakeCanvasFactory(), tier = new Cinema2UserModelTextureTier(THREE, factory)
     const original = texture(4096), data = texture(4096, THREE.LinearSRGBColorSpace), material = new THREE.MeshStandardMaterial({ map: original, roughnessMap: data })
     expect(tier.apply([material], 'low')).toBe(2)
@@ -34,19 +35,41 @@ describe('user model texture tiers', () => {
     expect(created.filter(c => c.width === 2048).length).toBeGreaterThan(0)
     expect(tier.apply([material], 'medium')).toBe(2)
     expect(material.map!.image).toMatchObject({ width: 2048, height: 2048 })
-    expect(tier.apply([material], 'high')).toBe(2)
-    expect(material.map).toBe(original); expect(material.roughnessMap).toBe(data)
+    // Two 4096 px maps (about 180 MB) do not fit the high allowance, so they step down to 2048; a pair that fits comes back as saved.
+    expect(tier.apply([material], 'high')).toBe(0)
+    expect(material.map!.image).toMatchObject({ width: 2048, height: 2048 })
+    const fits = new THREE.MeshStandardMaterial({ map: texture(2048) }), fitsOriginal = fits.map
+    expect(tier.apply([fits], 'high')).toBe(0); expect(fits.map).toBe(fitsOriginal)
+    expect(tier.apply([material], 'low')).toBe(2); expect(material.map!.image).toMatchObject({ width: 1024, height: 1024 })
   })
 
-  it('leaves textures already within the cap alone, and makes one copy per texture and size even when materials share it', () => {
-    const { factory, created } = fakeCanvasFactory(), tier = new Cinema2UserModelTextureTier(THREE, factory)
-    const small = texture(512), shared = texture(4096)
-    const a = new THREE.MeshStandardMaterial({ map: small }), b = new THREE.MeshStandardMaterial({ map: shared }), c = new THREE.MeshStandardMaterial({ map: shared })
-    tier.apply([a, b, c], 'low')
-    expect(a.map).toBe(small); expect(b.map).toBe(c.map)
-    const drawsAfterFirst = created.length
-    tier.apply([a, b, c], 'low')
-    expect(created.length).toBe(drawsAfterFirst)
+  it('fits the user\'s real models: 391 MB and 257 MB of textures end up inside every tier\'s allowance, shrinking only the biggest maps', () => {
+    const maps = (sizes: [number, number][]) => sizes.map(([w, h]) => new THREE.Texture({ width: w, height: h } as unknown as HTMLImageElement))
+    const diamond = maps([[4096, 4096], [4096, 4096], [4096, 4096], [4096, 4096], [3072, 1024], [3072, 1024], [3072, 1024]])
+    const pure = maps([[4096, 4096], [4096, 4096], [4096, 4096]])
+    expect(textureBytes(diamond) / 1048576).toBeGreaterThan(380); expect(textureBytes(pure) / 1048576).toBeGreaterThan(250)
+    const { factory } = fakeCanvasFactory(), tier = new Cinema2UserModelTextureTier(THREE, factory)
+    for (const set of [diamond, pure]) {
+      const materials = set.map(map => new THREE.MeshStandardMaterial({ map }))
+      for (const quality of ['high', 'medium', 'low'] as const) {
+        const caps = tier.fit(materials, quality)
+        for (const texture of set) expect(caps.get(texture)).toBeLessThanOrEqual(CINEMA2_USER_MODEL_TEXTURE_SIDE[quality])
+        expect(textureBytes(set, caps)).toBeLessThanOrEqual(CINEMA2_USER_MODEL_TEXTURE_BYTES[quality])
+      }
+    }
+    // On high the four 90 MB maps drop to 2048 at most, and the smaller wide maps keep their full size while memory allows; nothing falls below 1024.
+    const caps = tier.fit(diamond.map(map => new THREE.MeshStandardMaterial({ map })), 'high')
+    for (const map of diamond.slice(0, 4)) expect(caps.get(map)).toBeLessThanOrEqual(2048)
+    expect(Math.min(...diamond.map(map => caps.get(map)!))).toBeGreaterThanOrEqual(1024)
+    expect(textureBytes(diamond, caps) / 1048576).toBeGreaterThan(60)
+  })
+
+  it('never steps a small model down: textures that already fit keep the tier\'s full side', () => {
+    const { factory } = fakeCanvasFactory(), tier = new Cinema2UserModelTextureTier(THREE, factory)
+    const chamber = new THREE.Texture({ width: 512, height: 512 } as unknown as HTMLImageElement), materials = [new THREE.MeshStandardMaterial({ map: chamber })]
+    for (const quality of ['low', 'medium', 'high'] as const) expect(tier.fit(materials, quality).get(chamber)).toBe(512)
+    const big = new THREE.Texture({ width: 2048, height: 2048 } as unknown as HTMLImageElement)
+    expect(tier.fit([new THREE.MeshStandardMaterial({ map: big })], 'high').get(big)).toBe(2048)
   })
 
   it('keeps the aspect ratio of a non-square texture', () => {

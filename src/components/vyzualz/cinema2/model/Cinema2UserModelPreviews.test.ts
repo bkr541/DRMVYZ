@@ -4,6 +4,8 @@ import { CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS } from '../presets/Cinema2First
 import { cinema2NativePresetRegistry, Cinema2PresetRegistry } from '../presets/Cinema2PresetRegistry'
 import { validateCinema2PresetAuthoringConventions } from '../presets/Cinema2PresetAuthoring'
 import { createCinema2UserModelPreset, cinema2UserModelPreviewParameterId } from '../presets/Cinema2UserModelPresetFactory'
+import { Cinema2ParameterState } from '../parameters/Cinema2ParameterState'
+import { createCinema2DesignParentGroupModel, createCinema2InspectorModel } from '../parameters/Cinema2InspectorModel'
 import { CINEMA2_AFTERHOURS_TRIGGER_OPTIONS } from '../presets/Cinema2AfterhoursPreset'
 import { CINEMA2_USER_MODEL_PREVIEWS, type Cinema2UserModelPreviewKind } from './Cinema2UserModelPreviewPatterns'
 import { Cinema2UserModelPreviewEffects } from './Cinema2UserModelPreviewEffects'
@@ -34,6 +36,14 @@ describe.each(kinds)('%s model preview declaration', kind => {
     expect(cinema2NativePresetRegistry.compile(manifest.id).ok).toBe(true)
     const registry = new Cinema2PresetRegistry(); expect(registry.register(manifest).ok).toBe(true); expect(registry.register(manifest).ok).toBe(false)
     const find = (key: string) => manifest.parameters!.find(p => p.id === cinema2UserModelPreviewParameterId(kind, key))!
+    const compiled = cinema2NativePresetRegistry.compile(manifest.id)
+    if (!compiled.ok) throw new Error('Preview did not compile')
+    const snapshot = new Cinema2ParameterState(compiled.plan.parameters).getSnapshot()
+    const controls = createCinema2DesignParentGroupModel(compiled.plan, snapshot).flatMap(parent => [...parent.controls, ...parent.groups.flatMap(group => group.controls)])
+    expect(find('model').exposure).toBe('hidden')
+    expect(controls.some(control => control.definition.id === find('model').id)).toBe(false)
+    expect(controls.find(control => control.definition.id === find('pattern').id)).toBeDefined()
+    expect(createCinema2InspectorModel(compiled.plan, snapshot, 'design').flatMap(section => section.groups.flatMap(group => group.controls)).some(control => control.definition.id === find('model').id)).toBe(false)
     expect(find('bpmSync')).toMatchObject({ label: 'BPM Sync', type: 'boolean', designParentGroup: 'master-controls' })
     expect(find('pattern').options).toHaveLength(6); expect(find('patternChange')).toMatchObject({ type: 'boolean', defaultValue: false, designParentGroup: 'design' })
     expect(find('trigger').options).toEqual(CINEMA2_AFTERHOURS_TRIGGER_OPTIONS); expect(find('trigger').visibleWhen).toEqual([{ kind: 'parameter-equals', parameterId: find('patternChange').id, value: true }])

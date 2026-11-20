@@ -99,6 +99,7 @@ export function readCinema2MainframeDirector(director: Readonly<Cinema2VisualDir
 export function resolveCinema2MainframeMusicalEvents(
   frame: Readonly<Cinema2ModuleFrameReadContext>,
   cues: readonly Readonly<Cinema2MainframeMusicalCue>[],
+  actionPrefix = 'mainframe',
 ): readonly Readonly<Cinema2MainframeMusicalEvent>[] {
   const audio = frame.audio
   if (!audio) return Object.freeze([])
@@ -134,7 +135,7 @@ export function resolveCinema2MainframeMusicalEvents(
   }
   for (const cue of cues) {
     // The dispatch runtime owns this suffix convention; strip only its final action ID.
-    const suffix = `:mainframe-${cue.kind === 'fourBeat' ? 'four-beat' : cue.kind}-cue`
+    const suffix = `:${actionPrefix}-${cue.kind === 'fourBeat' ? 'four-beat' : cue.kind}-cue`
     if (!cue.dispatchedEventId.endsWith(suffix)) continue
     const id = cue.dispatchedEventId.slice(0, -suffix.length)
     if (cue.kind === 'phrase' && audio.structure.analyzedPhrases.available) {

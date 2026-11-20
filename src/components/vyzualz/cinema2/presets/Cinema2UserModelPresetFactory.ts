@@ -22,7 +22,7 @@ export function createCinema2UserModelPreset(kind: Cinema2UserModelPreviewKind):
     parameter('intensity', 'Master Intensity', 'float', 1, 'master-controls', { min: 0, max: 2, step: .01, order: 1 }),
     parameter('bpmSync', 'BPM Sync', 'boolean', true, 'master-controls', { order: 2, description: 'Motion follows the shared track grid/tempo; OFF uses a steady 120 BPM reference. Rhythm triggers continue following musical events.' }),
     parameter('autoPerformance', 'Auto Performance', 'boolean', false, 'master-controls', { order: 3, description: 'Lets the music take the Pattern for a moment: the preview gathers while a build charges and breaks into its most energetic arrangement from each drop, then your Pattern resumes. It never changes your Pattern, Pattern Change or Trigger, and choosing a Pattern during one ends it at once.' }),
-    { ...createCinema2UserModelParameter(id('model')), order: 0 },
+    { ...createCinema2UserModelParameter(id('model')), exposure: 'hidden', order: 0 },
     parameter('pattern', 'Pattern', 'enum', CINEMA2_USER_MODEL_PREVIEWS[kind][0], 'design', { order: 1, options: CINEMA2_USER_MODEL_PREVIEWS[kind].map(label => ({ value: label, label })) }),
     parameter('patternChange', 'Pattern Change', 'boolean', false, 'design', { order: 2 }),
     parameter('trigger', 'Trigger', 'enum', 'beat', 'design', { order: 3, options: CINEMA2_AFTERHOURS_TRIGGER_OPTIONS, visibleWhen: [{ kind: 'parameter-equals', parameterId: id('patternChange'), value: true }] }),
@@ -50,7 +50,7 @@ export function createCinema2UserModelPreset(kind: Cinema2UserModelPreviewKind):
     schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID, schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
     id: cinema2NamespacedId<Cinema2PresetId>(`drmvyz.cinema2.${prefix}`), // Additive controls retain revision 1 so existing pinned model/version selections restore.
     revision: 1,
-    metadata: { name: `3D ${kind.toUpperCase()} (Preview)`, description: `Reference preview: ${CINEMA2_USER_MODEL_PREVIEW_DESCRIPTIONS[kind]} Uses your pinned model or a neutral fallback; Neutral studio stage with model-based choreography.`, tags: ['reference', 'preview', 'user-model', '3d', kind] },
+    metadata: { name: `3D ${kind.toUpperCase()} (Preview)`, description: `Reference preview: ${CINEMA2_USER_MODEL_PREVIEW_DESCRIPTIONS[kind]} Uses your pinned model; the model slot stays empty until it is ready. Neutral studio stage with model-based choreography.`, tags: ['reference', 'preview', 'user-model', '3d', kind] },
     capabilities: [{ id: 'render.webgl2', requirement: 'required', purpose: 'The shared Three.js world render path.' }, { id: 'render.depth', requirement: 'required', purpose: 'Depth-tested model effects.' }, { id: 'scene.3d', requirement: 'required', purpose: 'Model placement in the shared Scene Graph.' }, { id: 'camera.world', requirement: 'required', purpose: 'Fixed neutral stage framing.' }, { id: 'lighting', requirement: 'required', purpose: 'PBR model lighting.' }],
     ...base.authored,
     cameras: base.authored.cameras?.map(camera => ({ ...camera, fovDegrees: 38, transform: { position: [0, 1.45, 5.8] as [number, number, number] } })),

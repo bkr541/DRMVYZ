@@ -1,6 +1,6 @@
 import { Cinema2UserModelPreviewEffects } from '../model/Cinema2UserModelPreviewEffects'
 import { isCinema2UserModelPreview } from '../model/Cinema2UserModelPreviewPatterns'
-import { createCinema2ModelPlaceholder } from '../model/Cinema2ModelPlaceholder'
+import { createCinema2ModelNeutralFloor } from '../model/Cinema2ModelNeutralFloor'
 import { Cinema2UserModelSlot, type Cinema2UserModelSlotSnapshot } from '../model/Cinema2UserModelSlot'
 import type { Cinema2UserModelCache } from '../model/Cinema2UserModelCache'
 import { DEFAULT_MODEL_BINDING } from '../model/Cinema2ModelBinding'
@@ -157,7 +157,7 @@ export interface Cinema2ThreeSceneModuleOptions {
   resourceKey?: string
   acceptSegmentCues?: boolean
   /** Optional preset-owned behavior while retaining shared asset/material/resource ownership. */
-  createModelController?: (library: Cinema2ThreeLibrary) => NonNullable<Cinema2ThreeSceneOptions['modelController']> & { update?(context: Cinema2ModuleUpdateContext): void }
+  createModelController?: (library: Cinema2ThreeLibrary, context: Cinema2ModuleCreateContext) => NonNullable<Cinema2ThreeSceneOptions['modelController']> & { update?(context: Cinema2ModuleUpdateContext): void; handleAction?(action: string, event: Readonly<Cinema2DispatchedTargetAction>): void }
 }
 
 export interface Cinema2ThreeSceneModuleInspection {
@@ -276,18 +276,15 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
           held = ok.map(entry => entry.asset)
           loaded = ok.map(entry => ({ asset: entry.asset, node: entry.instance.node, spin: entry.instance.spin, preserveMaterials: entry.instance.preserveMaterials }))
           if (userConfig) {
-            const fallback = createCinema2ModelPlaceholder(library!)
-            ownedTemplates.push(fallback)
-            loaded.push({ asset: fallback, node: userConfig.node, spin: userConfig.spin, userModel: true })
-            if (userConfig.neutralFloor) { const floor = createCinema2ModelPlaceholder(library!, true); ownedTemplates.push(floor); loaded.push({ asset: floor, node: null, preserveMaterials: true }) }
-            userSlot = new Cinema2UserModelSlot(library!, fallback, asset => {
-              const instance = { asset, node: userConfig.node, spin: userConfig.spin, userModel: true }
-              loaded = [...loaded.filter(entry => !entry.userModel), instance]
+            if (userConfig.neutralFloor) { const floor = createCinema2ModelNeutralFloor(library!); ownedTemplates.push(floor); loaded.push({ asset: floor, node: null, preserveMaterials: true }) }
+            userSlot = new Cinema2UserModelSlot(library!, asset => {
+              const instance = asset ? { asset, node: userConfig.node, spin: userConfig.spin, userModel: true } : null
+              loaded = [...loaded.filter(entry => !entry.userModel), ...(instance ? [instance] : [])]
               bridge?.replaceUserModel(instance)
             }, options.userModels, options.subscribeModelAccount)
             userSlot.select(userBinding)
           }
-          state = loaded.length > 0 ? 'building' : 'failed'
+          state = loaded.length > 0 || userConfig ? 'building' : 'failed'
         })()
       }
 
@@ -297,7 +294,7 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
             options.resourceKey ?? 'three-scene:bridge',
             'ThreeSceneBridge',
             gl => {
-              modelController = options.createModelController?.(library!) ?? (isCinema2UserModelPreview(context.module.config?.userModelPreview) ? new Cinema2UserModelPreviewEffects(library!, context.module.config!.userModelPreview) : undefined)
+              modelController = options.createModelController?.(library!, context) ?? (isCinema2UserModelPreview(context.module.config?.userModelPreview) ? new Cinema2UserModelPreviewEffects(library!, context.module.config!.userModelPreview) : undefined)
               if (latestControllerUpdate) modelController?.update?.(latestControllerUpdate)
               return new Cinema2ThreeSceneBridge(gl, library!, loaded, { modelController, panels: areaLightTables ? panels : [], areaLightTables, environmentUrl: environmentId ? quality => environments.resolveUrl(environmentId, quality) : null, ...(glowShares ? { glow: glowShares } : {}), ...(segmentRoles ? { segments: segmentRoles } : {}), ...(atlHoeRoles ? { atlHoe: atlHoeRoles } : {}), ...(atlHoeLights.length > 0 ? { atlHoeLights } : {}), conduitSemantics: context.module.config?.conduitSemantics === true, hdr: context.module.config?.hdr === true, ...(particles.length > 0 ? { particles } : {}), ...(shadowParts ? { shadows: shadowParts } : {}) })
             },
@@ -474,8 +471,10 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
           },
         },
         render: { providers: Object.freeze([provider]) },
-        handleAction: options.acceptSegmentCues ? (action: string, event: Readonly<Cinema2DispatchedTargetAction>) => {
-          if (action !== 'musicalCue' || disposed || !segmentLighting || !event.eventId || !event.payload || typeof event.payload !== 'object' || Array.isArray(event.payload)) return
+        handleAction: options.acceptSegmentCues || options.createModelController ? (action: string, event: Readonly<Cinema2DispatchedTargetAction>) => {
+          if (disposed) return
+          modelController?.handleAction?.(action, event)
+          if (action !== 'musicalCue' || !segmentLighting || !event.eventId || !event.payload || typeof event.payload !== 'object' || Array.isArray(event.payload)) return
           const kind = (event.payload as { kind?: unknown }).kind
           if (typeof kind === 'string' && ['kick', 'snare', 'transient', 'beat', 'downbeat', 'bar', 'phrase', 'section', 'drop'].includes(kind)) {
             segmentLighting.enqueueCue(kind as Cinema2ConduitCueKind, event.eventId)

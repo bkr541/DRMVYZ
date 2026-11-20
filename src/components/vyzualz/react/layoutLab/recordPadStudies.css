@@ -1,24 +1,22 @@
-/* Record rows: presets, audio tracks and 3D models share one row anatomy.
-   Surface is the Performance Pad's (#10171b, 1px edge, 5px radius). Layout follows common list guidance: a 40px leading tile, a title line,
-   a muted secondary line, an optional metadata line, supplemental actions right-aligned, 8px rhythm. Selection is the app's library-card
-   treatment (cyan border, tint, inset bar); hover and press change only the surface. No glow, lift or colour-coded categories. */
+/* Record rows: presets, audio tracks and 3D models share one text-row anatomy. Surface is the Performance Pad's (#10171b, 1px edge, 5px radius).
+   Layout follows common list guidance: a bold title line, a muted secondary line, an optional metadata line, supplemental actions right-aligned,
+   8px rhythm. Imagery appears only in the 3D Models grid, where the image is what you choose by; most audio tracks have no cover art, so no list shows it.
+   Selection is the app's library-card treatment (cyan border, tint, inset bar); hover and press change only the surface. */
 .ll-records--pads .ll-record-row-list { display: grid; gap: 6px; padding: 12px; margin: 0; }
 .ll-records--pads .ll-record-row-list--grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; align-content: start; }
 
-.ll-record-row { position: relative; display: flex; align-items: center; min-width: 0; min-height: 56px; border: 1px solid #ffffff16; border-radius: 5px; background: #10171b; color: #dbe5e9; transition: background 80ms, border-color 80ms; }
+.ll-record-row { position: relative; display: flex; align-items: center; min-width: 0; min-height: 52px; border: 1px solid #ffffff16; border-radius: 5px; background: #10171b; color: #dbe5e9; transition: background 80ms, border-color 80ms; }
 .ll-record-row:hover { background: #162027; border-color: #ffffff26; }
 .ll-record-row:has(.ll-record-row-main:active) { background: #0c1216; }
 .ll-record-row[data-selected] { border-color: rgba(74, 199, 219, .55); background: rgba(74, 199, 219, .09); box-shadow: inset 2px 0 0 var(--color-primary, #4ac7db); }
 .ll-record-row[data-selected]:hover { background: rgba(74, 199, 219, .13); }
 
-.ll-record-row-main { appearance: none; display: flex; align-items: center; flex: 1 1 auto; gap: 10px; min-width: 0; margin: 0; padding: 8px 4px 8px 10px; border: 0; border-radius: inherit; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.ll-record-row-main { appearance: none; display: flex; align-items: center; flex: 1 1 auto; gap: 10px; min-width: 0; margin: 0; padding: 9px 4px 9px 14px; border: 0; border-radius: inherit; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .ll-record-row-main:focus-visible { outline: 2px solid #8ef4ff; outline-offset: -2px; }
 
-/* Leading tile: preset artwork, model preview, or the track's initials (as the Lyric Manager already does for tracks). */
-.ll-record-row-thumb { position: relative; display: grid; place-items: center; flex: none; width: 40px; height: 40px; border: 1px solid #ffffff16; border-radius: 4px; overflow: hidden; background: #0b1114; }
-.ll-record-row-thumb > img, .ll-record-row-thumb .ll-record-row-art { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; border-radius: 0; mask-image: none; object-fit: cover; }
-.ll-record-row-thumb .rv-preset-blueprint-scene { inset: -34% -4% -18% 0; mask-image: none; }
-.ll-record-row-initials { color: #9fb6bf; font: 700 13px/1 var(--type-tab-family); letter-spacing: .04em; }
+/* The only imagery: a square model preview in the 3D Models grid. */
+.ll-record-row-thumb { position: relative; display: grid; place-items: center; flex: none; width: 100%; aspect-ratio: 1 / 1; border: 1px solid #ffffff16; border-radius: 4px; overflow: hidden; background: #0b1114; }
+.ll-record-row-thumb > img { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; object-fit: cover; }
 
 .ll-record-row-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1 1 auto; }
 .ll-record-row-title { overflow: hidden; color: #f2f7f9; font: var(--type-record-title); text-overflow: ellipsis; white-space: nowrap; }
@@ -34,13 +32,14 @@
 .ll-record-row-star[aria-pressed='true'] { color: #ffd166; }
 .ll-record-row-loaded { width: 7px; height: 7px; margin: 0 4px; border-radius: 50%; background: #64b98b; }
 
-/* Grid: the same parts stacked under a square tile; actions sit on a scrim over the tile's corner. */
+/* Grid: the same text stacked in a tile. With a preview (3D Models) the actions sit on a scrim over its corner; without one they take a row above the title. */
 .ll-record-row[data-view='grid'] { align-items: stretch; min-height: 0; }
 .ll-record-row[data-view='grid'] .ll-record-row-main { flex-direction: column; align-items: stretch; gap: 8px; padding: 8px; }
-.ll-record-row[data-view='grid'] .ll-record-row-thumb { width: 100%; height: auto; aspect-ratio: 1 / 1; }
-.ll-record-row[data-view='grid'] .ll-record-row-initials { font-size: 22px; }
-.ll-record-row[data-view='grid'] .ll-record-row-actions { position: absolute; top: 12px; right: 12px; padding: 0; border-radius: 4px; background: rgba(11, 17, 20, .72); }
-.ll-record-row[data-view='grid'] .ll-record-row-action { width: 24px; height: 24px; }
 .ll-record-row[data-view='grid'] .ll-record-row-title { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow-wrap: break-word; }
+.ll-record-row[data-view='grid']:has(.ll-record-row-thumb) .ll-record-row-actions { position: absolute; top: 12px; right: 12px; padding: 0; border-radius: 4px; background: rgba(11, 17, 20, .72); }
+.ll-record-row[data-view='grid']:has(.ll-record-row-thumb) .ll-record-row-action { width: 24px; height: 24px; }
+.ll-record-row[data-view='grid']:not(:has(.ll-record-row-thumb)) { flex-wrap: wrap; align-content: flex-start; }
+.ll-record-row[data-view='grid']:not(:has(.ll-record-row-thumb)) .ll-record-row-actions { order: -1; flex: 1 0 100%; justify-content: flex-end; padding: 4px 4px 0; }
+.ll-record-row[data-view='grid']:not(:has(.ll-record-row-thumb)) .ll-record-row-main { flex: 1 0 100%; padding-top: 0; }
 
 @media (prefers-reduced-motion: reduce) { .ll-record-row { transition: none; } }

@@ -457,3 +457,21 @@ Source and Inspector no longer draw duplicate runtime warning cards inline.
 Model-library errors and newer-version notices also use the existing drawer
 workflow, retaining their original retry/update actions. Transient loading does
 not register a warning notification.
+
+### Removed built-in model placeholder
+
+The six previews no longer instantiate a torus knot before a private model loads.
+The shared model slot is genuinely empty during loading, after clearing a
+selection and on load failure. The legacy `default-model` saved binding remains
+compatible and now means an empty slot; the selector displays “No model.”
+Import diagnostics continue through Notifications. Empty dynamic scenes remain
+buildable so the selected model can attach when its asynchronous load finishes.
+The optional neutral floor used by other model stages remains independent.
+
+### Model selection stays in Source
+
+All six previews hide the Model selector from the Design inspector using the
+standard parameter exposure rule. Its thumbnail, pinned-model summary, search,
+dropdown and Create in Media Manager action no longer appear there. The model
+parameter and its saved binding remain intact; the left Source library continues
+to select the model. Pattern is the first visible control in the Design group.

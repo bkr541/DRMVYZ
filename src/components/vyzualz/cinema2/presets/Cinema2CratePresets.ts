@@ -131,23 +131,6 @@ export const CINEMA2_CRATE_ARTIFACTS = [
     ],
     "far": 5706.756001357308
   },
-  {
-    "slug": "glitch-array",
-    "name": "Glitch Array",
-    "description": "A floor array of dark beveled cubes.",
-    "file": "stroboscopic_glitch_-_photosensitivity_warning.glb",
-    "camera": [
-      9.002744165602568,
-      16,
-      24.852709145964845
-    ],
-    "target": [
-      5.002744165602569,
-      0,
-      4.852709145964844
-    ],
-    "far": 845.418122309112
-  }
 ] as const
 
 export const CINEMA2_CRATE_PRESET_MANIFESTS: readonly Readonly<Cinema2NativePresetManifest>[] = CINEMA2_CRATE_ARTIFACTS.map((artifact): Readonly<Cinema2NativePresetManifest> => {

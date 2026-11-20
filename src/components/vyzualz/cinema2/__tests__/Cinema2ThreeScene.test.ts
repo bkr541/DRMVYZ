@@ -303,6 +303,17 @@ describe('Cinema 2.0 Three scene module lifecycle', () => {
   const exec = { lightingEnvironment: { quality: 'high' } } as never
   const settle = async () => { for (let i = 0; i < 8; i++) await Promise.resolve() }
 
+  it.each(['form', 'dust', 'shatter', 'hologram', 'slices', 'voxel'])('starts %s with an empty model slot and remains buildable while the private model loads', async kind => {
+    const acquire = vi.fn(() => new Promise(() => {})), registry = makeRegistry()
+    const definition = createCinema2ThreeSceneModuleDefinition({ registry, loadLibrary: async () => fakeLibrary, userModels: { acquire } as never, subscribeModelAccount: () => () => {} })
+    const { context } = createContext(moduleManifest({ userModel: { node: 'model-root', neutralFloor: false }, userModelPreview: kind }))
+    context.parameters.get = name => name === 'userModel' ? 'user-model:c0000000-0000-4000-8000-000000000001:1' : undefined
+    const instance = definition.create(context) as ReturnType<typeof definition.create> & { inspect(): { state: string; loadedAssetCount: number } }
+    instance.render!.providers[0]!.execute(exec); await settle()
+    expect(acquire).toHaveBeenCalledOnce(); expect(instance.inspect()).toMatchObject({ state: 'building', loadedAssetCount: 0 })
+    expect(instance.getDiagnostics!()).toMatchObject([{ code: 'CINEMA2_USER_MODEL_LOADING' }]); instance.lifecycle.dispose()
+  })
+
   it('renders nothing and surfaces a diagnostic when the 3D library cannot load', async () => {
     const definition = createCinema2ThreeSceneModuleDefinition({ registry: makeRegistry(), loadLibrary: async () => { throw new Error('offline') } })
     const { context } = createContext(moduleManifest({ instances: [{ asset: 'test-model' }] }))

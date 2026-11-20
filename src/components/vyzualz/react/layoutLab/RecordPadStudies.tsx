@@ -1,12 +1,10 @@
 import { useState, type ReactNode } from 'react'
 import { AppIcon, type AppIconKind } from '../../../shared/icons/AppIcon'
 import { ContextActionMenu } from '../../context-menu/ContextActionMenu'
-import { PresetLibraryArtwork } from '../../presetManager/PresetLibraryCard'
 import { PresetBlueprintImage } from '../PresetBlueprintImage'
 import { LibraryViewToggle, type LibraryView } from '../controls/LibraryViewToggle'
 import type { PresetManagerRecord } from '../../presetManager/presetManagerCatalog'
 import type { SavedAudioTrack } from '../../../../stores/audioStore'
-import { trackInitials } from '../../media/trackInitials'
 import { LIBRARY_PRESETS, MODELS, TRACKS } from './recordListingData'
 
 type Section = 'presets' | 'audio' | 'models'
@@ -16,8 +14,8 @@ function formatDuration(seconds: number) {
 }
 
 /**
- * One record row for every library. List view is a dense two/three-line row (leading tile, title, secondary line, optional metadata line,
- * supplemental actions at the right); grid view stacks the same parts under a square tile. Selection is a border, tint and inset bar,
+ * One record row for every library. List view is a dense two/three-line text row (title, secondary line, optional metadata line, supplemental
+ * actions at the right). Most records (every audio track) have no cover art, so imagery appears only where the image is the choice: the 3D Models grid. Selection is a border, tint and inset bar,
  * never colour alone; hover and press only change the surface.
  */
 function RecordRow({ section, view, selected, label, title, secondary, thumb, meta, actions, onSelect }: {
@@ -27,14 +25,15 @@ function RecordRow({ section, view, selected, label, title, secondary, thumb, me
   label: string
   title: string
   secondary: string
-  thumb: ReactNode
+  /** Only the 3D Models grid shows imagery; every other row is text. */
+  thumb?: ReactNode
   meta?: ReactNode
   actions?: ReactNode
   onSelect: () => void
 }) {
   return <article className="ll-record-row" data-record-row={section} data-view={view} data-selected={selected || undefined}>
     <button type="button" className="ll-record-row-main" aria-label={label} aria-pressed={selected} title={title} onClick={onSelect}>
-      <span className="ll-record-row-thumb" aria-hidden="true">{thumb}</span>
+      {thumb && <span className="ll-record-row-thumb" aria-hidden="true">{thumb}</span>}
       <span className="ll-record-row-text">
         <strong className="ll-record-row-title">{title}</strong>
         <span className="ll-record-row-secondary">{secondary}</span>
@@ -70,7 +69,6 @@ function PresetPad({ preset, view, selected, favorite, onSelect, onToggleFavorit
   ] as const
   const available = capabilities.filter(capability => capability.available)
   return <RecordRow section="presets" view={view} selected={selected} label={`Select ${preset.name}`} title={preset.name} secondary={preset.engineName} onSelect={onSelect}
-    thumb={<PresetLibraryArtwork preset={preset} className="ll-record-row-art" />}
     meta={available.length > 0 && <ul className="ll-record-row-meta">{available.map(({ label, icon }) => <MetaItem key={label} icon={icon} label={label} />)}</ul>}
     actions={<PadStar name={preset.name} active={favorite} onToggle={onToggleFavorite} />} />
 }
@@ -85,7 +83,6 @@ function AudioPad({ track, view, selected, loaded, onSelect, onLoad }: {
     track.musicalKey ? { label: 'Key', icon: 'music', value: track.musicalKey } : null,
   ].filter((stat): stat is { label: string; icon: AppIconKind; value: string } => stat !== null)
   return <RecordRow section="audio" view={view} selected={selected} label={`Select ${track.title}`} title={track.title} secondary={track.artist ?? ''} onSelect={onSelect}
-    thumb={<span className="ll-record-row-initials">{trackInitials(track)}</span>}
     meta={stats.length > 0 && <ul className="ll-record-row-meta">{stats.map(stat => <MetaItem key={stat.label} {...stat} />)}</ul>}
     actions={<>
       {loaded && <span className="ll-record-row-loaded" role="img" aria-label="Loaded" title="Loaded" />}
@@ -102,7 +99,7 @@ function ModelPad({ model, view, selected, favorite, onSelect, onToggleFavorite 
   model: { id: string; name: string }; view: LibraryView; selected: boolean; favorite: boolean; onSelect: () => void; onToggleFavorite: () => void
 }) {
   return <RecordRow section="models" view={view} selected={selected} label={`Select 3D model ${model.name}`} title={model.name} secondary="GLB · v1" onSelect={onSelect}
-    thumb={<PresetBlueprintImage presetId={model.id} />}
+    thumb={view === 'grid' ? <PresetBlueprintImage presetId={model.id} /> : undefined}
     actions={<PadStar name={model.name} active={favorite} onToggle={onToggleFavorite} />} />
 }
 

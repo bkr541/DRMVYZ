@@ -57,11 +57,11 @@ export function Cinema2ModelSelector({ id, label, value, disabled, onChange }: {
     } catch (error) { setError(error instanceof Error ? error.message : 'Model selection failed.') }
     finally { setSelecting(false) }
   }
-  const options = [{ value: DEFAULT_MODEL_BINDING, label: 'Default model', description: 'Neutral built-in placeholder' }, ...page.items.map(asset => ({ value: serializeUserModelBinding({ kind: 'user-model', modelAssetId: asset.id, version: asset.currentVersion }), label: `${asset.name} · v${asset.currentVersion}`, description: 'Pin this immutable version' }))]
+  const options = [{ value: DEFAULT_MODEL_BINDING, label: 'No model', description: 'Leave the model slot empty' }, ...page.items.map(asset => ({ value: serializeUserModelBinding({ kind: 'user-model', modelAssetId: asset.id, version: asset.currentVersion }), label: `${asset.name} · v${asset.currentVersion}`, description: 'Pin this immutable version' }))]
   if (selected && !options.some(option => option.value === value)) options.push({ value: String(value), label: `${selected.asset.name} · v${selected.version}`, description: 'Current pinned selection' })
   return <div className="rv-ctrl-row" data-cinema2-model-selector>
     <label className="rv-ctrl-label" htmlFor={id}>{label}</label>
-    <div className="cinema2-model-selection">{thumbnail ? <img src={thumbnail} alt="Selected model thumbnail" onError={() => { setThumbnail(null); if (!imageRetry) setImageRetry(1) }} /> : <AppIcon kind="layers" size={28} />}<span>{selected ? `${selected.asset.name} · v${selected.version} (pinned)` : value === DEFAULT_MODEL_BINDING ? 'Default model' : 'Pinned model unavailable'}</span></div>
+    <div className="cinema2-model-selection">{thumbnail ? <img src={thumbnail} alt="Selected model thumbnail" onError={() => { setThumbnail(null); if (!imageRetry) setImageRetry(1) }} /> : <AppIcon kind="layers" size={28} />}<span>{selected ? `${selected.asset.name} · v${selected.version} (pinned)` : value === DEFAULT_MODEL_BINDING ? 'No model' : 'Pinned model unavailable'}</span></div>
     <TextInputRow label="Search saved models" value={search} maxLength={200} disabled={disabled} onChange={setSearch} placeholder="Search your models…" />
     <Dropdown triggerId={id} ariaLabel={label} value={typeof value === 'string' ? value : DEFAULT_MODEL_BINDING} options={options} disabled={disabled || selecting} onChange={next => { void choose(next) }} size="compact" />
     {loading && <span role="status">Loading saved models…</span>}

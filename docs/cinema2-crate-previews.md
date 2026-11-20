@@ -1,6 +1,6 @@
 # Cinema 2.0 crate previews
 
-The Cinema 2.0 crate presets use the owner’s `3D Cinema 2.0 Crate` files. The source GLBs live in `public/cinema2/models/crate/`. Glitch Array, Glyph Sphere, Nested Pulse, and Wireframe Portal build static 3D environments from those artifacts. Paradox Weave’s Parallax Cipher uses an authored camera move. Beam Lattice, Bass Sigil and Moire Orb have their own performances described below.
+The Cinema 2.0 crate presets use the owner’s `3D Cinema 2.0 Crate` files. The source GLBs live in `public/cinema2/models/crate/`. Glyph Sphere, Nested Pulse, and Wireframe Portal build static 3D environments from those artifacts. Paradox Weave’s Parallax Cipher uses an authored camera move. Beam Lattice, Bass Sigil and Moire Orb have their own performances described below.
 
 | Preset | Source GLB | Appearance |
 | --- | --- | --- |
@@ -11,17 +11,15 @@ The Cinema 2.0 crate presets use the owner’s `3D Cinema 2.0 Crate` files. The 
 | Paradox Weave | `paradox_abstract_art_of_python.glb` | Parallax Cipher, with staggered angular plates and 3D lettering that aligns from a single viewpoint |
 | Nested Pulse | `pulse_cubed.glb` | Frame Cascade, with nested translucent frame assemblies at staggered heights and depths |
 | Bass Sigil | `skrillex_-_vj_-_flash_warning.glb` | The original cellular sphere, particle fields and glow around **a 3D model you choose** (the supplied logo is removed), with eight native programs, musical choreography and shared Auto Performance |
-| Glitch Array | `stroboscopic_glitch_-_photosensitivity_warning.glb` | Suspended Matrix, with tilted, staggered grids of beveled cubes |
 
-The stable preset IDs are `drmvyz.cinema2.crate-<slug>`. The crate manifests use the shared Three scene module for asset loading, material ownership, and rendering. The four environments assemble private scene objects over the shared GLB geometry and textures, with preset-specific fixed framing and a static bloom and color pass. Spin is off for all four.
+The stable preset IDs are `drmvyz.cinema2.crate-<slug>`. The crate manifests use the shared Three scene module for asset loading, material ownership, and rendering. The original environment pass assembled private scene objects over the shared GLB geometry and textures, with fixed framing and static bloom/color finishing. The three remaining static environments are listed below.
 
-### Static lighting families
+### Original static lighting families
 
-Each family has named scene groups and its own fixture materials. Repeated fixtures share instanced draws by group and material. The scene inspection reports the available families. Design controls, animation playback, choreography, and Audio Intelligence remain outside this visual pass.
+Each family has named scene groups and its own fixture materials. Repeated fixtures share instanced draws by group and material. The scene inspection reports the available families. Design controls, animation playback, choreography, and Audio Intelligence were outside that initial visual pass.
 
 | Environment | Lighting families |
 | --- | --- |
-| Suspended Matrix | Central, overhead, foreground, and rear cell lights, plus bank rails and amber checkpoints |
 | Glyph Armillary | White glyph core, three independently tinted glyph bands, index ticks, and joint lights |
 | Frame Cascade | Outer edge lights, corner lights, and inner rungs |
 | Corner Truss | Frame rails, edge runs, cross-braces, chamfered joints, bay links, and wayfinding pins |
@@ -32,7 +30,7 @@ Every source embeds CC BY 4.0 author, title and source metadata. Credits are ret
 
 Initial crate validation: the three new crate tests verify native compilation/registration, the absence of controls and choreography, byte-for-byte file hashes, and legacy diffuse/gloss decoding. The eighteen shared Three scene tests, asset pipeline tests, TypeScript, focused ESLint and asset inventory check passed. All eight thumbnails were generated through the production runtime and visually reviewed in ignored `artifacts/cinema2-crate/production.png`. Thumbnails live in `public/preset-artwork/`.
 
-The source GLBs contain no cameras or external viewer lighting. The four static environments use authored fixed cameras to show their expanded geometry.
+The source GLBs contain no cameras or external viewer lighting. The three static environments use authored fixed cameras to show their expanded geometry.
 
 ## Paradox Weave — Parallax Cipher
 
@@ -59,7 +57,7 @@ The artist logo that used to sit in the middle of Bass Sigil is removed from the
 - **Choosing it.** The left **Source** tab lists your 3D models (search, grid or list, the same layout the Canvas Engine uses for media). Clicking one pins its current version in the preset (`user-model:<id>:<version>`); **Remove model** clears it, and with no model the middle is empty. If you later edit the model and save a new version, the tab offers **Use vN** instead of changing the preset silently. A deleted or unavailable model shows why and falls back to empty. Any preset whose scene module declares a model slot gets the same Source tab (the 3D preview presets do too).
 - **Controls.** The old Logo controls are now **Model** controls: Model Spin Rate, Sway, Heading, Pitch and Roll, plus **Model Scale** (0.5 to 1.5; 1 sizes the model to 4.5 units, inside the sphere), **Model Bounce** (it bobs with the motion and the kick, replacing the three bars) and **Model Glow** (the halo, now 0.3 by default). The model keeps its own materials; Intensity at 0 hides it. The wordmark, edge and core palette colors are gone (the preset is revision 3, so saved Bass Sigil settings reset once).
 - **What a model may contain.** Imported models may carry embedded textures (the import's limits: 8192 px a side, about 768 MiB decoded) and animations, which are kept in the file but not played. Models with a skeleton (skins) are refused with a message, because the scene bridge clones meshes per instance.
-- **Texture tiers.** The scene keeps the decoded textures as saved and gives the materials a smaller copy on lower tiers: longest side 1024 px on **low**, 2048 px on **medium**, as saved on **high**. Copies are halved step by step, made once per texture and size, and released when the model is replaced or the scene is disposed. Measured in Chromium with a 4096 px texture: high uploaded 4096, low uploaded 1024.
+- **Texture tiers.** The scene keeps the decoded textures as saved and gives the materials smaller copies, sized to the tier's memory allowance: longest side at most 1024 px on **low**, 2048 px on **medium** and 4096 px on **high**, and the whole model's textures within about 20, 48 and 96 MB. Those allowances are what is left of the engine's 96, 160 and 256 MB GPU budgets after the render targets (measured 43, 64 and 95 MB at 1080p) and the scene. A model that fits keeps every map at the tier's side; one that does not has its largest maps (by memory) halved one at a time until it fits, so small maps stay sharp. Copies are made once per texture and size, halved step by step, and released when the model is replaced or the scene is disposed. This is what keeps the "running above its GPU memory budget because of loaded 3D assets" notice away: before the allowances a model with 4096 px maps (for example `pure_diamond.glb` and `demon_mask.glb`, about 257 MB each) was uploaded at full size on high. Measured in Chromium with those two files: 64, 32 and 16 MB on high, medium and low. Applying a tier takes 0.1 to 0.7 s once, when the model first appears or the tier changes.
 
 ## Bass Sigil original-environment checkpoint
 
@@ -78,3 +76,5 @@ The existing Moire Orb entry now retains its original five meshes inside a compl
 The user withdrew Laser Loom and supplied `Reference_vid.mov` to define the required rendering. The original four-bank scene remains the default, with an interior camera and calibrated yellow emission, shaft thickness and bloom. The full performance adds seven geometry programs, canonical Pattern Change/Trigger controls, shared BPM Sync, five independent palette roles, musical choreography, Director build/drop meaning and shared Auto Performance/Mood policy. Camera modes include bounded interior motion, stationary Reference View and a constrained manual view; an external orbit was rejected for exposing empty space. The unwanted geometry freeze toggle is removed, bank pivots/lengths, source-scale compensation and repeated-frame rotation accumulation are corrected, and tempo-only live Trigger switching uses the shared fallback. No mechanical environment or replacement beam geometry is added. See the [performance specification and acceptance record](BEAM_LATTICE/performance.md); [reference presentation details](BEAM_LATTICE/original-glb.md) remain documented separately. Technical checks pass; human visual/musical acceptance remains pending.
 
 Bass Sigil’s Source tab retains the selectable 3D-model library but omits the selected-model summary, Remove Model button and Open Media Manager shortcut. Other model-slot presets retain those controls.
+
+Glitch Array has been removed from the Cinema 2.0 catalog and module registry. Its original supplied GLB and asset attribution remain preserved.

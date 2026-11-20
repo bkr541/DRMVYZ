@@ -683,3 +683,17 @@ describe('Cinema 2.0 Three bridge PBR', () => {
     expect(scene.children.some(child => (child as THREE.RectAreaLight).isRectAreaLight)).toBe(false)
   })
 })
+
+
+describe('empty private model slots', () => {
+  it('starts empty, adds only the selected asset, and removes it without disposing cached geometry', () => {
+    const attach = vi.fn(), detach = vi.fn(), bridge = new Cinema2ThreeSceneBridge(glGuardStub(), library, [], { modelController: { attach, detach } })
+    const scene = (bridge as unknown as { scene: THREE.Scene }).scene
+    const meshCount = () => { let count = 0; scene.traverse(object => { if ((object as THREE.Mesh).isMesh) count++ }); return count }
+    expect(meshCount()).toBe(0)
+    const asset = loadedAsset(), geometry = (asset.scene.children[0] as THREE.Mesh).geometry, disposed = vi.spyOn(geometry, 'dispose')
+    bridge.replaceUserModel({ asset: asset as never, node: null }); expect(meshCount()).toBe(1); expect(attach).toHaveBeenCalledOnce()
+    bridge.replaceUserModel(null); expect(meshCount()).toBe(0); expect(detach).toHaveBeenCalledOnce(); expect(disposed).not.toHaveBeenCalled()
+    bridge.dispose()
+  })
+})

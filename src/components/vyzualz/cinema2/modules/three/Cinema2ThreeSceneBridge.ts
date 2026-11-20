@@ -506,7 +506,7 @@ export class Cinema2ThreeSceneBridge {
   }
 
   /** Replace only the private-model subtree; renderer, camera, environment and static instances survive. */
-  replaceUserModel(instance: Readonly<Cinema2ThreeSceneInstance>): void {
+  replaceUserModel(instance: Readonly<Cinema2ThreeSceneInstance> | null): void {
     if (this.disposed) return
     for (let index = this.placed.length - 1; index >= 0; index--) {
       const placed = this.placed[index]
@@ -518,7 +518,7 @@ export class Cinema2ThreeSceneBridge {
     }
     this.userTextures.release()
     this.upgraded = false
-    this.addInstance({ ...instance, userModel: true })
+    if (instance) this.addInstance({ ...instance, userModel: true })
     this.appliedOverrides = null; this.quality = null
     // Private generated models have no textures; warm the new materials without reloading the environment.
     this.stage = 'textures'
@@ -679,7 +679,7 @@ export class Cinema2ThreeSceneBridge {
         material.needsUpdate = true
       }
     }
-    // A user model's large textures drop to 1024 px on low and 2048 px on medium; high keeps them as saved.
+    // A user model's textures are stepped down until they fit the tier's allowance (up to 1024 px on low, 2048 px on medium, 4096 px on high).
     for (const { materials, userModel } of this.placed) if (userModel) this.userTextures.apply(materials.map(owned => owned.material), quality)
     this.appliedOverrides = null // clearcoat and panel visibility depend on the tier: reapply them
     const limit = CINEMA2_THREE_PANEL_LIMITS[quality]

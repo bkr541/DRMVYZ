@@ -7,7 +7,7 @@ import type { Cinema2ThreeLibrary } from '../modules/three/Cinema2ThreeLibrary'
 import { Cinema2UserModelResolver, validateCinema2UserGlb } from './Cinema2UserModelResolver'
 import { Cinema2UserModelCache } from './Cinema2UserModelCache'
 import { Cinema2UserModelSlot } from './Cinema2UserModelSlot'
-import { createCinema2ModelPlaceholder } from './Cinema2ModelPlaceholder'
+import { createCinema2ModelNeutralFloor } from './Cinema2ModelNeutralFloor'
 import { parseUserModelBinding, serializeUserModelBinding } from './Cinema2ModelBinding'
 import { CINEMA2_USER_MODEL_PARAMETER_ID, CINEMA2_USER_MODEL_REFERENCE_ID, CINEMA2_USER_MODEL_REFERENCE_MANIFEST } from './Cinema2UserModelReferenceHarness'
 import { Cinema2PresetRegistry, cinema2NativePresetRegistry } from '../presets/Cinema2PresetRegistry'
@@ -87,15 +87,24 @@ describe('private model cache and dynamic subtree ownership', () => {
       expect(cache.getSnapshot()).toEqual({ entryCount: 0, heldCount: 0 })
     }
   })
-  it('ignores stale selection completion and restores a neutral placeholder with a diagnostic on denial', async () => {
-    const fallback = createCinema2ModelPlaceholder(library), attach = vi.fn(), release = vi.fn()
-    let finish!: (value: { asset: typeof fallback; release: typeof release }) => void
+  it('attaches only the requested model and removes it before releasing its lease', async () => {
+    const loaded = createCinema2ModelNeutralFloor(library), attached: unknown[] = [], release = vi.fn(() => { expect(attached.at(-1)).toBe(null) })
+    const acquire = vi.fn().mockResolvedValue({ asset: loaded, release }), cache = { acquire } as unknown as Cinema2UserModelCache
+    const slot = new Cinema2UserModelSlot(library, asset => attached.push(asset), cache, () => () => {})
+    slot.select('default-model'); expect(acquire).not.toHaveBeenCalled(); expect(attached).toEqual([])
+    slot.select(serializeUserModelBinding(binding)); expect(attached).toEqual([null]); await flush()
+    expect(attached).toEqual([null, loaded]); expect(slot.getSnapshot().status).toBe('ready')
+    slot.select('default-model'); expect(attached.at(-1)).toBe(null); expect(release).toHaveBeenCalledOnce(); slot.dispose()
+  })
+  it('keeps the slot empty while loading, ignores stale completion and clears it on failure', async () => {
+    const loaded = createCinema2ModelNeutralFloor(library), attach = vi.fn(), release = vi.fn()
+    let finish!: (value: { asset: typeof loaded; release: typeof release }) => void
     const acquire = vi.fn().mockImplementationOnce(() => new Promise(resolve => { finish = resolve })).mockRejectedValueOnce(new Error('Access revoked'))
     const cache = { acquire } as unknown as Cinema2UserModelCache
-    const slot = new Cinema2UserModelSlot(library, fallback, attach, cache, () => () => {})
-    slot.select(serializeUserModelBinding(binding)); slot.select('default-model'); finish({ asset: fallback, release }); await flush()
+    const slot = new Cinema2UserModelSlot(library, attach, cache, () => () => {})
+    slot.select(serializeUserModelBinding(binding)); expect(attach).toHaveBeenLastCalledWith(null); expect(slot.getSnapshot().status).toBe('loading'); slot.select('default-model'); finish({ asset: loaded, release }); await flush()
     expect(release).toHaveBeenCalledTimes(1); expect(slot.getSnapshot().binding).toBe('default-model')
-    slot.select(serializeUserModelBinding(binding)); await flush(); expect(slot.getSnapshot()).toMatchObject({ status: 'error', message: 'Access revoked' }); expect(attach).toHaveBeenLastCalledWith(fallback)
+    slot.select(serializeUserModelBinding(binding)); await flush(); expect(slot.getSnapshot()).toMatchObject({ status: 'error', message: 'Access revoked' }); expect(attach).toHaveBeenLastCalledWith(null)
     slot.dispose()
   })
 })

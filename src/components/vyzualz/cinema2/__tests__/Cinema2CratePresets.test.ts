@@ -13,8 +13,9 @@ import { CINEMA2_PARALLAX_CIPHER_TEXT_ID } from '../presets/Cinema2ParallaxCiphe
 import type { Cinema2ThreeLibrary } from '../modules/three/Cinema2ThreeLibrary'
 
 describe('Cinema 2.0 crate reference presets', () => {
-  it('registers eight references, preserving original assets across static references and the three animated presets', () => {
-    expect(CINEMA2_CRATE_PRESET_MANIFESTS).toHaveLength(8)
+  it('registers seven references, preserving original assets across static and animated presets', () => {
+    expect(CINEMA2_CRATE_PRESET_MANIFESTS).toHaveLength(7)
+    expect(cinema2NativePresetRegistry.get('drmvyz.cinema2.crate-glitch-array')).toBeNull()
     for (const manifest of CINEMA2_CRATE_PRESET_MANIFESTS) {
       const registered = cinema2NativePresetRegistry.get(manifest.id)!
       expect(cinema2NativePresetRegistry.compile(manifest.id).ok).toBe(true)
@@ -30,9 +31,9 @@ describe('Cinema 2.0 crate reference presets', () => {
       expect(hash(`public/cinema2/models/crate/${artifact.file}`)).toBe(hash(`3D Cinema 2.0 Crate/${artifact.file}`))
     }
   })
-  it('keeps the four authored environments static, with original assets and no playback bindings', () => {
+  it('keeps the remaining three authored environments static, with original assets and no playback bindings', () => {
     const presentations = Object.keys(CINEMA2_CRATE_PRESENTATIONS).filter(isCinema2CratePresentationId)
-    expect(presentations).toHaveLength(4)
+    expect(presentations).toHaveLength(3)
     for (const slug of presentations) {
       const manifest = CINEMA2_CRATE_PRESET_MANIFESTS.find(preset => preset.id === `drmvyz.cinema2.crate-${slug}`)!
       expect(manifest.cameras?.[0]).toMatchObject({ label: CINEMA2_CRATE_PRESENTATIONS[slug].name, rig: { kind: 'static' } })
