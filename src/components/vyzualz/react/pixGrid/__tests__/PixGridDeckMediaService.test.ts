@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 import { readFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const runtime = vi.hoisted(() => ({
@@ -45,9 +47,10 @@ vi.mock('../PixGridDeckCompilerPreflight', () => ({
 
 import { ingestPixGridDeckSourceFiles } from '../PixGridDeckMediaService'
 
-const fixtureRoot = new URL('../../../../../test/fixtures/pixGridDeck/', import.meta.url)
+// A path, not `new URL('...', import.meta.url)`: Vite rewrites that literal into a web asset URL under jsdom, which node:fs rejects.
+const fixtureRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../../test/fixtures/pixGridDeck')
 function fixture(name: string, type: string): File {
-  return new File([readFileSync(new URL(name, fixtureRoot))], name, { type })
+  return new File([readFileSync(resolve(fixtureRoot, name))], name, { type })
 }
 
 function uploaded(id: string, name: string) {

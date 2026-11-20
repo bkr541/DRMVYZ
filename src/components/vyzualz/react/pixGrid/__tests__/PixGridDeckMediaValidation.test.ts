@@ -1,19 +1,22 @@
 // @vitest-environment jsdom
 import { readFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   PIX_GRID_DECK_MAX_SOURCE_BYTES,
   validatePixGridDeckSourceFile,
 } from '../PixGridDeckMediaValidation'
 
-const fixtureRoot = new URL('../../../../../test/fixtures/pixGridDeck/', import.meta.url)
+// A path, not `new URL('...', import.meta.url)`: Vite rewrites that literal into a web asset URL under jsdom, which node:fs rejects.
+const fixtureRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../../test/fixtures/pixGridDeck')
 
 function fixture(name: string, type: string, fileName = name): File {
-  return new File([readFileSync(new URL(name, fixtureRoot))], fileName, { type })
+  return new File([readFileSync(resolve(fixtureRoot, name))], fileName, { type })
 }
 
 function pngWithDimensions(width: number, height: number): File {
-  const bytes = new Uint8Array(readFileSync(new URL('opaque.png', fixtureRoot)))
+  const bytes = new Uint8Array(readFileSync(resolve(fixtureRoot, 'opaque.png')))
   const view = new DataView(bytes.buffer)
   view.setUint32(16, width, false)
   view.setUint32(20, height, false)

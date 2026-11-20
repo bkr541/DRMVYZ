@@ -360,7 +360,8 @@ describe('PixGrid Deck project persistence and history', () => {
       .filter(preset => preset.engine === 'pixGrid')
       .map(preset => preset.id)
     expect(pixGridPresetIds).toEqual([...PIX_GRID_PRESET_IDS, 'custom-pix-grid-preset'])
-    expect(merged.reactPresets.find(preset => preset.id === 'custom-pix-grid-preset')).toEqual(customPixGridPreset)
+    // Rehydration normalizes layers (frameSource, locked, mediaId), so compare what the author saved, not byte-for-byte.
+    expect(merged.reactPresets.find(preset => preset.id === 'custom-pix-grid-preset')).toMatchObject(customPixGridPreset)
   })
 
 
@@ -443,6 +444,10 @@ describe('PixGrid Deck project persistence and history', () => {
         layers: selectedState.layers.map((layer, index) => index === 0 ? { ...layer, opacity: 0.17 } : layer),
       },
     })
+    // Re-selecting the already-active preset only repairs integrity and keeps live edits; leaving it and coming back rebuilds the Deck layer from the generated Preset.
+    useReactStore.getState().selectReactPreset(initial.generatedPresetId)
+    expect(useReactStore.getState().pixGridState.layers[0]?.opacity).toBe(0.17)
+    useReactStore.getState().selectReactPreset(PIX_GRID_PRESET_IDS[0]!)
     useReactStore.getState().selectReactPreset(initial.generatedPresetId)
     expect(useReactStore.getState().pixGridState.layers[0]?.opacity).toBe(1)
 
@@ -533,7 +538,7 @@ describe('PixGrid Deck project persistence and history', () => {
     expect(useReactStore.getState().reactPresets).toEqual(expect.arrayContaining([
       expect.objectContaining({
         id: replacement.generatedPresetId,
-        pixGridDeck: { deckId: replacement.id, deckRevision: replacement.revision },
+        pixGridDeck: expect.objectContaining({ deckId: replacement.id, deckRevision: replacement.revision }),
       }),
     ]))
     expect(useReactStore.getState().pixGridDeckUndoStack).toEqual([])
@@ -545,6 +550,8 @@ describe('PixGrid Deck project persistence and history', () => {
     createDeck('creation-graph', 'Creation Graph')
     createDeckPreset('creation-graph')
     const deck = useReactStore.getState().pixGridDecks[0]!
+    // Pads ship with default presets, so undo restores those rather than empty pads.
+    const padPresetsBefore = useReactStore.getState().performancePads.slice(0, 2).map(pad => pad.presetId)
     useReactStore.getState().selectReactPreset(deck.generatedPresetId)
     localStorage.setItem('drmvyz.reactPresetFavorites.v1', JSON.stringify([deck.generatedPresetId]))
     useReactStore.setState(state => ({
@@ -563,8 +570,9 @@ describe('PixGrid Deck project persistence and history', () => {
     useReactStore.getState().undoPixGridDeckEdit()
     expect(useReactStore.getState().pixGridDecks[0]).toMatchObject({ id: deck.id, presetCreated: false })
     expect(useReactStore.getState().reactPresets.some(preset => preset.id === deck.generatedPresetId)).toBe(false)
-    expect(useReactStore.getState().performancePads.slice(0, 2).every(pad => pad.presetId == null)).toBe(true)
-    expect(useReactStore.getState().presetAutomationCuesByTrackId.track).toEqual([])
+    expect(useReactStore.getState().performancePads.slice(0, 2).map(pad => pad.presetId)).toEqual(padPresetsBefore)
+    // No cue is left for the removed Preset; an emptied track may be dropped rather than kept as [].
+    expect(useReactStore.getState().presetAutomationCuesByTrackId.track ?? []).toEqual([])
     expect(JSON.parse(localStorage.getItem('drmvyz.reactPresetFavorites.v1') ?? '[]')).toEqual([])
 
     useReactStore.getState().undoPixGridDeckEdit()

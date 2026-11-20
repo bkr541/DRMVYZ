@@ -470,7 +470,8 @@ describe('PixGrid Deck Stage 6 runtime rendering', () => {
     const merged = mergePixGridCanonicalLayerGraph(authored, canonicalPreset)
     const overlayId = merged.layerIdMap.get(canonicalLayer.id)
     expect(overlayId).toBe(`${canonicalLayer.id}-user-overlay`)
-    expect(merged.layers.find(layer => layer.id === canonicalLayer.id)?.frameSource?.kind).toBe('asset')
+    // A canonical layer carries no explicit frameSource; its source resolves to its built-in asset.
+    expect(resolvePixGridLayerFrameSource(merged.layers.find(layer => layer.id === canonicalLayer.id)!).kind).toBe('asset')
     expect(resolvePixGridLayerFrameSource(merged.layers.find(layer => layer.id === overlayId)!))
       .toEqual({ kind: 'deck', deckId: DECK_ID })
 
