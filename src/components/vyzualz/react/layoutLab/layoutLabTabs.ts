@@ -1,7 +1,15 @@
 export const LAYOUT_LAB_STORAGE_KEY = 'drmvyz.layoutLab.tabs.v1'
-const DEFAULT_TAB_NAMES = ['Tab 1', 'Preset cards', 'Engine dropdown', 'Nav bar icons', 'Left nav bar', 'Tab 6', 'Tab 7', 'AUTH']
-export const LAYOUT_LAB_TAB_IDS = DEFAULT_TAB_NAMES.map((_, index) => `layout-lab-tab-${String(index + 1).padStart(2, '0')}`)
-export const LAYOUT_LAB_AUTH_TAB_ID = LAYOUT_LAB_TAB_IDS[7]
+export const LAYOUT_LAB_AUTH_TAB_ID = 'layout-lab-tab-08'
+
+const DEFAULT_TABS = [
+  { id: 'layout-lab-tab-01', name: 'Tab 1' },
+  { id: 'layout-lab-tab-03', name: 'Engine dropdown' },
+  { id: 'layout-lab-tab-04', name: 'Nav bar icons' },
+  { id: 'layout-lab-tab-05', name: 'Left nav bar' },
+  { id: 'layout-lab-tab-06', name: 'Tab 6' },
+  { id: 'layout-lab-tab-07', name: 'Tab 7' },
+  { id: LAYOUT_LAB_AUTH_TAB_ID, name: 'AUTH' },
+]
 
 export interface LayoutLabTabsState {
   tabs: { id: string; name: string }[]
@@ -14,9 +22,9 @@ export function readLayoutLabTabs(): LayoutLabTabsState {
     const value = JSON.parse(window.localStorage.getItem(LAYOUT_LAB_STORAGE_KEY) ?? 'null')
     if (value?.version === 1) saved = value
   } catch { /* Unavailable or invalid storage starts with the default slots. */ }
-  const tabs = LAYOUT_LAB_TAB_IDS.map((id, index) => {
+  const tabs = DEFAULT_TABS.map(({ id, name: defaultName }) => {
     const name = Array.isArray(saved.tabs) ? saved.tabs.find(tab => tab?.id === id)?.name : undefined
-    return { id, name: typeof name === 'string' && name.trim() ? name.trim().slice(0, 80) : DEFAULT_TAB_NAMES[index] }
+    return { id, name: typeof name === 'string' && name.trim() ? name.trim().slice(0, 80) : defaultName }
   })
   return { tabs, activeTabId: tabs.some(tab => tab.id === saved.activeTabId) ? saved.activeTabId! : tabs[0].id }
 }

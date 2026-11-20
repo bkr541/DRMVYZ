@@ -27,10 +27,14 @@ The shared prompt overlay sits at 1500, above Media Upload (1400), so warnings
 launched from upload windows remain visible.
 
 Font Upload shares the image and video upload dialog's compact field grid and
-underline inputs. Type, Font Name, and Collections share the first row on
-desktop. Preview Text and Tags sit beside the live specimen on desktop and
-reflow below it on narrow screens. Read-only font details use the same
-responsive metadata grid.
+underline inputs. Preview Text sits to the right of Font Name, above the live
+specimen. The desktop Font Details grid places Collections under Format and
+Tags under File Size.
+
+3D Model Import places the preview beside the editable fields on desktop and
+groups the eight read-only Model Details fields in one row. The layout wraps
+on narrower screens, and long values remain available through the read-only
+inputs and their tooltips.
 
 ## Information popovers
 

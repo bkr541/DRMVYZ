@@ -1,6 +1,6 @@
 # Cinema 2.0 Auto Performance
 
-Every user-facing Cinema 2.0 preset has an **Auto Performance** toggle under **Design → Master Controls**. A preset is user-facing when it is not tagged `internal` (the runtime foundation, `reference-visual`, `spatial-reference` and `three-model-reference` are hidden diagnostics and have none). `Cinema2AutoPerformanceInventory.test.ts` enforces this for the whole first-party catalog, so a new preset cannot ship without it.
+Every user-facing Cinema 2.0 performance preset has an **Auto Performance** toggle under **Design → Master Controls**. The runtime foundation, hidden diagnostics, and static reference scenes omit it. CHAMBER is a static reference with four empty Design groups. `Cinema2AutoPerformanceInventory.test.ts` enforces this distinction across the first-party catalog.
 
 Auto Performance never changes authored values. It adds temporary, music-driven behavior on top of the preset's own reactions, and turning it off removes exactly that and nothing else: normal animation, existing audio reactions, BPM Sync and independently enabled Pattern Change and Trigger keep running.
 

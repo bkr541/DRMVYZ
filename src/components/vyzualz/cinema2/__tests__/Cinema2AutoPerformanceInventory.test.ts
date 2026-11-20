@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { Cinema2ParameterId } from '../contracts/Cinema2NativePresetManifest'
 import { createCinema2DesignParentGroupModel } from '../parameters/Cinema2InspectorModel'
 import { Cinema2ParameterState } from '../parameters/Cinema2ParameterState'
+import { CINEMA2_CHAMBER_PRESET_ID } from '../presets/Cinema2ChamberPreset'
 import { CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS } from '../presets/Cinema2FirstPartyPresetCatalog'
 import { cinema2NativePresetRegistry } from '../presets/Cinema2PresetRegistry'
 
@@ -12,6 +13,8 @@ const CAPABILITIES = [
 ] as const
 
 const userFacing = CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS.filter(declaration => !declaration.manifest.metadata.tags?.includes('internal'))
+const staticReferences = userFacing.filter(({ role, manifest }) => role === 'reference' && manifest.metadata.tags?.includes('static'))
+const performancePresets = userFacing.filter(declaration => !staticReferences.includes(declaration))
 const isAutoPerformance = (parameter: { id: string; label: string }) => /auto.?performance/i.test(`${parameter.id} ${parameter.label}`)
 
 /** Presets that gained the toggle with this work. Every other user-facing preset already had one, and keeps its own implementation. */
@@ -21,19 +24,38 @@ const ADDED = [
 ] as const
 
 describe('Auto Performance across the Cinema 2.0 catalog', () => {
-  it('is present exactly once, as a boolean under Design > Master Controls, on every user-facing preset', () => {
-    expect(userFacing.length).toBeGreaterThan(40)
-    for (const { manifest } of userFacing) {
+  it('is present exactly once, as a boolean under Design > Master Controls, on every performance preset', () => {
+    expect(performancePresets.length).toBeGreaterThan(40)
+    for (const { manifest } of performancePresets) {
       const matches = (manifest.parameters ?? []).filter(isAutoPerformance)
       expect(matches, manifest.id).toHaveLength(1)
       expect(matches[0], manifest.id).toMatchObject({ label: 'Auto Performance', type: 'boolean', designParentGroup: 'master-controls' })
     }
   })
 
-  it('leaves out only the hidden runtime foundations and diagnostics', () => {
+  it('omits the toggle for hidden diagnostics and static reference scenes', () => {
     const without = CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS.filter(({ manifest }) => !(manifest.parameters ?? []).some(isAutoPerformance))
-    expect(without.map(({ manifest }) => manifest.id.replace('drmvyz.cinema2.', '')).sort()).toEqual(['foundation', 'reference-visual', 'spatial-reference', 'three-model-reference'])
-    for (const { manifest } of without) expect(manifest.metadata.tags, manifest.id).toContain('internal')
+    expect(without).toEqual(CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS.filter(declaration =>
+      declaration.manifest.metadata.tags?.includes('internal') || staticReferences.includes(declaration),
+    ))
+  })
+
+  it('registers CHAMBER as a visible scene preview with four empty Design groups', () => {
+    const declaration = staticReferences.find(({ manifest }) => manifest.id === CINEMA2_CHAMBER_PRESET_ID)
+    expect(declaration?.manifest.metadata).toMatchObject({ name: 'CHAMBER' })
+    const compiled = cinema2NativePresetRegistry.compile(CINEMA2_CHAMBER_PRESET_ID, { availableCapabilities: CAPABILITIES })
+    if (!compiled.ok) throw new Error(JSON.stringify(compiled.diagnostics))
+    const { manifest } = compiled.plan
+    expect(manifest.parameters ?? []).toEqual([])
+    expect(manifest.effects ?? []).toEqual([])
+    expect(manifest.choreography).toBeUndefined()
+    const state = new Cinema2ParameterState(compiled.plan.parameters)
+    expect(createCinema2DesignParentGroupModel(compiled.plan, state.getSnapshot())).toEqual([
+      { id: 'master-controls', label: 'Master Controls', controls: [], groups: [] },
+      { id: 'design', label: 'Design', controls: [], groups: [] },
+      { id: 'effects', label: 'Effects', controls: [], groups: [] },
+      { id: 'palette', label: 'Palette', controls: [], groups: [] },
+    ])
   })
 
   describe.each(ADDED)('%s', slug => {

@@ -1,4 +1,6 @@
-# Layout Lab preset cards
+# Archived Layout Lab preset card studies
+
+The Preset Cards tab was removed after its final 02 Matte Frame design became the [production poster style](react-preset-thumbnails.md). The notes below document earlier iterations of the studies.
 
 The stable Preset cards tab (`layout-lab-tab-02`) contains twenty-one comparison rows. Renaming the tab preserves its content. All rows use the production 148.5px comparison width. Rows 01–05 use thumbnail headers with opaque captions underneath; their height grows with the name. Rows 06–10 retain the original Performance Pad studies at 148.5 × 69px.
 

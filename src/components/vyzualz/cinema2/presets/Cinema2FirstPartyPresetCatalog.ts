@@ -1,4 +1,5 @@
 import { CINEMA2_CRATE_PRESET_MANIFESTS } from './Cinema2CratePresets'
+import { CINEMA2_CHAMBER_PRESET_MANIFEST } from './Cinema2ChamberPreset'
 import { CINEMA2_NEON_FOREST_PRESET_MANIFEST } from './Cinema2NeonForestPreset'
 import { CINEMA2_USER_MODEL_FORM_PRESET_MANIFEST } from './Cinema2UserModelFormPreset'
 import { CINEMA2_USER_MODEL_SHATTER_PRESET_MANIFEST } from './Cinema2UserModelShatterPreset'
@@ -61,6 +62,7 @@ import { CINEMA2_TRIPPY_BRO_PRESET_MANIFEST } from './Cinema2TrippyBroPreset'
  */
 const AUTHORED_PRESET_DECLARATIONS = Object.freeze([
   ...CINEMA2_CRATE_PRESET_MANIFESTS.map(manifest => defineCinema2FirstPartyPreset({ role: 'reference', manifest })),
+  defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_CHAMBER_PRESET_MANIFEST }),
   // Explicitly reference previews; not promoted to keeper.
   defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_USER_MODEL_FORM_PRESET_MANIFEST }),
   defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_USER_MODEL_SHATTER_PRESET_MANIFEST }),

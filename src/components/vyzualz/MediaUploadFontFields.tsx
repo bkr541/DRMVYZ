@@ -29,7 +29,7 @@ export function FontUploadFields({
   )
   return (
     <>
-      <div className="mum-upload-grid mum-upload-grid--identity">
+      <div className="mum-upload-grid mum-font-identity">
         <div className="mum-field">
           <label className="mum-field-label" htmlFor="mum-font-type">TYPE</label>
           <DreamVizTextInput id="mum-font-type" className="mum-input" value="Font" readOnly />
@@ -47,21 +47,6 @@ export function FontUploadFields({
           />
           {!hasName && <div className="mum-field-error">A font name is required.</div>}
         </div>
-        {collectionsField}
-      </div>
-
-      <div className="mum-upload-grid mum-font-preview-grid">
-        <div className="mum-field mum-font-specimen">
-          <div className="mum-field-label">PREVIEW</div>
-          <div
-            className="mum-font-preview"
-            data-testid="mum-font-preview"
-            style={previewReady ? { fontFamily: `"${fontPreviewFamily(entry.id)}", sans-serif` } : undefined}
-            aria-live="polite"
-          >
-            {entry.fileError ? 'This file cannot be previewed.' : (previewText.trim() || FONT_PREVIEW_SAMPLE)}
-          </div>
-        </div>
         <div className="mum-field">
           <label className="mum-field-label" htmlFor="mum-font-preview-text">PREVIEW TEXT</label>
           <DreamVizTextInput
@@ -73,16 +58,24 @@ export function FontUploadFields({
             onChange={event => onPreviewTextChange(event.target.value)}
           />
         </div>
-        {tagsField}
+      </div>
+
+      <div className="mum-field">
+        <div className="mum-field-label">PREVIEW</div>
+        <div
+          className="mum-font-preview"
+          data-testid="mum-font-preview"
+          style={previewReady ? { fontFamily: `"${fontPreviewFamily(entry.id)}", sans-serif` } : undefined}
+          aria-live="polite"
+        >
+          {entry.fileError ? 'This file cannot be previewed.' : (previewText.trim() || FONT_PREVIEW_SAMPLE)}
+        </div>
       </div>
 
       {entry.fileError && <div className="mum-field-error" role="alert">{entry.fileError}</div>}
 
       <div className="mum-field">
-        <div className="mum-font-details-heading">
-          <div className="mum-field-label">FONT DETAILS</div>
-          <div className="mum-font-note">Uploaded fonts are saved to your Font Library and become the active text font.</div>
-        </div>
+        <div className="mum-field-label">FONT DETAILS</div>
         <div className="mum-upload-grid mum-upload-metadata mum-font-details">
           {item('FAMILY', details?.fontFamilyName ?? '—')}
           {item('STYLE', details?.styleName ?? '—')}
@@ -90,6 +83,8 @@ export function FontUploadFields({
           {item('FILE SIZE', details ? formatFontBytes(details.fileSize) : formatFontBytes(entry.file.size))}
           {item('GLYPHS', details ? details.glyphCount.toLocaleString('en-US') : '—')}
           {item('FILE NAME', entry.file.name)}
+          {collectionsField}
+          {tagsField}
         </div>
       </div>
     </>

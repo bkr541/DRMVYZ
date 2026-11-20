@@ -1,17 +1,18 @@
 # Layout Lab tab workspace
 
-Layout Lab opens from the application launcher into a separate 1600×1000 window. Its outer canvas has 48px top/bottom padding and 128px left/right padding. The eight underline tabs contain design studies with local interaction state. The popup injects shared controls, tab spacing, typography and the styles each study uses.
+Layout Lab opens from the application launcher into a separate 1600×1000 window. Its outer canvas has 48px top/bottom padding and 128px left/right padding. The seven underline tabs contain design studies with local interaction state. The popup injects shared controls, tab spacing, typography and the styles each study uses.
 
 Click a tab to select it. Click the selected tab again, double-click a tab, or press F2 to rename it. Enter or leaving the input saves; Escape cancels the edit without closing the popup. Blank names are discarded, and names are limited to 80 characters. Arrow keys, Home and End select tabs.
 
 Names and the selected slot persist in localStorage under `drmvyz.layoutLab.tabs.v1`, as `{ version: 1, tabs: [{ id, name }], activeTabId }`. Storage belongs to this browser/application origin; clearing its data removes saved names. If saving fails, Layout Lab displays a session-only message.
+
+The former Preset Cards slot (`layout-lab-tab-02`) was retired when Matte Frame became the [production poster style](react-preset-thumbnails.md). Saved workspaces keep the names and IDs of the seven remaining slots. A workspace last opened on the retired slot defaults to Tab 1.
 
 ## Permanent content references
 
 | Default name | Permanent tab ID | Permanent panel ID |
 | --- | --- | --- |
 | Tab 1 | `layout-lab-tab-01` | `layout-lab-tab-01-panel` |
-| Preset cards | `layout-lab-tab-02` | `layout-lab-tab-02-panel` |
 | Engine dropdown | `layout-lab-tab-03` | `layout-lab-tab-03-panel` |
 | Nav bar icons | `layout-lab-tab-04` | `layout-lab-tab-04-panel` |
 | Left nav bar | `layout-lab-tab-05` | `layout-lab-tab-05-panel` |
@@ -38,10 +39,6 @@ Engine Dropdown adds **Cinema Still**, **Film Gate**, **Record Sleeve** and **Li
 | PixGrid | Amber physical LED matrix with stepped pixel patterns and a dark left edge. |
 
 AUTH contains **Backstage**, **Signal Room**, **Studio Pass** and **Marquee**. Each concept lets you switch between sign-in and account creation, reveal passwords and preview a local submission. Fields use `DreamVizTextInput`, and Remember me uses `IconMorphToggle`. A saved seven-tab workspace gains the AUTH slot and keeps its existing tab names and selection.
-
-## Preset card studies
-
-The 21 studies in Preset Cards use a 148.5px card width. In 01 Cinema Classic, the preset name sits in a compact caption below a 16:9 thumbnail. In 02 Matte Frame, the artwork fills the card, and the name sits over a dark gray gradient that fades upward from the bottom. The other studies center the preset name over the artwork. Selection and favorites are local to each study.
 
 ## Performance Pad studies
 

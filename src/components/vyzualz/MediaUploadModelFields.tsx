@@ -1,7 +1,7 @@
 import { DreamVizTextInput } from './react/controls/DreamVizTextInput'
 import { formatModelBytes, type ModelQueueEntry } from './mediaUploadModels'
 
-/** The right-hand side of the media upload dialog while 3D models are queued: details that belong to a model instead of the media fields. */
+/** Fields for the active 3D model in the media upload queue. */
 export function ModelUploadFields({ entry, onNameChange, onDescriptionChange, tagsAndCollections }: {
   entry: ModelQueueEntry
   onNameChange: (name: string) => void
@@ -10,8 +10,9 @@ export function ModelUploadFields({ entry, onNameChange, onDescriptionChange, ta
   tagsAndCollections: React.ReactNode
 }) {
   const stats = entry.inspection?.stats
-  const item = (label: string, value: string, span2 = false) => (
-    <div className={span2 ? 'mum-addinfo-item mum-addinfo-item--span2' : 'mum-addinfo-item'}>
+  const hasName = Boolean(entry.name.trim())
+  const item = (label: string, value: string) => (
+    <div className="mum-addinfo-item">
       <div className="mum-addinfo-label">{label}</div>
       <DreamVizTextInput className="mum-addinfo-input" value={value} readOnly aria-label={label} title={value} />
     </div>
@@ -19,59 +20,63 @@ export function ModelUploadFields({ entry, onNameChange, onDescriptionChange, ta
   const size = stats ? stats.bounds.max.map((n, i) => (n - stats.bounds.min[i]!).toFixed(2)).join(' × ') : '—'
   return (
     <>
-      <div className="mum-field">
-        <label className="mum-field-label">TYPE</label>
-        <div className="mum-audio-role-badge">3D Model</div>
-      </div>
+      <div className="mum-model-summary">
+        {entry.thumbnailUrl && (
+          <div className="mum-field mum-model-preview">
+            <div className="mum-field-label">PREVIEW</div>
+            <img className="mum-model-thumb" src={entry.thumbnailUrl} alt={`Preview of ${entry.name || entry.file.name}`} />
+          </div>
+        )}
 
-      {entry.thumbnailUrl && (
-        <div className="mum-field">
-          <label className="mum-field-label">PREVIEW</label>
-          <img className="mum-model-thumb" src={entry.thumbnailUrl} alt={`Preview of ${entry.name || entry.file.name}`} />
+        <div className="mum-field mum-model-form">
+          <div className="mum-upload-grid mum-model-identity">
+            <div className="mum-field">
+              <label className="mum-field-label" htmlFor="mum-model-type">TYPE</label>
+              <DreamVizTextInput id="mum-model-type" className="mum-input" value="3D Model" readOnly />
+            </div>
+            <div className="mum-field">
+              <label className="mum-field-label" htmlFor="mum-model-name">MODEL NAME<span className="mum-req">*</span></label>
+              <DreamVizTextInput
+                id="mum-model-name"
+                className={`mum-input${hasName ? '' : ' mum-input--error'}`}
+                placeholder="e.g. Diamond logo"
+                maxLength={200}
+                value={entry.name}
+                aria-invalid={!hasName || undefined}
+                onChange={event => onNameChange(event.target.value)}
+              />
+              {!hasName && <div className="mum-field-error">A model name is required.</div>}
+            </div>
+            <div className="mum-field">
+              <label className="mum-field-label" htmlFor="mum-model-description">DESCRIPTION</label>
+              <DreamVizTextInput
+                id="mum-model-description"
+                className="mum-input"
+                placeholder="Optional"
+                maxLength={4000}
+                value={entry.description}
+                onChange={event => onDescriptionChange(event.target.value)}
+              />
+            </div>
+          </div>
+          {tagsAndCollections}
         </div>
-      )}
-
-      <div className="mum-field">
-        <label className="mum-field-label" htmlFor="mum-model-name">MODEL NAME<span className="mum-req">*</span></label>
-        <DreamVizTextInput
-          id="mum-model-name"
-          className={`mum-input${entry.name.trim() ? '' : ' mum-input--error'}`}
-          placeholder="e.g. Diamond logo"
-          maxLength={200}
-          value={entry.name}
-          onChange={event => onNameChange(event.target.value)}
-        />
-        {!entry.name.trim() && <div className="mum-field-error">A model name is required.</div>}
-      </div>
-
-      <div className="mum-field">
-        <label className="mum-field-label" htmlFor="mum-model-description">DESCRIPTION</label>
-        <DreamVizTextInput
-          id="mum-model-description"
-          className="mum-input"
-          placeholder="Optional"
-          maxLength={4000}
-          value={entry.description}
-          onChange={event => onDescriptionChange(event.target.value)}
-        />
       </div>
 
       {entry.fileError && <div className="mum-field-error" role="alert">{entry.fileError}</div>}
       {entry.inspection?.warnings.map(warning => <div key={warning} className="mum-font-note">{warning}</div>)}
 
-      {tagsAndCollections}
-
       <div className="mum-field">
-        <label className="mum-field-label">MODEL DETAILS</label>
-        <div className="mum-addinfo-grid">
+        <div className="mum-field-label">MODEL DETAILS</div>
+        <div className="mum-upload-grid mum-upload-metadata mum-model-details">
           {item('TRIANGLES', stats ? stats.triangles.toLocaleString('en-US') : '—')}
           {item('VERTICES', stats ? stats.vertices.toLocaleString('en-US') : '—')}
           {item('MESHES', stats ? String(stats.meshes) : '—')}
           {item('MATERIALS', stats?.materialCount ? String(stats.materialCount) : '—')}
           {item('FILE SIZE', formatModelBytes(entry.file.size))}
           {item('TEXTURES', stats?.imported ? (stats.imported.imageCount ? `${stats.imported.imageCount} · up to ${stats.imported.maxImageSide} px` : 'None') : '—')}
-          {item('DIMENSIONS', size, true)}
-          {item('FILE NAME', entry.file.name, true)}
+          {item('DIMENSIONS', size)}
+          {item('FILE NAME', entry.file.name)}
         </div>
       </div>
 

@@ -373,7 +373,11 @@
 #mum-font-type,
 #mum-font-name,
 #mum-font-preview-text,
-.mum-font-details .mum-addinfo-input {
+#mum-model-type,
+#mum-model-name,
+#mum-model-description,
+.mum-font-details .mum-addinfo-input,
+.mum-model-details .mum-addinfo-input {
   border: 0 !important;
   border-radius: 0 !important;
   border-bottom: 1px solid rgba(154, 178, 188, 0.22) !important;
@@ -395,6 +399,8 @@
 #mum-track-bpm:hover:not(:disabled),
 #mum-font-name:hover:not(:disabled),
 #mum-font-preview-text:hover:not(:disabled),
+#mum-model-name:hover:not(:disabled),
+#mum-model-description:hover:not(:disabled),
 #mum-title:focus-visible,
 #mum-description:focus-visible,
 #mum-tags-input:focus-visible,
@@ -409,14 +415,19 @@
 #mum-font-type:focus-visible,
 #mum-font-name:focus-visible,
 #mum-font-preview-text:focus-visible,
-.mum-font-details .mum-addinfo-input:focus-visible {
+#mum-model-type:focus-visible,
+#mum-model-name:focus-visible,
+#mum-model-description:focus-visible,
+.mum-font-details .mum-addinfo-input:focus-visible,
+.mum-model-details .mum-addinfo-input:focus-visible {
   border-bottom-color: #4ac7db !important;
   box-shadow: none !important;
 }
 
 /* Validation errors remain visible in the underline treatment. */
 #mum-track-bpm.mum-input--error,
-#mum-font-name.mum-input--error {
+#mum-font-name.mum-input--error,
+#mum-model-name.mum-input--error {
   border-bottom-color: #f87171 !important;
 }
 
@@ -771,12 +782,11 @@
   margin-top: 6px;
 }
 
-/* ── Font upload — live preview and note ─────────────────────────────── */
-.mum-font-preview-grid { align-items: start; }
-.mum-font-specimen { grid-column: span 3; grid-row: span 2; }
-.mum-font-details-heading { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
+/* ── Font upload ─────────────────────────────────────────────────────── */
+.mum-font-identity > :last-child { grid-column: span 2; }
 @media (max-width: 720px) {
-  .mum-font-specimen { grid-column: 1 / -1; grid-row: auto; }
+  .mum-font-identity > :first-child { grid-column: 1 / -1; }
+  .mum-font-identity > :last-child { grid-column: auto; }
 }
 
 .mum-font-preview {
@@ -815,6 +825,40 @@
 .mum-chip-input.dv-text-input, .mmi-chip-input.dv-text-input { text-transform: uppercase; }
 .mum-chip-input.dv-text-input::placeholder, .mmi-chip-input.dv-text-input::placeholder { text-transform: none; }
 
-/* 3D model import: the rendered thumbnail beside the file name, and the larger preview in the details column. */
+/* 3D model import */
 .mum-file-thumb > svg { display: block; margin: auto; color: rgba(245, 248, 250, 0.7); }
-.mum-model-thumb { display: block; width: 100%; max-height: 220px; object-fit: contain; border-radius: 6px; background: #10181d; }
+.mum-model-thumb {
+  display: block;
+  width: 100%;
+  height: clamp(120px, 18vh, 170px);
+  object-fit: contain;
+  border-radius: 6px;
+  background: #10181d;
+}
+.mum-model-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 3fr);
+  gap: 12px;
+}
+.mum-model-form { min-width: 0; gap: 12px; }
+.mum-model-form:only-child { grid-column: 1 / -1; }
+.mum-model-identity { grid-template-columns: minmax(0, .65fr) repeat(2, minmax(0, 1.675fr)); }
+.mum-model-details {
+  grid-template-columns: repeat(5, minmax(0, 1fr)) minmax(0, 1.7fr) minmax(0, 1.9fr) minmax(0, 3.4fr);
+  column-gap: 8px;
+}
+.mum-model-details .mum-addinfo-input { text-overflow: ellipsis; }
+
+@media (max-width: 800px) {
+  .mum-model-details { grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 1.5fr); }
+}
+@media (max-width: 720px) {
+  .mum-model-identity { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); }
+  .mum-model-identity > :last-child { grid-column: 1 / -1; }
+}
+@media (max-width: 600px) {
+  .mum-model-summary { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 520px) {
+  .mum-model-details { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

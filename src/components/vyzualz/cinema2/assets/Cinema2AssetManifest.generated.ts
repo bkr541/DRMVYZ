@@ -139,6 +139,25 @@ export const CINEMA2_ASSET_RECORDS = [
     }
   },
   {
+    "id": "cinema2-chamber",
+    "kind": "model",
+    "compression": "none",
+    "license": "CC-BY-4.0",
+    "attribution": "Darkspore Editor Chamber by Rowan Design (https://sketchfab.com/rowansreid), https://sketchfab.com/3d-models/darkspore-editor-chamber-215b2878bf9141bdb726c217132cd454, licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).",
+    "files": {
+      "high": {
+        "url": "/cinema2/models/chamber.glb",
+        "bytes": 2065108,
+        "triangles": 44650
+      }
+    },
+    "gpuBytes": {
+      "high": 3416813,
+      "medium": 3416813,
+      "low": 3416813
+    }
+  },
+  {
     "id": "cinema2-conduit-chamber",
     "kind": "model",
     "compression": "none",

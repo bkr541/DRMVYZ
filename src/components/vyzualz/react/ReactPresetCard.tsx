@@ -30,8 +30,8 @@ export interface ReactPresetCardSecondaryAction {
 }
 
 /**
- * How the card is laid out. `poster` is the standard: a responsive tile 30px shorter than 3:2 for a two-column grid, the picture
- * filling the card and the name centred horizontally and vertically. `row` is the older single-column row with a small thumbnail used by compatibility browsers.
+ * `poster` is the standard Matte Frame tile, with full-bleed artwork and a centered bottom caption.
+ * `row` is the single-column layout with a small thumbnail used by compatibility browsers.
  */
 export type ReactPresetCardLayout = 'poster' | 'row'
 
@@ -158,18 +158,55 @@ export function ReactPresetCard({
 }: ReactPresetCardProps) {
   const poster = layout === 'poster'
   const hasThumbnail = !poster && Boolean(thumbnail)
-  const hasActions = Boolean(onToggleFavorite) || secondaryActions.length > 0
   const visibleChips = chips.slice(0, 2)
   const chipTone = palette[0]?.color ?? DEFAULT_CHIP_TONE
-  // Poster: the switch chip is a badge on the picture; the other chips are one line of text at the foot.
   const switchChip = visibleChips.find(chip => chip.tone === 'switch')
   const chipLine = visibleChips.filter(chip => chip.tone !== 'switch').map(chip => chip.label).join(' · ')
+  const statusId = useId()
+  const hasStatusText = Boolean(switchChip || isModified || chipLine)
+  const actions = (onToggleFavorite || secondaryActions.length > 0) ? (
+    <div className="rv-preset-spotlight-actions" aria-label={`${title} preset actions`}>
+      {onToggleFavorite && (
+        <button
+          type="button"
+          className={`rv-preset-spotlight-action rv-preset-spotlight-action--favorite${isFavorite ? ' rv-preset-spotlight-action--active' : ''}`}
+          onClick={event => {
+            event.stopPropagation()
+            onToggleFavorite()
+          }}
+          aria-pressed={isFavorite}
+          aria-label={`${isFavorite ? 'Remove' : 'Add'} ${title} ${isFavorite ? 'from' : 'to'} favorites`}
+          title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+        >
+          <AppIcon kind={poster ? 'star' : isFavorite ? 'starOff' : 'star'} size={poster ? 13 : 15} color="currentColor" />
+        </button>
+      )}
+      {secondaryActions.map(action => (
+        <button
+          key={action.id}
+          type="button"
+          className={`rv-preset-spotlight-action${action.tone === 'danger' ? ' rv-preset-spotlight-action--danger' : ''}${action.iconOnly ? '' : ' rv-preset-spotlight-action--text'}`}
+          onClick={event => {
+            event.stopPropagation()
+            action.onSelect()
+          }}
+          aria-label={action.ariaLabel ?? action.label}
+          title={action.title ?? action.ariaLabel ?? action.label}
+          disabled={action.disabled}
+        >
+          {action.icon && <span aria-hidden="true">{action.icon}</span>}
+          {!action.iconOnly && action.label}
+        </button>
+      ))}
+    </div>
+  ) : null
 
   return (
     <div
       className={`rv-preset-card-shell rv-preset-spotlight-shell${shellClassName ? ` ${shellClassName}` : ''}`}
       data-preset-card-shell
       data-preset-card-id={id}
+      style={poster ? ({ '--rv-preset-tone': chipTone } as CSSProperties) : undefined}
     >
       <button
         type="button"
@@ -179,26 +216,18 @@ export function ReactPresetCard({
         disabled={disabled}
         data-preset-card
         data-preset-card-id={id}
-        style={poster ? ({ '--rv-preset-tone': chipTone } as CSSProperties) : undefined}
         {...dataAttributes}
         aria-pressed={isActive}
         aria-current={isActive ? 'true' : undefined}
         aria-label={activateLabel}
+        aria-describedby={poster && hasStatusText ? statusId : undefined}
       >
         {poster ? (
           <>
             <ReactPresetArtwork id={id} backdrop={backdrop} appearance="frame" />
-            {(switchChip || isModified) && (
-              <span className="rv-preset-poster-badges">
-                {switchChip && <Badge label={switchChip.label} tone={SWITCH_CHIP_TONE} />}
-                {isModified && <Badge label="Modified" tone={MODIFIED_CHIP_TONE} />}
-              </span>
-            )}
             <span className="rv-preset-spotlight-caption">
-              <span className="rv-preset-spotlight-name" data-two-line={title.trim().includes(' ') || undefined}>{title}</span>
+              <span className="rv-preset-spotlight-name" data-two-line={title.trim().includes(' ') || undefined}><span>{title}</span></span>
             </span>
-            {chipLine && <span className="rv-preset-poster-chip">{chipLine}</span>}
-            {isActive && <span className="rv-preset-poster-selection" aria-hidden="true"><AppIcon kind="check" size={12} /></span>}
           </>
         ) : (
           <>
@@ -228,42 +257,19 @@ export function ReactPresetCard({
         )}
       </button>
 
-      {hasActions && (
-        <div className="rv-preset-spotlight-actions" aria-label={`${title} preset actions`}>
-          {onToggleFavorite && (
-            <button
-              type="button"
-              className={`rv-preset-spotlight-action rv-preset-spotlight-action--favorite${isFavorite ? ' rv-preset-spotlight-action--active' : ''}`}
-              onClick={event => {
-                event.stopPropagation()
-                onToggleFavorite()
-              }}
-              aria-pressed={isFavorite}
-              aria-label={`${isFavorite ? 'Remove' : 'Add'} ${title} ${isFavorite ? 'from' : 'to'} favorites`}
-              title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-            >
-              <AppIcon kind={poster ? 'star' : isFavorite ? 'starOff' : 'star'} size={poster ? 13 : 15} color="currentColor" />
-            </button>
+      {poster ? (isActive || hasStatusText || actions) && (
+        <div className="rv-preset-poster-header">
+          {(isActive || hasStatusText) && (
+            <div className="rv-preset-poster-badges" id={hasStatusText ? statusId : undefined}>
+              {isActive && <span className="rv-preset-poster-selection" aria-hidden="true"><AppIcon kind="check" size={12} /></span>}
+              {switchChip && <Badge label={switchChip.label} tone={SWITCH_CHIP_TONE} />}
+              {isModified && <Badge label="Modified" tone={MODIFIED_CHIP_TONE} />}
+              {chipLine && <span className="rv-preset-poster-chip">{chipLine}</span>}
+            </div>
           )}
-          {secondaryActions.map(action => (
-            <button
-              key={action.id}
-              type="button"
-              className={`rv-preset-spotlight-action${action.tone === 'danger' ? ' rv-preset-spotlight-action--danger' : ''}${action.iconOnly ? '' : ' rv-preset-spotlight-action--text'}`}
-              onClick={event => {
-                event.stopPropagation()
-                action.onSelect()
-              }}
-              aria-label={action.ariaLabel ?? action.label}
-              title={action.title ?? action.ariaLabel ?? action.label}
-              disabled={action.disabled}
-            >
-              {action.icon && <span aria-hidden="true">{action.icon}</span>}
-              {!action.iconOnly && action.label}
-            </button>
-          ))}
+          {actions}
         </div>
-      )}
+      ) : actions}
     </div>
   )
 }

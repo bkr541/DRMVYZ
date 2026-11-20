@@ -37,8 +37,8 @@ async function key(value: string) {
 describe('persistent Layout Lab tabs', () => {
   it('keeps content identity through renaming, switching tabs and reopening', async () => {
     await render()
-    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(8)
-    expect(host.querySelectorAll('[role="tabpanel"]')).toHaveLength(8)
+    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(7)
+    expect(host.querySelectorAll('[role="tabpanel"]')).toHaveLength(7)
     const panel = host.querySelector<HTMLElement>('#layout-lab-tab-01-panel')!
     const studies = panel.querySelector('.ll-pad-studies')
     const rows = [...panel.querySelectorAll('[data-pad-study]')]
@@ -98,10 +98,30 @@ describe('persistent Layout Lab tabs', () => {
     window.localStorage.setItem(LAYOUT_LAB_STORAGE_KEY, 'broken json')
     vi.spyOn(window.localStorage, 'setItem').mockImplementation(() => { throw new Error('Storage blocked') })
     await render()
-    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(8)
+    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(7)
     expect(host.querySelector('[role="status"]')?.textContent).toContain('could not be saved')
-    await act(async () => tab(2).click())
-    expect(tab(2).getAttribute('aria-selected')).toBe('true')
+    await act(async () => tab(3).click())
+    expect(tab(3).getAttribute('aria-selected')).toBe('true')
+  })
+
+  it('removes the retired preset card slot from a saved workspace', async () => {
+    window.localStorage.setItem(LAYOUT_LAB_STORAGE_KEY, JSON.stringify({
+      version: 1,
+      activeTabId: 'layout-lab-tab-02',
+      tabs: [
+        { id: 'layout-lab-tab-02', name: 'My card studies' },
+        { id: 'layout-lab-tab-03', name: 'My engine menu' },
+      ],
+    }))
+    await render()
+    expect(host.querySelector('[data-layout-lab-tab-id="layout-lab-tab-02"]')).toBeNull()
+    expect(tab(1).getAttribute('aria-selected')).toBe('true')
+    await act(async () => tab(1).dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })))
+    expect(tab(3).textContent).toBe('My engine menu')
+    expect(tab(3).getAttribute('aria-selected')).toBe('true')
+    const saved = JSON.parse(window.localStorage.getItem(LAYOUT_LAB_STORAGE_KEY)!)
+    expect(saved.activeTabId).toBe('layout-lab-tab-03')
+    expect(saved.tabs).not.toContainEqual({ id: 'layout-lab-tab-02', name: 'My card studies' })
   })
 
   it('adds AUTH to saved workspaces and previews both forms independently', async () => {

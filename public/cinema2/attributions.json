@@ -44,6 +44,13 @@
       "origin": "Embedded base-colour label of docs/BWC/Ultra_White_Plush_Creature_Cinema2.glb (ZERO SUGAR / claw emblem / ULTRA WHITE wordmark on off-white fleece), supplied by the project owner; extracted at 2048 px and converted to WebP, the 1024 px file is a lanczos downscale. Wrapped around the creature body as u = 0.5 + atan2(x, z) / 2π, v = 1.08453 - 0.35971 y (the GLB's own UV mapping)."
     },
     {
+      "id": "cinema2-chamber",
+      "kind": "model",
+      "license": "CC-BY-4.0",
+      "attribution": "Darkspore Editor Chamber by Rowan Design (https://sketchfab.com/rowansreid), https://sketchfab.com/3d-models/darkspore-editor-chamber-215b2878bf9141bdb726c217132cd454, licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).",
+      "origin": "Original dark chamber.glb supplied by the user. The bundled GLB is unchanged."
+    },
+    {
       "id": "cinema2-conduit-chamber",
       "kind": "model",
       "license": "generated-in-house",

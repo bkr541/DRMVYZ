@@ -330,7 +330,7 @@
   text-transform: uppercase;
   color: #fff;
 }
-/* Production poster names match Layout Lab's 01 Cinema poster reference. */
+/* Production poster names use the shared preset role in the Matte Frame caption. */
 :root body .rv-preset-spotlight-card--poster .rv-preset-spotlight-name {
   font: var(--type-preset-name-weight) 12px/1.2 var(--type-preset-name-family);
   letter-spacing: var(--type-preset-name-tracking);
