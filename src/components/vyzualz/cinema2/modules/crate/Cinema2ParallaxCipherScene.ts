@@ -16,6 +16,10 @@ import {
 } from './Cinema2ParallaxCipherLayout'
 import { PARALLAX_CIPHER_PALETTE_DEFAULTS, type ParallaxCipherPaletteName } from './Cinema2ParallaxCipherPalette'
 import {
+  PARALLAX_CIPHER_TEXT_TRANSITION_BEATS, REST_LETTER, blendParallaxCipherLetter, evaluateParallaxCipherLetter, evaluateParallaxCipherTransition, scaleParallaxCipherLetter,
+  type ParallaxCipherLetterPose,
+} from './Cinema2ParallaxCipherTextEffects'
+import {
   CINEMA2_PARALLAX_CIPHER_DEFAULT_PATTERN, CINEMA2_PARALLAX_CIPHER_PATTERN_IDS, CINEMA2_PARALLAX_CIPHER_TRIGGER_IDS, PARALLAX_CIPHER_BANK_COUNT,
   blendParallaxCipherBank, blendParallaxCipherScene, evaluateParallaxCipherBank, evaluateParallaxCipherScene, parallaxCipherScatterVector,
   type Cinema2ParallaxCipherPattern, type ParallaxCipherBankPose, type ParallaxCipherScenePose,
@@ -91,7 +95,15 @@ export class Cinema2ParallaxCipherScene {
   private textRoot: Three.Group | null = null
   private glyphs: { node: Three.Group; pose: GlyphPose }[] = []
   private glyphSignature: string | null = null
-  private text: unknown = PARALLAX_CIPHER_TEXT
+  /** The line on stage. It follows the typed line the current beat selects, and changes over through the active pattern's transition. */
+  private shownText: string = PARALLAX_CIPHER_TEXT
+  private lines: readonly string[] = [PARALLAX_CIPHER_TEXT]
+  private shownLine = 0
+  private lineBump = 0
+  private lastDropId: string | null = null
+  private lastBumpBeat: number | null = null
+  private textTransition: { start: number; pattern: Cinema2ParallaxCipherPattern; swapped: boolean } | null = null
+  private letterGlow = 1
   private time = 0
   private knot: Three.Group | null = null
   private plateCount = 0
@@ -133,7 +145,7 @@ export class Cinema2ParallaxCipherScene {
 
   update({ frame, parameters }: Cinema2ModuleUpdateContext): void {
     this.params = parameters
-    this.text = parameters.get('cipherText') ?? PARALLAX_CIPHER_TEXT
+    this.lines = this.readLines(parameters)
     this.stagger = this.number('depthStagger', 1, 0, 1.5)
     this.time = frame.elapsedTimeSec
     this.updateTiming(frame, parameters)
@@ -180,6 +192,14 @@ export class Cinema2ParallaxCipherScene {
       this.transitionStart = edited || reset || authorityRestored ? null : this.beats
     }
     if (reset || edited || authorityRestored) this.transitionStart = null
+    if (reset) { this.lineBump = 0; this.lastDropId = null; this.lastBumpBeat = null; this.textTransition = null }
+    // On a drop, Auto Performance brings the other typed line on stage; the saved hold time resumes from there.
+    // One line change per drop: a run of closely spaced drop events (a long drop is reported more than once) counts as one.
+    if (auto && drop && drop !== this.lastDropId && this.lines.length > 1 && (this.lastBumpBeat == null || this.beats - this.lastBumpBeat >= 8 || this.beats < this.lastBumpBeat)) {
+      this.lineBump += 1
+      this.lastBumpBeat = this.beats
+    }
+    this.lastDropId = drop
     this.lastBeats = this.beats
     this.previousTriggerBeat = triggerTiming.beats
     this.previousTimeSec = time
@@ -188,7 +208,43 @@ export class Cinema2ParallaxCipherScene {
     this.editRevision = revision
   }
 
+  private readLines(parameters: Cinema2ModuleUpdateContext['parameters']): readonly string[] {
+    const first = String(parameters.get('cipherText') ?? PARALLAX_CIPHER_TEXT)
+    const second = parameters.get('lineMode') === 'one' ? '' : String(parameters.get('lineTwoText') ?? '')
+    return second.trim() ? [first, second] : [first]
+  }
+
+  /** The typed line the beat position selects: Line 1 and Line 2 alternate every Line Hold bars. */
+  private currentLine(): number {
+    if (this.lines.length < 2) return 0
+    const parsed = Number(this.params?.get('lineHold'))
+    const hold = Math.max(1, Math.min(16, Math.round(Number.isFinite(parsed) ? parsed : 4))) * 4
+    return (Math.floor(Math.max(0, this.beats) / hold) + this.lineBump) % 2
+  }
+
+  /** Editing the shown line swaps it at once; the beat moving to the other line takes it through the transition, which swaps the text at its midpoint. */
+  private advanceText(): void {
+    const line = this.currentLine()
+    const desired = this.lines[Math.min(line, this.lines.length - 1)]!
+    const t = this.textTransition
+    if (t && (this.beats < t.start || this.number('textMotion', 1, 0, 1.5) <= 0)) this.textTransition = null
+    if (this.textTransition) {
+      const progress = (this.beats - this.textTransition.start) / PARALLAX_CIPHER_TEXT_TRANSITION_BEATS
+      if (progress >= 0.5 && !this.textTransition.swapped) { this.shownText = desired; this.shownLine = line; this.textTransition.swapped = true }
+      else if (this.textTransition.swapped) this.shownText = desired
+      if (progress >= 1) this.textTransition = null
+      return
+    }
+    if (line !== this.shownLine && this.number('textMotion', 1, 0, 1.5) > 0 && this.shownText !== desired) {
+      this.textTransition = { start: this.beats, pattern: this.pattern, swapped: false }
+      return
+    }
+    this.shownLine = line
+    this.shownText = desired
+  }
+
   private computePoses(): void {
+    this.advanceText()
     const eased = this.transitionStart == null ? 1 : Math.min(1, Math.max(0, (this.beats - this.transitionStart) / TRANSITION_BEATS))
     const k = eased * eased * (3 - 2 * eased)
     if (eased >= 1) this.transitionStart = null
@@ -204,32 +260,60 @@ export class Cinema2ParallaxCipherScene {
 
   /** The recoil and sway follow the camera that is actually drawing (any Camera Mode, any speed); without one they follow the authored path. */
   beforeDraw(_quality?: unknown, camera?: Readonly<{ position: readonly [number, number, number] }>): void {
-    this.syncText()
+    // The line changes over inside computePoses, so the glyphs are rebuilt after it.
     this.computePoses()
+    this.syncText()
     const eye = camera?.position ?? sampleParallaxCipherEye(this.time)
     const displacement = Math.min(1, Math.abs(eye[0]) / 4.25)
     const sway = eye[0] / 4.35
     const { scatter, recoil: recoilScale, weaveScale, weaveSpin } = this.scenePose
     const twist = this.number('bankTwist', 1, 0, 1.5)
     const spread = this.number('plateSpread', 1, .6, 1.5)
-    for (const { node, pose } of this.glyphs) {
+    const motion = Math.min(1.5, this.number('textMotion', 1, 0, 1.5))
+    const score = this.number('scoreAmount', .5, 0, 1)
+    const ripple = score * this.number('letterRipple', 0, 0, 1)
+    const release = score * this.number('dropRelease', 0, 0, 1)
+    const count = this.glyphs.length
+    const blend = this.transitionStart == null ? 1 : Math.min(1, Math.max(0, (this.beats - this.transitionStart) / TRANSITION_BEATS))
+    const mix = blend * blend * (3 - 2 * blend)
+    const textProgress = this.textTransition ? (this.beats - this.textTransition.start) / PARALLAX_CIPHER_TEXT_TRANSITION_BEATS : 0
+    let glowSum = 0
+    this.glyphs.forEach(({ node, pose }, index) => {
       const phase = pose.glyph.characterIndex * 1.43
       const recoil = Math.sin(this.beats * 1.15 + phase) * displacement * recoilScale
-      node.rotation.set(recoil * .22, sway * Math.cos(phase) * .47 * recoilScale, recoil * .09)
+      let letter: ParallaxCipherLetterPose = evaluateParallaxCipherLetter(this.pattern, this.beats, index, count)
+      if (mix < 1) letter = blendParallaxCipherLetter(evaluateParallaxCipherLetter(this.previousPattern, this.beats, index, count), letter, mix)
+      letter = scaleParallaxCipherLetter(letter, Math.min(1, motion))
+      if (motion > 1) letter = blendParallaxCipherLetter(letter, evaluateParallaxCipherLetter(this.pattern, this.beats, index, count), motion - 1)
+      const passing = this.textTransition ? scaleParallaxCipherLetter(evaluateParallaxCipherTransition(this.textTransition.pattern, textProgress, index, count), Math.min(1, motion)) : REST_LETTER
+      // The snare's ripple runs along the word; it is the score's letter cue.
+      const wave = ripple * Math.sin(this.beats * 2 - index * 1.1)
+      node.rotation.set(recoil * .22 + letter.rotX + passing.rotX + wave * .3, sway * Math.cos(phase) * .47 * recoilScale + letter.rotY + passing.rotY, recoil * .09 + letter.rotZ + passing.rotZ + wave * .12)
       const thrown = parallaxCipherScatterVector(pose.glyph.characterIndex)
-      node.position.set(pose.position[0] + thrown[0] * scatter, pose.position[1] + thrown[1] * scatter, pose.position[2] + thrown[2] * scatter)
-    }
+      const throw_ = scatter + release * .6
+      node.position.set(
+        pose.position[0] + thrown[0] * throw_ + letter.dx + passing.dx,
+        pose.position[1] + thrown[1] * throw_ + letter.dy + passing.dy + wave * .16,
+        pose.position[2] + thrown[2] * throw_ + letter.dz + passing.dz,
+      )
+      node.scale.setScalar(pose.scale * letter.scale * passing.scale)
+      glowSum += letter.glow * passing.glow
+    })
+    this.letterGlow = count ? glowSum / count : 1
     for (const { object, turn, tip, side, offset, index, baseX, baseY } of this.plateBanks) {
       const pose = this.bankPoses[bankId(index, side)] ?? { spread: 1, twist: 0, tip: 0, lift: 0, glow: 1 }
+      // The score's plate cue: a kick lifts and widens the banks nearest the viewer first.
+      const pulse = score * this.number('platePulse', 0, 0, 1)
+      const near = 1 - index / PARALLAX_CIPHER_BANK_COUNT
       const followThrough = Math.sin(this.beats * .85 - offset) * displacement
-      object.position.x = baseX * spread * pose.spread
-      object.position.y = baseY + pose.lift
+      object.position.x = baseX * spread * (pose.spread + .05 * pulse * near + .12 * release)
+      object.position.y = baseY + pose.lift + .2 * pulse * near
       object.rotation.y = turn + side * ((sway * .13 + .065 * followThrough) + pose.twist) * twist
       object.rotation.z = tip + side * ((.10 * sway + .037 * followThrough) + pose.tip) * twist
     }
     if (this.knot) {
       this.knot.rotation.y = .72 - sway * .26 + weaveSpin
-      this.knot.scale.setScalar(2.45 * this.number('weaveScale', 1, .5, 1.6) * weaveScale)
+      this.knot.scale.setScalar(2.45 * this.number('weaveScale', 1, .5, 1.6) * weaveScale * (1 + .15 * release))
     }
     this.applyLook()
   }
@@ -254,6 +338,8 @@ export class Cinema2ParallaxCipherScene {
       return [0, 1, 2].map(channel => Math.min(1, base[channel]! * chosen[channel]! / Math.max(.001, authored[channel]!))) as unknown as Rgb
     }
     const intensity = this.number('intensity', 1, 0, 2)
+    const score = this.number('scoreAmount', .5, 0, 1)
+    const pulseNow = this.number('platePulse', 0, 0, 1)
     const roleGain: Record<LightRole, number> = {
       'near-cyan-contours': this.number('nearContours', 1, 0, 2), 'near-magenta-contours': this.number('nearContours', 1, 0, 2),
       'far-cyan-contours': this.number('farContours', 1, 0, 2), 'far-magenta-contours': this.number('farContours', 1, 0, 2),
@@ -261,8 +347,9 @@ export class Cinema2ParallaxCipherScene {
     }
     for (const entry of this.glows) {
       const [r, g, b] = tint(entry.base, entry.palette)
-      const pattern = entry.bank == null ? 1 : this.bankPoses[entry.bank]?.glow ?? 1
-      entry.material.color.setRGB(r, g, b, THREE.SRGBColorSpace).multiplyScalar(entry.gain * intensity * roleGain[entry.role] * pattern)
+      const pattern = entry.bank == null ? 1 : (this.bankPoses[entry.bank]?.glow ?? 1) * (1 + 1.2 * score * pulseNow)
+      const letters = entry.role === 'letter-bevels' ? this.letterGlow : 1
+      entry.material.color.setRGB(r, g, b, THREE.SRGBColorSpace).multiplyScalar(entry.gain * intensity * roleGain[entry.role] * pattern * letters)
     }
     for (const entry of this.tints) {
       entry.material.color.setRGB(...tint(entry.color, entry.palette), THREE.SRGBColorSpace)
@@ -283,7 +370,7 @@ export class Cinema2ParallaxCipherScene {
       presentation: 'parallax-cipher', plateCount: this.plateCount, glyphCount: this.glyphs.length,
       glyphFont: this.fontMetrics?.font.family ?? CINEMA2_SAY_IT_FONT_FAMILY,
       glyphDepths: this.glyphs.map(({ pose }) => pose.position[2]), lightingFamilies: PARALLAX_CIPHER_LIGHTS,
-      pattern: this.pattern, beats: this.beats, performanceOverride: this.overrideReason, ...this.policy.inspect(), bankCount: this.plateBanks.length,
+      pattern: this.pattern, beats: this.beats, shownText: this.shownText, shownLine: this.shownLine, lineCount: this.lines.length, textTransition: this.textTransition != null, performanceOverride: this.overrideReason, ...this.policy.inspect(), bankCount: this.plateBanks.length,
     }
   }
 
@@ -337,13 +424,13 @@ export class Cinema2ParallaxCipherScene {
   }
 
   private syncText(): void {
-    const signature = `${String(this.text)}|${this.stagger.toFixed(3)}`
+    const signature = `${this.shownText}|${this.stagger.toFixed(3)}`
     if (!this.textRoot || this.glyphSignature === signature) return
     this.glyphSignature = signature
     this.textRoot.clear()
     this.glyphs = []
     const outlines = this.group(this.textRoot, 'glyph-meshes')
-    for (const pose of layoutParallaxCipherGlyphs(this.text, this.fontMetrics, this.stagger)) {
+    for (const pose of layoutParallaxCipherGlyphs(this.shownText, this.fontMetrics, this.stagger)) {
       const source = this.glyphSources.get(pose.glyph.mesh)
       if (!source) throw new Error(`Parallax Cipher is missing glyph "${pose.glyph.mesh}".`)
       const node = this.group(outlines, pose.glyph.id)

@@ -15,7 +15,11 @@ import { withCinema2MoodDrives, type Cinema2MoodDrive } from './Cinema2MoodCondu
 
 export const CINEMA2_PARALLAX_CIPHER_TEXT_ID = cinema2StableId<Cinema2ParameterId>('parallax-cipher-text')
 export const parallaxCipherParameterId = (name: string) => cinema2StableId<Cinema2ParameterId>(`parallax-cipher-${name.replace(/[A-Z]/g, letter => `-${letter.toLowerCase()}`)}`)
+export const CINEMA2_PARALLAX_CIPHER_LINE_MODE_ID = parallaxCipherParameterId('lineMode')
+export const CINEMA2_PARALLAX_CIPHER_LINE_TWO_TEXT_ID = parallaxCipherParameterId('lineTwoText')
 export const CINEMA2_PARALLAX_CIPHER_PATTERN_ID = parallaxCipherParameterId('pattern')
+/** Envelope-driven channels the score cues write; they have no control of their own, like Bass Sigil's. */
+export const PARALLAX_CIPHER_SCORE_CHANNELS = ['platePulse', 'letterRipple', 'dropRelease'] as const
 
 const base = { section: 'Design', exposure: 'primary', persistence: 'preset', reset: 'authored-default' } as const
 const number = (name: string, label: string, parent: Cinema2ParameterManifest['designParentGroup'], value: number, min: number, max: number, order: number, group?: string, description?: string): Cinema2ParameterManifest =>
@@ -28,7 +32,7 @@ const PALETTE_LABELS = { leftBankColor: 'Left Bank', rightBankColor: 'Right Bank
 /** Every control the module reads, by the module-parameter name it is bound to. */
 export const PARALLAX_CIPHER_MODULE_BINDINGS = [
   'bpmSync', 'intensity', 'reactivity', 'autoPerformance', 'pattern', 'patternChange', 'trigger', 'plateSpread', 'bankTwist', 'weaveScale', 'depthStagger',
-  'nearContours', 'farContours', 'letterBevels', 'registrationDots', 'redMarker', ...PARALLAX_CIPHER_PALETTE_NAMES,
+  'nearContours', 'farContours', 'letterBevels', 'registrationDots', 'redMarker', 'lineMode', 'lineHold', 'textMotion', 'scoreAmount', ...PARALLAX_CIPHER_PALETTE_NAMES,
 ] as const
 
 export function withCinema2ParallaxCipher(manifest: Readonly<Cinema2NativePresetManifest>, prefix: string): Readonly<Cinema2NativePresetManifest> {
@@ -67,20 +71,42 @@ export function withCinema2ParallaxCipher(manifest: Readonly<Cinema2NativePreset
     number('letterBevels', 'Letter Bevels', 'design', 1, 0, 2, 2, 'Lighting', 'The glowing edge of each letter.'),
     number('registrationDots', 'Registration Dots', 'design', 1, 0, 2, 3, 'Lighting', 'The rows of dots along the floor.'),
     number('redMarker', 'Red Marker', 'design', 1, 0, 2, 4, 'Lighting', 'The red marker inside the weave and its two floor ticks.'),
+    // The two typed lines follow SAY IT's input style: a Line Mode, then Line 1 and Line 2 (12 characters each, 20 in all). One line is on stage at a time;
+    // with both typed, the patterns take the word off and the other line on through their own text transitions.
     {
-      id: CINEMA2_PARALLAX_CIPHER_TEXT_ID, label: 'Cipher Text', type: 'string', defaultValue: PARALLAX_CIPHER_TEXT,
-      description: 'A short line of up to 12 printable Basic Latin characters, revealed when the camera aligns.',
-      section: 'Design', designParentGroup: 'design', group: 'Typography', order: 0,
+      ...base, id: CINEMA2_PARALLAX_CIPHER_LINE_MODE_ID, label: 'Line Mode', type: 'enum', defaultValue: 'two', designParentGroup: 'design', group: 'Typography', order: 0,
+      options: [{ value: 'one', label: 'One Line' }, { value: 'two', label: 'Two Lines' }],
+      description: 'One line, or two lines that take turns on stage with 20 characters in all. Only one line is shown at a time so the word keeps reading from the reveal camera.',
+    },
+    {
+      id: CINEMA2_PARALLAX_CIPHER_TEXT_ID, label: 'Line 1', type: 'string', defaultValue: PARALLAX_CIPHER_TEXT,
+      description: 'First line of printable English letters, numbers and punctuation; limited to 12 characters.',
+      section: 'Design', designParentGroup: 'design', group: 'Typography', order: 1,
       exposure: 'primary', persistence: 'preset', reset: 'authored-default', modulatable: false, choreographable: false,
     },
+    {
+      id: CINEMA2_PARALLAX_CIPHER_LINE_TWO_TEXT_ID, label: 'Line 2', type: 'string', defaultValue: '',
+      description: 'Second line of printable English letters, numbers and punctuation; limited to 12 characters and 20 total across both lines. It takes the stage after Line 1, through the active pattern\'s transition.',
+      section: 'Design', designParentGroup: 'design', group: 'Typography', order: 2,
+      exposure: 'primary', persistence: 'preset', reset: 'authored-default', modulatable: false, choreographable: false,
+      visibleWhen: [{ kind: 'parameter-equals', parameterId: CINEMA2_PARALLAX_CIPHER_LINE_MODE_ID, value: 'two' }],
+    },
+    {
+      ...base, id: parallaxCipherParameterId('lineHold'), label: 'Line Hold', type: 'enum', defaultValue: '4', designParentGroup: 'design', group: 'Typography', order: 3,
+      options: [{ value: '1', label: '1 Bar' }, { value: '2', label: '2 Bars' }, { value: '4', label: '4 Bars' }, { value: '8', label: '8 Bars' }, { value: '16', label: '16 Bars' }],
+      description: 'How many bars each line holds before the next one takes over. A drop also brings the other line on with Auto Performance.',
+      visibleWhen: [{ kind: 'parameter-equals', parameterId: CINEMA2_PARALLAX_CIPHER_LINE_MODE_ID, value: 'two' }],
+    },
+    number('textMotion', 'Letter Motion', 'design', 1, 0, 1.5, 4, 'Typography', 'How strongly the letters play their pattern\'s text effect and its line transition. At 0 the word stays still and a line change is instant.'),
+    number('scoreAmount', 'Score Amount', 'design', .5, 0, 1, 3, 'Pattern', 'How much the kick, snare and drop cues play on the plates, letters and weave. Zero turns the score off.'),
     number('bloom', 'Bloom', 'effects', .31, 0, 1, 0, undefined, 'The glow around every light.'),
     ...PARALLAX_CIPHER_PALETTE_NAMES.map((name, order): Cinema2ParameterManifest => ({
       ...base, id: parallaxCipherParameterId(name), label: PALETTE_LABELS[name], type: 'color', defaultValue: PARALLAX_CIPHER_PALETTE_DEFAULTS[name], designParentGroup: 'palette', order,
     })),
   ]
   const pathRig = { kind: 'path' as const, points: PARALLAX_CIPHER_CAMERA_POINTS, durationSeconds: PARALLAX_CIPHER_DURATION, loop: true }
-  const bound = (name: string) => name === 'cipherText' ? CINEMA2_PARALLAX_CIPHER_TEXT_ID : parallaxCipherParameterId(name)
-  const moduleNames = ['cipherText', ...PARALLAX_CIPHER_MODULE_BINDINGS]
+  const bound = (name: string) => name === 'cipherText' ? CINEMA2_PARALLAX_CIPHER_TEXT_ID : name === 'lineTwoText' ? CINEMA2_PARALLAX_CIPHER_LINE_TWO_TEXT_ID : parallaxCipherParameterId(name)
+  const moduleNames = ['cipherText', 'lineTwoText', ...PARALLAX_CIPHER_MODULE_BINDINGS]
   const defaults = Object.fromEntries(moduleNames.map(name => [name, parameters.find(parameter => parameter.id === bound(name))!.defaultValue!]))
   const finished = withCinema2CratePresentationFinish({
     ...manifest,
@@ -109,7 +135,7 @@ export function withCinema2ParallaxCipher(manifest: Readonly<Cinema2NativePreset
     environment: { backgroundColor: [.018, .022, .035, 1], exposure: 1 },
     modules: [{
       ...module, typeId: CINEMA2_PARALLAX_CIPHER_MODULE_TYPE_ID,
-      parameters: defaults,
+      parameters: { ...defaults, ...Object.fromEntries(PARALLAX_CIPHER_SCORE_CHANNELS.map(name => [name, 0])) },
       parameterBindings: Object.fromEntries(moduleNames.map(name => [name, cinema2Ref(bound(name))])),
       config: { instances: [
         { asset: 'cinema2-crate-paradox-weave', node: source.id, preserveMaterials: true, spin: false },
@@ -140,6 +166,17 @@ function withParallaxCipherPerformance(manifest: Readonly<Cinema2NativePresetMan
     conditions: [{ kind: 'once-per-event' }, ...(signal === 'drop' ? [] : [{ kind: 'not-silent' as const }])],
     actions: [{ id: cinema2StableId<Cinema2ChoreographyActionId>(`parallax-cipher-${signal}-${property.toLowerCase()}-accent`), target: target(property), operation: 'envelope', composition: 'multiply', value: factor, envelope: { attack: .015, hold: .035, release, unit: 'seconds' }, retrigger: 'restart' }],
   })
+  const scoreOn = [{ kind: 'parameter-not-equals' as const, parameterId: parallaxCipherParameterId('scoreAmount'), value: 0 }]
+  const cue = (signal: 'kick' | 'snare' | 'drop', property: string, release: number): Cinema2ChoreographyRuleManifest => ({
+    id: cinema2StableId<Cinema2ChoreographyRuleId>(`parallax-cipher-score-${signal}-${property.replace(/[A-Z]/g, letter => `-${letter.toLowerCase()}`)}`), priority: 40,
+    strengthParameter: bind('reactivity'), enabledWhen: scoreOn,
+    source: { signal, capability: signal === 'drop' ? 'music.drop' : 'music.rhythm-events' },
+    conditions: [{ kind: 'once-per-event' }, ...(signal === 'drop' ? [] : [{ kind: 'not-silent' as const }])],
+    actions: [{
+      id: cinema2StableId<Cinema2ChoreographyActionId>(`parallax-cipher-score-${property.replace(/[A-Z]/g, letter => `-${letter.toLowerCase()}`)}-cue`), target: moduleTarget(property),
+      operation: 'envelope', composition: 'replace', value: 1, delayBeats: 0, envelope: { attack: .015, hold: .035, release, unit: 'seconds' }, retrigger: 'restart',
+    }],
+  })
   const rules = [
     // The walls breathe with the bass, the banks turn with the mids, the rim lines follow the highs, and the letters' edges follow the voice.
     continuous('bass-spread', 'audio.bands', 'audio.bands.bass', 'plateSpread', 1.18),
@@ -153,6 +190,9 @@ function withParallaxCipherPerformance(manifest: Readonly<Cinema2NativePresetMan
     accent('snare', 'registrationDots', 1.8, .22), accent('snare', 'letterBevels', 1.5, .22),
     accent('drop', 'bloom', 1.7, 1.2), accent('drop', 'plateSpread', 1.15, 1.2), accent('drop', 'intensity', 1.2, 1.2),
     continuous('director-twist', 'visual-director.significance', 'director.intensity', 'bankTwist', 1.15, true),
+    continuous('director-letters', 'visual-director.significance', 'director.momentum', 'textMotion', 1.2, true),
+    // The score (as in Bass Sigil): the kick, snare and drop each fire a cue on their own channel, and the scene plays that channel on the plates, letters and weave.
+    cue('kick', 'platePulse', .3), cue('snare', 'letterRipple', .4), cue('drop', 'dropRelease', 1.4),
   ]
   const drive = (id: string, property: string, source: Cinema2MoodDrive['source'], value: number): Cinema2MoodDrive => ({ id, target: target(property), source, operation: 'multiply', value })
   const drives: Cinema2MoodDrive[] = [
@@ -164,8 +204,11 @@ function withParallaxCipherPerformance(manifest: Readonly<Cinema2NativePresetMan
     drive('build-weave', 'weaveScale', 'mood.build', .85), drive('build-far', 'farContours', 'mood.build', 1.3),
     drive('peak-near', 'nearContours', 'mood.peak', 1.3), drive('peak-far', 'farContours', 'mood.peak', 1.3), drive('peak-bloom', 'bloom', 'mood.peak', 1.3),
     drive('shock-bevels', 'letterBevels', 'mood.shock', 1.4),
+    // The letters follow the passage too: calmer words move less, a build agitates them, a driving or peak passage plays them hard.
+    drive('calm-letters', 'textMotion', 'mood.calm', .6), drive('build-letters', 'textMotion', 'mood.build', 1.25), drive('drive-letters', 'textMotion', 'mood.drive', 1.15),
+    drive('peak-letters', 'textMotion', 'mood.peak', 1.2),
   ]
-  for (const name of ['intensity', 'nearContours', 'farContours', 'letterBevels', 'registrationDots', 'redMarker', 'bloom']) drives.push(drive(`silence-${name.toLowerCase()}`, name, 'mood.silence', .1))
+  for (const name of ['intensity', 'nearContours', 'farContours', 'letterBevels', 'registrationDots', 'redMarker', 'bloom', 'textMotion']) drives.push(drive(`silence-${name.toLowerCase()}`, name, 'mood.silence', .1))
   return withCinema2MoodDrives({
     ...manifest,
     capabilities: [...manifest.capabilities ?? [], ...(['audio.transport', 'audio.bands', 'audio.features', 'music.rhythm-events', 'music.drop', 'music.vocal-presence', 'visual-director.significance'] as const).map(id => ({ id, requirement: 'optional' as const, purpose: 'Shared musical facts and performance meaning.' }))],

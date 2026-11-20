@@ -2,10 +2,11 @@ import { describe, expect, it } from 'vitest'
 import * as THREE from 'three'
 import { cinema2Ref } from '../contracts/Cinema2NativePresetManifest'
 import { CINEMA2_CRATE_PRESET_MANIFESTS } from '../presets/Cinema2CratePresets'
-import { CINEMA2_PARALLAX_CIPHER_PATTERN_ID, CINEMA2_PARALLAX_CIPHER_TEXT_ID, PARALLAX_CIPHER_MODULE_BINDINGS, parallaxCipherParameterId } from '../presets/Cinema2ParallaxCipherPreset'
+import { CINEMA2_PARALLAX_CIPHER_LINE_MODE_ID, CINEMA2_PARALLAX_CIPHER_LINE_TWO_TEXT_ID, CINEMA2_PARALLAX_CIPHER_PATTERN_ID, CINEMA2_PARALLAX_CIPHER_TEXT_ID, PARALLAX_CIPHER_SCORE_CHANNELS, PARALLAX_CIPHER_MODULE_BINDINGS, parallaxCipherParameterId } from '../presets/Cinema2ParallaxCipherPreset'
 import { Cinema2ParallaxCipherScene } from '../modules/crate/Cinema2ParallaxCipherScene'
 import { layoutParallaxCipherGlyphs } from '../modules/crate/Cinema2ParallaxCipherLayout'
 import { PARALLAX_CIPHER_PALETTE_DEFAULTS } from '../modules/crate/Cinema2ParallaxCipherPalette'
+import { evaluateParallaxCipherLetter, evaluateParallaxCipherTransition, PARALLAX_CIPHER_TEXT_TRANSITION_BEATS } from '../modules/crate/Cinema2ParallaxCipherTextEffects'
 import { CINEMA2_PARALLAX_CIPHER_PATTERN_IDS, evaluateParallaxCipherBank, evaluateParallaxCipherScene } from '../modules/crate/Cinema2ParallaxCipherPatterns'
 import { compileCinema2NativePreset } from '../presets/Cinema2PresetCompiler'
 import { Cinema2ParameterState } from '../parameters/Cinema2ParameterState'
@@ -33,8 +34,9 @@ async function createScene(controls: Record<string, unknown> = {}) {
   const red = new THREE.Mesh(new THREE.BoxGeometry(.2, .2, .2), new THREE.MeshStandardMaterial({ name: 'Material' }))
   plates.add(red)
   const letters = new THREE.Group()
-  for (const { glyph } of layoutParallaxCipherGlyphs('PARADOX')) {
-    for (const name of [glyph.mesh, `${glyph.mesh}-led`]) {
+  const meshNames = new Set(['PARADOX', 'CIPHER', 'SPLIT', 'OTHER WORD'].flatMap(word => layoutParallaxCipherGlyphs(word).map(({ glyph }) => glyph.mesh)))
+  for (const mesh of meshNames) {
+    for (const name of [mesh, `${mesh}-led`]) {
       const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial())
       mesh.name = name
       letters.add(mesh)
@@ -47,6 +49,8 @@ async function createScene(controls: Record<string, unknown> = {}) {
   const set = (name: string, value: unknown) => { values.set(name, value); revisions.set(name, (revisions.get(name) ?? 0) + 1) }
   for (const name of PARALLAX_CIPHER_MODULE_BINDINGS) values.set(name, defaults[parallaxCipherParameterId(name)])
   values.set('cipherText', 'PARADOX')
+  values.set('lineTwoText', '')
+  for (const name of PARALLAX_CIPHER_SCORE_CHANNELS) values.set(name, 0)
   for (const [name, value] of Object.entries(controls)) values.set(name, value)
   const parameters = { get: (name: string) => values.get(name), getEditRevision: (name: string) => revisions.get(name) ?? 0 }
   const draw = (beats: number) => {
@@ -54,14 +58,22 @@ async function createScene(controls: Record<string, unknown> = {}) {
     scene.update({ frame: { elapsedTimeSec: beats / 2, deltaTimeSec: 0, timestampMs: 0, contextGeneration: 1 }, parameters } as never)
     scene.beforeDraw()
   }
+  // Frames advance the clock in 0.1 s steps (the first call places it exactly), for tests that need time to pass inside one scene.
+  let seconds = 0, stamp = 0, started = false
+  const run = (beats: number) => {
+    const target = beats / 2
+    const frame = (dt: number) => { scene.update({ frame: { elapsedTimeSec: seconds, deltaTimeSec: dt, timestampMs: stamp, contextGeneration: 1 }, parameters } as never); scene.beforeDraw() }
+    if (!started) { started = true; seconds = target; stamp = seconds * 1000; frame(0); return }
+    while (seconds < target - 1e-9) { const dt = Math.min(.1, target - seconds); seconds += dt; stamp += dt * 1000; frame(dt) }
+  }
   const banks = () => {
     const root = (scene as unknown as { plateBanks: { object: THREE.Group; index: number; side: number; turn: number; baseX: number; baseY: number }[] }).plateBanks
     return root
   }
-  const internals = scene as unknown as { knot: THREE.Group; glyphs: { node: THREE.Group }[]; glows: { material: THREE.MeshBasicMaterial; role: string; palette: string; bank: number | null }[] }
+  const internals = scene as unknown as { shownText: string; knot: THREE.Group; glyphs: { node: THREE.Group }[]; glows: { material: THREE.MeshBasicMaterial; role: string; palette: string; bank: number | null }[] }
   /** Runs one real runtime frame (with the mood and director) through the scene. */
   const step = (frame: unknown) => { scene.update({ frame, parameters } as never); scene.beforeDraw() }
-  return { scene, set, draw, step, banks, internals, pattern: () => scene.inspect().pattern as string }
+  return { scene, set, draw, run, step, banks, internals, pattern: () => scene.inspect().pattern as string, shown: () => scene.inspect() as { shownText: string; textTransition: boolean; glyphCount: number } }
 }
 
 describe('Paradox Weave — Parallax Cipher controls', () => {
@@ -332,5 +344,164 @@ describe('Paradox Weave — Parallax Cipher camera', () => {
     expect(homeRotation.every(value => value === 0)).toBe(true)
     home.scene.beforeDraw(undefined, { position: [4.35, 1.72, 12.65] })
     expect(home.internals.glyphs.some(({ node }) => Math.abs(node.rotation.y) > .1)).toBe(true)
+  })
+})
+
+
+describe('Paradox Weave — typed lines, text effects and transitions', () => {
+  const REST = { dx: 0, dy: 0, dz: 0, rotX: 0, rotY: 0, rotZ: 0, scale: 1, glow: 1 }
+  const byId = new Map(manifest.parameters!.map(parameter => [parameter.id, parameter]))
+
+  it('has SAY IT\'s two text inputs: Line Mode, Line 1 and Line 2, with Line 2 and Line Hold shown only for two lines', () => {
+    const typography = manifest.parameters!.filter(parameter => parameter.group === 'Typography').sort((a, b) => a.order! - b.order!)
+    expect(typography.map(parameter => parameter.label)).toEqual(['Line Mode', 'Line 1', 'Line 2', 'Line Hold', 'Letter Motion'])
+    expect(byId.get(CINEMA2_PARALLAX_CIPHER_TEXT_ID)).toMatchObject({ type: 'string', defaultValue: 'PARADOX' })
+    expect(byId.get(CINEMA2_PARALLAX_CIPHER_LINE_TWO_TEXT_ID)).toMatchObject({ type: 'string', defaultValue: '', visibleWhen: [expect.objectContaining({ parameterId: CINEMA2_PARALLAX_CIPHER_LINE_MODE_ID, value: 'two' })] })
+    expect(byId.get(CINEMA2_PARALLAX_CIPHER_LINE_MODE_ID)).toMatchObject({ type: 'enum', defaultValue: 'two', options: [{ value: 'one', label: 'One Line' }, { value: 'two', label: 'Two Lines' }] })
+    expect(byId.get(parallaxCipherParameterId('lineHold'))).toMatchObject({ visibleWhen: [expect.objectContaining({ value: 'two' })] })
+  })
+
+  it('gives every pattern its own letter effect, and the letters are back on the line between beats', () => {
+    const signatures = new Set(CINEMA2_PARALLAX_CIPHER_PATTERN_IDS.map(id => JSON.stringify([0.2, 0.7, 1.4, 2.3].map(beats => [0, 3, 6].map(index => evaluateParallaxCipherLetter(id, beats, index, 7))))))
+    expect(signatures.size).toBe(CINEMA2_PARALLAX_CIPHER_PATTERN_IDS.length)
+    for (const id of CINEMA2_PARALLAX_CIPHER_PATTERN_IDS) {
+      for (let index = 0; index < 7; index += 1) {
+        const settled = evaluateParallaxCipherLetter(id, 4.93, index, 7)
+        expect(Math.hypot(settled.dx, settled.dy, settled.dz), id).toBeLessThan(.2)
+      }
+    }
+  })
+
+  it('takes a line off and the next on in each pattern\'s own style, hidden at the midpoint and at rest outside the transition', () => {
+    const styles = new Set<string>()
+    for (const id of CINEMA2_PARALLAX_CIPHER_PATTERN_IDS) {
+      expect(evaluateParallaxCipherTransition(id, 0, 2, 7)).toEqual(REST)
+      expect(evaluateParallaxCipherTransition(id, 1, 2, 7)).toEqual(REST)
+      for (let index = 0; index < 7; index += 1) expect(evaluateParallaxCipherTransition(id, .5, index, 7).scale, `${id} ${index}`).toBeLessThan(.2)
+      expect(evaluateParallaxCipherTransition(id, .2, 3, 7).scale).toBeLessThan(1)
+      styles.add(JSON.stringify([.15, .3, .7, .85].map(progress => evaluateParallaxCipherTransition(id, progress, 4, 7))))
+    }
+    expect(styles.size).toBe(CINEMA2_PARALLAX_CIPHER_PATTERN_IDS.length)
+  })
+
+  it('shows one typed line at a time and rotates Line 1 and Line 2 every Line Hold bars through a transition', async () => {
+    const rig = await createScene({ lineTwoText: 'CIPHER', lineHold: '4', pattern: 'counter-spiral' })
+    rig.run(1)
+    expect(rig.shown()).toMatchObject({ shownText: 'PARADOX', glyphCount: 7, textTransition: false })
+    rig.run(15.9)
+    expect(rig.shown().shownText).toBe('PARADOX')
+    rig.run(16.5)
+    expect(rig.shown().textTransition).toBe(true)
+    // Before the midpoint the old word is still the one leaving.
+    rig.run(17.5)
+    expect(rig.shown().shownText).toBe('PARADOX')
+    const leaving = rig.internals.glyphs.map(({ node }) => node.scale.x)
+    rig.run(16 + PARALLAX_CIPHER_TEXT_TRANSITION_BEATS / 2 + .6)
+    expect(rig.shown()).toMatchObject({ shownText: 'CIPHER', glyphCount: 6 })
+    rig.run(16 + PARALLAX_CIPHER_TEXT_TRANSITION_BEATS + .5)
+    expect(rig.shown().textTransition).toBe(false)
+    expect(leaving.some(scale => scale > 0)).toBe(true)
+    // The next hold brings Line 1 back.
+    rig.run(32.6)
+    rig.run(35)
+    expect(rig.shown().shownText).toBe('PARADOX')
+  })
+
+  it('shrinks the letters away through the transition and restores them', async () => {
+    const rig = await createScene({ lineTwoText: 'CIPHER', pattern: 'collapse' })
+    rig.run(1)
+    const rest = rig.internals.glyphs.map(({ node }) => node.scale.x)
+    rig.run(16.1)
+    rig.run(17)
+    expect(Math.max(...rig.internals.glyphs.map(({ node }) => node.scale.x))).toBeLessThan(Math.max(...rest))
+    rig.run(21)
+    expect(rig.shown().textTransition).toBe(false)
+    const settled = rig.internals.glyphs.map(({ node }) => node.scale.x)
+    expect(settled.every(scale => scale > Math.min(...rest) * .5)).toBe(true)
+  })
+
+  it('swaps an edited line at once, with no transition, and ignores Line 2 in One Line mode', async () => {
+    const rig = await createScene({ lineTwoText: 'CIPHER' })
+    rig.run(1)
+    rig.set('cipherText', 'SPLIT')
+    rig.run(1.5)
+    expect(rig.shown()).toMatchObject({ shownText: 'SPLIT', textTransition: false })
+    const single = await createScene({ lineTwoText: 'CIPHER', lineMode: 'one' })
+    single.run(1); single.run(17)
+    expect(single.shown()).toMatchObject({ shownText: 'PARADOX', textTransition: false })
+  })
+
+  it('changes lines instantly at Letter Motion 0', async () => {
+    const rig = await createScene({ lineTwoText: 'CIPHER', textMotion: 0 })
+    rig.run(1)
+    rig.run(16.5)
+    expect(rig.shown()).toMatchObject({ shownText: 'CIPHER', textTransition: false })
+  })
+
+  it('plays the letter effect scaled by Letter Motion', async () => {
+    const still = await createScene({ pattern: 'cascade', textMotion: 0 })
+    const full = await createScene({ pattern: 'cascade', textMotion: 1 })
+    still.draw(5.3); full.draw(5.3)
+    const heights = (rig: typeof still) => rig.internals.glyphs.map(({ node }) => node.position.y)
+    const rest = layoutParallaxCipherGlyphs('PARADOX').map(letter => letter.position[1])
+    expect(heights(still).every((y, index) => Math.abs(y - rest[index]!) < 1e-9)).toBe(true)
+    expect(heights(full).some((y, index) => Math.abs(y - rest[index]!) > .01)).toBe(true)
+  })
+
+  it('moves the letters with the pattern change: both patterns blend, and a pick lands at once', async () => {
+    const rig = await createScene({ pattern: 'reading-line' })
+    rig.draw(5.3)
+    const before = rig.internals.glyphs.map(({ node }) => [node.position.y, node.rotation.x])
+    rig.set('pattern', 'cascade')
+    rig.draw(5.3)
+    expect(rig.internals.glyphs.map(({ node }) => [node.position.y, node.rotation.x])).not.toEqual(before)
+  })
+})
+
+describe('Paradox Weave — the score', () => {
+  const rules = manifest.choreography!.rules
+  it('fires the kick, snare and drop cues on their own channels, scaled by Audio Reactivity and gated by Score Amount', () => {
+    const cues = rules.filter(rule => String(rule.id).startsWith('parallax-cipher-score-'))
+    expect(cues.map(rule => rule.source.signal).sort()).toEqual(['drop', 'kick', 'snare'])
+    for (const rule of cues) {
+      expect(rule.enabledWhen).toEqual([{ kind: 'parameter-not-equals', parameterId: parallaxCipherParameterId('scoreAmount'), value: 0 }])
+      expect(rule.strengthParameter).toEqual(cinema2Ref(parallaxCipherParameterId('reactivity')))
+      expect(rule.actions[0]).toMatchObject({ operation: 'envelope', composition: 'replace' })
+    }
+    expect(manifest.modules![0]!.parameters).toMatchObject({ platePulse: 0, letterRipple: 0, dropRelease: 0 })
+    expect(byIdTarget(cues)).toEqual(['dropRelease', 'letterRipple', 'platePulse'])
+    expect(manifest.parameters!.find(parameter => parameter.id === parallaxCipherParameterId('scoreAmount'))).toMatchObject({ defaultValue: .5, min: 0, max: 1 })
+  })
+
+  const byIdTarget = (cues: typeof rules) => cues.map(rule => (rule.actions[0]!.target as { property: string }).property).sort()
+
+  it('plays each channel on the scene: the kick on the plates, the snare on the letters, the drop on the weave and word, and Score Amount 0 silences them', async () => {
+    const draw = async (controls: Record<string, unknown>) => {
+      const rig = await createScene({ pattern: 'reading-line', ...controls })
+      rig.run(5.3)
+      return { banks: rig.banks().map(bank => [bank.object.position.x, bank.object.position.y]), letters: rig.internals.glyphs.map(({ node }) => [node.position.x, node.position.y, node.rotation.x]), knot: rig.internals.knot.scale.x }
+    }
+    const quiet = await draw({})
+    const kick = await draw({ platePulse: 1 })
+    const snare = await draw({ letterRipple: 1 })
+    const drop = await draw({ dropRelease: 1 })
+    expect(kick.banks).not.toEqual(quiet.banks); expect(kick.letters).toEqual(quiet.letters)
+    expect(snare.letters).not.toEqual(quiet.letters); expect(snare.banks).toEqual(quiet.banks)
+    expect(drop.knot).toBeGreaterThan(quiet.knot); expect(drop.letters).not.toEqual(quiet.letters)
+    const off = await draw({ scoreAmount: 0, platePulse: 1, letterRipple: 1, dropRelease: 1 })
+    expect(off).toEqual(quiet)
+  })
+
+  it('brings the other typed line on stage on a drop with Auto Performance on, and not with it off', async () => {
+    const run = async (autoPerformance: boolean) => {
+      const rig = await createScene({ autoPerformance, lineTwoText: 'CIPHER', reactivity: 1, lineHold: '16' })
+      const music = moodMusic()
+      for (let i = 0; i < 20; i += 1) rig.step(music.next({ energy: .4 }))
+      for (let i = 0; i < 40; i += 1) rig.step(music.next({ energy: 1, bass: 1, event: 'drop', eventId: 900 + (i < 12 ? i : 11) }))
+      for (let i = 0; i < 400; i += 1) rig.step(music.next({ energy: .6 }))
+      return rig.shown().shownText
+    }
+    expect(await run(true)).toBe('CIPHER')
+    expect(await run(false)).toBe('PARADOX')
   })
 })
