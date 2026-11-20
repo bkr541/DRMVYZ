@@ -6,8 +6,6 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { CINEMA2_CRATE_ARTIFACTS, CINEMA2_CRATE_PRESET_MANIFESTS } from '../presets/Cinema2CratePresets'
 import { cinema2NativePresetRegistry } from '../presets/Cinema2PresetRegistry'
 import { createCinema2LegacyMaterialPlugin } from '../modules/three/Cinema2LegacyMaterialPlugin'
-import { cinema2CratePresentationModuleId } from '../modules/Cinema2CratePresentationModule'
-import { CINEMA2_CRATE_PRESENTATIONS, isCinema2CratePresentationId } from '../modules/crate/Cinema2CratePresentation'
 import { layoutParallaxCipherGlyphs, PARALLAX_CIPHER_EYE, PARALLAX_CIPHER_TARGET, sampleParallaxCipherEye } from '../modules/crate/Cinema2ParallaxCipherLayout'
 import { CINEMA2_PARALLAX_CIPHER_TEXT_ID } from '../presets/Cinema2ParallaxCipherPreset'
 import type { Cinema2ThreeLibrary } from '../modules/three/Cinema2ThreeLibrary'
@@ -20,7 +18,7 @@ describe('Cinema 2.0 crate reference presets', () => {
     for (const manifest of CINEMA2_CRATE_PRESET_MANIFESTS) {
       const registered = cinema2NativePresetRegistry.get(manifest.id)!
       expect(cinema2NativePresetRegistry.compile(manifest.id).ok).toBe(true)
-      const cameraPath = ['bass-sigil', 'moire-orb', 'beam-lattice', 'paradox-weave', 'glyph-sphere'].some(slug => manifest.id === `drmvyz.cinema2.crate-${slug}`)
+      const cameraPath = ['bass-sigil', 'moire-orb', 'beam-lattice', 'paradox-weave', 'glyph-sphere', 'wireframe-portal'].some(slug => manifest.id === `drmvyz.cinema2.crate-${slug}`)
       if (!cameraPath) { expect(registered.parameters).toHaveLength(0); expect(registered.choreography?.rules ?? []).toHaveLength(0) }
       expect(registered.cameras?.[0].rig?.kind).toBe(cameraPath ? 'path' : 'static')
       expect(manifest.modules?.[0].config?.instances).toEqual(expect.arrayContaining([expect.objectContaining({ spin: false, preserveMaterials: manifest.id !== 'drmvyz.cinema2.crate-beam-lattice' })]))
@@ -30,24 +28,6 @@ describe('Cinema 2.0 crate reference presets', () => {
     for (const artifact of CINEMA2_CRATE_ARTIFACTS) {
       const hash = (path: string) => createHash('sha256').update(readFileSync(path)).digest('hex')
       expect(hash(`public/cinema2/models/crate/${artifact.file}`)).toBe(hash(`3D Cinema 2.0 Crate/${artifact.file}`))
-    }
-  })
-  it('keeps the remaining authored environment static, with original assets and no playback bindings', () => {
-    const presentations = Object.keys(CINEMA2_CRATE_PRESENTATIONS).filter(isCinema2CratePresentationId)
-    expect(presentations).toEqual(['wireframe-portal'])
-    for (const slug of presentations) {
-      const manifest = CINEMA2_CRATE_PRESET_MANIFESTS.find(preset => preset.id === `drmvyz.cinema2.crate-${slug}`)!
-      expect(manifest.cameras?.[0]).toMatchObject({ label: CINEMA2_CRATE_PRESENTATIONS[slug].name, rig: { kind: 'static' } })
-      expect(manifest.modules?.[0]).toMatchObject({
-        typeId: cinema2CratePresentationModuleId(slug),
-        config: { instances: [expect.objectContaining({ asset: `cinema2-crate-${slug}`, spin: false })] },
-      })
-      expect(manifest.modules?.[0].parameterBindings).toBeUndefined()
-      expect(manifest.parameters).toEqual([])
-      expect(manifest.choreography).toBeUndefined()
-      expect(manifest.effects?.map(effect => effect.typeId)).toEqual(['hdr-bloom', 'cinematic-finish'])
-      expect(manifest.effects?.every(effect => effect.parameterBindings === undefined)).toBe(true)
-      expect(manifest.capabilities?.some(capability => /^(audio|music|visual-director)\./.test(capability.id))).toBe(false)
     }
   })
   it('projects separated Parallax Cipher glyphs onto the typeset line at the reveal camera', () => {

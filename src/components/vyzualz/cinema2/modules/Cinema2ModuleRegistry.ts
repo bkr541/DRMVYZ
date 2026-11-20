@@ -1,6 +1,7 @@
 import { cinema2BeamLatticeModuleDefinition } from './Cinema2BeamLatticeNativeModule'
 import { cinema2MoireOrbModuleDefinition } from './Cinema2MoireOrbNativeModule'
 import { cinema2GlyphSphereModuleDefinition } from './Cinema2GlyphSphereNativeModule'
+import { cinema2WireframePortalModuleDefinition } from './Cinema2WireframePortalNativeModule'
 import { cinema2BassSigilModuleDefinition } from './Cinema2BassSigilNativeModule'
 import { cinema2ChamberModuleDefinition } from './Cinema2ChamberNativeModule'
 import { cinema2OpenDecksClubModuleDefinition } from './Cinema2OpenDecksClubModule'
@@ -173,6 +174,8 @@ const moireOrbRegistration = cinema2NativeModuleRegistry.register(cinema2MoireOr
 if (!moireOrbRegistration.ok) throw new Error('Cinema 2.0 Moire Orb module registration failed.')
 const glyphSphereRegistration = cinema2NativeModuleRegistry.register(cinema2GlyphSphereModuleDefinition)
 if (!glyphSphereRegistration.ok) throw new Error('Cinema 2.0 Glyph Sphere module registration failed.')
+const wireframePortalRegistration = cinema2NativeModuleRegistry.register(cinema2WireframePortalModuleDefinition)
+if (!wireframePortalRegistration.ok) throw new Error('Cinema 2.0 Wireframe Portal module registration failed.')
 const bassSigilRegistration = cinema2NativeModuleRegistry.register(cinema2BassSigilModuleDefinition)
 if (!bassSigilRegistration.ok) throw new Error('Cinema 2.0 Bass Sigil module registration failed.')
 const chamberRegistration = cinema2NativeModuleRegistry.register(cinema2ChamberModuleDefinition)

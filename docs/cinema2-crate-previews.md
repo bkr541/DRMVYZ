@@ -1,25 +1,17 @@
 # Cinema 2.0 crate previews
 
-The Cinema 2.0 crate presets use the owner’s `3D Cinema 2.0 Crate` files. The source GLBs live in `public/cinema2/models/crate/`. Wireframe Portal builds a static 3D environment from its artifact. Glyph Sphere has its own performance, described below. Paradox Weave’s Parallax Cipher uses an authored camera move. Beam Lattice, Bass Sigil and Moire Orb have their own performances described below.
+The Cinema 2.0 crate presets use the owner’s `3D Cinema 2.0 Crate` files. The source GLBs live in `public/cinema2/models/crate/`. Glyph Sphere and Wireframe Portal each have their own performance, described below. Paradox Weave’s Parallax Cipher uses an authored camera move. Beam Lattice, Bass Sigil and Moire Orb have their own performances described below.
 
 | Preset | Source GLB | Appearance |
 | --- | --- | --- |
 | Moire Orb | `geometry_texture_effect_spheres.glb` | Original translucent core in Resonance Reactor, with 48 ring segments and 12 moving fixtures |
 | Beam Lattice | `lasers_-_vj.glb` | Reference yellow laser field, seven native bank programs, shared choreography and Auto/Mood |
-| Wireframe Portal | `lightweight.glb` | Corner Truss, with connected bays of chamfered cube frames |
+| Wireframe Portal | `lightweight.glb` | Corner Truss as black steel: gunmetal frames in hard cold and red rim light, hot amber joint cores, cold edge runs, haze, dust, shallow depth of field, a low omnidirectional camera, musical choreography and shared Auto Performance |
 | Glyph Sphere | `oyes.glb` | Glyph Armillary: a glowing glyph core inside three tilted glyph bands in ruled ring frames, with beat-chased ticks, a drifting starfield, an omnidirectional camera, musical choreography and shared Auto Performance |
 | Paradox Weave | `paradox_abstract_art_of_python.glb` | Parallax Cipher, with staggered angular plates and 3D lettering that aligns from a single viewpoint |
 | Bass Sigil | `skrillex_-_vj_-_flash_warning.glb` | The original cellular sphere, particle fields and glow around **a 3D model you choose** (the supplied logo is removed), with eight native programs, musical choreography and shared Auto Performance |
 
 The stable preset IDs are `drmvyz.cinema2.crate-<slug>`. The crate manifests use the shared Three scene module for asset loading, material ownership, and rendering. The original environment pass assembled private scene objects over the shared GLB geometry and textures, with fixed framing and static bloom/color finishing. The two remaining static environments are listed below.
-
-### Original static lighting families
-
-Each family (Corner Truss only; Glyph Sphere is animated, see below) has named scene groups and its own fixture materials. Repeated fixtures share instanced draws by group and material. The scene inspection reports the available families. Design controls, animation playback, choreography, and Audio Intelligence were outside that initial visual pass.
-
-| Environment | Lighting families |
-| --- | --- |
-| Corner Truss | Frame rails, edge runs, cross-braces, chamfered joints, bay links, and wayfinding pins |
 
 The Paradox file requires the older `KHR_materials_pbrSpecularGlossiness` extension. A small GLTFLoader plugin maps its diffuse/specular/gloss factors to physical material properties during decoding, avoiding the loader's white fallback. This supports factor-based legacy materials; specular/glossiness textures remain rejected by both the asset validator and loader. Source bytes remain untouched.
 
@@ -103,3 +95,30 @@ Revision 3 replaces the static environment with a native module (`glyph-sphere-n
 **Score.** Like Bass Sigil, the kick, snare and drop each fire a cue on a hidden channel (`platePulse`, `letterRipple`, `dropRelease`) that the scene plays: the kick lifts, widens and lights the plate banks nearest the viewer first, the snare ripples the letters, and the drop throws the word, pushes the banks out and pops the weave. **Score Amount** (Design → Pattern, default 0.5) sets how much; zero turns the score off. Cues scale with Audio Reactivity. Auto Performance adds a director route on Letter Motion and mood drives on it (calm quietens the letters, a build, a driving passage and a peak agitate them, silence pulls them to 10%) on top of the existing build (Collapse), drop (Shatter) and mood-chosen patterns.
 
 **Verification.** `Cinema2ParallaxCipherPreset.test.ts` covers the inputs, every pattern's effect and transition, line rotation, instant edits, Letter Motion 0, the score channels and the drop line change; the Auto Performance coverage and mood-migration suites pass. In headless Chromium (software WebGL) a two-line word was rendered through the real runtime and the transition was watched from PARADOX to CIPHER. Not exercised: the score cues with real audio, and the effects on a real GPU.
+
+
+## Wireframe Portal (Corner Truss), revision 3
+
+Revision 3 turns the static truss into a kinetic light rig with a native module (`wireframe-portal-native`, `modules/Cinema2WireframePortalNativeModule.ts`, `modules/wireframePortal/WireframePortalScene.ts` and `WireframePortalPatterns.ts`). The asset and preset id are unchanged; the effects are new (`wireframe-portal-focus`, `-bloom`, `-flares`, `-grade`), which is safe because the old preset had no controls and so no saved settings. The old shared crate presentation class is gone; Paradox Weave keeps its own module.
+
+**The rig.** The 28 chamfered bays are steel groups that move as kinetic parts, each with a hot core. Twelve fixtures on the outermost bays throw beams (an additive cone with a lens glow, red, cold white and amber) through haze; the bars between bays are rebuilt every frame so they stretch with the bays. Two hard rim lights (cold white above left, red lower right) sweep slowly, with a low warm kick from the front. The background is near black with a cold haze band and dust (700 points on high, 350 on medium, none on low). The finish is shallow depth of field, bloom, anamorphic glare, a cold-shadow and warm-highlight grade, vignette and grain.
+
+**Programs.** Six Patterns, each moving the bays, setting the cores and aiming the beams, all as functions of the beat position:
+- **Lattice**: the structure breathes and rocks; the beams fan slowly like searchlights.
+- **Extrude**: every beat the bays punch out along their axis and fall back; the beams flare open on the beat.
+- **Rotor**: waves of bays turn a quarter turn once a bar; two counter-rotating crowns of beams sweep.
+- **Fold**: the bays are drawn in and shudder with their cores ramping hotter; the beams close on the centre and tighten (the build).
+- **Ripple**: a wave of height runs through the lattice; the beams rise and fall fixture to fixture.
+- **Detonate**: once a bar the structure blows apart along random lines, spinning, and pulls back together; every beam fires out (the drop).
+
+Pattern, Pattern Change and the Trigger work as in the other pattern presets; programs ease into each other over two beats.
+
+**Music.** A kick writes the hidden `flash` channel (cores, rims and beams flare, scaled by Strobe) and a drop writes `blast` (every bay is thrown outward, the haze and red rim surge, and the beams chop four times a beat, scaled by Strobe). Bass pushes Kinetics, energy speeds the sweep, highs light the edge runs, snares flare the beams and rims, vocals ease the rims back; all scale with Audio Reactivity.
+
+**Auto Performance.** The music chooses the program: a build puts Fold on stage, a drop puts Detonate on stage for eight beats, and between them the mood chooser picks (calm: Lattice or Ripple; driving: Rotor or Extrude; tense: Fold or Rotor; peak: Extrude or Detonate), never repeating the current program. Pattern Change and the Trigger become the music's choice while it is on, and the saved Pattern is never rewritten. The Mood Conductor also drives Kinetics, beams, strobe, haze, dust, rims, steel and the bloom, glare and focus effects, and silence pulls the lighting and motion to 10%.
+
+**Camera.** Director (default) cuts an 84 s loop: a wide orbit, a swoop to the front, a flight down the middle column through four bays, a low orbit around the back, a flight along the row through five bays, and a rising orbit back to the start. Flythrough keeps to the two corridors. Horizontal turns around the truss and Manual places the camera. Each flight stops a few units past the last bay, and its view swings back toward the truss from the middle on, so the camera never looks into empty space (a test checks that the truss stays in view from every point outside it on both paths). Lenses, beams and cores fade out as the camera passes close to them, so none fills the screen. All are tempo-synced, and a kick zooms the field of view.
+
+**Controls.** Master Controls: BPM Sync, Intensity, Audio Reactivity, Auto Performance. Design: Pattern (Pattern, Pattern Change, Trigger, Kinetics), Structure (Joint Heat, Edge Runs, Wayfinding Pins, Steel Roughness), Lighting (Beam Lighting, Rim Lighting, Ember Drift, Sweep Rate, Strobe), Camera. Effects: Haze, Dust, Bloom, Joint Glare, Depth Focus, Tone Finish. Palette: Background, Steel, Hot Joints, Edge Runs, Cold Rim, Red Rim.
+
+**Verification.** `Cinema2WireframePortal.test.ts` and `Cinema2WireframePortalPerformance.test.ts` (including the shared mood-migration suite and the pattern Auto Performance tests) pass, and the Auto Performance coverage tests for this preset pass. In headless Chromium with software WebGL each program and the flythrough were rendered without errors and watched. Not done: a real-audio run, a real GPU check (the beams, twelve cone meshes, the per-frame bar rebuild, two spot lights and the depth-of-field pass are the likely costs), and a check that no rail clips the near plane during a Detonate or Extrude while flying through a bay.
