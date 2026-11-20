@@ -8,7 +8,8 @@ import { EngineDropdownStudies } from './layoutLab/EngineDropdownStudies'
 import { NavIconStudies } from './layoutLab/NavIconStudies'
 import { AuthStudies } from './layoutLab/AuthStudies'
 import { RecordListingStudies } from './layoutLab/RecordListingStudies'
-import { LAYOUT_LAB_AUTH_TAB_ID, LAYOUT_LAB_RECORD_LISTING_TAB_ID, LAYOUT_LAB_STORAGE_KEY, readLayoutLabTabs } from './layoutLab/layoutLabTabs'
+import { PixGridDeckStudies } from './layoutLab/PixGridDeckStudies'
+import { LAYOUT_LAB_AUTH_TAB_ID, LAYOUT_LAB_PIX_GRID_DECK_TAB_ID, LAYOUT_LAB_RECORD_LISTING_TAB_ID, LAYOUT_LAB_STORAGE_KEY, readLayoutLabTabs } from './layoutLab/layoutLabTabs'
 
 /** Visual workspace. Preview actions remain local; Record Listing reuses production presentation. */
 export function LayoutLabMockup() {
@@ -85,6 +86,7 @@ export function LayoutLabMockup() {
       {tab.id === 'layout-lab-tab-04' && <NavIconStudies />}
       {tab.id === LAYOUT_LAB_AUTH_TAB_ID && <AuthStudies />}
       {tab.id === LAYOUT_LAB_RECORD_LISTING_TAB_ID && <RecordListingStudies />}
+      {tab.id === LAYOUT_LAB_PIX_GRID_DECK_TAB_ID && <PixGridDeckStudies />}
     </section>)}
   </main>
 }

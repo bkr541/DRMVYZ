@@ -2054,6 +2054,7 @@ export function ShowManagerView() {
               onReorder={deckBuilder.reorderItems}
               onToggle={toggleDeckItem}
               onRemove={removeDeckItem}
+              onTiming={deckBuilder.setItemTiming}
             />
           </aside>
         ) : (

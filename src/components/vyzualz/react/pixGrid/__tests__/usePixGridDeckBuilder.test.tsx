@@ -110,6 +110,21 @@ describe('usePixGridDeckBuilder', () => {
     expect(controller.deck!.items).toHaveLength(2)
   })
 
+  it('sets, clamps and clears one image\'s own duration without touching the others', () => {
+    const deck = createDeck(3)
+    mount()
+    act(() => controller.enter(deck.id))
+    const timings = () => [...controller.deck!.items].sort((x, y) => x.order - y.order).map(item => item.timingOverrideBeats)
+    act(() => controller.setItemTiming('item-2', 8))
+    expect(timings()).toEqual([null, 8, null])
+    act(() => controller.setItemTiming('item-2', 5000))
+    expect(timings()[1]).toBe(1024)
+    act(() => controller.setItemTiming('item-2', 0.01))
+    expect(timings()[1]).toBe(0.25)
+    act(() => controller.setItemTiming('item-2', null))
+    expect(timings()).toEqual([null, null, null])
+  })
+
   it('steps the preview through the enabled images and wraps', () => {
     const deck = createDeck(3)
     mount()

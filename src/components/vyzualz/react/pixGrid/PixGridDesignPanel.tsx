@@ -2,7 +2,6 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { useReactStore } from '../../../../stores/reactStore'
 import { IconChipButton } from '../controls/IconChipButton'
 import { Collapsible, ColorRow, CtrlSection, SelectRow, SliderRow, TextInputRow, ToggleRow } from '../ReactControlRows'
-import { PanelSubtabs, type PanelSubtabOption } from '../PanelSubtabs'
 import {
   applyPixGridPoints,
   deletePixGridLayer,
@@ -22,8 +21,6 @@ import {
   selectPixGridPreviewScene,
 } from './PixGridScenePreview'
 
-type PixGridDesignSurface = 'grid' | 'scene' | 'layer' | 'selection' | 'tool'
-
 const TOOL_OPTIONS = [
   { value: 'select', label: 'Select' },
   { value: 'pan', label: 'Pan' },
@@ -37,14 +34,6 @@ const TOOL_OPTIONS = [
   { value: 'move', label: 'Move Selection' },
 ]
 
-const SURFACE_OPTIONS: Array<PanelSubtabOption<PixGridDesignSurface>> = [
-  { id: 'grid', label: 'Grid' },
-  { id: 'scene', label: 'Scene' },
-  { id: 'layer', label: 'Layer' },
-  { id: 'selection', label: 'Selection' },
-  { id: 'tool', label: 'Tool' },
-]
-
 function selectionPoints(state: PixGridState) {
   const selection = state.editor.selection
   if (!selection) return []
@@ -54,28 +43,16 @@ function selectionPoints(state: PixGridState) {
   }))
 }
 
-function DesignSection({
-  label,
-  grouped,
-  children,
-}: {
-  label: string
-  grouped: boolean
-  children: ReactNode
-}) {
-  if (grouped) {
-    return <Collapsible label={label}>{children}</Collapsible>
-  }
-
-  return (
-    <>
-      <CtrlSection label={label} />
-      {children}
-    </>
-  )
+/** One collapsible parent group, like Headliner's and Cinema 2.0's Design groups. */
+function DesignSection({ label, defaultOpen = true, children }: { label: string; defaultOpen?: boolean; children: ReactNode }) {
+  return <Collapsible label={label} defaultOpen={defaultOpen}>{children}</Collapsible>
 }
 
-export function PixGridDesignPanel({ groupedSections = false }: { groupedSections?: boolean } = {}) {
+/**
+ * Design tab: Editing Context, Grid Presentation, Scene, then Layer and Selection while something is selected, then Tool Settings, as collapsible
+ * groups in one scroll (no inner tab strip). `groupedSections` is accepted for older callers; every host now gets the groups.
+ */
+export function PixGridDesignPanel(_props: { groupedSections?: boolean } = {}) {
   const state = useReactStore(store => store.pixGridState)
   const setState = useReactStore(store => store.setPixGridState)
   const applyState = useReactStore(store => store.applyPixGridAuthoringState)
@@ -87,17 +64,12 @@ export function PixGridDesignPanel({ groupedSections = false }: { groupedSection
   const redo = useReactStore(store => store.redoPixGridEdit)
   const undoCount = useReactStore(store => store.pixGridUndoStack.length)
   const redoCount = useReactStore(store => store.pixGridRedoStack.length)
-  const [surface, setSurface] = useState<PixGridDesignSurface>('grid')
   const scene = getPixGridActiveScene(state)
   const layers = getPixGridActiveLayers(state)
   const layer = layers.find(candidate => candidate.id === state.editor.selectedLayerId) ?? null
   const [sceneName, setSceneName] = useState(scene.name)
 
   useEffect(() => setSceneName(scene.name), [scene.id, scene.name])
-  useEffect(() => {
-    if (surface === 'layer' && !layer) setSurface('grid')
-    if (surface === 'selection' && !state.editor.selection) setSurface('tool')
-  }, [layer, state.editor.selection, surface])
 
   const updateEditor = (patch: Partial<PixGridState['editor']>) => setState({ editor: { ...state.editor, ...patch } })
   const updateLayer = (patch: Parameters<typeof updatePixGridLayer>[2]) => {
@@ -111,23 +83,9 @@ export function PixGridDesignPanel({ groupedSections = false }: { groupedSection
     { value: 'scene', label: 'Scene Pixels' },
     ...layers.map(candidate => ({ value: candidate.id, label: candidate.name })),
   ]
-  const surfaceOptions = SURFACE_OPTIONS.map(option => ({
-    ...option,
-    disabled: (option.id === 'layer' && !layer) || (option.id === 'selection' && !state.editor.selection),
-  }))
-
   return (
     <div className="rv-ctrl-group rv-pix-grid-design-panel">
-      <PanelSubtabs
-        value={surface}
-        options={surfaceOptions}
-        onChange={setSurface}
-        ariaLabel="PixGrid design sections"
-        layout="scroll"
-        className="rv-right-subtabs--embedded"
-      />
-
-      <DesignSection label="Editing Context" grouped={groupedSections}>
+      <DesignSection label="Editing Context">
         <SelectRow
           label="Active Scene"
           value={activeSceneValue}
@@ -147,7 +105,6 @@ export function PixGridDesignPanel({ groupedSections = false }: { groupedSection
           onChange={value => {
             const selectedLayerId = value === 'scene' ? null : value
             setState(selectPixGridEditingTarget(state, selectedLayerId))
-            setSurface(selectedLayerId ? 'layer' : 'scene')
           }}
           description={layer?.locked ? 'This layer is locked. Unlock it before editing its transform.' : 'Scene Pixels paints non-destructively above inherited artwork.'}
         />
@@ -158,37 +115,33 @@ export function PixGridDesignPanel({ groupedSections = false }: { groupedSection
         </div>
       </DesignSection>
 
-      {surface === 'grid' && (
-        <DesignSection label="Grid Presentation" grouped={groupedSections}>
-          <SelectRow label={state.qualityMode === 'adaptive' ? 'Starting Quality' : 'Fixed Quality'} value={state.quality} options={PIX_GRID_QUALITY_OPTIONS} onChange={value => setRequestedQuality(value as typeof state.quality)} />
-          <PixGridHistoryGesture><SliderRow label="Cell Gap" value={state.cellGap} max={0.45} onChange={value => setPresentation({ cellGap: value })} /></PixGridHistoryGesture>
-          <PixGridHistoryGesture><SliderRow label="Cell Roundness" value={state.cellRoundness} max={0.5} onChange={value => setPresentation({ cellRoundness: value })} /></PixGridHistoryGesture>
-          <PixGridHistoryGesture><SliderRow label="Cell Calibration" value={state.cellBrightness} onChange={value => setPresentation({ cellBrightness: value })} description="Advanced emitter calibration retained for compatibility." /></PixGridHistoryGesture>
-          <PixGridHistoryGesture><SliderRow label="Glow" value={state.glowAmount} onChange={value => setPresentation({ glowAmount: value })} description="Emitter halo strength." /></PixGridHistoryGesture>
-          <PixGridHistoryGesture><SliderRow label="Diffusion" value={state.diffusion} onChange={value => setPresentation({ diffusion: value })} description="Emitter edge softness." /></PixGridHistoryGesture>
-          <ToggleRow label="RGB Subpixels" value={state.rgbSubpixelMode} onChange={value => setPresentation({ rgbSubpixelMode: value })} />
-          <ToggleRow label="Cell Guides" value={state.editor.guidesVisible} onChange={value => updateEditor({ guidesVisible: value })} />
-        </DesignSection>
-      )}
+      <DesignSection label="Grid Presentation">
+        <SelectRow label={state.qualityMode === 'adaptive' ? 'Starting Quality' : 'Fixed Quality'} value={state.quality} options={PIX_GRID_QUALITY_OPTIONS} onChange={value => setRequestedQuality(value as typeof state.quality)} />
+        <PixGridHistoryGesture><SliderRow label="Cell Gap" value={state.cellGap} max={0.45} onChange={value => setPresentation({ cellGap: value })} /></PixGridHistoryGesture>
+        <PixGridHistoryGesture><SliderRow label="Cell Roundness" value={state.cellRoundness} max={0.5} onChange={value => setPresentation({ cellRoundness: value })} /></PixGridHistoryGesture>
+        <PixGridHistoryGesture><SliderRow label="Cell Calibration" value={state.cellBrightness} onChange={value => setPresentation({ cellBrightness: value })} description="Advanced emitter calibration retained for compatibility." /></PixGridHistoryGesture>
+        <PixGridHistoryGesture><SliderRow label="Glow" value={state.glowAmount} onChange={value => setPresentation({ glowAmount: value })} description="Emitter halo strength." /></PixGridHistoryGesture>
+        <PixGridHistoryGesture><SliderRow label="Diffusion" value={state.diffusion} onChange={value => setPresentation({ diffusion: value })} description="Emitter edge softness." /></PixGridHistoryGesture>
+        <ToggleRow label="RGB Subpixels" value={state.rgbSubpixelMode} onChange={value => setPresentation({ rgbSubpixelMode: value })} />
+        <ToggleRow label="Cell Guides" value={state.editor.guidesVisible} onChange={value => updateEditor({ guidesVisible: value })} />
+      </DesignSection>
 
-      {surface === 'scene' && (
-        <DesignSection label="Scene" grouped={groupedSections}>
-          <TextInputRow
-            label="Name"
-            value={sceneName}
-            maxLength={96}
-            onChange={setSceneName}
-            onBlur={() => {
-              if (sceneName.trim() && sceneName.trim() !== scene.name) applyState(renamePixGridScene(state, scene.id, sceneName))
-              else setSceneName(scene.name)
-            }}
-          />
-          <div className="rv-ctrl-info">{scene.layerIds.length} layers · {scene.pixelOverrides.length} sparse pixel overrides</div>
-        </DesignSection>
-      )}
+      <DesignSection label="Scene" defaultOpen={false}>
+        <TextInputRow
+          label="Name"
+          value={sceneName}
+          maxLength={96}
+          onChange={setSceneName}
+          onBlur={() => {
+            if (sceneName.trim() && sceneName.trim() !== scene.name) applyState(renamePixGridScene(state, scene.id, sceneName))
+            else setSceneName(scene.name)
+          }}
+        />
+        <div className="rv-ctrl-info">{scene.layerIds.length} layers · {scene.pixelOverrides.length} sparse pixel overrides</div>
+      </DesignSection>
 
-      {surface === 'layer' && layer && (
-        <DesignSection label="Layer" grouped={groupedSections}>
+      {layer && (
+        <DesignSection label="Layer">
           <div className="rv-ctrl-info"><strong>{layer.name}</strong><br />{layer.mediaId ? 'Media Library artwork' : layer.assetId}</div>
           <ToggleRow label="Visible" value={layer.visible} onChange={value => updateLayer({ visible: value })} />
           <ToggleRow label="Locked" value={layer.locked === true} onChange={value => applyState(updatePixGridLayer(state, layer.id, { locked: value }))} />
@@ -206,8 +159,8 @@ export function PixGridDesignPanel({ groupedSections = false }: { groupedSection
         </DesignSection>
       )}
 
-      {surface === 'selection' && state.editor.selection && (
-        <DesignSection label="Selection" grouped={groupedSections}>
+      {state.editor.selection && (
+        <DesignSection label="Selection">
           <div className="rv-ctrl-info">X {state.editor.selection.x} · Y {state.editor.selection.y} · {state.editor.selection.width} × {state.editor.selection.height}</div>
           <div className="rv-ctrl-action-row">
             <IconChipButton onClick={() => {
@@ -221,28 +174,26 @@ export function PixGridDesignPanel({ groupedSections = false }: { groupedSection
         </DesignSection>
       )}
 
-      {surface === 'tool' && (
-        <DesignSection label="Tool Settings" grouped={groupedSections}>
-          <SelectRow label="Tool" value={state.editorTool} options={TOOL_OPTIONS} onChange={value => setState({ editorTool: value as PixGridEditorTool })} />
-          <ColorRow
-            label="Paint Color"
-            value={state.editor.paintColor}
-            onChange={paintColor => updateEditor({ paintColor })}
-            description="The active paint, fill, line, and rectangle color."
-          />
-          <SliderRow label="Paint Opacity" value={state.editor.paintOpacity} onChange={value => updateEditor({ paintOpacity: value })} />
-          <SelectRow
-            label="Eraser Behavior"
-            value={state.editor.eraserMode}
-            options={[{ value: 'off', label: 'Clear / Force Off' }, { value: 'restore', label: 'Restore Inherited' }]}
-            onChange={value => updateEditor({ eraserMode: value as 'off' | 'restore' })}
-          />
-          <SliderRow label="Zoom" value={state.editor.zoom} min={0.25} max={16} step={0.05} onChange={value => updateEditor({ zoom: value })} />
-          <div className="rv-ctrl-action-row">
-            <IconChipButton onClick={() => updateEditor({ zoom: 1, panX: 0, panY: 0 })}>Reset View</IconChipButton>
-          </div>
-        </DesignSection>
-      )}
+      <DesignSection label="Tool Settings" defaultOpen={false}>
+        <SelectRow label="Tool" value={state.editorTool} options={TOOL_OPTIONS} onChange={value => setState({ editorTool: value as PixGridEditorTool })} />
+        <ColorRow
+          label="Paint Color"
+          value={state.editor.paintColor}
+          onChange={paintColor => updateEditor({ paintColor })}
+          description="The active paint, fill, line, and rectangle color."
+        />
+        <SliderRow label="Paint Opacity" value={state.editor.paintOpacity} onChange={value => updateEditor({ paintOpacity: value })} />
+        <SelectRow
+          label="Eraser Behavior"
+          value={state.editor.eraserMode}
+          options={[{ value: 'off', label: 'Clear / Force Off' }, { value: 'restore', label: 'Restore Inherited' }]}
+          onChange={value => updateEditor({ eraserMode: value as 'off' | 'restore' })}
+        />
+        <SliderRow label="Zoom" value={state.editor.zoom} min={0.25} max={16} step={0.05} onChange={value => updateEditor({ zoom: value })} />
+        <div className="rv-ctrl-action-row">
+          <IconChipButton onClick={() => updateEditor({ zoom: 1, panX: 0, panY: 0 })}>Reset View</IconChipButton>
+        </div>
+      </DesignSection>
     </div>
   )
 }

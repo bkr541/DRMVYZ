@@ -119,6 +119,9 @@ function snapshot() {
       itemCount: deck.items.length,
       enabledItemCount: deck.items.filter(item => item.enabled).length,
       presetCreated: deck.presetCreated === true,
+      itemTimings: [...deck.items].sort((left, right) => left.order - right.order).map(item => item.timingOverrideBeats),
+      arrivalAnchor: deck.configuration.transitionPolicy.arrivalAnchor ?? null,
+      anchorMode: deck.configuration.transitionPolicy.anchorMode ?? null,
       generatedPresetId: deck.generatedPresetId,
     } : null,
     generatedPreset: deck
@@ -128,6 +131,8 @@ function snapshot() {
     pixGridOrigin: react.pixGridState.configuration.origin,
     mediaCount: useMediaStore.getState().items.length,
     compile: deck ? compiler.statuses[deck.id] ?? null : null,
+    shippedCompile: Object.fromEntries(Object.entries(compiler.statuses).filter(([id]) => id.startsWith('pix-grid-sequence:')).map(([id, status]) => [id, { ready: status.ready, progress: status.progress, failed: status.failedItemCount }])),
+    shippedTransitions: Object.fromEntries(Object.entries(compiler.transitionStatuses).filter(([id]) => id.startsWith('pix-grid-sequence:')).map(([id, status]) => [id, { ready: status.ready, playable: status.playable, progress: status.progress, failed: status.failedPairCount, pairs: status.pairs.map(pair => ({ state: (pair as { state?: string }).state, error: pair.error?.message ?? null })) }])),
     transitions: deck ? compiler.transitionStatuses[deck.id] ?? null : null,
     audio: audioSnapshot,
     portability: portabilitySnapshot,
@@ -186,7 +191,8 @@ function HarnessContent() {
     publishStatus()
   }, [audio.currentAnalysisStatus, audio.currentAnalyzedBpm, audio.currentTrack?.name, audio.currentTrackId])
   // `?view=presetManager` opens the same real app shell on Preset Manager, where the Deck Builder now lives.
-  const initialAppView = new URLSearchParams(location.search).get('view') === 'presetManager' ? 'presetManager' : 'showManager'
+  const requestedView = new URLSearchParams(location.search).get('view')
+  const initialAppView = requestedView === 'presetManager' ? 'presetManager' : requestedView === 'react' ? 'react' : 'showManager'
   return <VyzualzView activeView="vyzualz" onNavigate={() => {}} initialAppView={initialAppView} />
 }
 

@@ -32,6 +32,7 @@ import {
 } from './xyScope/XyScopeWorkspace'
 import { PixGridEditorOverlay, shouldShowPixGridEditorOverlay } from './pixGrid/PixGridEditorOverlay'
 import { addPixGridMediaLayer } from './pixGrid/PixGridAuthoring'
+import { PixGridLayersPanel } from './pixGrid/PixGridAuthoringPanel'
 import { isReactTransportPaused }  from './reactTransportState'
 import { resolvePositiveDuration } from '../../../features/timeline/timelineViewport'
 import { ReactPerformancePads } from './ReactPerformancePads'
@@ -180,6 +181,8 @@ const REACT_RIGHT_BASE_TABS: Omit<RailTabOption<ReactRightPanel>, 'disabled'>[] 
 
 export interface ReactViewProps {
   onOpenMediaManager?: () => void
+  /** Opens Preset Manager with the PixGrid Deck Builder (the Custom Workflow entry). */
+  onOpenPresetManager?: () => void
   onOpenLyricManager?: (intent: import('../../../features/lyrics/lyricNavigation').LyricManagerNavigationIntent) => void
 }
 
@@ -188,7 +191,7 @@ const MIN_LOWER_SURFACE_HEIGHT = 96
 const MAX_LOWER_SURFACE_HEIGHT = 640
 const MIN_STAGE_HEIGHT = 180
 
-export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewProps) {
+export function ReactView({ onOpenMediaManager, onOpenLyricManager, onOpenPresetManager }: ReactViewProps) {
   useSharedDataActivity('react', ['media', 'audio', 'persistence'])
   const engine   = useSharedAudio()
   const analyser = engine.analyserMaster
@@ -752,6 +755,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                     <ReactEnginePanel
                       cinema2Runtime={cinema2Runtime}
                       onOpenMediaManager={onOpenMediaManager}
+                      onOpenPresetManager={onOpenPresetManager}
                     />
                   )}
                   {leftTab === 'media' && activeReactEngineId === 'headliner' && (
@@ -772,7 +776,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                       getDisabledReason={getMediaDisabledReason}
                     />
                   )}
-                  {leftTab === 'layers' && (activeReactEngineId === 'cinema2' ? <Cinema2LayersPanel runtime={cinema2Runtime} /> : activeReactEngineId === 'canvas' ? <CanvasLayersPanel /> : workspaceComposition.showLaserLayersTab ? (
+                  {leftTab === 'layers' && (activeReactEngineId === 'cinema2' ? <Cinema2LayersPanel runtime={cinema2Runtime} /> : activeReactEngineId === 'canvas' ? <CanvasLayersPanel /> : activeReactEngineId === 'pixGrid' ? <PixGridLayersPanel /> : workspaceComposition.showLaserLayersTab ? (
                     <Suspense fallback={<LazyWorkspaceFallback label="LaserDMX layers" />}><LaserDmxLayersPanel /></Suspense>
                   ) : null)}
                   {leftTab === 'pool' && activeReactEngineId === 'cinema2' && <Cinema2TextLibraryPanel runtime={cinema2Runtime} mode="pool" />}

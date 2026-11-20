@@ -165,7 +165,8 @@ const pixGridPresets = currentReactPresets
     const discovery = resolvePresetDiscoveryMetadata(preset, preset.pixGridDeck ? 'media-deck' : 'pixel-art')
     return record('pixGrid', preset.id, preset.name, preset.description, 'PixGrid', discovery.category, discovery.tags, 'react', preset as unknown as Readonly<Record<string, unknown>>, {
       hasCamera: false,
-      canIntegrateUserMedia: Boolean(preset.pixGridDeck),
+      // A shipped Deck uses bundled images; only a user's own Deck takes their media.
+      canIntegrateUserMedia: Boolean(preset.pixGridDeck) && preset.id.startsWith('pix-grid-deck:'),
       is3dEnvironment: false,
     })
   })

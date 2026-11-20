@@ -14,11 +14,13 @@ import { PIX_GRID_AUDIO_INTELLIGENCE_SOURCE_BY_ID } from './PixGridAudioIntellig
 import { PIX_GRID_ASSIGNMENT_TARGET_BY_ID } from './PixGridAssignmentCompiler'
 import { MAX_PIX_GRID_SEQUENCE_OCCURRENCES } from './PixGridLimits'
 import {
+  createPixGridSequenceBundledIndex,
   createPixGridSequenceSourceResolver,
   materializePixGridSequenceDeck,
   type PixGridSequenceDefinition,
 } from './PixGridSequenceDefinition'
 import type { PixGridDeckDefinition, PixGridDeckTransitionMode } from './PixGridDeckDomain'
+import { PIX_GRID_SHIPPED_DECKS, pixGridShippedDeckToSequence, pixGridShippedPresetId } from './PixGridShippedDecks'
 import type { PixGridPerformanceProgram } from './PixGridPerformanceTypes'
 
 export const PIX_GRID_PRESET_DEFINITION_SCHEMA_VERSION = 1 as const
@@ -112,8 +114,24 @@ function authoredDefinition(preset: ReactPreset): PixGridPresetDefinition {
   }
 }
 
+/** Decks exported from the Deck Builder for shipping: built-in image-sequence presets whose images are bundled files. */
+function shippedDefinition(manifest: (typeof PIX_GRID_SHIPPED_DECKS)[number]): PixGridPresetDefinition {
+  const sequence = pixGridShippedDeckToSequence(manifest)
+  const presetId = pixGridShippedPresetId(manifest.slug)
+  const preset = createPixGridDeckGeneratedPreset(materializePixGridSequenceDeck(sequence, presetId))
+  return {
+    schemaVersion: PIX_GRID_PRESET_DEFINITION_SCHEMA_VERSION,
+    id: presetId, version: manifest.revision, name: manifest.name, description: manifest.description ?? preset.description ?? '',
+    category: 'imageSequence', preset: { ...preset, description: manifest.description ?? preset.description }, sequence,
+    motionProfileIds: PIX_GRID_MOTION_PROFILES.map(profile => profile.id), defaultMotionProfileId: manifest.configuration.motionProfileId ?? 'balanced',
+    performanceProgramId: 'pix-grid-media-deck-performance',
+    requiredCapabilities: ['sequence', 'bundledImages', 'compiler', 'sharedAudioIntelligence'], visibility: 'catalog',
+  }
+}
+
 export const PIX_GRID_PRESET_DEFINITIONS: readonly PixGridPresetDefinition[] = Object.freeze([
   ...PIX_GRID_PRESETS.map(authoredDefinition),
+  ...PIX_GRID_SHIPPED_DECKS.map(shippedDefinition),
   {
     schemaVersion: PIX_GRID_PRESET_DEFINITION_SCHEMA_VERSION,
     id: 'pix-grid-media-deck-producer', version: 1, name: 'Media Deck Producer',
@@ -240,6 +258,12 @@ export const PIX_GRID_CATALOG_PRESETS = Object.freeze(pixGridPresetRegistry.list
 
 const resolveRegisteredSource = createPixGridSequenceSourceResolver(PIX_GRID_PRESET_DEFINITIONS.flatMap(definition => definition.sequence ? [definition.sequence] : []))
 export function resolvePixGridRegisteredSequenceSource(mediaId: string): Blob | null { return resolveRegisteredSource(mediaId) }
+const resolveBundledSource = createPixGridSequenceBundledIndex(PIX_GRID_PRESET_DEFINITIONS.flatMap(definition => definition.sequence ? [definition.sequence] : []))
+/** The bundled image a shipped Deck source points at, as a URL under the app base (fetched by the compiler), or null for any other source. */
+export function resolvePixGridRegisteredBundledSource(mediaId: string): { url: string; mimeType: string } | null {
+  const entry = resolveBundledSource(mediaId)
+  return entry ? { url: `${import.meta.env.BASE_URL}${entry.path}`, mimeType: entry.mimeType } : null
+}
 export function getPixGridRegisteredSequenceDeckByPresetId(presetId: string): PixGridDeckDefinition | null {
   return pixGridPresetRegistry.get(presetId)?.sequenceDeck ?? null
 }

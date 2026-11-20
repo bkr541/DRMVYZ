@@ -183,7 +183,7 @@
       "target": [
         "dmg"
       ],
-      "icon": "public/drmvyz_logo2.png",
+      "icon": "electron/assets/app-icon.png",
       "hardenedRuntime": true,
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
@@ -201,14 +201,14 @@
       "target": [
         "nsis"
       ],
-      "icon": "public/drmvyz_logo2.png"
+      "icon": "electron/assets/app-icon.png"
     },
     "linux": {
       "target": [
         "AppImage"
       ],
       "category": "AudioVideo",
-      "icon": "public/drmvyz_logo2.png"
+      "icon": "electron/assets/app-icon.png"
     },
     "nsis": {
       "oneClick": false,

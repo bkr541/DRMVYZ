@@ -2,7 +2,7 @@ import { useMediaStore, type UploadedMedia } from '../../../../stores/mediaStore
 import type { PixGridDeckCompileError } from './PixGridDeckCompilerContracts'
 import type { PixGridDeckItemDefinition } from './PixGridDeckDomain'
 import { PIX_GRID_DECK_MAX_SOURCE_BYTES } from './PixGridDeckMediaValidation'
-import { resolvePixGridRegisteredSequenceSource } from './PixGridPresetRegistry'
+import { resolvePixGridRegisteredBundledSource, resolvePixGridRegisteredSequenceSource } from './PixGridPresetRegistry'
 import { PixGridResponseLimitError, readPixGridResponseBlobBounded } from './PixGridBoundedResponse'
 
 const SOURCE_EXPIRY_MARGIN_MS = 60_000
@@ -43,6 +43,26 @@ async function fetchMediaBlob(item: UploadedMedia, signal: AbortSignal): Promise
   }
 }
 
+async function readSourceBlob(response: Response, name: string, signal: AbortSignal): Promise<Blob> {
+  let blob: Blob
+  try {
+    blob = await readPixGridResponseBlobBounded(response, PIX_GRID_DECK_MAX_SOURCE_BYTES, signal)
+  } catch (error) {
+    if (error instanceof PixGridResponseLimitError) {
+      throw compileError('source-too-large', `Deck media "${name}" exceeds the 25 MiB compiler limit.`, false)
+    }
+    if (signal.aborted) throw compileError('cancelled', 'PixGrid Deck compilation was cancelled.')
+    throw compileError(
+      'source-load-failed',
+      error instanceof Error ? error.message : `Deck media "${name}" could not be read.`,
+    )
+  }
+  if (blob.size > PIX_GRID_DECK_MAX_SOURCE_BYTES) {
+    throw compileError('source-too-large', `Deck media "${name}" exceeds the 25 MiB compiler limit.`, false)
+  }
+  return blob
+}
+
 export async function resolvePixGridDeckMediaSource(
   item: PixGridDeckItemDefinition,
   signal: AbortSignal,
@@ -51,6 +71,20 @@ export async function resolvePixGridDeckMediaSource(
   if (registeredSource) {
     if (signal.aborted) throw compileError('cancelled', 'PixGrid sequence compilation was cancelled.')
     return registeredSource
+  }
+  // A shipped Deck's image is a bundled file: no Media Library item, signing or fingerprint re-check (it was verified at export).
+  const bundled = resolvePixGridRegisteredBundledSource(item.mediaId)
+  if (bundled) {
+    let response: Response
+    try {
+      response = await fetch(bundled.url, { signal, cache: 'force-cache' })
+    } catch (error) {
+      if (signal.aborted) throw compileError('cancelled', 'PixGrid Deck compilation was cancelled.')
+      throw compileError('source-load-failed', error instanceof Error ? error.message : 'A shipped Deck image could not be loaded.')
+    }
+    if (!response.ok) throw compileError('source-load-failed', `A shipped Deck image returned HTTP ${response.status}.`)
+    const blob = await readSourceBlob(response, item.source.fileName ?? bundled.url, signal)
+    return blob.type ? blob : new Blob([blob], { type: bundled.mimeType })
   }
   let media = useMediaStore.getState().items.find(candidate => candidate.id === item.mediaId)
   if (!media) throw compileError('source-unavailable', `Deck media "${item.mediaId}" is not loaded yet.`, true)
@@ -75,21 +109,5 @@ export async function resolvePixGridDeckMediaSource(
     throw compileError('source-load-failed', `Deck media "${media.name}" returned HTTP ${response.status}.`)
   }
 
-  let blob: Blob
-  try {
-    blob = await readPixGridResponseBlobBounded(response, PIX_GRID_DECK_MAX_SOURCE_BYTES, signal)
-  } catch (error) {
-    if (error instanceof PixGridResponseLimitError) {
-      throw compileError('source-too-large', `Deck media "${media.name}" exceeds the 25 MiB compiler limit.`, false)
-    }
-    if (signal.aborted) throw compileError('cancelled', 'PixGrid Deck compilation was cancelled.')
-    throw compileError(
-      'source-load-failed',
-      error instanceof Error ? error.message : `Deck media "${media.name}" could not be read.`,
-    )
-  }
-  if (blob.size > PIX_GRID_DECK_MAX_SOURCE_BYTES) {
-    throw compileError('source-too-large', `Deck media "${media.name}" exceeds the 25 MiB compiler limit.`, false)
-  }
-  return blob
+  return readSourceBlob(response, media.name, signal)
 }

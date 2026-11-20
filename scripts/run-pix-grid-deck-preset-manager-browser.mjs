@@ -1,5 +1,6 @@
+import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
-import { mkdir, readdir, rm } from 'node:fs/promises'
+import { copyFile, cp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { spawn, spawnSync } from 'node:child_process'
 import path from 'node:path'
 
@@ -44,11 +45,41 @@ async function waitForServer(url, timeoutMs = 15_000) {
   throw new Error(`Timed out waiting for ${url}: ${lastError instanceof Error ? lastError.message : String(lastError)}`)
 }
 
+// A temporary shipped Deck, written before the build and always removed afterwards, so the gate exercises the real built-in path
+// (manifest + bundled images) without committing a test preset.
+const sampleSlug = 'e2e-sample'
+const sampleImages = [['opaque.png', 'image/png', '01.png'], ['transparent.png', 'image/png', '02.png'], ['photo.jpg', 'image/jpeg', '03.jpg']]
+const sampleManifestPath = path.join(root, 'src/components/vyzualz/react/pixGrid/shippedDecks', `${sampleSlug}.json`)
+const sampleImageDirectory = path.join(root, 'public/pixgrid-decks', sampleSlug)
+
+async function writeShippedSample() {
+  await mkdir(sampleImageDirectory, { recursive: true })
+  const sources = []
+  for (const [index, [fixture, mimeType, target]] of sampleImages.entries()) {
+    const from = path.join(root, 'src/test/fixtures/pixGridDeck', fixture)
+    await copyFile(from, path.join(sampleImageDirectory, target))
+    const fingerprint = `sha256:${createHash('sha256').update(await readFile(from)).digest('hex')}`
+    sources.push({ id: `source-0${index + 1}`, path: `pixgrid-decks/${sampleSlug}/${target}`, mimeType, fileName: fixture, width: 2, height: 2, hasAlpha: fixture === 'transparent.png', fingerprint })
+  }
+  await writeFile(sampleManifestPath, `${JSON.stringify({
+    schemaVersion: 1, slug: sampleSlug, name: 'E2E Shipped Sample', description: 'Temporary gate deck.', revision: 1, sources,
+    items: sources.map((source, index) => ({ id: `e2e-${index + 1}`, sourceId: source.id })),
+    configuration: { playbackOrder: 'forward', loop: true, defaultItemDurationBeats: 4, reactionProfileId: 'balanced', preDropBehavior: 'hold', motionProfileId: 'balanced', transitionPolicy: { mode: 'auto' } },
+  }, null, 2)}\n`)
+}
+
+async function removeShippedSample() {
+  await rm(sampleManifestPath, { force: true })
+  await rm(path.join(root, 'public/pixgrid-decks', sampleSlug), { recursive: true, force: true })
+  await rm(path.join(root, 'public/pixgrid-decks'), { recursive: false, force: true }).catch(() => undefined)
+}
+
 let server = null
 let status
 try {
   requireDependency(playwrightCli, 'Run npm ci before the PixGrid Deck release browser suite.')
   requireDependency(viteCli, 'Run npm ci before the PixGrid Deck release browser suite.')
+  await writeShippedSample()
   const { build } = await import('vite')
   await rm(output, { recursive: true, force: true })
   await mkdir(output, { recursive: true })
@@ -64,10 +95,14 @@ try {
   })
   const builtHtml = await findFile(output, 'pix-grid-deck-show-manager.html')
   if (!builtHtml) throw new Error('Vite did not emit the PixGrid Deck browser page.')
+  // The app is built with a relative base, so a bundled image resolves against the page's own folder. The real app serves index.html from the
+  // root, but this harness page is nested, so put the bundled images beside it as well.
+  if (existsSync(path.join(output, 'pixgrid-decks'))) await cp(path.join(output, 'pixgrid-decks'), path.join(path.dirname(builtHtml), 'pixgrid-decks'), { recursive: true })
   const pagePath = `/${path.relative(output, builtHtml).split(path.sep).join('/')}?view=presetManager`
   const env = {
     ...process.env,
     DRMVYZ_PIX_GRID_DECK_PRESET_MANAGER_BROWSER: '1',
+    DRMVYZ_PIX_GRID_SHIPPED_SAMPLE_SLUG: sampleSlug,
     DRMVYZ_PIX_GRID_DECK_PRESET_MANAGER_PAGE: pagePath,
     PLAYWRIGHT_BASE_URL: baseUrl,
     ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
@@ -90,6 +125,7 @@ try {
   ], { cwd: root, env, stdio: 'inherit' })
   status = result.status ?? 1
 } finally {
+  await removeShippedSample()
   if (server && server.exitCode == null) {
     server.kill('SIGTERM')
     await new Promise(resolve => {

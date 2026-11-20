@@ -490,8 +490,10 @@ export async function compilePixGridDeckTransition(
         && matchedControlY.length === matchedSourceIndices.length
         && matchedStagger.length === matchedSourceIndices.length
         && matchedGroupIds.length === matchedSourceIndices.length
-        && deathTargetIndices.length === deathSourceIndices.length
-        && birthSourceIndices.length === birthTargetIndices.length
+        // Only pixel transport builds motion data for cells that die or are born. Cut, dissolve, crossfade and wipe plans match nothing and carry none.
+        && (result.mode === 'pixelTransport'
+          ? deathTargetIndices.length === deathSourceIndices.length && birthSourceIndices.length === birthTargetIndices.length
+          : deathTargetIndices.length === 0 && birthSourceIndices.length === 0)
         && transitionIndexPartitionIsValid(
           matchedSourceIndices,
           deathSourceIndices,

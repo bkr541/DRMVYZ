@@ -328,9 +328,11 @@ export function OscillatorSourceDiagnostics({
 export function ReactEnginePanel({
   cinema2Runtime = null,
   onOpenMediaManager,
+  onOpenPresetManager,
 }: {
   cinema2Runtime?: Cinema2Runtime | null
   onOpenMediaManager?: () => void
+  onOpenPresetManager?: () => void
 } = {}) {
   const engine = useSharedAudio()
   const {
@@ -483,7 +485,7 @@ export function ReactEnginePanel({
       {activeReactEngineId === 'canvas' && <CanvasEnginePanel />}
 
       {/* ── Engine Mode: PixGrid ──────────────────────────────────────── */}
-      {activeReactEngineId === 'pixGrid' && <PixGridEnginePanel />}
+      {activeReactEngineId === 'pixGrid' && <PixGridEnginePanel onCreateDeck={onOpenPresetManager} />}
 
       {/* ── Engine Mode: Headliner ────────────────────────────────────── */}
       {activeReactEngineId === 'headliner' && <HeadlinerEnginePanel />}

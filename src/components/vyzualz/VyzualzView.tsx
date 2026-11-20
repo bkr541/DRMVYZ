@@ -1,3 +1,4 @@
+import { requestPixGridDeckBuilderOpen } from './react/pixGrid/PixGridDeckBuilderRequest'
 import { selectModelEditorNeedsGuard, useModelEditorStore } from '../../features/models/state/modelEditorStore'
 import { UnsavedModelChangesDialog } from './media/UnsavedModelChangesDialog'
 import { requestTextSceneNavigation } from '../../features/cinema2Text/textSceneNavigation'
@@ -142,6 +143,7 @@ export function VyzualzView({ initialAppView = DEFAULT_PERFORMANCE_VIEW }: Props
                 <ReactView
                   onOpenMediaManager={() => requestAppViewChange('media')}
                   onOpenLyricManager={openLyricManager}
+                  onOpenPresetManager={() => { requestPixGridDeckBuilderOpen(); requestAppViewChange('presetManager') }}
                 />
               </NotificationPageProvider>
             </Suspense>

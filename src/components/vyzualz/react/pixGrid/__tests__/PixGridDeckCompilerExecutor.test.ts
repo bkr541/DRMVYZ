@@ -254,6 +254,40 @@ describe('PixGrid Deck compiler executor', () => {
     expect(worker.terminated).toBe(true)
   })
 
+  it('accepts the plan the planner produces for modes with no pixel transport (cut, dissolve, crossfade, wipes), where nothing is matched', async () => {
+    // The planner's real shape for these modes: every foreground cell dies or is born, and no motion data is built.
+    for (const mode of ['hardCut', 'crossfade', 'pixelDissolve', 'rowWipe'] as const) {
+      const worker = new FakeWorker((message, current) => {
+        if (message.type !== 'compile-transition') return
+        queueMicrotask(() => current.emit({
+          ...transitionResultMessage(),
+          requestedMode: mode,
+          mode,
+          matchedSourceIndices: new ArrayBuffer(0),
+          matchedTargetIndices: new ArrayBuffer(0),
+          deathSourceIndices: Uint32Array.from([0, 3]).buffer,
+          birthTargetIndices: Uint32Array.from([1, 2]).buffer,
+          matchedControlX: new ArrayBuffer(0),
+          matchedControlY: new ArrayBuffer(0),
+          matchedStagger: new ArrayBuffer(0),
+          matchedGroupIds: new ArrayBuffer(0),
+          deathTargetIndices: new ArrayBuffer(0),
+          birthSourceIndices: new ArrayBuffer(0),
+          strategy: null,
+          strategyReason: null,
+          diagnostics: { ...transitionResultMessage().diagnostics, matchedCount: 0, birthCount: 2, deathCount: 2, strategy: null, strategyReason: null },
+        }))
+      })
+      const plan = await compilePixGridDeckTransition({
+        jobId: 'transition-job', cacheKey: 'transition-cache', source: preparedFrame('source'), target: preparedFrame('target'),
+        settings: { requestedMode: mode, sourceItemId: 'item-source', targetItemId: 'item-target', durationFraction: 0.25 },
+      }, () => worker)
+      expect(plan.mode).toBe(mode)
+      expect(plan.deathSourceIndices).toEqual(Uint32Array.from([0, 3]))
+      expect(plan.birthTargetIndices).toEqual(Uint32Array.from([1, 2]))
+    }
+  })
+
   it('cancels a live transition worker and ignores late plans', async () => {
     const worker = new FakeWorker()
     const controller = new AbortController()

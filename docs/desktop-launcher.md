@@ -3,6 +3,11 @@
 Run `launch.command` from Finder or the repository. It selects Node 22 and runs
 `scripts/run-electron-dev.mjs` to start Vite and the isolated DRMVYZ Electron shell.
 
+The desktop icon is `electron/assets/app-icon.png`, copied unchanged from the
+supplied Stageless logo. Electron uses it for window icons and the macOS Dock;
+electron-builder uses it for macOS, Windows and Linux packages. Restart the app
+to update the running icon; installed application bundles need a new build.
+
 The default server address is `http://127.0.0.1:5173`. If that port belongs to
 another process, the launcher leaves the listener running and selects an
 available port among the next 19 ports. It prints the selected address and uses

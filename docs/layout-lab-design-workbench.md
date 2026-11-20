@@ -19,6 +19,7 @@ The former Preset Cards slot (`layout-lab-tab-02`) was retired when Matte Frame 
 | Tab 7 | `layout-lab-tab-07` | `layout-lab-tab-07-panel` |
 | AUTH | `layout-lab-tab-08` | `layout-lab-tab-08-panel` |
 | Record Listing | `layout-lab-tab-09` | `layout-lab-tab-09-panel` |
+| PixGrid Deck | `layout-lab-tab-10` | `layout-lab-tab-10-panel` |
 
 Renaming changes only `name`. Future elements must be associated with these permanent IDs, never a label or a slug derived from a label. Tab wrappers and panels expose `data-layout-lab-tab-id`; each tab's `aria-controls` points to its panel. Panels remain mounted while switching tabs. To locate a renamed study in a later session, read its current label and permanent ID from the DOM or the stored mapping above. This storage schema saves tab metadata, not study data.
 
@@ -88,3 +89,13 @@ A second lane sits to the right of the production column, labelled "Performance 
 - **Typography:** the `--type-record-title`, `--type-record-secondary` and `--type-record-meta` roles in `src/styles/typography.css`, set to the 12.5px/700 and 11px/600 hierarchy the library cards already share; no font overrides.
 - **Research basis:** Material list specs (dense two/three-line rows, leading tile, supplemental actions at the right, maximum three lines, one layout per list, grid for image-led content), Carbon selectable tiles (selection shown by a border change, hover and focus as separate states, internal controls with their own click targets) and Nielsen Norman Group guidance (lists for scanning, grids when the image carries the choice).
 - **Checked in Chromium** at 1100px and 1500px viewports: select, favorite, the Load Track menu and keyboard focus work, with no console errors. At the narrowest 242px rail the third audio stat wraps to a second line and two-column grid titles wrap to two lines; at a 1500px viewport they fit.
+
+## PixGrid Deck popover
+
+The PixGrid Deck tab (`layout-lab-tab-10`) studies moving the PixGrid create-deck workflow into one popover, opened by the Create PixGrid Deck key in Preset Manager's toolbar (the tab mocks that toolbar with the real header keys). Nothing is wired to the store, the Media Library or the compiler.
+
+- **Shell:** the application's dialog family, using the real Media Upload modal classes (`mum-backdrop`, `mum-modal`, `mum-header`, `mum-close`, `mum-footer`: same surface, border, radius, shadow, header and close control), the shared `ConfirmDialog` for Delete Deck, `IconChipButton` (Back, Next, a primary Create Preset), `DreamVizTextInput`, `Dropdown`, `IconMorphCheckbox` and `NoticeCard`. Only the content layout is the Lab's (`pixGridDeckStudies.css`).
+- **Five screens, one popover** (a step bar under the header, Back and Next in the footer): **Images** (name, upload with phase, error and warnings, the ordered image list with per-image duration, move, duplicate, on/off, remove and drag reorder, plus a live pixel preview, the sequence strip and the transition scrubber); **Playback** (order, default duration, loop, audio reaction profile); **Transitions** (motion profile and reset, mode, length, timing anchor, arrival event when arriving on the boundary, pair overrides); **Sections** (PreDrop behavior, and per song section a duration, an assigned image and a scene motion); **Review** (summary, compile readiness for images and transitions with errors, the development-only Export for shipping, Delete Deck, and Create Preset, followed by a confirmation screen). The option lists are the builder's own (exported from `PixGridDeckBuilder.tsx`).
+- **States to open:** New Deck (empty), Editing a Deck (five images, one with its own duration, one off), Compiling (Create Preset stays disabled) and Compile error. A checkbox shows or hides the development-only shipping action.
+- **Checked** in Chromium at 1440 x 900: every screen, the empty, error and compiling states, the arrival event, and the delete confirmation. A press inside the confirmation does not dismiss the popover behind it (it is a sibling of the backdrop).
+

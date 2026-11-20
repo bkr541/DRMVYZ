@@ -10,6 +10,8 @@ import {
 } from './PixGridDeckDomain'
 import { ingestPixGridDeckSourceFiles } from './PixGridDeckMediaService'
 import { createPixGridDeckGeneratedPreset, resolvePixGridDeckPresetReadiness } from './PixGridDeckPreset'
+import { exportPixGridDeckProjectMediaBundle } from './PixGridDeckProjectMedia'
+import { createDirectoryHandleWriter, exportPixGridShippedDeck, pixGridShippedDeckSlug } from './PixGridShippedDeckExport'
 
 /** What the upload control shows. The Deck Builder library renders it as-is. */
 export interface PixGridDeckUploadUiState {
@@ -20,6 +22,13 @@ export interface PixGridDeckUploadUiState {
 }
 
 const READY_UPLOAD_STATE: PixGridDeckUploadUiState = { active: false, phase: 'Ready', error: null, warnings: [] }
+
+/** State of the team-only "Export for shipping" action. */
+export interface PixGridDeckShipUiState {
+  busy: boolean
+  message: string | null
+  error: string | null
+}
 
 export interface PixGridDeckBuilderOptions {
   /** Runs after the builder closes (on the next task), so the host can return keyboard focus to its own Create or Edit control. */
@@ -75,6 +84,7 @@ export function usePixGridDeckBuilder(options: PixGridDeckBuilderOptions = {}) {
   const [previewTransitionProgress, setPreviewTransitionProgress] = useState(0)
   const [upload, setUpload] = useState<PixGridDeckUploadUiState>(READY_UPLOAD_STATE)
   const [pendingDelete, setPendingDelete] = useState<{ id: string } | null>(null)
+  const [ship, setShip] = useState<PixGridDeckShipUiState>({ busy: false, message: null, error: null })
   const headingRef = useRef<HTMLDivElement | null>(null)
   const returnTargetRef = useRef<'create' | 'edit'>('create')
   const uploadAbortRef = useRef<AbortController | null>(null)
@@ -215,6 +225,13 @@ export function usePixGridDeckBuilder(options: PixGridDeckBuilderOptions = {}) {
     update({ items: deck.items.map(item => item.id === itemId ? { ...item, enabled: !item.enabled } : item) })
   }
 
+  /** One image's own duration in beats, or null to follow the Deck's default. Kept in the Deck's allowed range. */
+  const setItemTiming = (itemId: string, beats: number | null) => {
+    if (!deck) return
+    const value = beats == null || !Number.isFinite(beats) ? null : Math.min(1024, Math.max(0.25, beats))
+    update({ items: deck.items.map(item => item.id === itemId ? { ...item, timingOverrideBeats: value } : item) })
+  }
+
   const removeItem = (itemId: string) => {
     if (!deck || deck.items.length <= PIX_GRID_DECK_MIN_ITEMS) return
     update({ items: deck.items.filter(item => item.id !== itemId) })
@@ -252,6 +269,35 @@ export function usePixGridDeckBuilder(options: PixGridDeckBuilderOptions = {}) {
     exit()
   }
 
+  /**
+   * Development builds only: writes this Deck into the repository as a shipped preset (manifest plus resized images) in a folder the team member picks,
+   * normally the repository root. The Deck must be compiled and ready first.
+   */
+  const exportForShipping = async () => {
+    if (!deck || !readiness?.ready || ship.busy) return
+    const picker = (window as unknown as { showDirectoryPicker?: (options?: { mode?: 'readwrite'; id?: string }) => Promise<FileSystemDirectoryHandle> }).showDirectoryPicker
+    if (!picker) {
+      setShip({ busy: false, message: null, error: 'This browser cannot write to a folder. Use Chrome or the desktop app.' })
+      return
+    }
+    try {
+      const root = await picker({ mode: 'readwrite', id: 'drmvyz-repository' })
+      setShip({ busy: true, message: 'Reading and resizing images…', error: null })
+      const bundle = await exportPixGridDeckProjectMediaBundle([deck])
+      if (bundle.manifest.missingMediaIds.length > 0) throw new Error(`${bundle.manifest.missingMediaIds.length} source image(s) could not be read.`)
+      const result = await exportPixGridShippedDeck({
+        deck,
+        files: new Map(bundle.files.map(entry => [entry.mediaId, entry.file])),
+        writer: createDirectoryHandleWriter(root),
+        slug: pixGridShippedDeckSlug(deck.name),
+      })
+      setShip({ busy: false, message: `Wrote ${result.manifestPath} and ${result.imagePaths.length} image(s). Restart the dev server to see it as a built-in preset.`, error: null })
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') setShip({ busy: false, message: null, error: null })
+      else setShip({ busy: false, message: null, error: error instanceof Error ? error.message : 'Export failed.' })
+    }
+  }
+
   const requestDelete = () => {
     if (deck) setPendingDelete({ id: deck.id })
   }
@@ -274,8 +320,10 @@ export function usePixGridDeckBuilder(options: PixGridDeckBuilderOptions = {}) {
     draftName, setDraftName, nameError, upload,
     previewItemId, setPreviewItemId, previewTransitionProgress, setPreviewTransitionProgress, previewTimeFor, stepPreview,
     headingRef, pendingDelete,
-    enter, exit, addFiles, rename, update, moveItem, reorderItems, toggleItem, removeItem, duplicateItem,
+    enter, exit, addFiles, rename, update, moveItem, reorderItems, toggleItem, removeItem, duplicateItem, setItemTiming,
     createPreset, requestDelete, cancelDelete, confirmDelete,
+    /** Present only in development builds. */
+    ship: import.meta.env.DEV ? { ...ship, onExport: exportForShipping } : null,
   }
 }
 

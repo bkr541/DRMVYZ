@@ -33,7 +33,7 @@ describe('isolated Layout Lab', () => {
       await act(async () => root!.render(<LayoutLabModal onClose={onClose} />))
       const canvas = popupDocument.querySelector('main[aria-label="Layout Lab canvas"]')!
       expect(canvas).not.toBeNull()
-      expect(canvas.querySelectorAll('[role="tab"]')).toHaveLength(7)
+      expect(canvas.querySelectorAll('[role="tab"]')).toHaveLength(8)
       expect(canvas.querySelectorAll('[data-pad-study]')).toHaveLength(5)
       expect(canvas.querySelectorAll('[data-engine-study]')).toHaveLength(9)
       expect(canvas.querySelectorAll('[data-nav-icon-study]')).toHaveLength(20)

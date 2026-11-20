@@ -29,7 +29,7 @@ afterEach(async () => {
   else Reflect.deleteProperty(window, 'ResizeObserver')
 })
 const render = async () => { await act(async () => root.render(<LayoutLabMockup />)) }
-const tab = (index: number) => host.querySelector<HTMLButtonElement>(`#layout-lab-tab-0${index}`)!
+const tab = (index: number) => host.querySelector<HTMLButtonElement>(`#layout-lab-tab-${String(index).padStart(2, '0')}`)!
 const input = () => host.querySelector<HTMLInputElement>('.ll-tab-name-input')!
 async function type(value: string) {
   await act(async () => {
@@ -79,8 +79,8 @@ describe('persistent Layout Lab tabs', () => {
 
   it('keeps content identity through renaming, switching tabs and reopening', async () => {
     await render()
-    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(7)
-    expect(host.querySelectorAll('[role="tabpanel"]')).toHaveLength(7)
+    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(8)
+    expect(host.querySelectorAll('[role="tabpanel"]')).toHaveLength(8)
     const panel = host.querySelector<HTMLElement>('#layout-lab-tab-01-panel')!
     const studies = panel.querySelector('.ll-pad-studies')
     const rows = [...panel.querySelectorAll('[data-pad-study]')]
@@ -129,18 +129,25 @@ describe('persistent Layout Lab tabs', () => {
     await key('Enter')
     expect(tab(1).textContent).toBe('Tab 1')
     await act(async () => tab(1).dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true })))
-    expect(tab(9).getAttribute('aria-selected')).toBe('true')
-    await act(async () => tab(9).dispatchEvent(new KeyboardEvent('keydown', { key: 'F2', bubbles: true })))
+    expect(tab(10).getAttribute('aria-selected')).toBe('true')
+    await act(async () => tab(10).dispatchEvent(new KeyboardEvent('keydown', { key: 'F2', bubbles: true })))
     await type('Geometry')
     await act(async () => input().blur())
-    expect(tab(9).textContent).toBe('Geometry')
+    expect(tab(10).textContent).toBe('Geometry')
+  })
+
+  it('adds the PixGrid Deck tab last, with its own permanent id and the popover studies', async () => {
+    await render()
+    expect(tab(10).textContent).toBe('PixGrid Deck')
+    expect(host.querySelector('#layout-lab-tab-10-panel [aria-label="PixGrid Deck popover studies"]')).not.toBeNull()
+    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(8)
   })
 
   it('recovers invalid saved state and reports unavailable persistence', async () => {
     window.localStorage.setItem(LAYOUT_LAB_STORAGE_KEY, 'broken json')
     vi.spyOn(window.localStorage, 'setItem').mockImplementation(() => { throw new Error('Storage blocked') })
     await render()
-    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(7)
+    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(8)
     expect(host.querySelector('[role="status"]')?.textContent).toContain('could not be saved')
     await act(async () => tab(3).click())
     expect(tab(3).getAttribute('aria-selected')).toBe('true')

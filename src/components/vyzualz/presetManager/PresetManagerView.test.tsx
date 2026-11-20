@@ -68,10 +68,10 @@ describe('Preset Manager view', () => {
     expect(missingArtwork).toEqual([])
   })
 
-  it('keeps the three surfaces and puts Create, Save, Duplicate and Delete in the header control group, with none in the library window header', () => {
+  it('keeps the three surfaces and puts Create, Create PixGrid Deck, Save, Duplicate and Delete in the header control group, with none in the library window header', () => {
     renderView()
     const keys = [...container!.querySelectorAll<HTMLButtonElement>('.pmv-header .vz-header-group button')]
-    expect(keys.map(key => key.getAttribute('aria-label'))).toEqual(['Create preset', 'Save preset', 'Duplicate preset', 'Delete preset'])
+    expect(keys.map(key => key.getAttribute('aria-label'))).toEqual(['Create preset', 'Create PixGrid Deck', 'Save preset', 'Duplicate preset', 'Delete preset'])
     // Placeholders: live (not disabled) and without any effect.
     expect(keys.every(key => !key.disabled)).toBe(true)
     expect(container?.querySelector('.rw-window-header-actions')).toBeNull()

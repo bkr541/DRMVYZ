@@ -3,7 +3,9 @@ import { expect, test } from '@playwright/test'
 
 type Status = {
   deckCount?: number
-  deck?: { name?: string; itemCount?: number; enabledItemCount?: number; presetCreated?: boolean; generatedPresetId?: string }
+  deck?: { name?: string; itemCount?: number; enabledItemCount?: number; presetCreated?: boolean; generatedPresetId?: string; itemTimings?: (number | null)[]; arrivalAnchor?: string | null; anchorMode?: string | null }
+  shippedCompile?: Record<string, { ready?: boolean; failed?: number }>
+  shippedTransitions?: Record<string, { ready?: boolean; playable?: boolean; failed?: number }>
   compile?: { ready?: boolean } | null
   transitions?: { ready?: boolean } | null
   activeReactPresetId?: string
@@ -22,10 +24,11 @@ test('Preset Manager builds, previews, edits and deletes a PixGrid Deck from fiv
   await expect(status).toHaveAttribute('data-result', 'ready', { timeout: 60_000 })
   await expect(page.getByLabel('Preset Manager', { exact: true })).toBeVisible({ timeout: 60_000 })
 
-  // Selecting a PixGrid preset offers the Custom Workflow; there is no header control for it.
-  await page.locator('.pmv-card[data-preset-engine="PixGrid"] .pmv-card-main').first().click()
-  await expect(page.getByText('Custom Workflow')).toBeVisible()
-  await page.getByRole('button', { name: 'Create PixGrid Deck' }).click()
+  // The builder opens from an icon-only key in the header control group.
+  const headerKey = page.locator('.pmv-header').getByRole('button', { name: 'Create PixGrid Deck' })
+  await expect(headerKey).toHaveText('')
+  await headerKey.click()
+  await expect(headerKey).toBeDisabled()
   await expect(page.locator('.sm-deck-library')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Back to Presets' })).toBeVisible()
 
@@ -40,6 +43,22 @@ test('Preset Manager builds, previews, edits and deletes a PixGrid Deck from fiv
   ])
   await expect(page.locator('.sm-deck-image-card')).toHaveCount(5, { timeout: 60_000 })
   const createPreset = page.locator('.sm-deck-create-preset')
+  await expect(createPreset).toBeEnabled({ timeout: 120_000 })
+
+  // Authoring controls: one image's own duration, and the arrival event once transitions arrive on a boundary.
+  const firstDuration = page.getByLabel('one.png duration in beats')
+  await expect(firstDuration).toHaveAttribute('placeholder', '4')
+  await firstDuration.fill('8')
+  await expect.poll(async () => statusPayload(await status.textContent()).deck?.itemTimings, { timeout: 15_000 }).toEqual([8, null, null, null, null])
+  await firstDuration.fill('')
+  await expect.poll(async () => statusPayload(await status.textContent()).deck?.itemTimings, { timeout: 15_000 }).toEqual([null, null, null, null, null])
+  await expect(page.getByText('Arrival event')).toHaveCount(0)
+  await page.getByRole('combobox', { name: 'Deck transition timing anchor' }).click()
+  await page.getByRole('option', { name: 'Arrive on boundary' }).click()
+  await expect(page.getByText('Arrival event')).toBeVisible()
+  await page.getByRole('combobox', { name: 'Deck transition arrival event' }).click()
+  await page.getByRole('option', { name: 'Phrase boundary' }).click()
+  await expect.poll(async () => statusPayload(await status.textContent()).deck?.arrivalAnchor, { timeout: 15_000 }).toBe('phrase')
   await expect(createPreset).toBeEnabled({ timeout: 120_000 })
 
   // Generated in-between frame: the scrubber reports the transition position.
@@ -82,5 +101,35 @@ test('Preset Manager builds, previews, edits and deletes a PixGrid Deck from fiv
   await page.getByRole('alertdialog').getByRole('button', { name: 'Delete' }).click()
   await expect(deckCard).toHaveCount(0)
   expect(statusPayload(await status.textContent()).deckCount).toBe(0)
+  expect(pageErrors.filter(error => !error.includes('ResizeObserver'))).toEqual([])
+})
+
+test('a shipped Deck is a built-in preset whose bundled images compile with every transition ready', async ({ page }) => {
+  test.setTimeout(300_000)
+  const slug = process.env.DRMVYZ_PIX_GRID_SHIPPED_SAMPLE_SLUG
+  test.skip(process.env.DRMVYZ_PIX_GRID_DECK_PRESET_MANAGER_BROWSER !== '1' || !slug, 'Run through the PixGrid Deck Preset Manager browser script.')
+  const pageErrors: string[] = []
+  page.on('pageerror', error => pageErrors.push(error.message))
+
+  await page.goto(process.env.DRMVYZ_PIX_GRID_DECK_PRESET_MANAGER_PAGE ?? '/pix-grid-deck-show-manager.html?view=presetManager')
+  const status = page.locator('[data-pix-grid-deck-show-manager-status]')
+  await expect(status).toHaveAttribute('data-result', 'ready', { timeout: 60_000 })
+  await expect(page.getByLabel('Preset Manager', { exact: true })).toBeVisible({ timeout: 60_000 })
+
+  // It is listed like any built-in PixGrid preset: not custom, no User Media, nothing to edit.
+  const card = page.locator(`.pmv-card[data-preset-id="pix-grid-shipped-${slug}"]`)
+  await expect(card).toBeVisible()
+  await expect(card).toHaveAttribute('data-preset-engine', 'PixGrid')
+  await expect(card.locator('[aria-label="User Media"]')).toHaveCount(0)
+  await card.locator('.pmv-card-main').click()
+  await expect(page.locator('.pmv-header').getByRole('button', { name: 'Create PixGrid Deck' })).toBeEnabled()
+  await expect(page.getByRole('button', { name: 'Edit Deck' })).toHaveCount(0)
+  await expect(page.getByText('Custom Workflow')).toHaveCount(0)
+
+  // Its images come from bundled files, and the compiler prepares every frame and transition.
+  const deckId = `pix-grid-sequence:shipped-${slug}`
+  await expect.poll(async () => statusPayload(await status.textContent()).shippedCompile?.[deckId], { timeout: 120_000 }).toMatchObject({ ready: true, failed: 0 })
+  await expect.poll(async () => statusPayload(await status.textContent()).shippedTransitions?.[deckId], { timeout: 120_000 }).toMatchObject({ ready: true, playable: true, failed: 0 })
+  expect(statusPayload(await status.textContent()).activeReactPresetId).toBe(`pix-grid-shipped-${slug}`)
   expect(pageErrors.filter(error => !error.includes('ResizeObserver'))).toEqual([])
 })

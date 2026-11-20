@@ -128,8 +128,9 @@ describe('React workspace composition', () => {
     expect(getReactLeftTabLabel('layers', canvas)).toBe('LAYERS')
 
     const pixGrid = resolveReactWorkspaceComposition('pixGrid', 'beamMatrix', false)
-    expect(getReactLeftTabs(pixGrid)).toEqual(['workspace', 'media'])
-    expect(getReactLeftTabLabel('workspace', pixGrid)).toBe('SETUP')
+    expect(getReactLeftTabs(pixGrid)).toEqual(['workspace', 'layers', 'media'])
+    expect(getReactLeftTabLabel('workspace', pixGrid)).toBe('SOURCE')
+    expect(getReactLeftTabLabel('layers', pixGrid)).toBe('LAYERS')
   })
 
   it('gives Headliner its setup rail and a Media tab for the Virtual Backdrop background, plus the same Track Map and performance pads as every other engine', () => {

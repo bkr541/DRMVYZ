@@ -26,6 +26,7 @@ const useDevServer = !app.isPackaged && !forceBuiltRenderer
 const APP_SCHEME = 'drmvyz-app'
 const APP_ORIGIN = `${APP_SCHEME}://app`
 const DIST_DIR = path.join(app.getAppPath(), 'dist')
+const APP_ICON = path.join(__dirname, 'assets', 'app-icon.png')
 let mainWindow = null
 
 // Keep development state and its single-instance lock separate from both the
@@ -132,6 +133,7 @@ function createMainWindow() {
     show: false,
     backgroundColor: '#05070a',
     title: 'DRMVYZ',
+    icon: APP_ICON,
     autoHideMenuBar: process.platform !== 'darwin',
     webPreferences: {
       preload: path.join(__dirname, '..', 'native', 'rekordbox', 'preloadRekordboxBridge.cjs'),
@@ -165,7 +167,7 @@ function createMainWindow() {
       return { action: 'allow', overrideBrowserWindowOptions: {
         ...size, useContentSize: true, resizable: true,
         minimizable: true, maximizable: true, fullscreenable: false,
-        backgroundColor: '#020304', title,
+        backgroundColor: '#020304', title, icon: APP_ICON,
         autoHideMenuBar: true,
         webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true },
       } }
@@ -188,6 +190,7 @@ function createMainWindow() {
           minHeight: 760,
           backgroundColor: popupConfig.backgroundColor,
           title: popupConfig.title,
+          icon: APP_ICON,
           autoHideMenuBar: process.platform !== 'darwin',
           webPreferences: {
             contextIsolation: true,
@@ -243,6 +246,7 @@ if (!app.requestSingleInstanceLock()) {
   app.on('child-process-gone', (_event, details) => log.scope('system:process').error('child-process-gone', details))
 
   app.whenReady().then(() => {
+    if (process.platform === 'darwin') app.dock.setIcon(APP_ICON)
     log.scope('system:app').info(`app ready — v${app.getVersion()} electron ${process.versions.electron} ${process.platform}/${process.arch} devServer=${useDevServer}`)
     if (!useDevServer) registerAppProtocol()
     configureSessionSecurity()

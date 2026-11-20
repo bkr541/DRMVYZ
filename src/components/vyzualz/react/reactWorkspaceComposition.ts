@@ -75,8 +75,9 @@ export function resolveReactWorkspaceComposition(
     leftTabs = ['workspace', 'layers']
     workspaceTabLabel = 'SOURCE'
   } else if (isPixGrid) {
-    leftTabs = ['workspace', 'media']
-    workspaceTabLabel = 'SETUP'
+    // Same shape as CANVAS: SOURCE (what it draws from), LAYERS (the scene's layer stack) and MEDIA (the shared library).
+    leftTabs = ['workspace', 'layers', 'media']
+    workspaceTabLabel = 'SOURCE'
   }
 
   return {

@@ -48,6 +48,8 @@ import { PixGridSurface } from '../react/pixGrid/PixGridSurface'
 import { applyPixGridPresetSettings } from '../react/pixGrid/PixGridState'
 import { isPixGridDeckGeneratedPreset } from '../react/pixGrid/PixGridDeckPreset'
 import { usePixGridDeckBuilder } from '../react/pixGrid/usePixGridDeckBuilder'
+import { takePixGridDeckBuilderRequest } from '../react/pixGrid/PixGridDeckBuilderRequest'
+import { REACT_ENGINE_CATALOG } from '../react/reactEngineCatalog'
 import { PixGridDeckBuilderInspector, PixGridDeckBuilderLibrary, PixGridDeckSequenceStrip } from '../showManager/PixGridDeckBuilder'
 import { PresetSearchRow } from '../react/controls/PresetSearchRow'
 import { UnderlineDropdown } from '../react/controls/UnderlineDropdown'
@@ -116,14 +118,14 @@ function usePresetOwnerLabel(preset: PresetManagerRecord): string {
   return isSystem ? 'SYSTEM' : 'USER'
 }
 
-/** The deck a custom PixGrid Deck preset was built from (none for shipped presets). */
+/** The deck a custom PixGrid Deck preset was built from. A shipped Deck (a built-in preset with bundled images) has none to edit. */
 function deckIdOf(preset: PresetManagerRecord): string | null {
+  if (!preset.custom) return null
   return (preset.sourceData as { pixGridDeck?: { deckId?: string } }).pixGridDeck?.deckId ?? null
 }
 
-function PresetInfoPanel({ preset, onCreateDeck, onEditDeck }: {
+function PresetInfoPanel({ preset, onEditDeck }: {
   preset: PresetManagerRecord
-  onCreateDeck: () => void
   onEditDeck: (deckId: string) => void
 }) {
   const deckId = deckIdOf(preset)
@@ -156,14 +158,11 @@ function PresetInfoPanel({ preset, onCreateDeck, onEditDeck }: {
                 <InfoRow label="Custom" value={preset.custom ?? false} />
               </div>
             </Collapsible>
-            {preset.artwork === 'pixGrid' && (
+            {deckId && (
               <Collapsible label="Custom Workflow" defaultOpen>
-                <div className="rv-ctrl-info rv-control-helper-copy">
-                  Build your own PixGrid preset from 2 to 64 of your images. Each image is converted to the pixel look, and the transitions between them are generated.
-                </div>
+                <div className="rv-ctrl-info rv-control-helper-copy">This preset was built from your own images in the PixGrid Deck Builder.</div>
                 <div className="rv-ctrl-action-row pmv-custom-workflow">
-                  <IconChipButton onClick={onCreateDeck}>Create PixGrid Deck</IconChipButton>
-                  {deckId && <IconChipButton onClick={() => onEditDeck(deckId)}>Edit Deck</IconChipButton>}
+                  <IconChipButton onClick={() => onEditDeck(deckId)}>Edit Deck</IconChipButton>
                 </div>
               </Collapsible>
             )}
@@ -267,6 +266,11 @@ export function PresetManagerView() {
     setStageTab('visualizer')
     deckBuilder.enter(deckId)
   }
+  // The React Workspace's Custom Workflow entry switches here and asks for the builder.
+  useEffect(() => {
+    if (takePixGridDeckBuilderRequest()) openDeckBuilder(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot on mount
+  }, [])
   const selectedPreset = useMemo(
     () => presetList.find(preset => preset.id === selectedId) ?? presetList[0] ?? null,
     [presetList, selectedId],
@@ -419,7 +423,7 @@ export function PresetManagerView() {
 
   const renderInspectorPanel = () => {
     if (!selectedPreset) return null
-    if (activeRightPanel === 'info') return <PresetInfoPanel preset={selectedPreset} onCreateDeck={() => openDeckBuilder(null)} onEditDeck={openDeckBuilder} />
+    if (activeRightPanel === 'info') return <PresetInfoPanel preset={selectedPreset} onEditDeck={openDeckBuilder} />
     if (activeRightPanel === 'design') {
       if (selectedPreset.activation === 'cinema2') return <Cinema2InspectorPanel runtime={cinema2Runtime} surface="design" />
       if (selectedPreset.activation === 'headliner') return <HeadlinerDesignPanel />
@@ -454,6 +458,12 @@ export function PresetManagerView() {
               label="Create preset"
               icon={<HeaderActionIcon action="create" />}
               onClick={NOOP}
+            />
+            <HeaderIconKey
+              label="Create PixGrid Deck"
+              icon={<AppIcon kind={REACT_ENGINE_CATALOG.pixGrid.icon} size={16} color="currentColor" aria-hidden="true" />}
+              disabled={deckBuilder.active}
+              onClick={() => openDeckBuilder(null)}
             />
             <HeaderIconKey label="Save preset" icon={<SaveGlyph />} onClick={NOOP} />
             <HeaderIconKey label="Duplicate preset" icon={<HeaderActionIcon action="duplicate" />} onClick={NOOP} />
@@ -492,6 +502,7 @@ export function PresetManagerView() {
                 onRemove={deckBuilder.removeItem}
                 onBack={deckBuilder.exit}
                 backLabel="Back to Presets"
+                onTiming={deckBuilder.setItemTiming}
               />
             ) : (
               <>
@@ -637,6 +648,7 @@ export function PresetManagerView() {
                 onUpdate={deckBuilder.update}
                 onCreatePreset={deckBuilder.createPreset}
                 onDelete={deckBuilder.requestDelete}
+                ship={deckBuilder.ship}
               />
             ) : (
               <>

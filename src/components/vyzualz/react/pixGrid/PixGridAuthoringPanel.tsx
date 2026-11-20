@@ -1,7 +1,7 @@
 import { AppIcon } from '../../../shared/icons/AppIcon'
-import { DreamVizTextInput } from '../controls/DreamVizTextInput'
-import { useEffect, useState } from 'react'
 import { useReactStore } from '../../../../stores/reactStore'
+import { IconChipButton } from '../controls/IconChipButton'
+import { LayerRow } from '../controls/LayerRow'
 import { PIX_GRID_BUILT_IN_ASSETS } from './PixGridArtwork'
 import {
   addPixGridBuiltInLayer,
@@ -12,24 +12,23 @@ import {
   duplicatePixGridScene,
   getPixGridActiveLayers,
   getPixGridActiveScene,
-  renamePixGridScene,
   reorderPixGridLayer,
   selectPixGridScene,
   updatePixGridLayer,
 } from './PixGridAuthoring'
 
-export function PixGridAuthoringPanel() {
+const PIX_GRID_ROW_TONES = ['#4ac7db', '#67f7ff', '#6b4cff', '#b84fc9', '#d8b95a', '#61d6aa', '#ff6b6b']
+
+/**
+ * SOURCE tab: what PixGrid draws from. Edit PixGrid, the scene list (one scene per song section), the built-in artwork to add as layers,
+ * and the Custom Workflow entry. The scene's layer stack is on the LAYERS tab and its name is edited in Design, as in the other engines.
+ */
+export function PixGridAuthoringPanel({ onCreateDeck }: { onCreateDeck?: () => void }) {
   const state = useReactStore(store => store.pixGridState)
   const setState = useReactStore(store => store.setPixGridState)
   const applyState = useReactStore(store => store.applyPixGridAuthoringState)
   const setOverlay = useReactStore(store => store.setPixGridAuthoringOverlayVisible)
   const scene = getPixGridActiveScene(state)
-  const layers = getPixGridActiveLayers(state)
-  const [sceneName, setSceneName] = useState(scene.name)
-
-  useEffect(() => setSceneName(scene.name), [scene.id, scene.name])
-
-  const selectLayer = (layerId: string) => setState({ editor: { ...state.editor, selectedLayerId: layerId } })
 
   return (
     <div className="rv-pix-grid-authoring-panel">
@@ -43,71 +42,32 @@ export function PixGridAuthoringPanel() {
       </button>
       <div className="rv-ctrl-info rv-pix-grid-authoring-hint rv-control-helper-copy">Edit on the center canvas. Changes save automatically.</div>
 
-      <section className="rv-pix-grid-browser-section" aria-label="PixGrid scenes">
-        <header><strong>SCENES</strong><span>{state.scenes.length}</span></header>
-        <div className="rv-pix-grid-scene-list">
-          {state.scenes.map(candidate => (
-            <button
+      <section className="rv-engine-panel-list" aria-label="PixGrid scenes">
+        <div className="rv-engine-panel-list__header"><strong>Scenes</strong><span>{state.scenes.length}</span></div>
+        <div className="rv-engine-layer-tree">
+          {state.scenes.map((candidate, index) => (
+            <LayerRow
               key={candidate.id}
-              type="button"
-              className={candidate.id === scene.id ? 'is-active' : ''}
+              index={index + 1}
+              label={candidate.name}
+              status={`${candidate.layerIds.length} layer${candidate.layerIds.length === 1 ? '' : 's'}`}
+              tone={PIX_GRID_ROW_TONES[index % PIX_GRID_ROW_TONES.length]}
+              active={candidate.id === scene.id}
+              aria-pressed={candidate.id === scene.id}
+              aria-label={`Select scene ${candidate.name}`}
               onClick={() => setState(selectPixGridScene(state, candidate.id))}
-            >
-              <span>{candidate.name}</span>
-              <small>{candidate.layerIds.length} layers</small>
-            </button>
+            />
           ))}
         </div>
-        <label className="rv-pix-grid-inline-field">
-          <span>Scene Name</span>
-          <DreamVizTextInput
-            value={sceneName}
-            maxLength={96}
-            onChange={event => setSceneName(event.target.value)}
-            onBlur={() => {
-              if (sceneName.trim() && sceneName.trim() !== scene.name) applyState(renamePixGridScene(state, scene.id, sceneName))
-              else setSceneName(scene.name)
-            }}
-          />
-        </label>
-        <div className="rv-pix-grid-browser-actions">
-          <button type="button" onClick={() => applyState(addPixGridScene(state))}>Add</button>
-          <button type="button" onClick={() => applyState(duplicatePixGridScene(state))}>Duplicate</button>
-          <button type="button" disabled={state.scenes.length <= 1} onClick={() => applyState(deletePixGridScene(state))}>Delete</button>
+        <div className="rv-ctrl-action-row">
+          <IconChipButton onClick={() => applyState(addPixGridScene(state))}>Add</IconChipButton>
+          <IconChipButton onClick={() => applyState(duplicatePixGridScene(state))}>Duplicate</IconChipButton>
+          <IconChipButton disabled={state.scenes.length <= 1} onClick={() => applyState(deletePixGridScene(state))}>Delete</IconChipButton>
         </div>
       </section>
 
-      <section className="rv-pix-grid-browser-section" aria-label="PixGrid layers">
-        <header><strong>LAYERS</strong><span>{layers.length}</span></header>
-        <div className="rv-pix-grid-layer-list">
-          {layers.map((layer, index) => (
-            <div key={layer.id} className={state.editor.selectedLayerId === layer.id ? 'is-active' : ''}>
-              <button type="button" className="rv-pix-grid-layer-main" onClick={() => selectLayer(layer.id)}>
-                <span>{layer.name}</span>
-                <small>{layer.mediaId ? 'MEDIA' : 'BUILT-IN'}</small>
-              </button>
-              <button
-                type="button"
-                aria-label={layer.visible ? `Hide ${layer.name}` : `Show ${layer.name}`}
-                onClick={() => applyState(updatePixGridLayer(state, layer.id, { visible: !layer.visible }))}
-              >{layer.visible ? <AppIcon kind="eyeOff" size={14} /> : <AppIcon kind="eye" size={14} />}</button>
-              <button
-                type="button"
-                aria-label={layer.locked ? `Unlock ${layer.name}` : `Lock ${layer.name}`}
-                onClick={() => applyState(updatePixGridLayer(state, layer.id, { locked: !layer.locked }))}
-              >{layer.locked ? <AppIcon kind="unlock" size={14} /> : <AppIcon kind="lock" size={14} />}</button>
-              <button type="button" disabled={index === 0 || layer.locked} aria-label={`Move ${layer.name} down`} onClick={() => applyState(reorderPixGridLayer(state, layer.id, -1))}><AppIcon kind="down" size={14} /></button>
-              <button type="button" disabled={index === layers.length - 1 || layer.locked} aria-label={`Move ${layer.name} up`} onClick={() => applyState(reorderPixGridLayer(state, layer.id, 1))}><AppIcon kind="up" size={14} /></button>
-              <button type="button" disabled={layer.locked} aria-label={`Duplicate ${layer.name}`} onClick={() => applyState(duplicatePixGridLayer(state, layer.id))}><AppIcon kind="copy" size={14} /></button>
-              <button type="button" disabled={layer.locked} aria-label={`Delete ${layer.name}`} onClick={() => applyState(deletePixGridLayer(state, layer.id))}><AppIcon kind="delete" size={14} /></button>
-            </div>
-          ))}
-          {layers.length === 0 && <p>No layers in this scene.</p>}
-        </div>
-      </section>
-
-      <section className="rv-pix-grid-browser-section" aria-label="PixGrid built-in artwork">
-        <header><strong>BUILT-INS</strong><span>{PIX_GRID_BUILT_IN_ASSETS.length}</span></header>
+      <section className="rv-engine-panel-list" aria-label="PixGrid built-in artwork">
+        <div className="rv-engine-panel-list__header"><strong>Built-in Artwork</strong><span>{PIX_GRID_BUILT_IN_ASSETS.length}</span></div>
         <div className="rv-pix-grid-built-in-grid">
           {PIX_GRID_BUILT_IN_ASSETS.map(asset => (
             <button key={asset.id} type="button" onClick={() => applyState(addPixGridBuiltInLayer(state, asset.id))}>
@@ -118,7 +78,101 @@ export function PixGridAuthoringPanel() {
         </div>
       </section>
 
+      {onCreateDeck && (
+        <section className="rv-engine-panel-list pmv-custom-workflow-entry" aria-label="PixGrid custom workflow">
+          <div className="rv-engine-panel-list__header"><strong>Custom Workflow</strong></div>
+          <div className="rv-ctrl-info rv-control-helper-copy">Build a preset from your own images. This opens the PixGrid Deck Builder in Preset Manager.</div>
+          <div className="rv-ctrl-action-row">
+            <IconChipButton onClick={onCreateDeck}>Create PixGrid Deck</IconChipButton>
+          </div>
+        </section>
+      )}
+
       <div className="rv-ctrl-info rv-control-helper-copy">Use the MEDIA tab to add PNG, JPEG, static WebP, or SVG artwork as a layer. Upload remains in the shared Media Library.</div>
     </div>
+  )
+}
+
+/** LAYERS tab: the active scene's layer stack in the shared layer-row list (the same rows, header and hover actions as CANVAS). */
+export function PixGridLayersPanel() {
+  const state = useReactStore(store => store.pixGridState)
+  const setState = useReactStore(store => store.setPixGridState)
+  const applyState = useReactStore(store => store.applyPixGridAuthoringState)
+  const layers = getPixGridActiveLayers(state)
+  const selectLayer = (layerId: string) => setState({ editor: { ...state.editor, selectedLayerId: layerId } })
+
+  return (
+    <section className="rv-engine-panel-list" aria-label="PixGrid layers">
+      <div className="rv-engine-panel-list__header"><strong>Layers</strong><span>{layers.length}</span></div>
+      <div className="rv-engine-layer-tree">
+        {layers.map((layer, index) => {
+          const source = layer.mediaId ? 'Media' : 'Built-in'
+          const status = `${source} · ${layer.visible ? `${Math.round(layer.opacity * 100)}%` : 'Hidden'}${layer.locked ? ' · Locked' : ''}`
+          return (
+            <div key={layer.id} className="rv-canvas-layer-stack-row" data-pix-grid-layer-id={layer.id}>
+              <LayerRow
+                index={index + 1}
+                label={layer.name}
+                status={status}
+                tone={PIX_GRID_ROW_TONES[index % PIX_GRID_ROW_TONES.length]}
+                active={state.editor.selectedLayerId === layer.id}
+                aria-pressed={state.editor.selectedLayerId === layer.id}
+                aria-label={`Select layer ${index + 1}: ${layer.name}`}
+                onClick={() => selectLayer(layer.id)}
+              />
+              <div className="rv-canvas-layer-row-actions" aria-label={`Actions for ${layer.name}`}>
+                <IconChipButton
+                  className="rv-canvas-layer-row-action"
+                  title={layer.visible ? 'Hide layer' : 'Show layer'}
+                  aria-label={layer.visible ? `Hide ${layer.name}` : `Show ${layer.name}`}
+                  icon={<AppIcon kind={layer.visible ? 'eyeOff' : 'eye'} size={12} color="currentColor" />}
+                  onClick={event => { event.stopPropagation(); applyState(updatePixGridLayer(state, layer.id, { visible: !layer.visible })) }}
+                />
+                <IconChipButton
+                  className="rv-canvas-layer-row-action"
+                  title={layer.locked ? 'Unlock layer' : 'Lock layer'}
+                  aria-label={layer.locked ? `Unlock ${layer.name}` : `Lock ${layer.name}`}
+                  icon={<AppIcon kind={layer.locked ? 'unlock' : 'lock'} size={12} color="currentColor" />}
+                  onClick={event => { event.stopPropagation(); applyState(updatePixGridLayer(state, layer.id, { locked: !layer.locked })) }}
+                />
+                <IconChipButton
+                  className="rv-canvas-layer-row-action"
+                  title="Move layer up"
+                  aria-label={`Move ${layer.name} up`}
+                  disabled={index === 0 || layer.locked}
+                  icon={<AppIcon kind="up" size={12} color="currentColor" />}
+                  onClick={event => { event.stopPropagation(); applyState(reorderPixGridLayer(state, layer.id, -1)) }}
+                />
+                <IconChipButton
+                  className="rv-canvas-layer-row-action"
+                  title="Move layer down"
+                  aria-label={`Move ${layer.name} down`}
+                  disabled={index === layers.length - 1 || layer.locked}
+                  icon={<AppIcon kind="down" size={12} color="currentColor" />}
+                  onClick={event => { event.stopPropagation(); applyState(reorderPixGridLayer(state, layer.id, 1)) }}
+                />
+                <IconChipButton
+                  className="rv-canvas-layer-row-action"
+                  title="Duplicate layer"
+                  aria-label={`Duplicate ${layer.name}`}
+                  disabled={layer.locked}
+                  icon={<AppIcon kind="copy" size={12} color="currentColor" />}
+                  onClick={event => { event.stopPropagation(); applyState(duplicatePixGridLayer(state, layer.id)) }}
+                />
+                <IconChipButton
+                  className="rv-canvas-layer-row-action rv-canvas-layer-row-action--delete"
+                  title="Delete layer"
+                  aria-label={`Delete ${layer.name}`}
+                  disabled={layer.locked}
+                  icon={<AppIcon kind="delete" size={12} color="currentColor" />}
+                  onClick={event => { event.stopPropagation(); applyState(deletePixGridLayer(state, layer.id)) }}
+                />
+              </div>
+            </div>
+          )
+        })}
+        {layers.length === 0 && <div className="rv-ctrl-info">No layers in this scene. Add built-in artwork from the SOURCE tab or media from the MEDIA tab.</div>}
+      </div>
+    </section>
   )
 }

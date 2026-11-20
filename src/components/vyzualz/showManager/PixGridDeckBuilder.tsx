@@ -16,6 +16,7 @@ import {
   PIX_GRID_DECK_REACTION_PROFILE_IDS,
   type PixGridDeckDefinition,
   type PixGridDeckItemDefinition,
+  type PixGridDeckMusicalArrivalAnchor,
   type PixGridDeckPlaybackOrder,
   type PixGridDeckPreDropBehavior,
   type PixGridDeckReactionProfileId,
@@ -23,12 +24,15 @@ import {
   type PixGridDeckUpdatePatch,
 } from '../react/pixGrid/PixGridDeckDomain'
 import type { PixGridDeckPresetReadiness } from '../react/pixGrid/PixGridDeckPreset'
-import type { PixGridDeckUploadUiState } from '../react/pixGrid/usePixGridDeckBuilder'
+import type { PixGridDeckShipUiState, PixGridDeckUploadUiState } from '../react/pixGrid/usePixGridDeckBuilder'
 import { PIX_GRID_MOTION_PROFILES } from '../react/pixGrid/PixGridMotionProfiles'
 
 export type { PixGridDeckUploadUiState }
 
-const PLAYBACK_OPTIONS: ReadonlyArray<{ value: PixGridDeckPlaybackOrder; label: string }> = [
+/** The song sections a Deck can time and assign images to, in song order. */
+export const PIX_GRID_DECK_SECTION_TYPES = ['intro', 'verse', 'build', 'preDrop', 'drop', 'breakdown', 'bridge', 'outro'] as const
+
+export const PLAYBACK_OPTIONS: ReadonlyArray<{ value: PixGridDeckPlaybackOrder; label: string }> = [
   { value: 'forward', label: 'Forward' },
   { value: 'reverse', label: 'Reverse' },
   { value: 'pingPong', label: 'Ping Pong' },
@@ -36,7 +40,7 @@ const PLAYBACK_OPTIONS: ReadonlyArray<{ value: PixGridDeckPlaybackOrder; label: 
   { value: 'sectionAssigned', label: 'Section Assigned' },
 ]
 
-const REACTION_OPTIONS = PIX_GRID_DECK_REACTION_PROFILE_IDS.map(value => ({
+export const REACTION_OPTIONS = PIX_GRID_DECK_REACTION_PROFILE_IDS.map(value => ({
   value,
   label: value === 'graphicLogo' ? 'Graphic / Logo'
     : value === 'photoArtwork' ? 'Photo / Artwork'
@@ -44,7 +48,7 @@ const REACTION_OPTIONS = PIX_GRID_DECK_REACTION_PROFILE_IDS.map(value => ({
         : 'Balanced',
 }))
 
-const TRANSITION_OPTIONS: ReadonlyArray<{ value: PixGridDeckTransitionMode; label: string }> = [
+export const TRANSITION_OPTIONS: ReadonlyArray<{ value: PixGridDeckTransitionMode; label: string }> = [
   { value: 'auto', label: 'Auto' },
   { value: 'pixelTransport', label: 'Pixel Transport' },
   { value: 'pixelDissolve', label: 'Pixel Dissolve' },
@@ -56,7 +60,18 @@ const TRANSITION_OPTIONS: ReadonlyArray<{ value: PixGridDeckTransitionMode; labe
   { value: 'hardCut', label: 'Hard Cut' },
 ]
 
-const PRE_DROP_OPTIONS: ReadonlyArray<{ value: PixGridDeckPreDropBehavior; label: string }> = [
+/** Which musical event a transition set to "Arrive on boundary" lands on. */
+export const ARRIVAL_ANCHOR_OPTIONS: ReadonlyArray<{ value: PixGridDeckMusicalArrivalAnchor; label: string }> = [
+  { value: 'beat', label: 'Next beat' },
+  { value: 'bar', label: 'Next bar' },
+  { value: 'phrase', label: 'Phrase boundary' },
+  { value: 'section', label: 'Section change' },
+  { value: 'buildCompletion', label: 'Build completion' },
+  { value: 'dropImpact', label: 'Drop impact' },
+  { value: 'trackMap', label: 'Track Map cue' },
+]
+
+export const PRE_DROP_OPTIONS: ReadonlyArray<{ value: PixGridDeckPreDropBehavior; label: string }> = [
   { value: 'hold', label: 'Hold Current Image' },
   { value: 'dim', label: 'Dim' },
   { value: 'disperse', label: 'Disperse' },
@@ -64,7 +79,7 @@ const PRE_DROP_OPTIONS: ReadonlyArray<{ value: PixGridDeckPreDropBehavior; label
   { value: 'continue', label: 'Continue Sequence' },
 ]
 
-const MOTION_PROFILE_OPTIONS = PIX_GRID_MOTION_PROFILES.map(profile => ({ value: profile.id, label: profile.name }))
+export const MOTION_PROFILE_OPTIONS = PIX_GRID_MOTION_PROFILES.map(profile => ({ value: profile.id, label: profile.name }))
 
 export function PixGridDeckBuilderLibrary({
   deck,
@@ -80,6 +95,7 @@ export function PixGridDeckBuilderLibrary({
   onRemove,
   onBack,
   backLabel = 'Back',
+  onTiming,
 }: {
   deck: PixGridDeckDefinition | null
   draftName: string
@@ -95,6 +111,8 @@ export function PixGridDeckBuilderLibrary({
   /** Hosts without their own way out of the builder (Preset Manager) pass this to get a Back button under the header. */
   onBack?: () => void
   backLabel?: string
+  /** Sets one image's own duration in beats (null follows the Deck default). Hosts that omit it show no duration field. */
+  onTiming?: (itemId: string, beats: number | null) => void
 }) {
   const inputId = useId()
   const draggedItemId = useRef<string | null>(null)
@@ -164,6 +182,22 @@ export function PixGridDeckBuilderLibrary({
                 <small>{item.enabled ? 'Enabled' : 'Disabled'} · rev {item.revision}</small>
               </span>
             </button>
+            {onTiming && deck && (
+              <label className="sm-deck-image-timing">
+                <span>Duration</span>
+                <input
+                  type="number"
+                  min={0.25}
+                  max={1024}
+                  step={0.25}
+                  value={item.timingOverrideBeats ?? ''}
+                  placeholder={String(deck.configuration.defaultItemDurationBeats)}
+                  aria-label={`${item.source.fileName ?? `Image ${index + 1}`} duration in beats`}
+                  onChange={event => onTiming(item.id, event.target.value === '' ? null : Number(event.target.value))}
+                />
+                <small>beats</small>
+              </label>
+            )}
             <div className="sm-deck-image-actions" aria-label={`${item.source.fileName ?? `Image ${index + 1}`} actions`}>
               <button type="button" onClick={() => onMove(item.id, -1)} disabled={index === 0} aria-label="Move image earlier"><AppIcon kind="up" size={14} /></button>
               <button type="button" onClick={() => onMove(item.id, 1)} disabled={index === items.length - 1} aria-label="Move image later"><AppIcon kind="down" size={14} /></button>
@@ -190,6 +224,7 @@ export function PixGridDeckBuilderInspector({
   onUpdate,
   onCreatePreset,
   onDelete,
+  ship,
 }: {
   deck: PixGridDeckDefinition | null
   draftName: string
@@ -201,10 +236,12 @@ export function PixGridDeckBuilderInspector({
   onUpdate: (patch: PixGridDeckUpdatePatch) => void
   onCreatePreset: () => void
   onDelete: () => void
+  /** Development builds only: the team's "Export for shipping" action. */
+  ship?: (PixGridDeckShipUiState & { onExport: () => void }) | null
 }) {
   const configuration = deck?.configuration
   const updateConfiguration = (patch: PixGridDeckUpdatePatch['configuration']) => onUpdate({ configuration: patch })
-  const sectionTypes = ['intro', 'verse', 'build', 'preDrop', 'drop', 'breakdown', 'bridge', 'outro'] as const
+  const sectionTypes = PIX_GRID_DECK_SECTION_TYPES
   const enabledItems = deck?.items.filter(item => item.enabled) ?? []
   const transitionPairs = configuration
     ? enabledItems.flatMap((sourceItem, index) => {
@@ -380,6 +417,18 @@ export function PixGridDeckBuilderInspector({
                   onChange={value => updateConfiguration({ transitionPolicy: { durationFraction: value } })}
                 />
               </Field>
+              {(configuration.transitionPolicy.anchorMode ?? 'onset') === 'arrival' && (
+                <Field label="Arrival event">
+                  <Dropdown
+                    id="deck-transition-arrival-anchor"
+                    ariaLabel="Deck transition arrival event"
+                    value={configuration.transitionPolicy.arrivalAnchor ?? 'dropImpact'}
+                    options={ARRIVAL_ANCHOR_OPTIONS}
+                    onChange={value => updateConfiguration({ transitionPolicy: { arrivalAnchor: value as PixGridDeckMusicalArrivalAnchor } })}
+                    size="compact"
+                  />
+                </Field>
+              )}
               <Field label="Timing anchor">
                 <Dropdown
                   id="deck-transition-anchor"
@@ -519,6 +568,16 @@ export function PixGridDeckBuilderInspector({
                 {deck.presetCreated ? 'Preset Created' : 'Create Preset'}
               </button>
             </section>
+
+            {ship && (
+              <section className="sm-deck-inspector-section sm-deck-ship" aria-label="Export for shipping">
+                <h3>Shipping (development only)</h3>
+                <small>Writes this Deck into the repository as a built-in preset: a manifest plus images resized to 512 px. Pick the repository root.</small>
+                <button type="button" onClick={ship.onExport} disabled={!readiness?.ready || ship.busy}>{ship.busy ? 'Exporting…' : 'Export for shipping…'}</button>
+                {ship.message && <DrawerNotice tone="success" role="status" title="Exported">{ship.message}</DrawerNotice>}
+                {ship.error && <DrawerNotice tone="error" role="alert" title="Export failed">{ship.error}</DrawerNotice>}
+              </section>
+            )}
 
             <button type="button" className="sm-deck-delete" onClick={onDelete}>Delete Deck</button>
           </>

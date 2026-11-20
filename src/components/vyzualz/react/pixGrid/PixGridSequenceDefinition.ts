@@ -17,6 +17,8 @@ export type PixGridSequenceSource =
   | { id: string; kind: 'media'; mediaId: string; snapshot: PixGridDeckSourceSnapshot }
   | { id: string; kind: 'asset'; assetId: PixGridBuiltInAssetId; palette?: Partial<Record<PixGridPaletteRole, string>> }
   | { id: string; kind: 'generatedSvg'; svg: string; width: number; height: number; hasAlpha?: boolean }
+  /** An image shipped with the app (under public/pixgrid-decks). `path` is relative to the app base; the snapshot is captured when the Deck is exported. */
+  | { id: string; kind: 'bundled'; path: string; mimeType: string; snapshot: PixGridDeckSourceSnapshot }
 
 export interface PixGridSequenceItemDefinition {
   id: string
@@ -40,6 +42,8 @@ export interface PixGridSequenceDefinition {
   sectionItemAssignments?: Partial<Record<ReactSectionType, string[]>>
   sceneItemAssignments?: Record<string, string[]>
   transitionPolicy?: Partial<PixGridDeckTransitionPolicy>
+  reactionProfileId?: PixGridDeckConfiguration['reactionProfileId']
+  preDropBehavior?: PixGridDeckConfiguration['preDropBehavior']
   motionProfileId?: string
   sceneMotionProfileIds?: Record<string, string>
   animationSeed?: number
@@ -63,7 +67,7 @@ export function pixGridSequenceSourceMediaId(sequenceId: string, sourceId: strin
 }
 
 function sourceSnapshot(sequence: PixGridSequenceDefinition, source: PixGridSequenceSource): PixGridDeckSourceSnapshot {
-  if (source.kind === 'media') return source.snapshot
+  if (source.kind === 'media' || source.kind === 'bundled') return source.snapshot
   const manifest = source.kind === 'asset' ? PIX_GRID_BUILT_IN_ASSET_BY_ID.get(source.assetId) : null
   const width = source.kind === 'generatedSvg' ? source.width : manifest?.nativeSize.width ?? null
   const height = source.kind === 'generatedSvg' ? source.height : manifest?.nativeSize.height ?? null
@@ -111,7 +115,7 @@ export function materializePixGridSequenceDeck(sequence: PixGridSequenceDefiniti
       transitionPolicy: sequence.transitionPolicy ?? {},
       motionProfileId: sequence.motionProfileId ?? 'balanced',
       sceneMotionProfileIds: sequence.sceneMotionProfileIds ?? {},
-      reactionProfileId: 'balanced', preDropBehavior: 'hold',
+      reactionProfileId: sequence.reactionProfileId ?? 'balanced', preDropBehavior: sequence.preDropBehavior ?? 'hold',
     }, itemIds),
   }
 }
@@ -139,9 +143,9 @@ function assetSvg(source: Extract<PixGridSequenceSource, { kind: 'asset' }>): st
 }
 
 export function createPixGridSequenceSourceResolver(sequences: readonly PixGridSequenceDefinition[]) {
-  const entries = new Map<string, Exclude<PixGridSequenceSource, { kind: 'media' }>>()
+  const entries = new Map<string, Exclude<PixGridSequenceSource, { kind: 'media' | 'bundled' }>>()
   for (const sequence of sequences) for (const source of sequence.sources) {
-    if (source.kind !== 'media') entries.set(pixGridSequenceSourceMediaId(sequence.id, source.id), source)
+    if (source.kind !== 'media' && source.kind !== 'bundled') entries.set(pixGridSequenceSourceMediaId(sequence.id, source.id), source)
   }
   return (mediaId: string): Blob | null => {
     const source = entries.get(mediaId)
@@ -149,4 +153,13 @@ export function createPixGridSequenceSourceResolver(sequences: readonly PixGridS
     const svg = source.kind === 'asset' ? assetSvg(source) : source.svg
     return new Blob([svg], { type: 'image/svg+xml' })
   }
+}
+
+/** Where each shipped-image source lives, by the source media id the compiler asks for. Resolved with the app base URL at load time. */
+export function createPixGridSequenceBundledIndex(sequences: readonly PixGridSequenceDefinition[]) {
+  const entries = new Map<string, { path: string; mimeType: string }>()
+  for (const sequence of sequences) for (const source of sequence.sources) {
+    if (source.kind === 'bundled') entries.set(pixGridSequenceSourceMediaId(sequence.id, source.id), { path: source.path, mimeType: source.mimeType })
+  }
+  return (mediaId: string): { path: string; mimeType: string } | null => entries.get(mediaId) ?? null
 }
