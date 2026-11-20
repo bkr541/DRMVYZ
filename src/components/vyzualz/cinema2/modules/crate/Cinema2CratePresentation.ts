@@ -3,9 +3,6 @@ import type { Cinema2Vector3 } from '../../contracts/Cinema2NativePresetManifest
 import type { Cinema2ThreeLibrary } from '../three/Cinema2ThreeLibrary'
 
 export const CINEMA2_CRATE_PRESENTATIONS = {
-  'glyph-sphere': {
-    name: 'Glyph Armillary', camera: [5.7, 2.8, 11], target: [0, 0, -.3], fov: 46, background: [.018, .017, .037, 1],
-  },
   'wireframe-portal': {
     name: 'Corner Truss', camera: [4.3, 2.9, 8.9], target: [0, .1, -3.7], fov: 49, background: [.026, .019, .016, 1],
   },
@@ -54,7 +51,6 @@ export class Cinema2CratePresentation {
     scene.name = CINEMA2_CRATE_PRESENTATIONS[this.id].name
     this.backdrop(scene)
     switch (this.id) {
-      case 'glyph-sphere': this.glyphArmillary(scene, source[0]!); break
       case 'wireframe-portal': this.cornerTruss(scene, source[0]!); break
     }
     this.mountFixtures()
@@ -198,61 +194,6 @@ export class Cinema2CratePresentation {
     plane.position.copy(focalPoint).addScaledVector(awayFromCamera, 35)
     plane.lookAt(cameraPosition)
     root.add(plane)
-  }
-
-  private glyphArmillary(root: Three.Object3D, source: Mesh): void {
-    const { THREE } = this
-    const standard = (Array.isArray(source.material) ? source.material[0] : source.material) as Three.MeshStandardMaterial
-    const core = this.family(root, 'glyph-core')
-    const glyphMaterial = (color: number, strength: number, band?: number) => {
-      const material = this.ownMaterial(new THREE.MeshBasicMaterial({
-        color, map: standard.map, alphaTest: standard.alphaTest || .025, side: band ? THREE.DoubleSide : THREE.FrontSide, toneMapped: false,
-      }))
-      material.color.multiplyScalar(strength)
-      if (band) {
-        material.onBeforeCompile = shader => {
-          shader.uniforms.uGlyphBand = { value: band }
-          shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vGlyphDirection;')
-            .replace('#include <begin_vertex>', '#include <begin_vertex>\nvGlyphDirection = position;')
-          shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vGlyphDirection;\nuniform float uGlyphBand;')
-            .replace('#include <alphatest_fragment>', '#include <alphatest_fragment>\nif (abs(normalize(vGlyphDirection).y) > uGlyphBand) discard;')
-        }
-        material.customProgramCacheKey = () => 'cinema2-crate-glyph-band'
-      }
-      return material
-    }
-    const body = this.assembly(core, 'original-glyph-sphere', { position: [0, 0, 0], angles: [0, -.32, -.08], scale: 2.65 })
-    this.sourceMesh(body, source, glyphMaterial(0xf9f4ff, 2.4))
-
-    const shells = [
-      { role: 'inner-glyph-band', radius: 3.15, angles: [.38, .1, -.68], color: 0x7aefff, power: 1.29, band: .33 },
-      { role: 'middle-glyph-band', radius: 4.6, angles: [1.06, -.12, .44], color: 0xffd296, power: 1.03, band: .24 },
-      { role: 'outer-glyph-band', radius: 6.12, angles: [.83, .59, -.20], color: 0xa191fa, power: .95, band: .18 },
-    ] as const
-    const rimBody = this.ownMaterial(new THREE.MeshStandardMaterial({ color: 0x232e42, emissive: 0x151928, roughness: .32, metalness: .58 }))
-    for (const shell of shells) {
-      const ring = this.assembly(root, shell.role, { position: [0, 0, 0], angles: shell.angles })
-      const band = this.family(ring, shell.role)
-      band.scale.setScalar(shell.radius / .7523)
-      this.sourceMesh(band, source, glyphMaterial(shell.color, shell.power, shell.band))
-      const ticks = this.family(ring, 'armillary-index-ticks')
-      const clamps = this.family(ring, 'armillary-joint-lights')
-      const frameRadius = shell.radius * Math.sqrt(1 - shell.band ** 2)
-      for (const sign of [-1, 1]) {
-        const rail = new THREE.Mesh(this.ownGeometry(new THREE.TorusGeometry(frameRadius, .022, 6, 100)), rimBody)
-        rail.rotation.x = Math.PI / 2
-        rail.position.y = sign * shell.radius * shell.band
-        ring.add(rail)
-      }
-      for (let step = 0; step < 32; step += 1) {
-        const angle = step * Math.PI / 16
-        const p = (r: number, y: number): Cinema2Vector3 => [Math.cos(angle) * r, y, Math.sin(angle) * r]
-        const y = shell.radius * shell.band
-        this.bar(ticks, p(frameRadius, y), p(frameRadius + (step % 4 === 0 ? .22 : .095), y), .013, this.emission(ticks.name, shell.color, .7))
-        if (step % 8 === 0) this.bar(clamps, p(frameRadius + .055, -y), p(frameRadius + .055, y), .033, this.emission(clamps.name, shell.color, 1.8))
-      }
-    }
-    this.staticLight(root, 'armillary-cool-fill', [1.6, 2.8, 4.2], 0x56beff, 32, 12)
   }
 
   private sourceMesh(parent: Three.Object3D, source: Mesh, material: Three.Material): void {

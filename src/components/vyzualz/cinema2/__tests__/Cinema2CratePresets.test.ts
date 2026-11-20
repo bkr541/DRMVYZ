@@ -20,7 +20,7 @@ describe('Cinema 2.0 crate reference presets', () => {
     for (const manifest of CINEMA2_CRATE_PRESET_MANIFESTS) {
       const registered = cinema2NativePresetRegistry.get(manifest.id)!
       expect(cinema2NativePresetRegistry.compile(manifest.id).ok).toBe(true)
-      const cameraPath = ['bass-sigil', 'moire-orb', 'beam-lattice', 'paradox-weave'].some(slug => manifest.id === `drmvyz.cinema2.crate-${slug}`)
+      const cameraPath = ['bass-sigil', 'moire-orb', 'beam-lattice', 'paradox-weave', 'glyph-sphere'].some(slug => manifest.id === `drmvyz.cinema2.crate-${slug}`)
       if (!cameraPath) { expect(registered.parameters).toHaveLength(0); expect(registered.choreography?.rules ?? []).toHaveLength(0) }
       expect(registered.cameras?.[0].rig?.kind).toBe(cameraPath ? 'path' : 'static')
       expect(manifest.modules?.[0].config?.instances).toEqual(expect.arrayContaining([expect.objectContaining({ spin: false, preserveMaterials: manifest.id !== 'drmvyz.cinema2.crate-beam-lattice' })]))
@@ -32,9 +32,9 @@ describe('Cinema 2.0 crate reference presets', () => {
       expect(hash(`public/cinema2/models/crate/${artifact.file}`)).toBe(hash(`3D Cinema 2.0 Crate/${artifact.file}`))
     }
   })
-  it('keeps the remaining two authored environments static, with original assets and no playback bindings', () => {
+  it('keeps the remaining authored environment static, with original assets and no playback bindings', () => {
     const presentations = Object.keys(CINEMA2_CRATE_PRESENTATIONS).filter(isCinema2CratePresentationId)
-    expect(presentations).toHaveLength(2)
+    expect(presentations).toEqual(['wireframe-portal'])
     for (const slug of presentations) {
       const manifest = CINEMA2_CRATE_PRESET_MANIFESTS.find(preset => preset.id === `drmvyz.cinema2.crate-${slug}`)!
       expect(manifest.cameras?.[0]).toMatchObject({ label: CINEMA2_CRATE_PRESENTATIONS[slug].name, rig: { kind: 'static' } })

@@ -7,6 +7,7 @@ import { CINEMA2_NATIVE_PRESET_SCHEMA_ID, CINEMA2_NATIVE_PRESET_SCHEMA_VERSION, 
 import { CINEMA2_THREE_SCENE_MODULE_TYPE_ID } from '../modules/Cinema2ThreeSceneModule'
 import { cinema2CratePresentationModuleId } from '../modules/Cinema2CratePresentationModule'
 import { CINEMA2_CRATE_PRESENTATIONS, isCinema2CratePresentationId } from '../modules/crate/Cinema2CratePresentation'
+import { CINEMA2_GLYPH_SPHERE_PRESET_MANIFEST } from './Cinema2GlyphSpherePreset'
 import { withCinema2CratePresentationFinish } from './Cinema2CratePresentationFinish'
 import { withCinema2ParallaxCipher } from './Cinema2ParallaxCipherPreset'
 
@@ -119,6 +120,7 @@ export const CINEMA2_CRATE_ARTIFACTS = [
 export const CINEMA2_CRATE_PRESET_MANIFESTS: readonly Readonly<Cinema2NativePresetManifest>[] = CINEMA2_CRATE_ARTIFACTS.map((artifact): Readonly<Cinema2NativePresetManifest> => {
   if (artifact.slug === 'moire-orb') return CINEMA2_MOIRE_ORB_PRESET_MANIFEST
   if (artifact.slug === 'bass-sigil') return CINEMA2_BASS_SIGIL_PRESET_MANIFEST
+  if (artifact.slug === 'glyph-sphere') return CINEMA2_GLYPH_SPHERE_PRESET_MANIFEST
   const animated = artifact.slug === 'beam-lattice'
   const presentationId = isCinema2CratePresentationId(artifact.slug) ? artifact.slug : null
   const presentation = presentationId ? CINEMA2_CRATE_PRESENTATIONS[presentationId] : undefined

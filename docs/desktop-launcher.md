@@ -3,8 +3,10 @@
 Run `launch.command` from Finder or the repository. It selects Node 22 and runs
 `scripts/run-electron-dev.mjs` to start Vite and the isolated DRMVYZ Electron shell.
 
-The desktop icon is `electron/assets/app-icon.png`, copied unchanged from the
-supplied Stageless logo. Electron uses it for window icons and the macOS Dock;
+The desktop icon is `electron/assets/app-icon.png`, generated from the supplied
+`stageless_app_logo_1.png` (preserved as `electron/assets/app-icon-source.png`).
+The icon fits a transparent 1024px square without stretching the artwork.
+Electron uses it for window icons and the macOS Dock;
 electron-builder uses it for macOS, Windows and Linux packages. Restart the app
 to update the running icon; installed application bundles need a new build.
 

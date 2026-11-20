@@ -1,13 +1,13 @@
 # Cinema 2.0 crate previews
 
-The Cinema 2.0 crate presets use the owner’s `3D Cinema 2.0 Crate` files. The source GLBs live in `public/cinema2/models/crate/`. Glyph Sphere and Wireframe Portal build static 3D environments from those artifacts. Paradox Weave’s Parallax Cipher uses an authored camera move. Beam Lattice, Bass Sigil and Moire Orb have their own performances described below.
+The Cinema 2.0 crate presets use the owner’s `3D Cinema 2.0 Crate` files. The source GLBs live in `public/cinema2/models/crate/`. Wireframe Portal builds a static 3D environment from its artifact. Glyph Sphere has its own performance, described below. Paradox Weave’s Parallax Cipher uses an authored camera move. Beam Lattice, Bass Sigil and Moire Orb have their own performances described below.
 
 | Preset | Source GLB | Appearance |
 | --- | --- | --- |
 | Moire Orb | `geometry_texture_effect_spheres.glb` | Original translucent core in Resonance Reactor, with 48 ring segments and 12 moving fixtures |
 | Beam Lattice | `lasers_-_vj.glb` | Reference yellow laser field, seven native bank programs, shared choreography and Auto/Mood |
 | Wireframe Portal | `lightweight.glb` | Corner Truss, with connected bays of chamfered cube frames |
-| Glyph Sphere | `oyes.glb` | Glyph Armillary, with a white glyph core and three tilted glyph bands |
+| Glyph Sphere | `oyes.glb` | Glyph Armillary: a glowing glyph core inside three tilted glyph bands in ruled ring frames, with beat-chased ticks, a drifting starfield, an omnidirectional camera, musical choreography and shared Auto Performance |
 | Paradox Weave | `paradox_abstract_art_of_python.glb` | Parallax Cipher, with staggered angular plates and 3D lettering that aligns from a single viewpoint |
 | Bass Sigil | `skrillex_-_vj_-_flash_warning.glb` | The original cellular sphere, particle fields and glow around **a 3D model you choose** (the supplied logo is removed), with eight native programs, musical choreography and shared Auto Performance |
 
@@ -15,11 +15,10 @@ The stable preset IDs are `drmvyz.cinema2.crate-<slug>`. The crate manifests use
 
 ### Original static lighting families
 
-Each family has named scene groups and its own fixture materials. Repeated fixtures share instanced draws by group and material. The scene inspection reports the available families. Design controls, animation playback, choreography, and Audio Intelligence were outside that initial visual pass.
+Each family (Corner Truss only; Glyph Sphere is animated, see below) has named scene groups and its own fixture materials. Repeated fixtures share instanced draws by group and material. The scene inspection reports the available families. Design controls, animation playback, choreography, and Audio Intelligence were outside that initial visual pass.
 
 | Environment | Lighting families |
 | --- | --- |
-| Glyph Armillary | White glyph core, three independently tinted glyph bands, index ticks, and joint lights |
 | Corner Truss | Frame rails, edge runs, cross-braces, chamfered joints, bay links, and wayfinding pins |
 
 The Paradox file requires the older `KHR_materials_pbrSpecularGlossiness` extension. A small GLTFLoader plugin maps its diffuse/specular/gloss factors to physical material properties during decoding, avoiding the loader's white fallback. This supports factor-based legacy materials; specular/glossiness textures remain rejected by both the asset validator and loader. Source bytes remain untouched.
@@ -76,3 +75,20 @@ The user withdrew Laser Loom and supplied `Reference_vid.mov` to define the requ
 Bass Sigil’s Source tab retains the selectable 3D-model library but omits the selected-model summary, Remove Model button and Open Media Manager shortcut. Other model-slot presets retain those controls.
 
 Glitch Array and Nested Pulse have been removed from the Cinema 2.0 catalog and module registry. Their original supplied GLBs and asset attributions remain preserved.
+
+
+## Glyph Sphere (Glyph Armillary), revision 3
+
+Revision 3 replaces the static environment with a native module (`glyph-sphere-native`, `modules/Cinema2GlyphSphereNativeModule.ts` and `modules/glyphSphere/GlyphSphereScene.ts`). The asset, preset id and bloom/finish effect ids are unchanged.
+
+**Scene.** The source mesh is drawn four times: a white core (2.65× scale, with a fresnel halo) and three bands (inner cyan, middle amber, outer violet), each clipped to a latitude slab by a per-band shader. Each band sits in its own ring frame: two metal rails, 32 index ticks per ring and four vertical joint bars, plus a beacon at each long tick. A gradient dome and two starfield layers sit behind; the starfield is 900 points on high, 450 on medium and none on low. The source model's three baked morph targets drive the core's breathing, with an offset per band.
+
+**Motion.** A phase accumulates in beats from the shared beat clock, so the bands turn faster on a faster track, hold while paused and idle at the 120 BPM reference with no source. Bands turn in alternating directions, rock on their tilt, and the frames counter-turn. A bright pulse circles each tick ring; its per-instance colour is rewritten every frame.
+
+**Controls.** Master Controls: BPM Sync, Intensity, Audio Reactivity, Auto Performance. Design: Core (Scale, Glow, Breath), Bands (Spin, Spread, Wobble, Lighting), Frames (Frame Glow, Index Ticks, Joint Lights), Camera (mode, motion, Kick Zoom, speed, manual heading/elevation/distance, field of view). Effects: Core Halo, Bloom, Starfield, Tone Finish. Palette: Background, Core, Inner/Middle/Outer Band, Frames.
+
+**Camera.** Manual, Horizontal and Omnidirectional orbit variants; the 44 s omnidirectional path is tempo-synced and a kick zooms the field of view.
+
+**Choreography.** Bass compresses the core, overall energy speeds the bands, highs lift the ticks, vocals ease the band light; kicks, snares and drops fire short accents. All scale with Audio Reactivity. With Auto Performance on, the Mood Conductor drives calm, momentum, energy, tension, build, peak and shock, and silence pulls the lighting controls to 10%. Lighting zeros stay authoritative.
+
+**Verification.** `Cinema2GlyphSphere.test.ts` and `Cinema2GlyphSpherePerformance.test.ts` (including the shared mood-migration suite and the Auto Performance coverage test) pass. In headless Chromium with software WebGL the preset renders without errors on high and medium; a real PCM soundtrack through the production analyser pump moved the live targets (core scale 0.93–1.00, band spin 1.0–1.3, ticks to 1.2, frame glow to 1.14, core glow to 1.08). That run did not exercise snare or drop accents, and nothing here was measured on a real GPU.
