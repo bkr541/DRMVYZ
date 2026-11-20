@@ -68,11 +68,11 @@ Accent Rail production validation: 11 focused component/engine tests and focused
 
 ## Record Listing
 
-Record Listing contains three columns: Presets, Audio Tracks and 3D Models. Each
-column has its own production `LibraryViewToggle` and independently switches
-between grid and list views. The cards reuse `ReactPresetCard`, `AudioTrackCard`
+Record Listing stacks Presets, Audio Tracks and 3D Models in one column, in that order. Its width uses the production `--fw-performance-rail-width` token shared by the left windows. Each
+group has its own production `LibraryViewToggle` and independently switches
+between grid and list views. The cards reuse Preset Manager’s `PresetLibraryCard`, `AudioTrackCard`
 and the store-free `ModelLibraryCard` presentation also used by Media Manager.
-Production styles are scoped to this study. Sample metadata and thumbnail assets
+Preset cards retain their wide blueprint artwork, capability icons and favorite button. Models use Media Manager’s four-column square contact sheet and 58px list cards without Lab size overrides. Production styles are scoped to this study. Sample metadata and thumbnail assets
 are local; selection, favorites and the loaded indicator do not affect application
 data, load audio or activate presets. Existing tab names and permanent IDs survive
 the addition of the new slot.

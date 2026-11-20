@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, type CSSProperties } from 'react'
 import { AppIcon } from '../../../shared/icons/AppIcon'
-import { ReactPresetCard } from '../ReactPresetCard'
+import { PresetLibraryCard } from '../../presetManager/PresetLibraryCard'
+import { PRESET_MANAGER_PRESETS } from '../../presetManager/presetManagerCatalog'
 import { PresetBlueprintImage } from '../PresetBlueprintImage'
 import { AudioTrackCard } from '../../media/AudioTrackCard'
 import { ModelLibraryCard } from '../../media/ModelLibraryCard'
@@ -9,6 +10,7 @@ import type { SavedAudioTrack } from '../../../../stores/audioStore'
 import appearance from '../../../../styles/appearance.css?inline'
 import mediaStyles from '../../../../styles/vyzualz.css?inline'
 import presetStyles from '../../../../styles/reactView.css?inline'
+import presetManagerStyles from '../../../../styles/presetManager.css?inline'
 import modelStyles from '../../../../styles/mediaManager.css?inline'
 import lyricStyles from '../../../../styles/lyricManager.css?inline'
 import headerStyles from '../../layout/HeaderControlGroup.css?inline'
@@ -21,6 +23,7 @@ const RECORDS = [
   { id: 'drmvyz.cinema2.bwc', name: 'BWC' },
   { id: 'drmvyz.cinema2.chamber', name: 'CHAMBER' },
 ]
+const LIBRARY_PRESETS = ['Afterhours', 'Ancient Machine', 'ATL HOE', 'Crystalized'].map(name => PRESET_MANAGER_PRESETS.find(preset => preset.name === name)!).filter(Boolean)
 const TRACKS: SavedAudioTrack[] = ['Afterhours', 'Midnight Circuit', 'Signal Drift', 'Closing Time'].map((title, index) => ({
   id: 'lab-audio-' + index, dbId: 'lab-audio-' + index, title, artist: 'DVYDRM',
   fileName: title + '.wav', storagePath: null, durationSec: 240 + index * 27,
@@ -31,12 +34,18 @@ const TRACKS: SavedAudioTrack[] = ['Afterhours', 'Midnight Circuit', 'Signal Dri
 const MODELS = [RECORDS[3], { ...RECORDS[0], name: 'Reactor Assembly' }, { id: 'drmvyz.cinema2.crate-moire-orb', name: 'Moire Orb' }, { ...RECORDS[1], name: 'Glass Sculpture' }]
 // Scope the actual production CSS to this study. Production controls share
 // presentation, while all data, selection and actions stay local to the lab.
-const productionStyles = '@scope (.ll-records) {' + [appearance, mediaStyles, presetStyles, modelStyles, lyricStyles, headerStyles, viewStyles].join('\n').replaceAll(':root', ':scope') + '}'
+const productionStyles = '@scope (.ll-records) {' + [appearance, mediaStyles, presetStyles, presetManagerStyles, modelStyles, lyricStyles, headerStyles, viewStyles].join('\n').replaceAll(':root', ':scope') + '}'
 
 export function RecordListingStudies() {
+  // Portals do not inherit the opener's root tokens (corner radius, UI fonts, rail insets).
+  const [productionTokens] = useState(() => {
+    const source = document.querySelector<HTMLElement>("[data-workspace-layout='floating']") ?? document.querySelector<HTMLElement>('.az-root') ?? document.documentElement
+    const computed = getComputedStyle(source)
+    return Object.fromEntries(Array.from(computed).filter(name => name.startsWith('--')).map(name => [name, computed.getPropertyValue(name)])) as CSSProperties
+  })
   const fontStylesheet = document.querySelector<HTMLLinkElement>('link[rel="stylesheet"][href*="fonts.googleapis.com/css2"]')?.href
-  const [views, setViews] = useState<Record<string, LibraryView>>({ presets: 'grid', audio: 'list', models: 'grid' })
-  const [selected, setSelected] = useState({ presets: RECORDS[0].id, audio: TRACKS[0].id, models: MODELS[0].id })
+  const [views, setViews] = useState<Record<string, LibraryView>>({ presets: 'list', audio: 'list', models: 'grid' })
+  const [selected, setSelected] = useState({ presets: LIBRARY_PRESETS[0].id, audio: TRACKS[0].id, models: MODELS[0].id })
   const [favorites, setFavorites] = useState<Set<string>>(() => new Set())
   const [loaded, setLoaded] = useState<string | null>(null)
   const favorite = (id: string) => setFavorites(current => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next })
@@ -45,16 +54,17 @@ export function RecordListingStudies() {
     <h2 id={'ll-records-' + id}><AppIcon kind={icon} size={15} />{title}</h2>
     <LibraryViewToggle view={views[id]} onChange={view => setViews(current => ({ ...current, [id]: view }))} />
   </header>
-  return <div className="ll-records" data-theme="dark" aria-label="Record Listing studies">
+  return <div className="ll-records" style={productionTokens} data-theme="dark" aria-label="Record Listing studies">
     {fontStylesheet && <link rel="stylesheet" href={fontStylesheet} />}
     <style>{productionStyles + styles}</style>
     <section className="ll-records-column" aria-labelledby="ll-records-presets" data-record-section="presets" data-view={views.presets}>
       {heading('presets', 'Presets', 'navPreset')}
-      <div className={'ll-records-items ll-records-items--' + views.presets} data-preset-grid data-preset-columns={views.presets === 'grid' ? 2 : 1}>
-        {RECORDS.map(preset => <ReactPresetCard key={preset.id} id={preset.id} title={preset.name} description="Cinema 2.0" layout={views.presets === 'grid' ? 'poster' : 'row'}
-          thumbnail={<PresetBlueprintImage presetId={preset.id} />} chips={[{ label: 'Cinema 2.0' }]}
-          isActive={selected.presets === preset.id} isFavorite={favorites.has(preset.id)} activateLabel={'Preview ' + preset.name}
-          onActivate={() => select('presets', preset.id)} onToggleFavorite={() => favorite(preset.id)} />)}
+      <div className="ll-records-body">
+        <div className={views.presets === 'list' ? 'pmv-card-list' : 'll-records-preset-grid'}>
+          {LIBRARY_PRESETS.map(preset => <PresetLibraryCard key={preset.id} preset={preset}
+            active={selected.presets === preset.id} favorite={favorites.has(preset.id)}
+            onSelect={() => select('presets', preset.id)} onToggleFavorite={() => favorite(preset.id)} />)}
+        </div>
       </div>
     </section>
     <section className="ll-records-column" aria-labelledby="ll-records-audio" data-record-section="audio" data-view={views.audio}>
@@ -64,17 +74,19 @@ export function RecordListingStudies() {
           {TRACKS.map(track => <div key={track.id} className={views.audio === 'list' ? 'lmv-track-group' : undefined}>
             <AudioTrackCard track={track} onSelect={() => select('audio', track.id)} isActive={selected.audio === track.id}
               onLoad={() => setLoaded(track.id)} loading={false} loaded={loaded === track.id} loadedDot playing={false}
-              canLoad canOpenLyrics={false} canRemove={false} listRow={views.audio === 'list'} artistFirst={views.audio === 'list'} metadataIcons selectedBadge />
+              canLoad canOpenLyrics={false} canRemove={false} actionsInOverflow cueStyleOverflowMenu activeLyricsIcon="audioTrack" listRow={views.audio === 'list'} artistFirst={views.audio === 'list'} metadataIcons selectedBadge />
           </div>)}
         </div>
       </div>
     </section>
     <section className="ll-records-column" aria-labelledby="ll-records-models" data-record-section="models" data-view={views.models}>
       {heading('models', '3D Models', 'layers')}
-      <div className={'ll-records-items ll-records-items--' + views.models + (views.models === 'grid' ? ' vz-media-sheet' : ' vz-media-list mm-model-card-list')}>
+      <div className="ll-records-body mm-model-card-scroll">
+      <div className={views.models === 'grid' ? 'vz-media-sheet' : 'vz-media-list mm-model-card-list'} style={{ '--mm-model-list-card-height': '58px' } as CSSProperties}>
         {MODELS.map(model => <ModelLibraryCard key={model.id} name={model.name} type="GLB · v1" view={views.models} selected={selected.models === model.id}
           onSelect={() => select('models', model.id)} preview={<PresetBlueprintImage presetId={model.id} />}
           favorite={favorites.has('model-' + model.id)} onToggleFavorite={() => favorite('model-' + model.id)} />)}
+      </div>
       </div>
     </section>
   </div>

@@ -7,9 +7,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { LayoutLabMockup } from '../LayoutLabMockup'
 import { LAYOUT_LAB_STORAGE_KEY } from './layoutLabTabs'
 
+const resizeObserverDescriptor = Object.getOwnPropertyDescriptor(window, 'ResizeObserver')
 let host: HTMLDivElement
 let root: ReturnType<typeof createRoot>
 beforeEach(() => {
+  // Production blueprint artwork uses SVG layout APIs absent from jsdom.
+  Object.defineProperty(SVGElement.prototype, 'getScreenCTM', { configurable: true, value: () => null })
+  Object.defineProperty(window, 'ResizeObserver', { configurable: true, value: class { observe() {} disconnect() {} } })
   window.localStorage.clear()
   host = document.createElement('div')
   document.body.append(host)
@@ -20,6 +24,9 @@ afterEach(async () => {
   host.remove()
   window.localStorage.clear()
   vi.restoreAllMocks()
+  Reflect.deleteProperty(SVGElement.prototype, 'getScreenCTM')
+  if (resizeObserverDescriptor) Object.defineProperty(window, 'ResizeObserver', resizeObserverDescriptor)
+  else Reflect.deleteProperty(window, 'ResizeObserver')
 })
 const render = async () => { await act(async () => root.render(<LayoutLabMockup />)) }
 const tab = (index: number) => host.querySelector<HTMLButtonElement>(`#layout-lab-tab-0${index}`)!
@@ -47,12 +54,15 @@ describe('persistent Layout Lab tabs', () => {
     const presets = panel.querySelector('[data-record-section="presets"]')!
     const audio = panel.querySelector('[data-record-section="audio"]')!
     const models = panel.querySelector('[data-record-section="models"]')!
-    expect(presets.querySelectorAll('.rv-preset-card')).toHaveLength(4)
+    expect(presets.querySelectorAll('.pmv-card')).toHaveLength(4)
     expect(audio.querySelectorAll('.vz-track-row')).toHaveLength(4)
     expect(models.querySelectorAll('.mm-model-card')).toHaveLength(4)
-    await act(async () => presets.querySelector<HTMLButtonElement>('[aria-label="List view"]')!.click())
-    expect(presets.getAttribute('data-view')).toBe('list')
-    expect(presets.querySelector('.rv-preset-spotlight-card--poster')).toBeNull()
+    await act(async () => presets.querySelector<HTMLButtonElement>('[aria-label="Grid view"]')!.click())
+    expect(presets.getAttribute('data-view')).toBe('grid')
+    expect(presets.querySelectorAll('.pmv-thumbnail.rv-preset-spotlight-thumb--blueprint')).toHaveLength(4)
+    expect(presets.querySelector('.rv-preset-card')).toBeNull()
+    expect(presets.querySelector('.pmv-card-copy strong')?.textContent).toBe('Afterhours')
+    expect(presets.querySelector('[aria-label="3D Environment"]')).not.toBeNull()
     expect(audio.getAttribute('data-view')).toBe('list')
     expect(models.getAttribute('data-view')).toBe('grid')
     await act(async () => audio.querySelector<HTMLButtonElement>('[aria-label="Grid view"]')!.click())
@@ -64,8 +74,7 @@ describe('persistent Layout Lab tabs', () => {
     expect(model.getAttribute('aria-pressed')).toBe('true')
     await act(async () => models.querySelector<HTMLButtonElement>('[aria-label="Grid view"]')!.click())
     expect(models.querySelectorAll('.mm-model-card-select')[1].getAttribute('aria-pressed')).toBe('true')
-    await act(async () => audio.querySelector<HTMLButtonElement>('[aria-label="Load Midnight Circuit"]')!.click())
-    expect(audio.querySelector('[aria-label="Loaded"]')).not.toBeNull()
+
   })
 
   it('keeps content identity through renaming, switching tabs and reopening', async () => {

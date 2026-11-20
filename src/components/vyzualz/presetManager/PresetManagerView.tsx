@@ -1,5 +1,5 @@
 import { AppIcon } from '../../shared/icons/AppIcon'
-import { useCallback, useEffect, useId, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { useShallow } from 'zustand/react/shallow'
 import { useRecorder } from '../../../hooks/useRecorder'
@@ -41,13 +41,11 @@ import {
 import { CANVAS_OUTPUT_AVAILABLE } from '../react/canvasFracturesOutputContract'
 import { useCinema2WorkspaceRestoreState } from '../react/useCinema2WorkspaceRestoreState'
 import { Collapsible, TextAreaRow, TextInputRow } from '../react/ReactControlRows'
-import { ReactPresetArtwork } from '../react/ReactPresetCard'
-import { ReactPresetThumbnail } from '../react/ReactPresetThumbnail'
-import { DEFAULT_REACT_PRESETS } from '../react/ReactTypes'
 import { PresetSearchRow } from '../react/controls/PresetSearchRow'
 import { UnderlineDropdown } from '../react/controls/UnderlineDropdown'
 import { UnderlineTabs, type UnderlineTabOption } from '../react/controls/UnderlineTabs'
 import { TagsCollectionsGroup } from '../media/MediaManagerInspector'
+import { PresetLibraryCard as PresetCard, PresetLibraryArtwork as PresetArtwork } from './PresetLibraryCard'
 import { LivePresetStore } from './LivePresetStore'
 import { CartIcon } from './PresetStore'
 import {
@@ -161,56 +159,6 @@ const categoryOptions = (presets: readonly PresetManagerRecord[]) => [
     .sort((left, right) => left.localeCompare(right))
     .map(category => ({ value: category.toLowerCase(), label: category })),
 ]
-
-const LIVE_ARTWORK_PRESETS = new Map(
-  DEFAULT_REACT_PRESETS
-    .filter(preset => preset.engine === 'oscilloscope' || preset.engine === 'pixGrid')
-    .map(preset => [preset.id, preset]),
-)
-
-function PresetArtwork({ preset, className }: { preset: PresetManagerRecord; className: string }) {
-  const livePreset = preset.activation === 'react' ? LIVE_ARTWORK_PRESETS.get(preset.sourceId) : undefined
-  return (
-    <ReactPresetArtwork
-      id={preset.sourceId}
-      className={className}
-      backdrop={livePreset ? <ReactPresetThumbnail preset={livePreset} /> : undefined}
-    />
-  )
-}
-
-function PresetCard({ preset, active, favorite, onSelect, onToggleFavorite }: { preset: PresetManagerRecord; active: boolean; favorite: boolean; onSelect: () => void; onToggleFavorite: () => void }) {
-  const metadataId = useId()
-  const capabilities = [
-    { label: 'Camera', icon: 'camera', available: preset.hasCamera },
-    { label: 'User Media', icon: 'image', available: preset.canIntegrateUserMedia },
-    { label: '3D Environment', icon: 'shader', available: preset.is3dEnvironment },
-  ] as const
-
-  return (
-    <article className={`pmv-card${active ? ' is-active' : ''}`} data-preset-id={preset.sourceId} data-preset-engine={preset.engineName}>
-      <button className="pmv-card-main" type="button" onClick={onSelect} aria-label={`Select ${preset.name}`} aria-describedby={metadataId} aria-pressed={active}>
-        <PresetArtwork preset={preset} className="pmv-thumbnail" />
-        <span className="pmv-card-copy">
-          <strong>{preset.name}</strong>
-          <span className="pmv-card-meta" id={metadataId}>
-            <span className="pmv-card-type">{preset.engineName}</span>
-            <span className="pmv-card-capabilities">
-              {capabilities.filter(capability => capability.available).map(({ label, icon }) => (
-                <span key={label} className="pmv-capability-badge" role="img" aria-label={label} title={label}>
-                  <AppIcon kind={icon} size={12} />
-                </span>
-              ))}
-            </span>
-          </span>
-        </span>
-      </button>
-      <button className={`vz-media-star${favorite ? ' vz-media-star--active' : ''}`} type="button" onClick={onToggleFavorite} aria-label={`${favorite ? 'Remove' : 'Add'} ${preset.name} ${favorite ? 'from' : 'to'} favorites`}>
-        <AppIcon kind={favorite ? 'star' : 'starOff'} size={13} color="currentColor" />
-      </button>
-    </article>
-  )
-}
 
 export function PresetManagerView() {
   const [tab, setTab] = useState<PresetManagerTab>('presets')
