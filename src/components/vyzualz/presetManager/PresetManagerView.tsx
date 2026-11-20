@@ -7,6 +7,7 @@ import { EMPTY_PRESET_ORGANIZATION, usePresetOrganizationStore } from '../../../
 import { usePresetCatalogStore, usePresetScopeFilter } from '../../../features/presetCatalog/presetCatalogStore'
 import { applyPresetMetadata } from '../../../features/presetCatalog/presetMetadata'
 import { usePresetMetadata } from '../../../features/presetCatalog/presetMetadataStore'
+import type { ReactPreset } from '../react/ReactTypes'
 import { useMediaStore } from '../../../stores/mediaStore'
 import { useReactStore } from '../../../stores/reactStore'
 import { ApplicationHeaderControls } from '../layout/ApplicationWorkspaceFrame'
@@ -41,6 +42,13 @@ import {
 import { CANVAS_OUTPUT_AVAILABLE } from '../react/canvasFracturesOutputContract'
 import { useCinema2WorkspaceRestoreState } from '../react/useCinema2WorkspaceRestoreState'
 import { Collapsible, TextAreaRow, TextInputRow } from '../react/ReactControlRows'
+import { IconChipButton } from '../react/controls/IconChipButton'
+import { ConfirmDialog } from '../react/controls/ConfirmDialog'
+import { PixGridSurface } from '../react/pixGrid/PixGridSurface'
+import { applyPixGridPresetSettings } from '../react/pixGrid/PixGridState'
+import { isPixGridDeckGeneratedPreset } from '../react/pixGrid/PixGridDeckPreset'
+import { usePixGridDeckBuilder } from '../react/pixGrid/usePixGridDeckBuilder'
+import { PixGridDeckBuilderInspector, PixGridDeckBuilderLibrary, PixGridDeckSequenceStrip } from '../showManager/PixGridDeckBuilder'
 import { PresetSearchRow } from '../react/controls/PresetSearchRow'
 import { UnderlineDropdown } from '../react/controls/UnderlineDropdown'
 import { UnderlineTabs, type UnderlineTabOption } from '../react/controls/UnderlineTabs'
@@ -50,6 +58,7 @@ import { LivePresetStore } from './LivePresetStore'
 import { CartIcon } from './PresetStore'
 import {
   PRESET_MANAGER_PRESETS,
+  pixGridDeckPresetRecord,
   type PresetManagerRecord,
 } from './presetManagerCatalog'
 import '../../../styles/reactView.css'
@@ -107,7 +116,17 @@ function usePresetOwnerLabel(preset: PresetManagerRecord): string {
   return isSystem ? 'SYSTEM' : 'USER'
 }
 
-function PresetInfoPanel({ preset }: { preset: PresetManagerRecord }) {
+/** The deck a custom PixGrid Deck preset was built from (none for shipped presets). */
+function deckIdOf(preset: PresetManagerRecord): string | null {
+  return (preset.sourceData as { pixGridDeck?: { deckId?: string } }).pixGridDeck?.deckId ?? null
+}
+
+function PresetInfoPanel({ preset, onCreateDeck, onEditDeck }: {
+  preset: PresetManagerRecord
+  onCreateDeck: () => void
+  onEditDeck: (deckId: string) => void
+}) {
+  const deckId = deckIdOf(preset)
   const owner = usePresetOwnerLabel(preset)
   const organization = usePresetOrganizationStore(state => state.records[preset.id]) ?? EMPTY_PRESET_ORGANIZATION
   const loadOrganization = usePresetOrganizationStore(state => state.load)
@@ -137,6 +156,17 @@ function PresetInfoPanel({ preset }: { preset: PresetManagerRecord }) {
                 <InfoRow label="Custom" value={preset.custom ?? false} />
               </div>
             </Collapsible>
+            {preset.artwork === 'pixGrid' && (
+              <Collapsible label="Custom Workflow" defaultOpen>
+                <div className="rv-ctrl-info rv-control-helper-copy">
+                  Build your own PixGrid preset from 2 to 64 of your images. Each image is converted to the pixel look, and the transitions between them are generated.
+                </div>
+                <div className="rv-ctrl-action-row pmv-custom-workflow">
+                  <IconChipButton onClick={onCreateDeck}>Create PixGrid Deck</IconChipButton>
+                  {deckId && <IconChipButton onClick={() => onEditDeck(deckId)}>Edit Deck</IconChipButton>}
+                </div>
+              </Collapsible>
+            )}
             <TagsCollectionsGroup
               idPrefix="pmv-preset"
               tags={[...organization.tags]}
@@ -147,6 +177,42 @@ function PresetInfoPanel({ preset }: { preset: PresetManagerRecord }) {
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+/** Live PixGrid render for the selected preset (or the Deck being built). No track is loaded here, so time is the preview clock the caller supplies. */
+function PixGridPreviewStage({ preset, pixGridState, pixGridDecks, intensity, motion, glow, bassReactivity, audioTimeSec }: {
+  preset: ReactPreset
+  pixGridState: ReturnType<typeof useReactStore.getState>['pixGridState']
+  pixGridDecks: ReturnType<typeof useReactStore.getState>['pixGridDecks']
+  intensity: number
+  motion: number
+  glow: number
+  bassReactivity: number
+  audioTimeSec: number
+}) {
+  const state = useMemo(
+    () => applyPixGridPresetSettings(pixGridState, preset.id, preset.pixGridSettings),
+    [pixGridState, preset],
+  )
+  const getAudioTime = useCallback(() => audioTimeSec, [audioTimeSec])
+  return (
+    <div className="pmv-pixgrid-stage" aria-label={`${preset.name} PixGrid preview`}>
+      <PixGridSurface
+        analyser={null}
+        activePreset={preset}
+        pixGridState={state}
+        pixGridDecks={pixGridDecks}
+        intensity={intensity}
+        motion={motion}
+        glow={glow}
+        bassReactivity={bassReactivity}
+        isPlaying={false}
+        isPaused
+        audioTimeSec={audioTimeSec}
+        getAudioTime={getAudioTime}
+      />
     </div>
   )
 }
@@ -177,7 +243,30 @@ export function PresetManagerView() {
 
   // The shipped presets with the admin's metadata applied (name, description, category, tags and display order; see presetMetadata.ts).
   const presetMetadata = usePresetMetadata()
-  const presetList = useMemo(() => applyPresetMetadata(PRESET_MANAGER_PRESETS, presetMetadata), [presetMetadata])
+  // User-built PixGrid Deck presets live in the project, so they join the shipped list here and show under Custom.
+  const reactPresets = useReactStore(state => state.reactPresets)
+  const pixGridState = useReactStore(state => state.pixGridState)
+  const pixGridDecks = useReactStore(state => state.pixGridDecks)
+  const reactIntensity = useReactStore(state => state.reactIntensity)
+  const reactMotion = useReactStore(state => state.reactMotion)
+  const reactGlow = useReactStore(state => state.reactGlow)
+  const reactBassReactivity = useReactStore(state => state.reactBassReactivity)
+  const deckRecords = useMemo(() => reactPresets.filter(isPixGridDeckGeneratedPreset).map(pixGridDeckPresetRecord), [reactPresets])
+  const presetList = useMemo(
+    () => applyPresetMetadata([...PRESET_MANAGER_PRESETS, ...deckRecords], presetMetadata),
+    [deckRecords, presetMetadata],
+  )
+  const deckBuilder = usePixGridDeckBuilder({
+    onPresetCreated: generatedPresetId => {
+      useReactStore.getState().selectReactPreset(generatedPresetId)
+      setTab('custom')
+    },
+    onExit: () => document.querySelector<HTMLButtonElement>('.pmv-custom-workflow button')?.focus(),
+  })
+  const openDeckBuilder = (deckId: string | null) => {
+    setStageTab('visualizer')
+    deckBuilder.enter(deckId)
+  }
   const selectedPreset = useMemo(
     () => presetList.find(preset => preset.id === selectedId) ?? presetList[0] ?? null,
     [presetList, selectedId],
@@ -203,6 +292,11 @@ export function PresetManagerView() {
     headlinerPresetId: state.headlinerSettings.presetId,
     cinema2Workspace: state.cinema2Workspace,
   })))
+
+  const selectedReactPreset = useMemo(
+    () => selectedPreset?.artwork === 'pixGrid' ? reactPresets.find(preset => preset.id === selectedPreset.sourceId) ?? null : null,
+    [reactPresets, selectedPreset],
+  )
 
   const fallbackCinema2PresetId = useMemo(
     () => PRESET_MANAGER_PRESETS.find(preset => preset.activation === 'cinema2')?.sourceId as Cinema2PresetId | undefined,
@@ -325,7 +419,7 @@ export function PresetManagerView() {
 
   const renderInspectorPanel = () => {
     if (!selectedPreset) return null
-    if (activeRightPanel === 'info') return <PresetInfoPanel preset={selectedPreset} />
+    if (activeRightPanel === 'info') return <PresetInfoPanel preset={selectedPreset} onCreateDeck={() => openDeckBuilder(null)} onEditDeck={openDeckBuilder} />
     if (activeRightPanel === 'design') {
       if (selectedPreset.activation === 'cinema2') return <Cinema2InspectorPanel runtime={cinema2Runtime} surface="design" />
       if (selectedPreset.activation === 'headliner') return <HeadlinerDesignPanel />
@@ -383,6 +477,24 @@ export function PresetManagerView() {
             onToggleCollapsed={() => setLeftCollapsed(value => !value)}
             className="rw-frame--left fw-surface"
           >
+            {deckBuilder.active ? (
+              <PixGridDeckBuilderLibrary
+                deck={deckBuilder.deck}
+                draftName={deckBuilder.draftName}
+                upload={deckBuilder.upload}
+                previewItemId={deckBuilder.previewItemId}
+                onFiles={deckBuilder.addFiles}
+                onPreview={deckBuilder.setPreviewItemId}
+                onMove={deckBuilder.moveItem}
+                onDuplicate={deckBuilder.duplicateItem}
+                onReorder={deckBuilder.reorderItems}
+                onToggle={deckBuilder.toggleItem}
+                onRemove={deckBuilder.removeItem}
+                onBack={deckBuilder.exit}
+                backLabel="Back to Presets"
+              />
+            ) : (
+              <>
             <RailWindowHeader
               side="left"
               icon={<AppIcon kind="layers" size={15} color="currentColor" aria-hidden="true" />}
@@ -423,6 +535,8 @@ export function PresetManagerView() {
                 </div>
               </div>
             </div>
+              </>
+            )}
           </WorkspaceRail>
           <div className="pmv-stage fw-surface" aria-label="Preset Manager detail workspace">
             <UnderlineTabs
@@ -432,7 +546,41 @@ export function PresetManagerView() {
               ariaLabel="Preset Manager workspace views"
               className="pmv-stage-tabs"
             />
-            {stageTab === 'store' ? (
+            {deckBuilder.active ? (
+              <>
+                {deckBuilder.previewPreset ? (
+                  <PixGridPreviewStage
+                    preset={deckBuilder.previewPreset}
+                    pixGridState={pixGridState}
+                    pixGridDecks={pixGridDecks}
+                    intensity={reactIntensity}
+                    motion={reactMotion}
+                    glow={reactGlow}
+                    bassReactivity={reactBassReactivity}
+                    audioTimeSec={deckBuilder.previewTimeFor(null, 0)}
+                  />
+                ) : (
+                  <section className="pmv-selection-summary" aria-label="New Deck">
+                    <div>
+                      <span>PixGrid Deck</span>
+                      <h2>New Deck</h2>
+                      <p>Name the Deck, then upload at least two images to preview it here.</p>
+                    </div>
+                  </section>
+                )}
+                {deckBuilder.deck && (
+                  <PixGridDeckSequenceStrip
+                    deck={deckBuilder.deck}
+                    previewItemId={deckBuilder.previewItemId}
+                    onPreview={deckBuilder.setPreviewItemId}
+                    onPrevious={() => deckBuilder.stepPreview(-1)}
+                    onNext={() => deckBuilder.stepPreview(1)}
+                    transitionProgress={deckBuilder.previewTransitionProgress}
+                    onTransitionProgress={deckBuilder.setPreviewTransitionProgress}
+                  />
+                )}
+              </>
+            ) : stageTab === 'store' ? (
               <LivePresetStore />
             ) : stageTab === 'downloads' ? (
               <section className="pms-downloads" aria-label="My Downloads">
@@ -447,6 +595,17 @@ export function PresetManagerView() {
                 onRuntimeReady={setCinema2Runtime}
                 onRuntimeSnapshot={setCinema2RuntimeSnapshot}
                 onRuntimeRetiring={state => useReactStore.getState().storeCinema2WorkspacePresetState(state)}
+              />
+            ) : selectedReactPreset ? (
+              <PixGridPreviewStage
+                preset={selectedReactPreset}
+                pixGridState={pixGridState}
+                pixGridDecks={pixGridDecks}
+                intensity={reactIntensity}
+                motion={reactMotion}
+                glow={reactGlow}
+                bassReactivity={reactBassReactivity}
+                audioTimeSec={0}
               />
             ) : selectedPreset ? (
               <section className="pmv-selection-summary" aria-label={`${selectedPreset.name} selection`}>
@@ -466,6 +625,21 @@ export function PresetManagerView() {
             onToggleCollapsed={() => setRightCollapsed(value => !value)}
             className="rw-frame--right pmv-inspector fw-surface"
           >
+            {deckBuilder.active ? (
+              <PixGridDeckBuilderInspector
+                deck={deckBuilder.deck}
+                draftName={deckBuilder.draftName}
+                readiness={deckBuilder.readiness}
+                upload={deckBuilder.upload}
+                nameError={deckBuilder.nameError}
+                onDraftName={deckBuilder.setDraftName}
+                onRename={deckBuilder.rename}
+                onUpdate={deckBuilder.update}
+                onCreatePreset={deckBuilder.createPreset}
+                onDelete={deckBuilder.requestDelete}
+              />
+            ) : (
+              <>
             <RailWindowHeader
               side="right"
               icon={<AppIcon kind="settings" size={15} color="currentColor" aria-hidden="true" />}
@@ -482,9 +656,19 @@ export function PresetManagerView() {
             <div className="vz-panel-body pmv-inspector-body" data-selected-preset={selectedPreset?.sourceId ?? ''}>
               {renderInspectorPanel()}
             </div>
+              </>
+            )}
           </WorkspaceRail>
         </div>
       </section>
+      {deckBuilder.pendingDelete && (
+        <ConfirmDialog
+          title="Delete Deck"
+          message="Deleting this Deck will delete the Preset too. Are you sure?"
+          onCancel={deckBuilder.cancelDelete}
+          onConfirm={deckBuilder.confirmDelete}
+        />
+      )}
     </main>
   )
 }

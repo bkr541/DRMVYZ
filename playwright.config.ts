@@ -18,6 +18,7 @@ const deckCompilerBrowser = process.env.DRMVYZ_PIX_GRID_DECK_COMPILER_BROWSER ==
 const deckRuntimeBrowser = process.env.DRMVYZ_PIX_GRID_DECK_RUNTIME_BROWSER === '1'
 const cinemaRuntimeBrowser = process.env.DRMVYZ_CINEMA_RUNTIME_BROWSER === '1'
 const cinema2AfterhoursBrowser = process.env.DRMVYZ_CINEMA2_AFTERHOURS_BROWSER === '1'
+const deckPresetManagerBrowser = process.env.DRMVYZ_PIX_GRID_DECK_PRESET_MANAGER_BROWSER === '1'
 const authenticatedDeckBrowser = process.env.DRMVYZ_PIX_GRID_DECK_AUTHENTICATED_BROWSER === '1'
 const authenticatedStorageState = process.env.DRMVYZ_E2E_AUTH_STORAGE_STATE
 const offlineVisualReview = process.env.DRMVYZ_SHOW_DIRECTOR_VISUAL_REVIEW === '1'
@@ -25,6 +26,7 @@ const offlineVisualReview = process.env.DRMVYZ_SHOW_DIRECTOR_VISUAL_REVIEW === '
   || pixGridBrowserSmoke
   || deckCompilerBrowser
   || deckRuntimeBrowser
+  || deckPresetManagerBrowser
   || cinemaRuntimeBrowser
   || cinema2AfterhoursBrowser
 const webglVisualReview = process.env.DRMVYZ_SHOW_DIRECTOR_WEBGL_VISUAL === '1'
@@ -40,6 +42,8 @@ export default defineConfig({
       ? 'artifacts/cinema-runtime-browser/results'
     : authenticatedDeckBrowser
     ? 'artifacts/pix-grid-deck-authenticated-browser/results'
+    : deckPresetManagerBrowser
+      ? 'artifacts/pix-grid-deck-preset-manager-browser/results'
     : deckRuntimeBrowser
       ? 'artifacts/pix-grid-deck-runtime-browser/results'
       : deckCompilerBrowser

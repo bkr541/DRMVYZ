@@ -98,23 +98,6 @@ export const CINEMA2_CRATE_ARTIFACTS = [
     "far": 230.44550441209228
   },
   {
-    "slug": "nested-pulse",
-    "name": "Nested Pulse",
-    "description": "Nested translucent square frames receding into a tunnel.",
-    "file": "pulse_cubed.glb",
-    "camera": [
-      1.8620694353111467,
-      1.2413796235407646,
-      10.344830196173037
-    ],
-    "target": [
-      0,
-      0,
-      0
-    ],
-    "far": 329.08964930855575
-  },
-  {
     "slug": "bass-sigil",
     "name": "Bass Sigil",
     "description": "A music wordmark inside a crystalline sphere and particle field.",

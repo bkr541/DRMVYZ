@@ -2,7 +2,7 @@ import { useId } from 'react'
 import { AppIcon } from '../../shared/icons/AppIcon'
 import { ReactPresetArtwork } from '../react/ReactPresetCard'
 import { ReactPresetThumbnail } from '../react/ReactPresetThumbnail'
-import { DEFAULT_REACT_PRESETS } from '../react/ReactTypes'
+import { DEFAULT_REACT_PRESETS, type ReactPreset } from '../react/ReactTypes'
 import type { PresetManagerRecord } from './presetManagerCatalog'
 
 const LIVE_ARTWORK_PRESETS = new Map(
@@ -13,11 +13,17 @@ const LIVE_ARTWORK_PRESETS = new Map(
 
 export function PresetLibraryArtwork({ preset, className }: { preset: PresetManagerRecord; className: string }) {
   const livePreset = preset.activation === 'react' ? LIVE_ARTWORK_PRESETS.get(preset.sourceId) : undefined
+  // A user-built PixGrid Deck has no shipped artwork: its thumbnail is rendered from its own first image.
+  const deckPreset = preset.custom && preset.artwork === 'pixGrid' ? preset.sourceData as unknown as ReactPreset : undefined
   return (
     <ReactPresetArtwork
       id={preset.sourceId}
       className={className}
-      backdrop={livePreset ? <ReactPresetThumbnail preset={livePreset} /> : undefined}
+      backdrop={livePreset
+        ? <ReactPresetThumbnail preset={livePreset} />
+        : deckPreset?.pixGridDeck
+          ? <ReactPresetThumbnail preset={deckPreset} generationKey={deckPreset.pixGridDeck.thumbnailFingerprint} />
+          : undefined}
     />
   )
 }

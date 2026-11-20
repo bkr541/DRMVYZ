@@ -1,4 +1,5 @@
 import { AppIcon } from '../../shared/icons/AppIcon'
+import '../../../styles/pixGridDeckBuilder.css'
 import { DreamVizTextInput } from '../react/controls/DreamVizTextInput'
 import { IconMorphCheckbox } from '../react/controls/IconMorphToggle'
 import { DrawerNotice } from '../shared/DrawerNotice'
@@ -22,14 +23,10 @@ import {
   type PixGridDeckUpdatePatch,
 } from '../react/pixGrid/PixGridDeckDomain'
 import type { PixGridDeckPresetReadiness } from '../react/pixGrid/PixGridDeckPreset'
+import type { PixGridDeckUploadUiState } from '../react/pixGrid/usePixGridDeckBuilder'
 import { PIX_GRID_MOTION_PROFILES } from '../react/pixGrid/PixGridMotionProfiles'
 
-export interface PixGridDeckUploadUiState {
-  active: boolean
-  phase: string
-  error: string | null
-  warnings: readonly string[]
-}
+export type { PixGridDeckUploadUiState }
 
 const PLAYBACK_OPTIONS: ReadonlyArray<{ value: PixGridDeckPlaybackOrder; label: string }> = [
   { value: 'forward', label: 'Forward' },
@@ -81,6 +78,8 @@ export function PixGridDeckBuilderLibrary({
   onReorder,
   onToggle,
   onRemove,
+  onBack,
+  backLabel = 'Back',
 }: {
   deck: PixGridDeckDefinition | null
   draftName: string
@@ -93,6 +92,9 @@ export function PixGridDeckBuilderLibrary({
   onReorder: (sourceItemId: string, targetItemId: string) => void
   onToggle: (itemId: string) => void
   onRemove: (itemId: string) => void
+  /** Hosts without their own way out of the builder (Preset Manager) pass this to get a Back button under the header. */
+  onBack?: () => void
+  backLabel?: string
 }) {
   const inputId = useId()
   const draggedItemId = useRef<string | null>(null)
@@ -121,6 +123,7 @@ export function PixGridDeckBuilderLibrary({
         icon={<AppIcon kind="image" size={15} color="currentColor" aria-hidden="true" />}
         label="Deck Images"
       />
+      {onBack && <button type="button" className="sm-deck-back" onClick={onBack}><AppIcon kind="left" size={13} color="currentColor" aria-hidden="true" />{backLabel}</button>}
       <span className="sm-window-substatus">{deck ? `${items.length} of ${PIX_GRID_DECK_MAX_ITEMS} occurrences · sources prepared on demand` : 'Create a new Deck'}</span>
       <div className="sm-deck-upload-card">
         <label htmlFor={inputId} className={`sm-deck-upload-button${upload.active ? ' is-busy' : ''}`}>

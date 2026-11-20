@@ -87,6 +87,15 @@
   min-height: 0;
 }
 
+/* Live PixGrid render for the selected preset or the Deck being built; the Deck sequence strip (fixed height) sits under it. */
+.pmv-stage > .pmv-pixgrid-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.pmv-pixgrid-stage .rv-pix-grid-surface-host { width: 100%; height: 100%; }
+
 .pmv-selection-summary {
   width: min(520px, calc(100% - 48px));
   margin: auto;

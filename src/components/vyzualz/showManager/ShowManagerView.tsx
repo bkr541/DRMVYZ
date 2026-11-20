@@ -73,8 +73,7 @@ import {
   resolvePixGridDeckPresetReadiness,
 } from '../react/pixGrid/PixGridDeckPreset'
 import { usePixGridDeckCompilerStore } from '../react/pixGrid/PixGridDeckCompilerRuntime'
-import { ingestPixGridDeckSourceFiles } from '../react/pixGrid/PixGridDeckMediaService'
-import { createPixGridDeckItemId, PIX_GRID_DECK_MAX_ITEMS } from '../react/pixGrid/PixGridDeckDomain'
+import { usePixGridDeckBuilder } from '../react/pixGrid/usePixGridDeckBuilder'
 import { VyzualzAudioDock } from '../shared/VyzualzAudioDock'
 import { VyzualzHeaderActions } from '../shared/VyzualzHeaderActions'
 import { SaveActiveGlyph, SaveGlyph } from '../layout/HeaderGlyphs'
@@ -90,7 +89,6 @@ import {
   PixGridDeckBuilderLibrary,
   PixGridDeckPresetSummary,
   PixGridDeckSequenceStrip,
-  type PixGridDeckUploadUiState,
 } from './PixGridDeckBuilder'
 import {
   LASER_DMX_SHOW_MANAGER_GRID_SIZE,
@@ -848,10 +846,6 @@ export function ShowManagerView() {
   const selectReactEngine = useReactStore(state => state.selectReactEngine)
   const pixGridState = useReactStore(state => state.pixGridState)
   const pixGridDecks = useReactStore(state => state.pixGridDecks)
-  const renamePixGridDeck = useReactStore(state => state.renamePixGridDeck)
-  const updatePixGridDeck = useReactStore(state => state.updatePixGridDeck)
-  const deletePixGridDeck = useReactStore(state => state.deletePixGridDeck)
-  const createPixGridDeckPreset = useReactStore(state => state.createPixGridDeckPreset)
   const reactIntensity = useReactStore(state => state.reactIntensity)
   const reactMotion = useReactStore(state => state.reactMotion)
   const reactGlow = useReactStore(state => state.reactGlow)
@@ -925,22 +919,6 @@ export function ShowManagerView() {
   const [copyLaserFixturesEnabled, setCopyLaserFixturesEnabled] = useState(false)
   const [copyLaserFixturesSourceSectionId, setCopyLaserFixturesSourceSectionId] = useState<string | null>(null)
   const [previewPresetId, setPreviewPresetId] = useState<string | null>(null)
-  const [workspaceMode, setWorkspaceMode] = useState<'default' | typeof SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE>('default')
-  const [editingDeckId, setEditingDeckId] = useState<string | null>(null)
-  const [deckDraftName, setDeckDraftName] = useState('Untitled Deck')
-  const [deckNameError, setDeckNameError] = useState<string | null>(null)
-  const [previewDeckItemId, setPreviewDeckItemId] = useState<string | null>(null)
-  const [previewDeckTransitionProgress, setPreviewDeckTransitionProgress] = useState(0)
-  const [uploadState, setUploadState] = useState<PixGridDeckUploadUiState>({
-    active: false,
-    phase: 'Ready',
-    error: null,
-    warnings: [],
-  })
-  const deckBuilderHeadingRef = useRef<HTMLDivElement | null>(null)
-  const deckBuilderReturnTargetRef = useRef<'create' | 'edit'>('create')
-  const uploadAbortRef = useRef<AbortController | null>(null)
-  const uploadOperationRef = useRef(0)
   const [laserSavePending, setLaserSavePending] = useState<'save' | 'active' | null>(null)
   const [laserSaveStatus, setLaserSaveStatus] = useState<string | null>(null)
   const [canvasSavePending, setCanvasSavePending] = useState<'save' | 'active' | null>(null)
@@ -957,7 +935,6 @@ export function ShowManagerView() {
   const [pendingSectionEngineReplacement, setPendingSectionEngineReplacement] = useState<PendingSectionEngineReplacement | null>(null)
   const [pendingDeleteCanvasShow, setPendingDeleteCanvasShow] = useState<{ id: string; name: string } | null>(null)
   const [deletingCanvasShow, setDeletingCanvasShow] = useState(false)
-  const [pendingDeleteDeck, setPendingDeleteDeck] = useState<{ id: string } | null>(null)
   const [canvasPlayheadSec, setCanvasPlayheadSec] = useState(0)
   const [linkedAudioLoadError, setLinkedAudioLoadError] = useState<string | null>(null)
   const showOpenOperationRef = useRef(0)
@@ -1283,37 +1260,42 @@ export function ShowManagerView() {
     () => reactPresets.filter(preset => preset.engine === 'pixGrid'),
     [reactPresets],
   )
-  const editingDeck = useMemo(
-    () => pixGridDecks.find(deck => deck.id === editingDeckId) ?? null,
-    [editingDeckId, pixGridDecks],
-  )
-  const deckReadiness = useMemo(() => editingDeck
-    ? resolvePixGridDeckPresetReadiness(
-        editingDeck,
-        compilerStatuses[editingDeck.id],
-        transitionStatuses[editingDeck.id],
-      )
-    : null, [compilerStatuses, editingDeck, transitionStatuses])
-  const deckPreviewPreset = useMemo(
-    () => editingDeck ? createPixGridDeckGeneratedPreset(editingDeck) : null,
-    [editingDeck],
-  )
-
-  useEffect(() => {
-    if (workspaceMode !== SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE) return
-    setDeckDraftName(editingDeck?.name ?? 'Untitled Deck')
-    setDeckNameError(null)
-    setPreviewDeckItemId(current => (
-      editingDeck?.items.some(item => item.id === current && item.enabled)
-        ? current
-        : editingDeck?.items.find(item => item.enabled)?.id ?? null
-    ))
-  }, [editingDeck, workspaceMode])
-
-  useEffect(() => {
-    if (workspaceMode !== SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE) return
-    deckBuilderHeadingRef.current?.focus()
-  }, [workspaceMode])
+  // The Deck Builder is shared with Preset Manager: state and handlers live in the hook, this view only renders its three screens.
+  const deckBuilder = usePixGridDeckBuilder({
+    onExit: returnTarget => {
+      const preferred = returnTarget === 'edit'
+        ? document.querySelector<HTMLButtonElement>('.sm-deck-preset-summary button')
+        : document.querySelector<HTMLButtonElement>('.sm-create-deck-button')
+      ;(preferred ?? document.querySelector<HTMLButtonElement>('.sm-create-deck-button'))?.focus()
+    },
+    onPresetCreated: generatedPresetId => setPreviewPresetId(generatedPresetId),
+    onDeleted: () => notify('show-manager', { tone: 'success', title: 'Deck Deleted', message: 'The Deck and its generated Preset were deleted.' }),
+  })
+  const workspaceMode: 'default' | typeof SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE = deckBuilder.active ? SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE : 'default'
+  const {
+    deck: editingDeck,
+    readiness: deckReadiness,
+    previewPreset: deckPreviewPreset,
+    draftName: deckDraftName,
+    setDraftName: setDeckDraftName,
+    nameError: deckNameError,
+    upload: uploadState,
+    previewItemId: previewDeckItemId,
+    setPreviewItemId: setPreviewDeckItemId,
+    previewTransitionProgress: previewDeckTransitionProgress,
+    setPreviewTransitionProgress: setPreviewDeckTransitionProgress,
+    headingRef: deckBuilderHeadingRef,
+    addFiles: handleDeckFiles,
+    rename: handleDeckRename,
+    update: handleDeckUpdate,
+    moveItem: moveDeckItem,
+    toggleItem: toggleDeckItem,
+    removeItem: removeDeckItem,
+    duplicateItem: duplicateDeckItem,
+    stepPreview,
+    enter: enterDeckBuilder,
+    exit: exitDeckBuilder,
+  } = deckBuilder
 
   useEffect(() => {
     const preferred = findPixGridPreset(reactPresets, activeReactPresetId)
@@ -1322,12 +1304,6 @@ export function ShowManagerView() {
       return preferred?.id ?? null
     })
   }, [activeReactPresetId, pixGridPresets, reactPresets])
-
-  useEffect(() => () => {
-    uploadOperationRef.current += 1
-    uploadAbortRef.current?.abort()
-    uploadAbortRef.current = null
-  }, [])
 
   const activePreset = useMemo(
     () => findPixGridPreset(reactPresets, previewPresetId),
@@ -1437,149 +1413,7 @@ export function ShowManagerView() {
       ).ready)),
     }
   })
-  const previewEnabledItems = editingDeck?.items.filter(item => item.enabled) ?? []
-  const previewDeckIndex = Math.max(0, previewEnabledItems.findIndex(item => item.id === previewDeckItemId))
-  const previewBpm = showRuntimeBpm && showRuntimeBpm > 0 ? showRuntimeBpm : 120
-  const previewPriorBeats = editingDeck
-    ? previewEnabledItems.slice(0, previewDeckIndex).reduce((sum, item) => sum + (item.timingOverrideBeats ?? editingDeck.configuration.defaultItemDurationBeats), 0)
-    : 0
-  const previewItemBeats = editingDeck
-    ? previewEnabledItems[previewDeckIndex]?.timingOverrideBeats ?? editingDeck.configuration.defaultItemDurationBeats
-    : 0
-  const previewTransitionFraction = editingDeck?.configuration.transitionPolicy.durationFraction ?? 0.25
-  const builderPreviewTime = editingDeck
-    ? (previewPriorBeats + previewItemBeats * (1 - previewTransitionFraction + previewDeckTransitionProgress * previewTransitionFraction)) * 60 / previewBpm + 0.01
-    : showRuntimeCurrentTime
-
-  const enterDeckBuilder = (deckId: string | null) => {
-    uploadOperationRef.current += 1
-    uploadAbortRef.current?.abort()
-    uploadAbortRef.current = null
-    deckBuilderReturnTargetRef.current = deckId ? 'edit' : 'create'
-    setEditingDeckId(deckId)
-    setWorkspaceMode(SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE)
-    setUploadState({ active: false, phase: 'Ready', error: null, warnings: [] })
-  }
-
-  const exitDeckBuilder = () => {
-    uploadOperationRef.current += 1
-    uploadAbortRef.current?.abort()
-    uploadAbortRef.current = null
-    const returnTarget = deckBuilderReturnTargetRef.current
-    setWorkspaceMode('default')
-    setEditingDeckId(null)
-    setPreviewDeckItemId(null)
-    window.setTimeout(() => {
-      const preferred = returnTarget === 'edit'
-        ? document.querySelector<HTMLButtonElement>('.sm-deck-preset-summary button')
-        : document.querySelector<HTMLButtonElement>('.sm-create-deck-button')
-      console.log('DEBUG exitDeckBuilder timeout', { returnTarget, preferred, all: document.querySelectorAll('.sm-create-deck-button').length })
-      ;(preferred ?? document.querySelector<HTMLButtonElement>('.sm-create-deck-button'))?.focus()
-    }, 0)
-  }
-
-  const handleDeckFiles = async (files: File[]) => {
-    const name = deckDraftName.trim()
-    if (!editingDeck && !name) {
-      setDeckNameError('Deck name is required.')
-      return
-    }
-
-    uploadAbortRef.current?.abort()
-    const controller = new AbortController()
-    const operationId = uploadOperationRef.current + 1
-    uploadOperationRef.current = operationId
-    uploadAbortRef.current = controller
-    setUploadState({ active: true, phase: 'Validating…', error: null, warnings: [] })
-
-    const result = await ingestPixGridDeckSourceFiles({
-      target: editingDeck
-        ? { kind: 'append', deckId: editingDeck.id }
-        : { kind: 'create', name },
-      files,
-      signal: controller.signal,
-      onUploadPhase: (fileName, phase) => {
-        if (uploadOperationRef.current !== operationId || controller.signal.aborted) return
-        setUploadState(current => ({ ...current, phase: `${fileName}: ${phase}` }))
-      },
-    })
-    if (uploadOperationRef.current !== operationId) return
-    uploadAbortRef.current = null
-
-    if (!result.ok) {
-      const phase = result.error.code === 'cancelled'
-        ? 'Cancelled'
-        : result.error.code === 'project-replaced' || result.error.code === 'deck-conflict'
-          ? 'Conflict'
-          : 'Failed'
-      setUploadState({ active: false, phase, error: result.error.message, warnings: [] })
-      return
-    }
-    setEditingDeckId(result.deckId)
-    setDeckNameError(null)
-    const resultWarnings = result.rejected?.map(entry => `${entry.fileName}: ${entry.message}`) ?? []
-    setUploadState({
-      active: false,
-      phase: resultWarnings.length > 0 ? 'Ready with warnings' : 'Ready',
-      error: null,
-      warnings: resultWarnings,
-    })
-  }
-
-  const handleDeckRename = () => {
-    if (!editingDeck || deckDraftName.trim() === editingDeck.name) return
-    const result = renamePixGridDeck(editingDeck.id, deckDraftName)
-    if (!result.ok) setDeckNameError(result.error.message)
-    else setDeckNameError(null)
-  }
-
-  const handleDeckUpdate = (patch: Parameters<typeof updatePixGridDeck>[1]) => {
-    if (!editingDeck) return
-    const result = updatePixGridDeck(editingDeck.id, patch)
-    if (!result.ok) setUploadState(current => ({ ...current, error: result.error.message }))
-  }
-
-  const moveDeckItem = (itemId: string, direction: -1 | 1) => {
-    if (!editingDeck) return
-    const items = [...editingDeck.items].sort((left, right) => left.order - right.order)
-    const index = items.findIndex(item => item.id === itemId)
-    const target = index + direction
-    if (index < 0 || target < 0 || target >= items.length) return
-    ;[items[index], items[target]] = [items[target], items[index]]
-    handleDeckUpdate({ items: items.map((item, order) => ({ ...item, order })) })
-  }
-
-  const toggleDeckItem = (itemId: string) => {
-    if (!editingDeck) return
-    handleDeckUpdate({
-      items: editingDeck.items.map(item => item.id === itemId ? { ...item, enabled: !item.enabled } : item),
-    })
-  }
-
-  const removeDeckItem = (itemId: string) => {
-    if (!editingDeck || editingDeck.items.length <= 2) return
-    handleDeckUpdate({ items: editingDeck.items.filter(item => item.id !== itemId) })
-  }
-
-  const duplicateDeckItem = (itemId: string) => {
-    if (!editingDeck || editingDeck.items.length >= PIX_GRID_DECK_MAX_ITEMS) return
-    const items = [...editingDeck.items].sort((left, right) => left.order - right.order)
-    const sourceIndex = items.findIndex(item => item.id === itemId)
-    const source = items[sourceIndex]
-    if (!source || sourceIndex < 0) return
-    items.splice(sourceIndex + 1, 0, {
-      ...source,
-      id: createPixGridDeckItemId(),
-      revision: 1,
-    })
-    handleDeckUpdate({ items: items.map((item, order) => ({ ...item, order })) })
-  }
-
-  const stepPreview = (direction: -1 | 1) => {
-    if (previewEnabledItems.length === 0) return
-    const nextIndex = (previewDeckIndex + direction + previewEnabledItems.length) % previewEnabledItems.length
-    setPreviewDeckItemId(previewEnabledItems[nextIndex]?.id ?? null)
-  }
+  const builderPreviewTime = deckBuilder.previewTimeFor(showRuntimeBpm, showRuntimeCurrentTime)
 
   const undoLaserShowEdit = () => {
     if (laserShowUndoDepth === 0) return
@@ -1750,19 +1584,6 @@ export function ShowManagerView() {
     } finally {
       setDeletingCanvasShow(false)
     }
-  }
-
-  const confirmDeleteDeck = () => {
-    const deck = pendingDeleteDeck
-    setPendingDeleteDeck(null)
-    if (!deck) return
-    const result = deletePixGridDeck(deck.id)
-    if (!result.ok) {
-      setUploadState(current => ({ ...current, error: result.error.message }))
-      return
-    }
-    notify('show-manager', { tone: 'success', title: 'Deck Deleted', message: 'The Deck and its generated Preset were deleted.' })
-    exitDeckBuilder()
   }
 
   const saveEngineId = activeSectionEngineId === 'canvas' || activeSectionEngineId === 'laserDmx'
@@ -2230,17 +2051,7 @@ export function ShowManagerView() {
               onPreview={setPreviewDeckItemId}
               onMove={moveDeckItem}
               onDuplicate={duplicateDeckItem}
-              onReorder={(sourceItemId, targetItemId) => {
-                if (!editingDeck) return
-                const items = [...editingDeck.items].sort((left, right) => left.order - right.order)
-                const sourceIndex = items.findIndex(item => item.id === sourceItemId)
-                if (sourceIndex < 0 || !items.some(item => item.id === targetItemId)) return
-                const [sourceItem] = items.splice(sourceIndex, 1)
-                const targetIndex = items.findIndex(item => item.id === targetItemId)
-                if (!sourceItem || targetIndex < 0) return
-                items.splice(targetIndex, 0, sourceItem)
-                handleDeckUpdate({ items: items.map((item, order) => ({ ...item, order })) })
-              }}
+              onReorder={deckBuilder.reorderItems}
               onToggle={toggleDeckItem}
               onRemove={removeDeckItem}
             />
@@ -2693,20 +2504,8 @@ export function ShowManagerView() {
               onDraftName={setDeckDraftName}
               onRename={handleDeckRename}
               onUpdate={handleDeckUpdate}
-              onCreatePreset={() => {
-                if (!editingDeck || !deckReadiness) return
-                const result = createPixGridDeckPreset(editingDeck.id, deckReadiness)
-                if (!result.ok) {
-                  setUploadState(current => ({ ...current, error: result.error.message }))
-                  return
-                }
-                setPreviewPresetId(editingDeck.generatedPresetId)
-                exitDeckBuilder()
-              }}
-              onDelete={() => {
-                if (!editingDeck) return
-                setPendingDeleteDeck({ id: editingDeck.id })
-              }}
+              onCreatePreset={deckBuilder.createPreset}
+              onDelete={deckBuilder.requestDelete}
             />
           </aside>
         ) : (
@@ -3050,12 +2849,12 @@ export function ShowManagerView() {
           onConfirm={() => void confirmDeleteCanvasShow()}
         />
       )}
-      {pendingDeleteDeck && (
+      {deckBuilder.pendingDelete && (
         <ConfirmDialog
           title="Delete Deck"
           message="Deleting this Deck will delete the Preset too. Are you sure?"
-          onCancel={() => setPendingDeleteDeck(null)}
-          onConfirm={confirmDeleteDeck}
+          onCancel={deckBuilder.cancelDelete}
+          onConfirm={deckBuilder.confirmDelete}
         />
       )}
     </section>

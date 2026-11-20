@@ -3,6 +3,7 @@ import {
   CANVAS_VISIBLE_PRESETS,
   DEFAULT_CANVAS_PRESET_ID,
   DEFAULT_REACT_PRESETS,
+  type ReactPreset,
 } from '../react/ReactTypes'
 import { HEADLINER_PRESETS } from '../react/headliner/HeadlinerEffectCatalog'
 import { LASER_DMX_BEAM_MATRIX_PRESETS } from '../react/laserDmxBeamMatrixPresets'
@@ -168,6 +169,22 @@ const pixGridPresets = currentReactPresets
       is3dEnvironment: false,
     })
   })
+
+/**
+ * A PixGrid Deck Preset the user built with the Deck Builder, shown in the library as a custom preset. Deck Presets live in the project (the React store),
+ * not in the shipped list, so the view adds these records itself.
+ */
+export function pixGridDeckPresetRecord(preset: ReactPreset): PresetManagerRecord {
+  const discovery = resolvePresetDiscoveryMetadata(preset, 'media-deck')
+  return {
+    ...record('pixGrid', preset.id, preset.name, preset.description, 'PixGrid', discovery.category, discovery.tags, 'react', preset as unknown as Readonly<Record<string, unknown>>, {
+      hasCamera: false,
+      canIntegrateUserMedia: true,
+      is3dEnvironment: false,
+    }),
+    custom: true,
+  }
+}
 
 const headlinerPresets = HEADLINER_PRESETS.map(preset => {
   const discovery = resolvePresetDiscoveryMetadata(preset, 'camera-effects')

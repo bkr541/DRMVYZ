@@ -6,9 +6,6 @@ export const CINEMA2_CRATE_PRESENTATIONS = {
   'glyph-sphere': {
     name: 'Glyph Armillary', camera: [5.7, 2.8, 11], target: [0, 0, -.3], fov: 46, background: [.018, .017, .037, 1],
   },
-  'nested-pulse': {
-    name: 'Frame Cascade', camera: [5.9, 3.7, 12.4], target: [0, .5, -4], fov: 51, background: [.024, .014, .036, 1],
-  },
   'wireframe-portal': {
     name: 'Corner Truss', camera: [4.3, 2.9, 8.9], target: [0, .1, -3.7], fov: 49, background: [.026, .019, .016, 1],
   },
@@ -58,7 +55,6 @@ export class Cinema2CratePresentation {
     this.backdrop(scene)
     switch (this.id) {
       case 'glyph-sphere': this.glyphArmillary(scene, source[0]!); break
-      case 'nested-pulse': this.frameCascade(scene, source); break
       case 'wireframe-portal': this.cornerTruss(scene, source[0]!); break
     }
     this.mountFixtures()
@@ -265,60 +261,6 @@ export class Cinema2CratePresentation {
     visible.matrix.copy(source.matrixWorld)
     visible.name = source.name
     parent.add(visible)
-  }
-
-  private frameCascade(root: Three.Object3D, source: readonly Mesh[]): void {
-    const { THREE } = this
-    const frames = source.map(mesh => ({ mesh, size: new THREE.Box3().setFromObject(mesh).getSize(new THREE.Vector3()).x }))
-      .filter(frame => frame.size > .5).sort((a, b) => a.size - b.size)
-    const tiers = [
-      { name: 'foreground-step-left', position: [-4.35, -2.65, 3.55], angles: [.17, .31, -.17], scale: 1, depth: 0, tone: 0 },
-      { name: 'foreground-step-right', position: [6.4, 4.55, 2.0], angles: [.28, -.36, .24], scale: .89, depth: 0, tone: 1 },
-      { name: 'central-frame-assembly', position: [-.15, .15, -2.2], angles: [.14, .32, -.15], scale: 1.34, depth: 1, tone: 0 },
-      { name: 'overhead-landing', position: [-6.5, 4.2, -3.2], angles: [.37, .51, .18], scale: .82, depth: 1, tone: 1 },
-      { name: 'right-landing', position: [7.5, -1.95, -4.15], angles: [-.12, -.43, -.21], scale: 1.04, depth: 1, tone: 1 },
-      { name: 'lower-landing', position: [-1.3, -4.6, -5.1], angles: [.2, .54, .25], scale: 1.01, depth: 2, tone: 1 },
-      { name: 'upper-rear-landing', position: [.7, 5.85, -10.2], angles: [.5, -.4, -.24], scale: .94, depth: 2, tone: 0 },
-      { name: 'far-frame-assembly', position: [1.65, 2.45, -13], angles: [.12, .35, .1], scale: 1.28, depth: 2, tone: 0 },
-    ] as const
-    const glass = [0x77baf2, 0xb896e8].map(color => [.28, .11].map(opacity => this.ownMaterial(new THREE.MeshPhysicalMaterial({
-      color, emissive: color, emissiveIntensity: .065, transparent: true, opacity, depthWrite: false,
-      roughness: .24, metalness: .16, clearcoat: .56, side: THREE.FrontSide,
-    }))))
-    const rails = this.ownMaterial(new THREE.MeshStandardMaterial({ color: 0x463251, emissive: 0x21172f, roughness: .47, metalness: .5 }))
-    for (const tier of tiers) {
-      const group = this.assembly(root, tier.name, tier)
-      const rims = this.family(group, 'cascade-edge-lights')
-      const corners = this.family(group, 'cascade-corner-lights')
-      const depths = this.family(group, 'cascade-inner-rungs')
-      const saturation = tier.tone ? 0xdab1ff : 0xa9e9ff
-      const trim = this.emission(rims.name, saturation, [1.7, 1.32, .78][tier.depth]!)
-      const rung = this.emission(depths.name, saturation, [1.24, .91, .52][tier.depth]!)
-      const corner = this.emission(corners.name, tier.tone ? 0xff9dce : 0xdff8ff, [2.7, 2.15, 1.22][tier.depth]!)
-      for (const [index, frame] of frames.entries()) {
-        const outermost = index === frames.length - 1
-        this.sourceMesh(group, frame.mesh, glass[tier.tone]![outermost ? 1 : 0]!)
-        if (outermost) continue
-        const half = frame.size * .5
-        const z = half * .98
-        const rim = index === frames.length - 2
-        const groupForLight = rim ? rims : depths
-        const span = half * (rim ? .78 : .45)
-        const width = rim ? .024 : .013
-        for (const sign of [-1, 1]) {
-          this.bar(groupForLight, [-span, sign * z, z], [span, sign * z, z], width, rim ? trim : rung)
-          this.bar(groupForLight, [sign * z, -span, z], [sign * z, span, z], width, rim ? trim : rung)
-          if (rim) {
-            this.lamp(corners, [sign * z, z, z], [.15, .15, .15], corner)
-            this.lamp(corners, [-sign * z, -z, z], [.15, .15, .15], corner)
-            this.lamp(corners, [sign * z, z, -z], [.105, .105, .105], corner)
-          }
-        }
-      }
-      if (tier.depth < 2) this.bar(group, [0, 1.9, 0], [0, 3.0, 0], .033, rails)
-    }
-    this.staticLight(root, 'cascade-rose-fill', [-3.2, 3.2, 2.3], 0xf794df, 62, 14)
-    this.staticLight(root, 'cascade-blue-fill', [4.4, -.5, -1.8], 0x78baff, 68, 14)
   }
 
   private cornerTruss(root: Three.Object3D, source: Mesh): void {

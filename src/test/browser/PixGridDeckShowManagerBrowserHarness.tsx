@@ -185,7 +185,9 @@ function HarnessContent() {
     }
     publishStatus()
   }, [audio.currentAnalysisStatus, audio.currentAnalyzedBpm, audio.currentTrack?.name, audio.currentTrackId])
-  return <VyzualzView activeView="vyzualz" onNavigate={() => {}} initialAppView="showManager" />
+  // `?view=presetManager` opens the same real app shell on Preset Manager, where the Deck Builder now lives.
+  const initialAppView = new URLSearchParams(location.search).get('view') === 'presetManager' ? 'presetManager' : 'showManager'
+  return <VyzualzView activeView="vyzualz" onNavigate={() => {}} initialAppView={initialAppView} />
 }
 
 const unsubscribeReact = useReactStore.subscribe(() => publishStatus())
