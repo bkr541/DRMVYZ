@@ -1,8 +1,6 @@
-/* Layout studies use shared text roles and the production 148.5px card width.
-   Rows 01–05 grow around thumbnail headers and separate captions. Legacy pad and
-   poster treatments retain their 69px height. */
+/* Layout studies use shared text roles and the production 148.5px card width. */
 .ll-preset-studies { --ll-preset-panel: var(--color-panel-alt, #151a1d); --ll-preset-border: var(--color-border-subtle, #ffffff18); --ll-preset-accent: var(--color-primary, #4ac7db);
-  --ll-card-w: 148.5px; --ll-card-h: 69px; display: grid; gap: 26px; padding: 20px 2px 32px; }
+  --ll-card-w: 148.5px; --ll-card-h: 56px; --ll-title-scrim: radial-gradient(ellipse 72% 66% at center, #020506d9 12%, #02050694 51%, transparent 100%); display: grid; gap: 26px; padding: 20px 2px 32px; }
 .ll-preset-study { min-width: 0; }
 .ll-preset-study-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
 .ll-preset-study-heading h2 { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--color-text-strong, #e1e9ed); font: var(--type-window-heading); letter-spacing: var(--type-window-heading-tracking); text-transform: uppercase; }
@@ -13,9 +11,8 @@
 .ll-preset-select { box-sizing: border-box; position: relative; display: block; width: 100%; height: 100%; padding: 0; overflow: hidden; border: 1px solid var(--ll-preset-border); border-radius: inherit; background: transparent; color: var(--color-text-strong, #e1e9ed); text-align: left; cursor: pointer; }
 .ll-preset-image { position: absolute; inset: 0; display: block; overflow: hidden; background: #020506; }
 .ll-preset-image img { display: block; width: 100%; height: 100%; object-fit: cover; }
-.ll-preset-copy { position: absolute; inset: auto 0 0; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 20px 8px 7px; text-align: center; background: linear-gradient(transparent, #020506e6); }
-.ll-preset-engine { display: none; }
-.ll-preset-name { font: var(--type-preset-name-weight) 12px/1.2 var(--type-preset-name-family); letter-spacing: var(--type-preset-name-tracking); text-transform: uppercase; overflow-wrap: anywhere; }
+.ll-preset-copy, .ll-library-copy { position: absolute; inset: 0; display: grid; place-items: center; padding-inline: 24px; text-align: center; background: var(--ll-title-scrim); }
+.ll-preset-name { font: var(--type-preset-name-weight) 12px/1.2 var(--type-preset-name-family); letter-spacing: var(--type-preset-name-tracking); text-transform: uppercase; overflow-wrap: anywhere; text-shadow: 0 1px 3px #000; }
 .ll-preset-selection { display: none; position: absolute; right: 8px; bottom: 7px; color: var(--ll-preset-accent); }
 .ll-preset-card[data-selected] .ll-preset-selection { display: flex; }
 .ll-preset-card[data-selected] .ll-preset-select { border-color: var(--ll-preset-accent); box-shadow: 0 0 0 1px #4ac7db22; }
@@ -26,42 +23,35 @@
 .ll-preset-favorite:hover, .ll-preset-favorite[aria-pressed='true'] { color: var(--ll-preset-accent); border-color: #4ac7db88; }
 .ll-preset-indicator, .ll-preset-key { display: none; }
 
-/* 01–05 — artwork is a header in normal flow. The opaque caption cannot inherit
-   brightness or detail from any thumbnail. Auto height and unrestricted wrapping
-   keep future long names visible; favorite/selection actions stay in the header. */
-.ll-preset-study--captioned { --ll-caption-bg: #111a20; --ll-caption-ink: #edf4f7; --ll-caption-muted: #a9bac4; }
-.ll-preset-study--captioned .ll-preset-card { height: auto; }
-.ll-preset-study--captioned .ll-preset-select { display: flex; flex-direction: column; background: var(--ll-caption-bg); }
-.ll-preset-study--captioned .ll-preset-image { position: relative; inset: auto; flex: 0 0 auto; width: 100%; aspect-ratio: 16 / 9; }
-.ll-preset-study--captioned .ll-preset-copy { position: static; box-sizing: border-box; flex: 1; align-items: flex-start; justify-content: flex-start; min-width: 0; gap: 7px; padding: 12px; background: var(--ll-caption-bg); text-align: left; }
-.ll-preset-study--captioned .ll-preset-copy .ll-preset-name { order: 0; display: block; width: 100%; min-block-size: 2.4em; max-inline-size: none; color: var(--ll-caption-ink); overflow-wrap: anywhere; text-wrap: pretty; }
-.ll-preset-study--captioned .ll-preset-engine { display: block; order: 1; margin-top: auto; color: var(--ll-caption-muted); font: var(--type-field-value); }
+/* 01–05 — framed scenes with a centered title band and corner actions. */
+.ll-preset-study--captioned { --ll-card-h: 94px; --ll-caption-bg: #111a20; --ll-caption-ink: #edf4f7; }
+.ll-preset-study--captioned .ll-preset-select { background: var(--ll-caption-bg); }
+.ll-preset-study--captioned .ll-preset-copy {
+  background: linear-gradient(transparent 14%, color-mix(in srgb, var(--ll-caption-bg) 94%, transparent) 34% 66%, transparent 86%);
+}
+.ll-preset-study--captioned .ll-preset-name { color: var(--ll-caption-ink); }
 .ll-preset-study--captioned .ll-preset-selection { top: 8px; left: 8px; right: auto; bottom: auto; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 4px; background: #091217; }
 .ll-preset-study--captioned .ll-preset-favorite { top: 8px; right: 8px; background: #091217; }
 
-/* 01 — a quiet, edge-to-edge cinema still above a charcoal caption. */
+/* 01 — an edge-to-edge cinema still with a charcoal title band. */
 .ll-preset-study--poster .ll-preset-card { border-radius: 8px; }
-.ll-preset-study--poster .ll-preset-copy { border-top: 1px solid #ffffff18; }
-/* 02 — a photographic mat, with a centered label beneath the inset image. */
+/* 02 — a photographic mat around an inset image. */
 .ll-preset-study--print { --ll-caption-bg: #1c252b; }
-.ll-preset-study--print .ll-preset-select { padding: 6px 6px 0; border-radius: 3px; }
-.ll-preset-study--print .ll-preset-image { border-radius: 2px; }
-.ll-preset-study--print .ll-preset-copy { align-items: center; padding: 12px 4px; text-align: center; }
-/* 03 — an uninterrupted scene header meets a colored seam and a deep caption. */
+.ll-preset-study--print .ll-preset-select { border-radius: 3px; }
+.ll-preset-study--print .ll-preset-image { inset: 6px; border-radius: 2px; }
+/* 03 — a full-width scene with a colored seam. */
 .ll-preset-study--gallery { --ll-caption-bg: #0a1117; }
 .ll-preset-study--gallery .ll-preset-card { border-radius: 3px; }
-.ll-preset-study--gallery .ll-preset-copy { border-top: 3px solid var(--study-card-color); padding-top: 10px; }
-/* 04 — a wider crop above a pale, fully opaque paper caption. */
-.ll-preset-study--strip { --ll-caption-bg: #e7eef1; --ll-caption-ink: #13212a; --ll-caption-muted: #425563; }
+.ll-preset-study--gallery .ll-preset-image { border-bottom: 3px solid var(--study-card-color); }
+/* 04 — a wider crop with a pale paper title band. */
+.ll-preset-study--strip { --ll-card-h: 80px; --ll-caption-bg: #e7eef1; --ll-caption-ink: #13212a; }
 .ll-preset-study--strip .ll-preset-card { border-radius: 2px; }
-.ll-preset-study--strip .ll-preset-image { aspect-ratio: 2 / 1; }
-.ll-preset-study--strip .ll-preset-copy { border-top: 1px solid #c8d4db; }
-/* 05 — a framed screen over a slate label panel with an inset accent rail. */
+.ll-preset-study--strip .ll-preset-name { text-shadow: none; }
+/* 05 — a framed screen with an inset accent rail. */
 .ll-preset-study--monitor { --ll-caption-bg: #202d36; }
 .ll-preset-study--monitor .ll-preset-card { border-radius: 10px; }
-.ll-preset-study--monitor .ll-preset-select { padding: 8px 8px 0; box-shadow: inset 0 1px 0 #ffffff14; }
-.ll-preset-study--monitor .ll-preset-image { box-sizing: border-box; border: 3px solid #080e13; border-radius: 5px; outline: 1px solid #ffffff18; }
-.ll-preset-study--monitor .ll-preset-copy { margin-top: 8px; margin-bottom: 10px; padding: 8px 3px 2px 10px; border-left: 2px solid var(--study-card-color); }
+.ll-preset-study--monitor .ll-preset-select { box-shadow: inset 0 1px 0 #ffffff14; }
+.ll-preset-study--monitor .ll-preset-image { inset: 7px; border: 3px solid #080e13; border-left-color: var(--study-card-color); border-radius: 5px; outline: 1px solid #ffffff18; }
 
 /* 06–10 — the tile and the Performance Pad fused. The pad's body is the base (flat #10171b face, hairline border, 8px corner, bold pad label, a
    signal line in the pad's own colour, an outlined numeral, a colour-tinted latched selection, a halo while held) and the scene artwork is the
@@ -72,7 +62,6 @@
 .ll-preset-study--infused .ll-preset-select { background: var(--ll-pad-face); border-color: #ffffff40; border-radius: 8px; transition: border-color 60ms, background 60ms, box-shadow 60ms, transform 60ms; }
 .ll-preset-study--infused .ll-preset-select:hover { border-color: color-mix(in srgb, var(--study-card-color) 55%, #ffffff40); transform: translateY(-2px); }
 .ll-preset-study--infused .ll-preset-select:focus-visible { outline: 2px solid #8ef4ff; outline-offset: 2px; }
-.ll-preset-study--infused .ll-preset-copy { background: none; }
 .ll-preset-study--infused .ll-preset-name { position: relative; z-index: 1; font: 700 12px/1.2 var(--type-tab-family); letter-spacing: .035em; color: #fff; }
 .ll-preset-study--infused .ll-preset-selection { display: none !important; }
 .ll-preset-study--infused .ll-preset-indicator { display: block; position: absolute; z-index: 1; height: 2px; border-radius: 2px; background: var(--study-card-color); }
@@ -84,17 +73,14 @@
 @media (prefers-reduced-motion: reduce) { .ll-preset-study--infused .ll-preset-select { transition: none; } .ll-preset-study--infused .ll-preset-card[data-hit] .ll-preset-select, .ll-preset-study--infused .ll-preset-select:hover { transform: none; } }
 /* 06 Scene pad (the Full pad): the artwork is sunk into the pad face under a dark wash; the title sits over a signal line, the numeral outlined beside it. */
 .ll-preset-study--signal-poster .ll-preset-image img { opacity: .5; }
-.ll-preset-study--signal-poster .ll-preset-copy { inset: 0; justify-content: center; padding: 0 8px; }
 .ll-preset-study--signal-poster .ll-preset-indicator { left: 50%; top: calc(50% + 19px); width: 36px; transform: translateX(-50%); }
 .ll-preset-study--signal-poster .ll-preset-key { right: 6px; top: 50%; transform: translateY(-50%); }
-/* 07 Rail scene (the Accent Rail pad): the left of the pad is the pad face with a left-aligned title and a coloured rail; the artwork enters from the right and fades into the face. */
+/* 07 Rail scene (the Accent Rail pad): artwork enters from the right and fades into the face. */
 .ll-preset-study--rail-print .ll-preset-image { left: 38%; -webkit-mask-image: linear-gradient(90deg, transparent, #000 62%); mask-image: linear-gradient(90deg, transparent, #000 62%); }
-.ll-preset-study--rail-print .ll-preset-copy { inset: 0; align-items: flex-start; justify-content: center; padding: 0 10px 0 16px; text-align: left; }
 .ll-preset-study--rail-print .ll-preset-indicator { left: 6px; top: 9px; bottom: 9px; width: 2px; height: auto; }
 .ll-preset-study--rail-print .ll-preset-key { right: 30px; top: 50%; transform: translateY(-50%); opacity: .3; }
 /* 08 Underline scene (the Underline pad): the artwork fades down into the pad face; the title and a long recessed underline sit on the face, the numeral a faint watermark below. */
 .ll-preset-study--underline-gallery .ll-preset-image { bottom: 34%; -webkit-mask-image: linear-gradient(#000 40%, transparent); mask-image: linear-gradient(#000 40%, transparent); }
-.ll-preset-study--underline-gallery .ll-preset-copy { inset: auto 0 0; padding: 0 8px 14px; }
 .ll-preset-study--underline-gallery .ll-preset-indicator { left: 10px; right: 10px; bottom: 7px; height: 1px; box-shadow: 0 2px 0 #0008; }
 .ll-preset-study--underline-gallery .ll-preset-key { left: 50%; bottom: -8px; transform: translateX(-50%); opacity: .12; }
 /* 09 Glow scene (the Glow pad): the artwork is washed in the pad colour, glass over the pad face, with the fine lower edge and a soft inset glow when selected. */
@@ -102,29 +88,23 @@
 .ll-preset-study--glow-strip .ll-preset-image { background: none; }
 .ll-preset-study--glow-strip .ll-preset-image img { opacity: .5; }
 .ll-preset-study--glow-strip .ll-preset-image::after { content: ''; position: absolute; inset: 0; background: linear-gradient(135deg, color-mix(in srgb, var(--study-card-color) 42%, transparent), transparent 78%); }
-.ll-preset-study--glow-strip .ll-preset-copy { inset: auto 0 0; align-items: flex-start; padding: 0 10px 12px; text-align: left; }
 .ll-preset-study--glow-strip .ll-preset-indicator { left: 10px; right: 10px; bottom: 5px; height: 1px; opacity: .65; }
 .ll-preset-study--glow-strip .ll-preset-key { right: 8px; top: -4px; opacity: .14; }
 .ll-preset-study--glow-strip .ll-preset-card[data-selected] .ll-preset-select { background: linear-gradient(135deg, color-mix(in srgb, var(--study-card-color) 24%, var(--ll-pad-face)), var(--ll-pad-face)); box-shadow: inset 0 0 12px color-mix(in srgb, var(--study-card-color) 12%, transparent); }
 /* 10 Backlit scene (the pad's strike halo made permanent): the artwork is a recessed screen in the pad body, the pad colour glowing faintly around it; a strike lights the whole edge. */
 .ll-preset-study--backlit-monitor .ll-preset-select { padding: 5px; box-shadow: 0 0 10px color-mix(in srgb, var(--study-card-color) 22%, transparent), inset 0 0 14px color-mix(in srgb, var(--study-card-color) 14%, transparent); }
 .ll-preset-study--backlit-monitor .ll-preset-image { inset: 5px; border-radius: 4px; outline: 1px solid #000; box-shadow: 0 0 0 2px #070c10; }
-.ll-preset-study--backlit-monitor .ll-preset-copy { inset: 5px; justify-content: flex-end; padding: 0 6px 9px; border-radius: 4px; background: linear-gradient(transparent 30%, #020506cc); }
-.ll-preset-study--backlit-monitor .ll-preset-indicator { position: relative; width: 24px; margin-top: 2px; }
+.ll-preset-study--backlit-monitor .ll-preset-indicator { left: 50%; bottom: 8px; width: 24px; transform: translateX(-50%); }
 .ll-preset-study--backlit-monitor .ll-preset-key { right: 11px; bottom: 6px; font-size: 30px; opacity: .3; }
 
 /* Long production names wrap naturally at word boundaries in every comparison. */
 .ll-preset-name[data-two-line] { max-inline-size: 10ch; text-wrap: balance; overflow-wrap: normal; }
 
-/* 11–13 are independent asset-browser layouts, rather than Performance Pad treatments.
-   Anatomy follows Spectrum's preview / title / metadata / secondary-action patterns. */
-.ll-library-card { position: relative; box-sizing: border-box; width: var(--ll-card-w); height: 158px; }
-.ll-library-select { position: relative; box-sizing: border-box; display: flex; flex-direction: column; width: 100%; height: 100%; padding: 0; overflow: hidden; border: 1px solid var(--ll-preset-border); border-radius: 8px; background: #171e23; color: var(--color-text-strong, #e1e9ed); text-align: left; cursor: pointer; }
-.ll-library-preview { display: block; flex: 0 0 auto; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; background: #020506; }
+/* 11–13 — asset-browser frames with independent corner actions. */
+.ll-library-card { position: relative; box-sizing: border-box; width: var(--ll-card-w); height: var(--ll-library-card-h, 108px); }
+.ll-library-select { position: relative; box-sizing: border-box; display: block; width: 100%; height: 100%; padding: 0; overflow: hidden; border: 1px solid var(--ll-preset-border); border-radius: 8px; background: #171e23; color: var(--color-text-strong, #e1e9ed); cursor: pointer; }
+.ll-library-preview { position: absolute; inset: 5px; display: block; overflow: hidden; background: #020506; }
 .ll-library-preview img { display: block; width: 100%; height: 100%; object-fit: cover; }
-.ll-library-copy { display: flex; flex: 1; min-width: 0; flex-direction: column; justify-content: center; gap: 6px; padding: 10px 12px; }
-.ll-library-name { display: block; order: 0; min-height: 2.4em; }
-.ll-library-engine { order: 1; color: var(--color-text-muted, #80929a); font: var(--type-field-value); }
 .ll-library-selection { display: none; position: absolute; right: 10px; bottom: 11px; color: var(--ll-preset-accent); }
 .ll-library-card[data-selected] .ll-library-selection { display: flex; }
 .ll-library-card[data-selected] .ll-library-select { border-color: var(--ll-preset-accent); box-shadow: 0 0 0 1px var(--ll-preset-accent); }
@@ -133,27 +113,21 @@
 .ll-library-favorite { position: absolute; z-index: 2; top: 8px; right: 8px; display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 1px solid #ffffff24; border-radius: 5px; color: #d4dfe4; background: #0b1013d9; cursor: pointer; }
 .ll-library-favorite:hover, .ll-library-favorite[aria-pressed='true'] { color: var(--ll-preset-accent); border-color: var(--ll-preset-accent); }
 
-/* 12 — dense browser entry, with an independent thumbnail and readable text column. */
-.ll-preset-study--compact-library .ll-library-card { height: 80px; }
-.ll-preset-study--compact-library .ll-library-select { flex-direction: row; align-items: center; gap: 8px; padding: 8px; border-radius: 6px; background: #12191d; }
-.ll-preset-study--compact-library .ll-library-preview { flex: 0 0 42px; width: 42px; height: 42px; aspect-ratio: auto; border-radius: 4px; }
-.ll-preset-study--compact-library .ll-library-copy { padding: 0; gap: 5px; }
-.ll-preset-study--compact-library .ll-library-favorite { top: auto; right: auto; bottom: 10px; left: 10px; width: 20px; height: 20px; }
-.ll-preset-study--compact-library .ll-library-selection { top: 4px; right: 4px; bottom: auto; }
+/* 12 — dense browser entry with an inset square thumbnail. */
+.ll-preset-study--compact-library { --ll-library-card-h: 64px; }
+.ll-preset-study--compact-library .ll-library-select { border-radius: 6px; background: #12191d; }
+.ll-preset-study--compact-library .ll-library-preview { inset: 50% auto auto 6px; width: 32px; aspect-ratio: 1; border-radius: 4px; transform: translateY(-50%); }
+.ll-preset-study--compact-library .ll-library-favorite { top: 4px; right: 4px; width: 20px; height: 20px; }
+.ll-preset-study--compact-library .ll-library-selection { right: 4px; bottom: 4px; }
 
-/* 13 — image-first gallery card; an anchored scrim protects both title lines. */
-.ll-preset-study--immersive-library .ll-library-card { height: 118px; }
-.ll-preset-study--immersive-library .ll-library-preview { position: absolute; inset: 0; width: 100%; height: 100%; }
-.ll-preset-study--immersive-library .ll-library-copy { position: absolute; inset: 0; justify-content: flex-end; padding: 12px; background: linear-gradient(transparent 20%, #02050655 45%, #020506ed); }
-.ll-preset-study--immersive-library .ll-library-name { min-height: 0; text-shadow: 0 1px 3px #000b; }
-.ll-preset-study--immersive-library .ll-library-engine { position: absolute; top: 10px; left: 10px; padding: 3px 5px; border-radius: 4px; background: #071015cc; color: #d4dfe4; }
+/* 13 — image-first gallery card with a stronger contrast scrim. */
+.ll-preset-study--immersive-library { --ll-library-card-h: 88px; --ll-title-scrim: linear-gradient(transparent, #020506d9 33% 67%, transparent); }
+.ll-preset-study--immersive-library .ll-library-preview { inset: 0; }
 .ll-preset-study--immersive-library .ll-library-selection { right: 12px; bottom: 12px; }
 
 /* 14–16 — the original production poster tile (artwork edge to edge, title centred in the shared preset-name role) with three different ways to keep
    the title readable over any thumbnail. Each keeps white text and puts a known dark surface directly behind it, so the contrast does not depend on the
    picture: a measured worst case (a pure-white thumbnail) still gives the title well over 4.5:1. */
-.ll-preset-study--poster-scrim .ll-preset-copy,
-.ll-preset-study--poster-plate .ll-preset-copy { inset: 0; justify-content: center; padding: 8px 6px; background: none; }
 .ll-preset-study--poster-scrim .ll-preset-name,
 .ll-preset-study--poster-plate .ll-preset-name,
 .ll-preset-study--poster-bar .ll-preset-name { position: relative; color: #fff; }
@@ -162,55 +136,47 @@
 .ll-preset-study--poster-scrim .ll-preset-name { text-shadow: 0 1px 2px #000; }
 /* 15 — a frosted band: a full-width strip behind the title that blurs the picture and tints it dark, feathered at the top and bottom so it reads as a
    soft glass band, not a box. Bright detail (lightning, beams) is blurred away behind the letters while the rest of the tile stays sharp. */
-.ll-preset-study--poster-plate .ll-preset-copy { inset: 0; justify-content: center; padding: 8px 6px; background: none; }
-.ll-preset-study--poster-plate .ll-preset-copy::before { content: ''; position: absolute; inset: 10px 0; background: rgba(2, 5, 6, .6); -webkit-backdrop-filter: blur(7px) brightness(.5); backdrop-filter: blur(7px) brightness(.5);
+.ll-preset-study--poster-plate .ll-preset-copy { background: none; }
+.ll-preset-study--poster-plate .ll-preset-copy::before { content: ''; position: absolute; inset: 4px 0; background: rgba(2, 5, 6, .6); -webkit-backdrop-filter: blur(7px) brightness(.5); backdrop-filter: blur(7px) brightness(.5);
   -webkit-mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent), linear-gradient(transparent, #000 30%, #000 70%, transparent); -webkit-mask-composite: source-in;
   mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent), linear-gradient(transparent, #000 30%, #000 70%, transparent); mask-composite: intersect; }
 .ll-preset-study--poster-plate .ll-preset-name { position: relative; color: #fff; text-shadow: 0 1px 2px #000c; }
 /* 16 — an outlined title: no background at all. A dark outline is painted under the letters, with a tight halo around it, the way film subtitles stay
    readable on any shot; the whole picture stays visible. */
-.ll-preset-study--poster-bar .ll-preset-copy { inset: 0; justify-content: center; padding: 8px 6px; background: none; }
+.ll-preset-study--poster-bar .ll-preset-copy { background: none; }
 .ll-preset-study--poster-bar .ll-preset-name { position: relative; color: #fff; font-weight: 500; -webkit-text-stroke: 2.6px #020506; paint-order: stroke fill;
   text-shadow: 0 0 3px #020506, 0 0 6px #020506f2, 0 0 11px #020506c8; }
 
-/* 17 — a small scene portal beside a solid caption; the image never sits behind the title. */
-.ll-preset-study--split-aperture .ll-library-card { height: 100px; }
-.ll-preset-study--split-aperture .ll-library-select { flex-direction: row-reverse; align-items: center; gap: 6px; padding: 8px; background: #111c22; }
-.ll-preset-study--split-aperture .ll-library-preview { flex: 0 0 46px; width: 46px; height: 46px; aspect-ratio: 1; border-radius: 50%; box-shadow: 0 0 0 3px #070e12, 0 0 0 4px var(--ll-preset-border); }
-.ll-preset-study--split-aperture .ll-library-copy { align-self: stretch; padding: 0; gap: 7px; }
+/* 17 — a small scene portal inset to the right. */
+.ll-preset-study--split-aperture { --ll-library-card-h: 78px; }
+.ll-preset-study--split-aperture .ll-library-select { background: #111c22; }
+.ll-preset-study--split-aperture .ll-library-preview { inset: 50% 8px auto auto; width: 36px; aspect-ratio: 1; transform: translateY(-50%); border-radius: 50%; box-shadow: 0 0 0 3px #070e12, 0 0 0 4px var(--ll-preset-border); }
 .ll-preset-study--split-aperture .ll-library-favorite { top: 5px; right: 5px; width: 20px; height: 20px; }
 .ll-preset-study--split-aperture .ll-library-selection { right: 6px; bottom: 6px; }
 
 /* 18 — a catalog ticket with its own numbered, perforated spine. */
-.ll-preset-study--index-ticket .ll-library-card { height: 138px; }
-.ll-preset-study--index-ticket .ll-library-select { padding-left: 24px; border-radius: 3px; background: #192126; }
-.ll-library-index { position: absolute; inset: 0 auto 0 0; display: flex; align-items: center; justify-content: center; width: 22px; border-right: 1px dashed #ffffff38; background: #0d151a; color: var(--study-card-color); font: var(--type-field-value); }
-.ll-preset-study--index-ticket .ll-library-preview { height: 56px; aspect-ratio: auto; border-bottom: 2px solid var(--study-card-color); }
-.ll-preset-study--index-ticket .ll-library-copy { padding: 8px 10px; gap: 6px; }
+.ll-preset-study--index-ticket { --ll-library-card-h: 98px; }
+.ll-preset-study--index-ticket .ll-library-select { border-radius: 3px; background: #192126; }
+.ll-library-index { position: absolute; z-index: 1; inset: 0 auto 0 0; display: flex; align-items: center; justify-content: center; width: 22px; border-right: 1px dashed #ffffff38; background: #0d151a; color: var(--study-card-color); font: var(--type-field-value); }
+.ll-preset-study--index-ticket .ll-library-preview { inset: 0 0 0 22px; border-bottom: 2px solid var(--study-card-color); }
 .ll-preset-study--index-ticket .ll-library-favorite { top: 4px; right: 4px; width: 20px; height: 20px; }
 .ll-preset-study--index-ticket .ll-library-selection { bottom: 8px; right: 6px; }
 
-/* 19 — title, wide scene, and metadata each get a dedicated horizontal band. */
-.ll-preset-study--panorama-dossier .ll-library-card { height: 132px; }
-.ll-preset-study--panorama-dossier .ll-library-select { display: grid; grid-template-rows: 48px 54px 1fr; border-radius: 2px; background: #10181d; }
-.ll-preset-study--panorama-dossier .ll-library-copy { display: contents; }
-.ll-preset-study--panorama-dossier .ll-library-name { grid-row: 1; min-height: 0; align-self: center; margin: 0 30px 0 10px; }
-.ll-preset-study--panorama-dossier .ll-library-preview { grid-row: 2; height: 54px; aspect-ratio: auto; border-block: 1px solid var(--ll-preset-border); }
-.ll-preset-study--panorama-dossier .ll-library-engine { grid-row: 3; align-self: center; margin-left: 10px; }
-.ll-preset-study--panorama-dossier .ll-library-favorite { top: 12px; right: 5px; width: 20px; height: 20px; border-color: transparent; background: transparent; }
+/* 19 — a wide scene framed by steel edges. */
+.ll-preset-study--panorama-dossier { --ll-library-card-h: 92px; }
+.ll-preset-study--panorama-dossier .ll-library-select { border-radius: 2px; background: #10181d; }
+.ll-preset-study--panorama-dossier .ll-library-preview { inset: 12px 0; border-block: 1px solid var(--ll-preset-border); }
+.ll-preset-study--panorama-dossier .ll-library-favorite { top: 5px; right: 5px; width: 20px; height: 20px; }
 .ll-preset-study--panorama-dossier .ll-library-selection { bottom: 8px; }
 
-/* 20 — a physical sleeve: tilted artwork on a backing sheet, upright caption below. */
-.ll-preset-study--offset-sleeve .ll-library-select { padding: 12px 10px 0; border-radius: 5px; background: linear-gradient(145deg, #25323b, #131c22 65%); }
-.ll-preset-study--offset-sleeve .ll-library-preview { box-sizing: border-box; width: calc(100% - 4px); height: 72px; margin: 2px 2px 8px; aspect-ratio: auto; border: 3px solid #080e12; border-radius: 2px; transform: rotate(-4deg); box-shadow: 4px 4px 0 #34434c, 5px 5px 0 #080e12; }
-.ll-preset-study--offset-sleeve .ll-library-copy { align-self: stretch; padding: 8px 0 10px; border-top: 1px solid var(--ll-preset-border); }
+/* 20 — tilted artwork on a backing sheet. */
+.ll-preset-study--offset-sleeve .ll-library-select { border-radius: 5px; background: linear-gradient(145deg, #25323b, #131c22 65%); }
+.ll-preset-study--offset-sleeve .ll-library-preview { inset: 12px 14px; border: 3px solid #080e12; border-radius: 2px; transform: rotate(-4deg); box-shadow: 4px 4px 0 #34434c, 5px 5px 0 #080e12; }
 .ll-preset-study--offset-sleeve .ll-library-favorite { top: 5px; right: 5px; }
 .ll-preset-study--offset-sleeve .ll-library-selection { bottom: 10px; right: 8px; }
 
-/* 21 — a centered lens badge, with a solid caption and independent corner action. */
-.ll-preset-study--lens-badge .ll-library-select { align-items: center; padding-top: 12px; border-radius: 14px; background: radial-gradient(circle at 50% 28%, #283940, #10191e 65%); }
-.ll-preset-study--lens-badge .ll-library-preview { flex: 0 0 70px; width: 70px; height: 70px; aspect-ratio: 1; border: 3px solid #080f13; border-radius: 50%; box-shadow: 0 0 0 1px var(--study-card-color), 0 0 0 5px #0b141a, 0 0 0 6px #ffffff18; }
-.ll-preset-study--lens-badge .ll-library-copy { flex: 1; align-items: center; justify-content: center; padding: 12px 12px 8px; text-align: center; gap: 5px; }
-.ll-preset-study--lens-badge .ll-library-name { min-height: 0; }
+/* 21 — a centered lens with a concentric frame. */
+.ll-preset-study--lens-badge .ll-library-select { border-radius: 14px; background: radial-gradient(circle, #283940, #10191e 65%); }
+.ll-preset-study--lens-badge .ll-library-preview { inset: 50% auto auto 50%; width: 64px; aspect-ratio: 1; transform: translate(-50%, -50%); border: 3px solid #080f13; border-radius: 50%; box-shadow: 0 0 0 1px var(--ll-preset-border), 0 0 0 5px #0b141a, 0 0 0 6px #ffffff18; }
 .ll-preset-study--lens-badge .ll-library-favorite { top: 7px; right: 7px; width: 20px; height: 20px; border-radius: 50%; }
 .ll-preset-study--lens-badge .ll-library-selection { bottom: auto; top: 8px; left: 8px; right: auto; }

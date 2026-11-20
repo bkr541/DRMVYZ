@@ -4,10 +4,20 @@ import { createModelMaterials } from '../materials/modelMaterials'
 import { extractModelContours } from './extractContours'
 import { checkAbort, MODEL_QUALITY, ModelGenerationError, type ModelDiagnostic, type ModelQuality } from './modelQualityBudget'
 export interface GeneratedModel { group: Group; recipe: ModelGeneratorRecipe; stats: ModelGeometryStats; materialCount: number; dimensions: [number, number, number]; warnings: ModelDiagnostic[]; dispose(): void }
+/** Releases everything the group owns: geometry, materials, and the textures those materials hold (an imported GLB carries multi-megapixel images). */
 export function disposeModelGroup(group: Group): void {
   const geometries = new Set<BufferGeometry>(), materials = new Set<import('three').Material>()
   group.traverse(object => {
     if (object instanceof Mesh) { geometries.add(object.geometry); (Array.isArray(object.material) ? object.material : [object.material]).forEach(m => materials.add(m)) }
+  })
+  const textures = new Set<import('three').Texture>()
+  materials.forEach(material => {
+    for (const value of Object.values(material)) if (value && (value as import('three').Texture).isTexture) textures.add(value as import('three').Texture)
+  })
+  textures.forEach(texture => {
+    // A decoded GLB image is an ImageBitmap that holds its pixels until it is closed.
+    const image = texture.image as { close?: () => void } | null
+    texture.dispose(); image?.close?.()
   })
   geometries.forEach(g => g.dispose()); materials.forEach(m => m.dispose()); group.clear()
 }

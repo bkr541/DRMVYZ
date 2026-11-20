@@ -26,7 +26,7 @@ class ModelServer {
   losePublishResponse = false
   sourceDeleted = false
   path(operation: Row) {
-    return modelStoragePaths(USER_A, MODEL_ID, Number(operation.expected_version) + 1, String(operation.id), 'png', Boolean(operation.has_thumbnail))
+    return modelStoragePaths(USER_A, MODEL_ID, Number(operation.expected_version) + 1, String(operation.id), (operation.source_extension ?? null) as 'png' | 'svg' | null, Boolean(operation.has_thumbnail))
   }
   fetch: typeof fetch = async (input, init) => {
     const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url)
@@ -47,8 +47,8 @@ class ModelServer {
       if (route === 'begin_model_version') {
         if (op) return response(op)
         if (this.asset.current_version !== body.p_expected_version) return failure('40001', 'Version conflict', 409)
-        const created = { id: body.p_operation_id, model_asset_id: body.p_model_id, expected_version: body.p_expected_version, state: 'uploading',
-          source_extension: body.p_source_extension, has_thumbnail: body.p_has_thumbnail, generator_recipe: body.p_recipe, geometry_stats: body.p_stats, created_at: NOW }
+        const created = { id: body.p_operation_id, model_asset_id: body.p_model_id, expected_version: body.p_expected_version, state: 'uploading', kind: body.p_kind ?? 'generated',
+          source_extension: body.p_source_extension ?? null, has_thumbnail: body.p_has_thumbnail, generator_recipe: body.p_recipe ?? null, geometry_stats: body.p_stats, created_at: NOW }
         this.operations.set(String(created.id), created)
         return response(created)
       }
@@ -215,7 +215,7 @@ describe('model repository through the Supabase SDK', () => {
     server.sourceDeleted = true
     expect((await repo.get(MODEL_ID)).sourceMediaId).toBeNull()
     expect((await repo.getVersion(MODEL_ID, 1)).sourceSnapshotPath).toBe(saved.sourceSnapshotPath)
-    expect(server.objects.has(saved.sourceSnapshotPath)).toBe(true)
+    expect(server.objects.has(saved.sourceSnapshotPath!)).toBe(true)
   })
 
   it('signs only validated owned version paths and obtains a fresh URL on each access', async () => {
@@ -291,6 +291,56 @@ describe('model repository through the Supabase SDK', () => {
     await expect(repo.saveVersion({ ...saveInput(), signal: controller.signal })).rejects.toMatchObject({ kind: 'transport' })
     expect(server.versions).toHaveLength(0); expect(server.objects.size).toBe(0)
     expect(server.operations.get(OP_ID)?.state).toBe('cancelled')
+  })
+
+  describe('imported models', () => {
+    const importedInput = (operationId = OP_ID, thumbnail = true) => ({
+      modelAssetId: MODEL_ID, operationId, expectedVersion: 0, generatorRecipe: null,
+      geometryStats: { ...stats, imported: { fileName: 'Diamond.glb', imageCount: 2, maxImageSide: 4096 } },
+      files: { glb: { data: new ArrayBuffer(24), contentType: 'model/gltf-binary' as const }, ...(thumbnail ? { thumbnail: { data: new Blob(['png'], { type: 'image/png' }), contentType: 'image/png' as const } } : {}) },
+    })
+
+    it('stores only the original GLB and thumbnail, and reads the version back without a source, trace or recipe', async () => {
+      server.asset = assetRow({ kind: 'imported' })
+      const saved = await repo.saveVersion(importedInput())
+      expect(saved).toMatchObject({ version: 1, sourceSnapshotPath: null, traceSvgPath: null, generatorRecipe: null })
+      expect(saved.thumbnailPath).toMatch(/thumbnail\.png$/)
+      expect(saved.geometryStats.imported).toEqual({ fileName: 'Diamond.glb', imageCount: 2, maxImageSide: 4096 })
+      expect(server.objects.size).toBe(2)
+      const begin = server.calls.find(call => call.url.pathname.endsWith('begin_model_version'))!.body
+      expect(begin).toMatchObject({ p_kind: 'imported' })
+      expect(begin).not.toHaveProperty('p_recipe'); expect(begin).not.toHaveProperty('p_source_extension')
+      expect(await repo.getVersion(MODEL_ID, 1)).toEqual(saved)
+      expect((await repo.get(MODEL_ID)).kind).toBe('imported')
+    })
+
+    it('works without a thumbnail', async () => {
+      server.asset = assetRow({ kind: 'imported' })
+      const saved = await repo.saveVersion(importedInput(OP_ID, false))
+      expect(saved.thumbnailPath).toBeNull(); expect(server.objects.size).toBe(1)
+    })
+
+    it('refuses to mix generated files into an imported save, and an imported save with a recipe', async () => {
+      const withSource = { ...importedInput(), files: { ...importedInput().files, source: { data: new Blob(['png'], { type: 'image/png' }), contentType: 'image/png' as const } } }
+      await expect(repo.saveVersion(withSource)).rejects.toMatchObject({ kind: 'validation' })
+      const generatedWithoutFiles = { ...saveInput(), files: { glb: saveInput().files.glb } }
+      await expect(repo.saveVersion(generatedWithoutFiles)).rejects.toMatchObject({ kind: 'validation' })
+      expect(server.calls.some(call => call.url.pathname.endsWith('begin_model_version'))).toBe(false)
+    })
+
+    it('cleans up only the files an imported save planned when an upload fails', async () => {
+      server.asset = assetRow({ kind: 'imported' }); server.failUpload = 'thumbnail.png'
+      await expect(repo.saveVersion(importedInput())).rejects.toMatchObject({ kind: 'transport', operationId: OP_ID })
+      expect(server.versions).toHaveLength(0); expect(server.objects.size).toBe(0)
+      expect(server.operations.get(OP_ID)?.state).toBe('cancelled')
+    })
+
+    it('creates the draft with the imported kind, and leaves a generated draft unchanged', async () => {
+      await repo.createDraft({ name: 'Diamond', kind: 'imported' })
+      expect(server.calls.at(-1)!.body).toMatchObject({ kind: 'imported' })
+      await repo.createDraft({ name: 'Logo' })
+      expect(server.calls.at(-1)!.body).not.toHaveProperty('kind')
+    })
   })
 
 })

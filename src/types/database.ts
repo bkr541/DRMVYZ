@@ -738,6 +738,7 @@ export interface Cinema2TextPoolEntryRow {
 export interface ModelAssetRow {
   id: string
   user_id: string
+  kind: 'generated' | 'imported'
   source_media_id: string | null
   name: string
   description: string | null
@@ -753,10 +754,10 @@ export interface ModelAssetVersionRow {
   version: number
   operation_id: string
   glb_path: string
-  source_snapshot_path: string
-  trace_svg_path: string
+  source_snapshot_path: string | null
+  trace_svg_path: string | null
   thumbnail_path: string | null
-  generator_recipe: Json
+  generator_recipe: Json | null
   geometry_stats: Json
   created_at: string
 }
@@ -765,9 +766,10 @@ export interface ModelVersionOperationRow {
   model_asset_id: string
   expected_version: number
   state: 'uploading' | 'published' | 'cleanup_pending' | 'cancelled'
-  source_extension: 'png' | 'svg'
+  kind: 'generated' | 'imported'
+  source_extension: 'png' | 'svg' | null
   has_thumbnail: boolean
-  generator_recipe: Json
+  generator_recipe: Json | null
   geometry_stats: Json
   created_at: string
 }
@@ -786,7 +788,7 @@ export interface Database {
       get_builtin_model_organization: { Args: { p_model_key: string }; Returns: Json }
       update_builtin_model_organization: { Args: { p_owner_id: string; p_model_key: string; p_tags: string[]; p_collection_ids: string[] }; Returns: Json }
       begin_model_version: {
-        Args: { p_model_id: string; p_operation_id: string; p_expected_version: number; p_source_extension: string; p_has_thumbnail: boolean; p_recipe: Json; p_stats: Json }
+        Args: { p_model_id: string; p_operation_id: string; p_expected_version: number; p_has_thumbnail: boolean; p_stats: Json; p_source_extension?: string; p_recipe?: Json; p_kind?: 'generated' | 'imported' }
         Returns: Json
       }
       publish_model_version: { Args: { p_operation_id: string }; Returns: Json }
@@ -939,7 +941,7 @@ export interface Database {
       }
       model_assets: {
         Row: DBRec<ModelAssetRow>
-        Insert: DBRec<Pick<ModelAssetRow, 'user_id' | 'name'> & Partial<Pick<ModelAssetRow, 'id' | 'source_media_id' | 'description' | 'favorite'>>>
+        Insert: DBRec<Pick<ModelAssetRow, 'user_id' | 'name'> & Partial<Pick<ModelAssetRow, 'id' | 'source_media_id' | 'description' | 'favorite' | 'kind'>>>
         Update: DBRec<Partial<Pick<ModelAssetRow, 'name' | 'description' | 'favorite'>>>
         Relationships: [{ foreignKeyName: 'model_assets_source_media_id_fkey'; columns: ['source_media_id']; isOneToOne: false; referencedRelation: 'media_items'; referencedColumns: ['id'] }]
       }

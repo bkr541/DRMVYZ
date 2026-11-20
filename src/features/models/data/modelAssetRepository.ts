@@ -5,14 +5,14 @@ import { BUILTIN_MODELS, type BuiltinModel } from '../domain/builtinModels'
 import {
   invalid, record, ModelAssetError, modelStoragePaths, parseModelAsset, parseModelGeometryStats,
   parseModelOperation, parseModelRecipe, parseModelVersion, text, uuid, versionNumber,
-  type ModelAsset, type ModelAssetVersion, type ModelGeneratorRecipe, type ModelGeometryStats, type ModelSaveOperation,
+  type ModelAsset, type ModelAssetVersion, type ModelGeneratorRecipe, type ModelGeometryStats, type ModelKind, type ModelSaveOperation,
 } from '../domain/modelAssetTypes'
 import { checkModelResponse, ModelAssetStorage, modelRequestError, type ModelPreparedFile } from './modelAssetStorage'
 
 export interface ModelListCursor { createdAt: string; id: string }
 export interface ModelListQuery { search?: string; favorite?: boolean; collectionId?: string; cursor?: ModelListCursor; limit?: number; includeDeletionPending?: boolean }
 export interface ModelListPage { items: ModelAsset[]; nextCursor: ModelListCursor | null }
-export interface ModelDraftInput { name: string; description?: string | null; sourceMediaId?: string | null; favorite?: boolean }
+export interface ModelDraftInput { name: string; description?: string | null; sourceMediaId?: string | null; favorite?: boolean; /** Defaults to 'generated'. An imported model has no source image. */ kind?: ModelKind }
 export interface ModelOrganization { tags: string[]; collectionIds: string[] }
 export interface ModelMetadata extends ModelOrganization { name: string; description: string | null; favorite: boolean }
 export interface ModelSaveInput {
@@ -21,9 +21,10 @@ export interface ModelSaveInput {
   /** Keep this identity for reconciliation after network failure; use a new UUID after cancellation. */
   operationId: string
   expectedVersion: number
-  generatorRecipe: ModelGeneratorRecipe
+  /** The recipe of a generated model; null saves an imported model, which has only its GLB (and thumbnail), never a source or trace. */
+  generatorRecipe: ModelGeneratorRecipe | null
   geometryStats: ModelGeometryStats
-  files: { glb: ModelPreparedFile; source: ModelPreparedFile; trace: ModelPreparedFile; thumbnail?: ModelPreparedFile }
+  files: { glb: ModelPreparedFile; source?: ModelPreparedFile; trace?: ModelPreparedFile; thumbnail?: ModelPreparedFile }
 }
 export type ModelArtifact = 'glbPath' | 'sourceSnapshotPath' | 'traceSvgPath' | 'thumbnailPath'
 export interface ModelAssetRepository {
@@ -168,6 +169,7 @@ export class SupabaseModelAssetRepository implements ModelAssetRepository {
     const data = checkModelResponse(await this.client.from('model_assets').insert({
       user_id: userId, name: text(input.name).trim(), description: input.description ? text(input.description, 4000) : null,
       source_media_id: input.sourceMediaId ? uuid(input.sourceMediaId) : null, favorite: input.favorite ?? false,
+      ...(input.kind === 'imported' ? { kind: 'imported' as const } : {}),
     }).select('*').single())
     const asset = parseModelAsset(data)
     if (asset.userId !== userId) throw new ModelAssetError('authorization', 'Foreign model in create response.')
@@ -205,14 +207,25 @@ export class SupabaseModelAssetRepository implements ModelAssetRepository {
     const checkCancelled = () => { if (input.signal?.aborted) throw new ModelAssetError('transport', 'Model save cancelled.', input.operationId) }
     checkCancelled()
     uuid(input.operationId); uuid(input.modelAssetId); versionNumber(input.expectedVersion)
-    const recipe = parseModelRecipe(input.generatorRecipe), stats = parseModelGeometryStats(input.geometryStats)
+    const stats = parseModelGeometryStats(input.geometryStats)
     const { files } = input
-    const sourceExtension = files.source.contentType === 'image/png' ? 'png' : files.source.contentType === 'image/svg+xml' ? 'svg' : invalid('Source snapshot must be PNG or SVG.')
-    if (files.glb.contentType !== 'model/gltf-binary' || files.trace.contentType !== 'image/svg+xml' || (files.thumbnail && files.thumbnail.contentType !== 'image/png')) invalid('Model artifact MIME types do not match their roles.')
+    const imported = input.generatorRecipe === null
+    let sourceExtension: 'png' | 'svg' | null = null
+    let recipe: ModelGeneratorRecipe | null = null
+    if (imported) {
+      if (files.source || files.trace) invalid('An imported model has no source snapshot or trace.')
+    } else {
+      if (!files.source || !files.trace) invalid('A generated model needs its source snapshot and trace.')
+      recipe = parseModelRecipe(input.generatorRecipe)
+      sourceExtension = files.source!.contentType === 'image/png' ? 'png' : files.source!.contentType === 'image/svg+xml' ? 'svg' : invalid('Source snapshot must be PNG or SVG.')
+      if (files.trace!.contentType !== 'image/svg+xml') invalid('Model artifact MIME types do not match their roles.')
+    }
+    if (files.glb.contentType !== 'model/gltf-binary' || (files.thumbnail && files.thumbnail.contentType !== 'image/png')) invalid('Model artifact MIME types do not match their roles.')
     Object.values(files).forEach(file => this.storage.validateFile(file))
     const operation = parseModelOperation(checkModelResponse(await this.client.rpc('begin_model_version', {
       p_model_id: input.modelAssetId, p_operation_id: input.operationId, p_expected_version: input.expectedVersion,
-      p_source_extension: sourceExtension, p_has_thumbnail: Boolean(files.thumbnail), p_recipe: json(recipe), p_stats: json(stats),
+      p_has_thumbnail: Boolean(files.thumbnail), p_stats: json(stats),
+      ...(imported ? { p_kind: 'imported' } : { p_source_extension: sourceExtension!, p_recipe: json(recipe!) }),
     })))
     if (operation.id !== input.operationId || operation.modelAssetId !== input.modelAssetId) invalid('Model save operation identity mismatch.')
     if (operation.state === 'published') return this.readVersion(operation.modelAssetId, operation.expectedVersion + 1, owner)
@@ -222,9 +235,9 @@ export class SupabaseModelAssetRepository implements ModelAssetRepository {
       checkCancelled()
       await this.storage.upload(owner, operation.modelAssetId, paths.glbPath, files.glb)
       checkCancelled()
-      await this.storage.upload(owner, operation.modelAssetId, paths.sourceSnapshotPath, files.source)
+      if (paths.sourceSnapshotPath && files.source) await this.storage.upload(owner, operation.modelAssetId, paths.sourceSnapshotPath, files.source)
       checkCancelled()
-      await this.storage.upload(owner, operation.modelAssetId, paths.traceSvgPath, files.trace)
+      if (paths.traceSvgPath && files.trace) await this.storage.upload(owner, operation.modelAssetId, paths.traceSvgPath, files.trace)
       checkCancelled()
       if (paths.thumbnailPath && files.thumbnail) await this.storage.upload(owner, operation.modelAssetId, paths.thumbnailPath, files.thumbnail)
       checkCancelled()

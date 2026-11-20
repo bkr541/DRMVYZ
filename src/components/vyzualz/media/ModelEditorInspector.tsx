@@ -2,7 +2,7 @@ import '../../../styles/reactView.css'
 import { useEffect, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import type { ReactNode } from 'react'
-import { selectBuiltinModelEdited, selectBuiltinModelNeedsExport, selectModelCanSave, useModelEditorStore, type ModelEditorState } from '../../../features/models/state/modelEditorStore'
+import { selectModelCanSave, useModelEditorStore, type ModelEditorState } from '../../../features/models/state/modelEditorStore'
 import type { BuiltinModel } from '../../../features/models/domain/builtinModels'
 import { BUILTIN_MODEL_SCALE_RANGE, type BuiltinMaterialValues, type ModelRotation } from '../../../features/models/geometry/builtinModelEdits'
 import { MODEL_MATERIAL_PRESETS } from '../../../features/models/materials/modelMaterials'
@@ -45,11 +45,9 @@ function ModelRotationRows({ rotation, disabled, onChange }: { rotation: ModelRo
 }
 
 function BuiltinModelEditPanel() {
-  const { edit, exporting, saving, error, downloadError, editBuiltin, resetBuiltinEdits, download } = useModelEditorStore(useShallow(s => ({
-    edit: s.builtinEdit, exporting: s.builtinExporting, saving: s.status === 'saving', error: s.error,
-    downloadError: s.builtinExportError, editBuiltin: s.editBuiltin, resetBuiltinEdits: s.resetBuiltinEdits, download: s.download,
+  const { edit, exporting, saving, error, editBuiltin } = useModelEditorStore(useShallow(s => ({
+    edit: s.builtinEdit, exporting: s.builtinExporting, saving: s.status === 'saving', error: s.error, editBuiltin: s.editBuiltin,
   })))
-  const edited = useModelEditorStore(selectBuiltinModelEdited), needsExport = useModelEditorStore(selectBuiltinModelNeedsExport)
   const [materialIndex, setMaterialIndex] = useState(0)
   if (!edit) return error
     ? <NoticeCard tone="error" title="Model unavailable">{error}</NoticeCard>
@@ -78,16 +76,6 @@ function BuiltinModelEditPanel() {
       <SliderRow label="Metalness" value={material.metalness} disabled={disabled} onChange={metalness => changeMaterial({ metalness })} />
       <SliderRow label="Roughness" value={material.roughness} disabled={disabled} onChange={roughness => changeMaterial({ roughness })} />
     </Collapsible>}
-    <Collapsible label="Edited Copy" icon={<AppIcon kind="download" size={14} />}>
-      <p className="rv-ctrl-info">Download a GLB to keep edits to this built-in model.</p>
-      <div className="mm-model-edit-actions">
-        <IconChipButton tone="primary" disabled={!edited || disabled} onClick={() => { void download('glb') }}>Download Edited GLB</IconChipButton>
-        <IconChipButton disabled={!edited || disabled} onClick={resetBuiltinEdits}>Restore Original</IconChipButton>
-      </div>
-      {exporting && <p role="status">Preparing GLB…</p>}
-      {!exporting && edited && !needsExport && <p role="status">Edited GLB download started.</p>}
-      {downloadError && <NoticeCard tone="error" role="alert" title="GLB download failed">{downloadError}</NoticeCard>}
-    </Collapsible>
   </>
 }
 
@@ -139,6 +127,8 @@ function EditableModelInspector({ onSelectSource }: { onSelectSource?: () => voi
   const busy = s.status === 'saving' || s.status === 'deleting'
   const locked = busy || !!s.publishedVersion || !!s.pendingOperationId || !s.source
   const recipe = s.recipe
+  const imported = s.asset?.kind === 'imported'
+  const importedStats = imported ? s.versions.find(v => v.version === s.activeVersion)?.geometryStats.imported : undefined
   const geometry = recipe?.geometry, preview = recipe?.preview
   const loadVersion = (version: number) => { if (!s.asset) return; if (s.dirty) setPendingVersion(version); else s.load(s.asset, version) }
   const material = (region: 'front' | 'side') => {
@@ -169,7 +159,7 @@ function EditableModelInspector({ onSelectSource }: { onSelectSource?: () => voi
     <div className="mmi-body mm-model-inspector">
       {tab === 'info' && <>
         <Collapsible label="Details" defaultOpen>
-          <ModelInfoRow label="Media Role">3D Model</ModelInfoRow>
+          <ModelInfoRow label="Media Role">{imported ? '3D Model · Imported GLB' : '3D Model'}</ModelInfoRow>
           <TextInputRow label="Title" value={s.name} maxLength={200} disabled={busy} onChange={name => s.setMetadata({ name })} />
           <TextAreaRow label="Description" value={s.description ?? ''} disabled={busy} onChange={description => s.setMetadata({ description: description.slice(0, 4000) || null })} />
           <ToggleRow label="Favorite model" value={s.favorite} disabled={busy} onChange={favorite => s.setMetadata({ favorite })} />
@@ -179,12 +169,17 @@ function EditableModelInspector({ onSelectSource }: { onSelectSource?: () => voi
           <ModelInfoRow label="Version">{s.asset?.currentVersion ? `${s.activeVersion} · Latest ${s.asset.currentVersion}` : 'Draft / Unsaved'}{s.dirty ? ' · Modified' : ''}</ModelInfoRow>
           <ModelInfoRow label="Dimensions">{modelDimensions(s.model)}</ModelInfoRow>
           {s.model && <ModelInfoRow label="Geometry">{s.model.stats.triangles.toLocaleString()} triangles · {s.model.stats.vertices.toLocaleString()} vertices · {s.artifact?.materialCount ?? s.versions.find(v => v.version === s.activeVersion)?.geometryStats.materialCount ?? '—'} materials</ModelInfoRow>}
+          {importedStats && <ModelInfoRow label="Original file">{importedStats.fileName}</ModelInfoRow>}
+          {importedStats && <ModelInfoRow label="Textures">{importedStats.imageCount ? `${importedStats.imageCount} embedded · up to ${importedStats.maxImageSide} px` : 'None'}</ModelInfoRow>}
           {s.sourceInfo && <p>Source snapshot: {s.sourceInfo.width} × {s.sourceInfo.height} · {s.sourceInfo.mimeType}</p>}
           {s.sourceMediaId && <IconChipButton disabled={!onSelectSource || busy} onClick={onSelectSource}>View source image</IconChipButton>}
           {!s.sourceMediaId && s.source && <p>Using the independent source snapshot.</p>}
           {s.asset && <><p>Owner: {s.asset.userId}</p><p>Modified: {new Date(s.asset.updatedAt).toLocaleString()}</p></>}
         </Collapsible>
       </>}
+      {tab === 'edit' && imported && <Collapsible label="Imported Model" icon={<AppIcon kind="layers" size={14} />} defaultOpen>
+        <p>This model was imported from a GLB and is stored exactly as it was uploaded, so there is no source image to trace or regenerate. You can change its title, description, tags and collections on the Info tab, and download the original GLB from Output.</p>
+      </Collapsible>}
       {tab === 'edit' && recipe && <>
         <Collapsible label="Source Preparation" icon={<AppIcon kind="image" size={14} />}>
           {url && <div className="mm-model-source-preview"><img src={url} alt="Foreground and cutout preview" /></div>}
@@ -238,7 +233,7 @@ function EditableModelInspector({ onSelectSource }: { onSelectSource?: () => voi
         <p>{s.activeVersion ? `Viewing version ${s.activeVersion}` : 'Unsaved model'} · {s.artifact?.glb.size.toLocaleString() ?? s.versions.find(v => v.version === s.activeVersion)?.geometryStats.glbBytes?.toLocaleString() ?? '—'} GLB bytes</p>
         {!!s.versions.length && <SelectRow label="Model version" value={String(s.activeVersion)} disabled={busy} options={s.versions.map(v => ({ value: String(v.version), label: `Version ${v.version}` }))} onChange={version => loadVersion(Number(version))} />}
         {s.versions.length >= 50 && <IconChipButton onClick={() => { void s.moreVersions() }}>Load older versions</IconChipButton>}
-        <IconChipButton disabled={!s.model || busy || s.generationPending} onClick={() => { void s.download('glb') }}>Download GLB</IconChipButton>
+        <IconChipButton disabled={!s.model || busy || s.generationPending} onClick={() => { void s.download('glb') }}>{imported ? 'Download Original GLB' : 'Download GLB'}</IconChipButton>
         <IconChipButton disabled={!s.model || busy} onClick={() => { void s.download('png') }}>Download Preview PNG</IconChipButton>
         <IconChipButton disabled={!canSave} onClick={() => { void s.save() }}>Save{!s.asset ? ' Model' : s.savedRecipe && JSON.stringify(s.savedRecipe) === JSON.stringify(s.recipe) ? ' Metadata' : ' New Version'}</IconChipButton>
         <IconChipButton disabled={!s.artifact || !s.source || busy || s.generationPending || !!s.publishedVersion || !!s.pendingOperationId || !!s.saveTarget} onClick={() => setCopyName(`${s.name} copy`)}>Save As New Model</IconChipButton>

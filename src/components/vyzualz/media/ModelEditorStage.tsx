@@ -3,7 +3,7 @@ import { AxesHelper, Box3, Color, DirectionalLight, GridHelper, Group, Hemispher
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
 import { registerModelViewport } from '../../../features/models/state/modelViewportBridge'
-import { useModelEditorStore } from '../../../features/models/state/modelEditorStore'
+import { selectBuiltinModelEdited, selectBuiltinModelNeedsExport, useModelEditorStore } from '../../../features/models/state/modelEditorStore'
 import { IconChipButton } from '../react/controls/IconChipButton'
 import { NoticeCard } from '../react/controls/NoticeCard'
 export function ModelEditorStage() {
@@ -11,6 +11,12 @@ export function ModelEditorStage() {
   const sessionKey = useModelEditorStore(s => s.sessionKey)
   /** The reason the model could not be made or loaded, so the stage says why instead of a generic message. */
   const storeError = useModelEditorStore(s => s.error)
+  const exportError = useModelEditorStore(s => s.builtinExportError)
+  const exportStatus = useModelEditorStore(s => {
+    if (s.builtinExporting) return 'Preparing GLB…'
+    if (!s.builtinExportError && selectBuiltinModelEdited(s) && !selectBuiltinModelNeedsExport(s)) return 'Edited GLB download started.'
+    return ''
+  })
   const cameraPose = useRef<{ session: number; position: Vector3; target: Vector3 } | null>(null)
   const root = useRef<HTMLDivElement>(null)
   const [error, setError] = useState<string | null>(null), [epoch, setEpoch] = useState(0)
@@ -130,7 +136,11 @@ export function ModelEditorStage() {
   return <section className="mm-model-stage" aria-label="3D model editor">
     <div className="mm-model-canvas" ref={root} />
     {!group && <div className="mm-model-stage-empty" role="status">{status === 'generating' ? 'Generating 3D geometry…' : status === 'loading-model' ? 'Loading saved model…' : status === 'error' ? (storeError ?? 'Model unavailable. Retry loading or select another asset.') : 'Prepare the source, then generate a 3D model.'}</div>}
-    {error && <div className="mm-model-stage-notice"><NoticeCard tone="error" role="alert" title="3D viewport unavailable">{error} <IconChipButton onClick={() => setEpoch(value => value + 1)}>Retry viewport</IconChipButton></NoticeCard></div>}
+    <div className="sr-only" role="status">{exportStatus}</div>
+    {(error || exportError) && <div className="mm-model-stage-notice">
+      {error && <NoticeCard tone="error" role="alert" title="3D viewport unavailable">{error} <IconChipButton onClick={() => setEpoch(value => value + 1)}>Retry viewport</IconChipButton></NoticeCard>}
+      {exportError && <NoticeCard tone="error" role="alert" title="GLB download failed">{exportError}</NoticeCard>}
+    </div>}
     <div className="mm-model-navigation">Drag to orbit · Right-drag or two fingers to pan · Scroll or pinch to zoom</div>
   </section>
 }

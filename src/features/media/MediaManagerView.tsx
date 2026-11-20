@@ -20,7 +20,7 @@ import { HeaderActionIcon } from '../../components/vyzualz/layout/HeaderActionIc
 import { SaveGlyph } from '../../components/vyzualz/layout/HeaderGlyphs'
 import { VyzualzHeaderActions } from '../../components/vyzualz/shared/VyzualzHeaderActions'
 import type { LyricManagerNavigationIntent } from '../lyrics/lyricNavigation'
-import { selectModelCanGenerate, selectModelCanSave, selectModelEditorNeedsGuard, useModelEditorStore } from '../models/state/modelEditorStore'
+import { selectBuiltinModelEdited, selectModelCanGenerate, selectModelCanSave, selectModelEditorNeedsGuard, useModelEditorStore } from '../models/state/modelEditorStore'
 import { fitModelViewport, resetModelCamera } from '../models/state/modelViewportBridge'
 import type { MediaManagerSelection, ModelAsset } from '../models/domain/modelAssetTypes'
 import type { UploadedMedia } from '../../stores/mediaStore'
@@ -50,6 +50,8 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
   const needsMediaGuard = useMediaEditStore(selectMediaEditNeedsGuard)
   const modelCanSave = useModelEditorStore(selectModelCanSave)
   const builtinModel = useModelEditorStore(state => state.builtinModel)
+  const builtinEdited = useModelEditorStore(selectBuiltinModelEdited)
+  const builtinExporting = useModelEditorStore(state => state.builtinExporting)
   const modelLoaded = useModelEditorStore(state => !!state.model)
   const modelCanGenerate = useModelEditorStore(selectModelCanGenerate)
   const modelId = useModelEditorStore(state => state.id), modelStatus = useModelEditorStore(state => state.status), modelAsset = useModelEditorStore(state => state.asset)
@@ -68,6 +70,7 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
   const selectedMedia = selectedMediaId ? mediaItems.find(item => item.id === selectedMediaId) ?? null : null
   const selectedTrack = selectedTrackId ? savedTracks.find(track => track.id === selectedTrackId) ?? null : null
   const modelSelected = selection?.kind === 'model'
+  const builtinActionsDisabled = !builtinEdited || builtinExporting || modelStatus === 'saving'
   const commitSelection = useCallback((next: MediaManagerSelection | null, font: OscillatorFontAsset | null = null) => {
     useModelEditorStore.getState().reset()
     setSelection(next); setSelectedFont(font)
@@ -153,6 +156,21 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
               disabled={modelSelected ? !modelAsset || modelStatus === 'saving' || modelStatus === 'deleting' || modelPendingSave : !headerActions?.onDelete || headerActions.deleting}
               onClick={() => { if (modelSelected) setDeleteModelOpen(true); else headerActions?.onDelete?.() }}
             />
+            {modelSelected && builtinModel && <>
+              <HeaderIconKey
+                label="Download Edited GLB"
+                title={builtinExporting ? 'Preparing GLB…' : undefined}
+                icon={<HeaderActionIcon action="download" />}
+                disabled={builtinActionsDisabled}
+                onClick={() => { void useModelEditorStore.getState().download('glb') }}
+              />
+              <HeaderIconKey
+                label="Restore Original"
+                icon={<HeaderActionIcon action="restore" />}
+                disabled={builtinActionsDisabled}
+                onClick={() => useModelEditorStore.getState().resetBuiltinEdits()}
+              />
+            </>}
           </HeaderControlGroup>
           <div className="mmv-summary">
             <VyzualzHeaderActions page="media-manager" />

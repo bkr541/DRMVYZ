@@ -70,6 +70,9 @@ export const selectModelEditorNeedsGuard = (state: ModelEditorState) => state.di
 export const selectModelCanGenerate = (state: ModelEditorState) => !(busy(state) || !!state.publishedVersion || !!state.pendingOperationId || !state.source) && !!state.preview && !(state.needsConfirmation && !state.confirmed)
 export const selectModelCanSave = (state: ModelEditorState) => state.builtinModel
   ? !!state.savedMetadata && state.dirty && !busy(state) && state.status !== 'loading-model'
+  // An imported model is stored as-is, so only its title, description, favorite, tags and collections can change.
+  : state.asset?.kind === 'imported'
+    ? !!state.name.trim() && state.dirty && !busy(state) && !!state.model && !!state.savedMetadata
   : !!state.name.trim() && state.dirty && !busy(state) && !state.generationPending && !!state.model && !!state.recipe && (state.artifact ? geometryKey(state.artifact.recipe) === geometryKey(state.recipe) : JSON.stringify(state.recipe) === JSON.stringify(state.savedRecipe)) && (!state.needsConfirmation || state.confirmed) && (!state.error || state.saveFailure || !!state.saveTarget || !!state.pendingOperationId || !!state.publishedVersion)
 async function originalImage(media: UploadedMedia, signal: AbortSignal): Promise<Blob> {
   if (media.type !== 'image' || media.uploading || media.uploadError || !media.dbId) throw new Error('Select a successfully uploaded image to create a model.')
@@ -113,6 +116,24 @@ export const useModelEditorStore = create<ModelEditorState>((set, get) => {
       return { ok: true, id: model.id, version: 0 }
     } catch (error) {
       if (get().sessionKey === state.sessionKey) set({ status: state.status, builtinOrganizationError: message(error) })
+      return { ok: false }
+    }
+  }
+  /** An imported model has one immutable GLB; saving changes only its title, description, favorite, tags and collections. */
+  async function saveImportedMetadata(asNewName?: string): Promise<ModelSaveOutcome> {
+    const state = get(), asset = state.asset
+    if (!asset || asNewName || !selectModelCanSave(state)) return { ok: false }
+    const form = { ...metadata(state), name: state.name.trim(), tags: [...new Set(state.tags.map(t => t.trim()))].sort(), collectionIds: [...new Set(state.collectionIds)].sort() }
+    try { text(form.name); if (form.description) text(form.description, 4000); parseModelOrganization({ tags: form.tags, collection_ids: form.collectionIds }) } catch (error) { set({ error: message(error) }); return { ok: false } }
+    const { token } = start(); set({ status: 'saving', progress: 'Saving model metadata…', saveFailure: false, error: null })
+    try {
+      const canonical = await modelAssetRepository.updateMetadata(asset.id, asset.currentVersion, form)
+      if (!current(token)) return { ok: false }
+      set(s => ({ asset: canonical, name: canonical.name, description: canonical.description, favorite: canonical.favorite, tags: form.tags, collectionIds: form.collectionIds,
+        savedMetadata: form, dirty: false, status: 'ready', saveFailure: false, error: null, progress: null, libraryRevision: s.libraryRevision + 1 }))
+      return { ok: true, id: canonical.id, version: canonical.currentVersion }
+    } catch (error) {
+      if (current(token)) set({ status: 'ready', dirty: true, saveFailure: true, progress: null, error: message(error) })
       return { ok: false }
     }
   }
@@ -193,6 +214,8 @@ export const useModelEditorStore = create<ModelEditorState>((set, get) => {
           const savedMeta = { name: asset.name, description: asset.description, favorite: asset.favorite, ...organization }
           set({ model: loaded, recipe: version.generatorRecipe, savedRecipe: version.generatorRecipe, ...savedMeta, savedMetadata: savedMeta,
             versions, sourceMediaId: asset.sourceMediaId, confirmed: true, sourceInfo: version.geometryStats.source ?? null, status: 'ready' })
+          // An imported model has no source snapshot, trace or recipe to rebuild from: the saved GLB is the model.
+          if (!version.generatorRecipe) return
           const { downloadModelArtifact } = await import('../data/modelEditorArtifacts')
           const [sourceResult, traceResult] = await Promise.allSettled([
             downloadModelArtifact(asset.id, selectedVersion, 'sourceSnapshotPath', signal), downloadModelArtifact(asset.id, selectedVersion, 'traceSvgPath', signal),
@@ -286,6 +309,7 @@ export const useModelEditorStore = create<ModelEditorState>((set, get) => {
       const { builtinModel } = get()
       if (builtinModel) return asNewName ? { ok: false } : saveBuiltinOrganization(builtinModel)
       stopTimer()
+      if (get().asset?.kind === 'imported') return saveImportedMetadata(asNewName)
       if (asNewName) set({ name: asNewName, saveTarget: null, publishedVersion: null, pendingOperationId: null, dirty: true })
       const s = get()
       if (!s.name.trim() || !s.recipe || !s.model || (s.needsConfirmation && !s.confirmed)) { set({ error: 'Prepare a named, confirmed model before saving.' }); return { ok: false } }

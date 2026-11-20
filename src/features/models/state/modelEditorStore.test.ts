@@ -13,7 +13,7 @@ import { recipe, stats, MODEL_ID, USER_A } from '../__tests__/modelAssetFixtures
 import type { UploadedMedia } from '../../../stores/mediaStore'
 const source = new Blob(['source'], { type: 'image/png' })
 const media = { id: MODEL_ID, dbId: MODEL_ID, type: 'image', name: 'Logo.png', url: 'https://example.invalid/original.png', thumbnailUrl: 'https://example.invalid/thumbnail.png' } as UploadedMedia
-const savedAsset = (version = 1) => ({ id: MODEL_ID, userId: USER_A, name: 'Saved logo', description: null, favorite: false, sourceMediaId: MODEL_ID, status: 'ready' as const, currentVersion: version, createdAt: '2026-11-12T00:00:00Z', updatedAt: '2026-11-12T00:00:00Z' })
+const savedAsset = (version = 1) => ({ id: MODEL_ID, kind: 'generated' as const, userId: USER_A, name: 'Saved logo', description: null, favorite: false, sourceMediaId: MODEL_ID, status: 'ready' as const, currentVersion: version, createdAt: '2026-11-12T00:00:00Z', updatedAt: '2026-11-12T00:00:00Z' })
 const flush = async () => { for (let i = 0; i < 100; i++) await Promise.resolve() }
 const artifact = () => ({ group: new Group(), stats, dispose: vi.fn(), recipe: structuredClone(recipe), sourceSnapshot: source, traceSvg: '<svg/>', glb: new Blob(['glb']), materialCount: 1, dimensions: [2, 2, 2] as [number, number, number], files: { source: { data: source, contentType: 'image/png' as const }, glb: { data: new Blob(['glb']), contentType: 'model/gltf-binary' as const }, trace: { data: new Blob(['<svg/>']), contentType: 'image/svg+xml' as const } }, warnings: [] })
 beforeEach(() => {
@@ -192,4 +192,48 @@ describe('model save and edit lifecycle', () => {
     expect(useModelEditorStore.getState()).toMatchObject({ status: 'ready', dirty: false, source: null })
     expect(useModelEditorStore.getState().warnings[0]).toContain('source snapshot is unavailable')
   })
+  describe('an imported GLB', () => {
+    const imported = () => ({ ...savedAsset(1), kind: 'imported' as const, sourceMediaId: null })
+    const importedVersion = { generatorRecipe: null, geometryStats: { ...stats, imported: { fileName: 'Diamond.glb', imageCount: 2, maxImageSide: 4096 } } }
+    const open = async () => {
+      mocks.getVersion.mockResolvedValue(importedVersion); mocks.load.mockResolvedValue(artifact())
+      useModelEditorStore.getState().load(imported()); await flush()
+    }
+
+    it('opens the saved GLB directly, without looking for a source snapshot or trace or rebuilding the geometry', async () => {
+      await open()
+      expect(useModelEditorStore.getState()).toMatchObject({ status: 'ready', dirty: false, recipe: null, source: null, artifact: null, warnings: [], error: null })
+      expect(useModelEditorStore.getState().model).not.toBeNull()
+      expect(mocks.download).not.toHaveBeenCalled(); expect(mocks.fromTrace).not.toHaveBeenCalled()
+    })
+
+    it('saves only title, description, tags and collections, as the same immutable version', async () => {
+      await open()
+      const store = useModelEditorStore.getState()
+      expect(selectModelCanSave(useModelEditorStore.getState())).toBe(false)
+      store.setMetadata({ name: 'Pure Diamond', description: 'Faceted', tags: ['Logo'], collectionIds: [] })
+      expect(selectModelCanSave(useModelEditorStore.getState())).toBe(true)
+      expect(await useModelEditorStore.getState().save()).toMatchObject({ ok: true, id: MODEL_ID, version: 1 })
+      expect(mocks.metadata).toHaveBeenCalledWith(MODEL_ID, 1, expect.objectContaining({ name: 'Pure Diamond', tags: ['Logo'] }))
+      expect(mocks.save).not.toHaveBeenCalled(); expect(mocks.capture).not.toHaveBeenCalled(); expect(mocks.draft).not.toHaveBeenCalled()
+      expect(useModelEditorStore.getState()).toMatchObject({ dirty: false, status: 'ready', name: 'Pure Diamond' })
+    })
+
+    it('does not offer Save As New Model, which would need a generated recipe', async () => {
+      await open()
+      useModelEditorStore.getState().setMetadata({ name: 'Copy' })
+      expect(await useModelEditorStore.getState().save('Copy of Diamond')).toEqual({ ok: false })
+      expect(mocks.metadata).not.toHaveBeenCalled(); expect(mocks.save).not.toHaveBeenCalled()
+    })
+
+    it('keeps the edits and offers a retry when the metadata save fails', async () => {
+      await open()
+      useModelEditorStore.getState().setMetadata({ name: 'Pure Diamond' })
+      mocks.metadata.mockRejectedValueOnce(new Error('Model version conflict'))
+      expect(await useModelEditorStore.getState().save()).toEqual({ ok: false })
+      expect(useModelEditorStore.getState()).toMatchObject({ dirty: true, saveFailure: true, status: 'ready', error: 'Model version conflict' })
+      expect(selectModelCanSave(useModelEditorStore.getState())).toBe(true)
+    })
+  })
+
 })

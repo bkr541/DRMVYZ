@@ -12,7 +12,8 @@ import {useMediaStore} from '/src/stores/mediaStore.ts';import {useAudioStore} f
 import {modelAssetRepository} from '/src/features/models/data/modelAssetRepository.ts';import {useModelEditorStore} from '/src/features/models/state/modelEditorStore.ts';
 import {captureModelPreview} from '/src/features/models/state/modelViewportBridge.ts';
 import '/src/styles.css';import '/src/styles/analyzer.css';import '/src/styles/appearance.css';import '/src/styles/groupSpacing.css';import '/src/styles/vyzualz.css';import '/src/styles/mediaManager.css';import '/src/styles/workspaceShell.css';import '/src/styles/floatingWorkspace.css';import '/src/styles/tabRows.css';import '/src/styles/typography.css';
-useMediaStore.setState({accountId:'a0000000-0000-4000-8000-000000000001',items:[],queryItemIds:[],storageAvailable:true,authRequired:false,loading:false,invalidated:false,hasMore:false,collections:[],loadFromSupabase:async()=>{},loadCollections:async()=>{},setLibraryQuery:()=>{},ensureLibraryLoaded:async()=>{},ensureMediaSigned:async()=>{},refreshLibrary:async()=>{}});
+const images=Array.from({length:4},(_,i)=>({id:'image-'+i,name:'Fixture image '+i,type:'image',url:'${thumbnailUrl}',thumbnailUrl:'${thumbnailUrl}',favorite:false,mediaRole:'image',tags:[],collectionIds:[],metadata:{width:480,height:288}}))
+useMediaStore.setState({accountId:'a0000000-0000-4000-8000-000000000001',items:images,queryItemIds:images.map(image=>image.id),storageAvailable:true,authRequired:false,loading:false,invalidated:false,hasMore:false,collections:[],loadFromSupabase:async()=>{},loadCollections:async()=>{},setLibraryQuery:()=>{},ensureLibraryLoaded:async()=>{},ensureMediaSigned:async()=>{},refreshLibrary:async()=>{}});
 useAudioStore.setState({savedTracks:[],loading:false,loadSavedTracks:async()=>{}});modelAssetRepository.list=async()=>({items:[],nextCursor:null});
 modelAssetRepository.getBuiltinOrganization=async()=>({tags:[],collectionIds:[]});
 modelAssetRepository.updateBuiltinOrganization=async(_id,organization)=>organization;
@@ -80,19 +81,31 @@ try {
  }
  await card.locator('img').evaluate(image=>image.decode())
  const thumbnail=await card.locator('img').boundingBox()
- assert(thumbnail.width>0&&thumbnail.width<=126&&thumbnail.height>0,'The model card should show the rendered thumbnail in its compact tile.')
+ assert(thumbnail.width>0&&thumbnail.height>0,'The model card should show the rendered thumbnail.')
  await page.screenshot({path:`${output}/wordmark.png`});const before=await viewport.screenshot()
  await page.getByRole('region',{name:'3D Models',exact:true}).getByRole('button',{name:'List view',exact:true}).click()
  const listThumbnail=await card.locator('img').boundingBox()
  assert(listThumbnail.width===72&&listThumbnail.height>0,'List view should show the rendered model at 72px wide.')
  await page.getByRole('tab',{name:'All Visuals',exact:true}).click()
+ await page.getByRole('region',{name:'3D Models',exact:true}).getByRole('button',{name:'Grid view',exact:true}).click()
  await card.locator('img').evaluate(image=>image.decode())
+ const grids = await Promise.all(['3D Models', 'Images'].map(name =>
+   page.getByRole('region',{name,exact:true}).locator('.vz-media-sheet').evaluate(grid=>{
+     const css=getComputedStyle(grid), tile=grid.firstElementChild.getBoundingClientRect()
+     return {columns:css.gridTemplateColumns.split(' ').length,gap:css.columnGap,x:tile.x,width:tile.width,height:tile.height}
+   })))
+ assert.equal(grids[0].columns,4)
+ assert.deepEqual(grids[0],grids[1],'Model and image tiles share the same four-column grid, location and dimensions.')
  const box=await viewport.boundingBox();assert(box.width>300&&box.height>300,'The wordmark must have a usable visible viewport');await page.mouse.move(box.x+box.width*.5,box.y+box.height*.5);await page.mouse.down();await page.mouse.move(box.x+box.width*.7,box.y+box.height*.6,{steps:12});await page.mouse.up();await page.waitForTimeout(150)
  assert.notDeepEqual(await viewport.screenshot(),before,'Orbit changes the 3D view')
  await page.getByRole('button',{name:'Fit Model',exact:true}).click();await page.getByRole('button',{name:'Reset Camera',exact:true}).click()
  assert(await page.getByRole('button',{name:'Save Changes',exact:true}).isDisabled());assert(await page.getByRole('button',{name:'Delete Media',exact:true}).isDisabled());assert.equal(await page.getByRole('button',{name:'Regenerate 3D Model',exact:true}).count(),0)
  await inspector.getByRole('tab',{name:'Edit',exact:true}).click()
- const downloadButton=page.getByRole('button',{name:'Download Edited GLB',exact:true})
+ const toolbar=page.getByRole('toolbar',{name:'Media Manager controls',exact:true})
+ const downloadButton=toolbar.getByRole('button',{name:'Download Edited GLB',exact:true})
+ const restoreButton=toolbar.getByRole('button',{name:'Restore Original',exact:true})
+ assert.equal(await downloadButton.textContent(),'')
+ assert.equal(await restoreButton.textContent(),'')
  assert(await downloadButton.isDisabled())
  const pristine=await viewport.screenshot()
  const setRange=(name,value)=>page.getByRole('slider',{name,exact:true}).evaluate((input,value)=>{
@@ -114,6 +127,7 @@ try {
  assert.notDeepEqual(await viewport.screenshot(),pristine,'Model edits should redraw the live viewport')
  await page.getByRole('button',{name:'Fit Model',exact:true}).click()
  await page.screenshot({path:`${output}/wordmark-edit.png`})
+ await inspector.getByRole('tab',{name:'Output',exact:true}).click()
  const [download]=await Promise.all([page.waitForEvent('download'),downloadButton.click()])
  const bytes=await readFile(await download.path())
  const exported=JSON.parse(bytes.toString('utf8',20,20+bytes.readUInt32LE(12)))
@@ -123,7 +137,7 @@ try {
    'The exported transform should include 1.3× scale and 30° Z rotation')
  const rim=exported.materials.find(material=>material.name==='rim').pbrMetallicRoughness
  assert.equal(rim.roughnessFactor,0.25);assert(rim.baseColorFactor[0]<rim.baseColorFactor[1]&&rim.baseColorFactor[1]<rim.baseColorFactor[2])
- await page.getByRole('button',{name:'Restore Original',exact:true}).click()
+ await restoreButton.click()
  assert(await downloadButton.isDisabled())
  const restored=await page.evaluate(()=>globalThis.wordmarkReview.state())
  assert.deepEqual(restored.stats.bounds,state.stats.bounds)

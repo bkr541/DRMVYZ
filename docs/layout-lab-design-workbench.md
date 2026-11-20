@@ -39,6 +39,10 @@ Engine Dropdown adds **Cinema Still**, **Film Gate**, **Record Sleeve** and **Li
 
 AUTH contains **Backstage**, **Signal Room**, **Studio Pass** and **Marquee**. Each concept lets you switch between sign-in and account creation, reveal passwords and preview a local submission. Fields use `DreamVizTextInput`, and Remember me uses `IconMorphToggle`. A saved seven-tab workspace gains the AUTH slot and keeps its existing tab names and selection.
 
+## Preset card studies
+
+The 21 studies in Preset Cards use the same 148.5px width, with heights from 56px to 108px depending on the design. Each card shows the preset name centered over its artwork. Selection and favorites are local to each study.
+
 ## Performance Pad studies
 
 `layout-lab-tab-01-panel` contains **Full** (the former row 02) followed by four compact variations: **Compact**, **Underline**, **Accent Rail**, and **Glow**. The previously removed rows 01, 03, 04 and 05 remain removed. The remaining row retains its stable `data-pad-study="signal"` identity and four fixtures: Reactor, Drop Cage, Infinity and Tunnel. Individual pads retain IDs such as `signal-drop-cage`. Renaming the tab does not change these references.

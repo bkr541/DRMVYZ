@@ -796,3 +796,7 @@
 /* Tags are stored as lowercase keys and shown in capitals everywhere, including while they are typed. */
 .mum-chip-input.dv-text-input, .mmi-chip-input.dv-text-input { text-transform: uppercase; }
 .mum-chip-input.dv-text-input::placeholder, .mmi-chip-input.dv-text-input::placeholder { text-transform: none; }
+
+/* 3D model import: the rendered thumbnail beside the file name, and the larger preview in the details column. */
+.mum-file-thumb > svg { display: block; margin: auto; color: rgba(245, 248, 250, 0.7); }
+.mum-model-thumb { display: block; width: 100%; max-height: 220px; object-fit: contain; border-radius: 6px; background: #10181d; }

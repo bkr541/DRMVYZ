@@ -16,7 +16,7 @@ import { createEmptyCinema2WorkspaceDocument, parseCinema2WorkspaceDocument, act
 const library = { THREE, GLTFLoader } as unknown as Cinema2ThreeLibrary
 const binding = { kind: 'user-model' as const, modelAssetId: MODEL_ID, version: 1 }
 const stats = { triangles: 1, vertices: 3, meshes: 1, bounds: { min: [-1, -1, 0] as [number, number, number], max: [1, 1, 0] as [number, number, number] } }
-const asset = { id: MODEL_ID, userId: USER_A, sourceMediaId: null, name: 'Logo', description: null, currentVersion: 2, status: 'ready' as const, favorite: false, createdAt: '2026-11-12T00:00:00Z', updatedAt: '2026-11-12T00:00:00Z' }
+const asset = { id: MODEL_ID, kind: 'generated' as const, userId: USER_A, sourceMediaId: null, name: 'Logo', description: null, currentVersion: 2, status: 'ready' as const, favorite: false, createdAt: '2026-11-12T00:00:00Z', updatedAt: '2026-11-12T00:00:00Z' }
 function glb(patch = {}) {
   const json = { asset: { version: '2.0' }, scene: 0, scenes: [{ nodes: [0] }], nodes: [{ mesh: 0 }], meshes: [{ primitives: [{ attributes: { POSITION: 0 }, material: 0 }] }], materials: [{ pbrMetallicRoughness: { baseColorFactor: [1, 0.3, 0, 1], metallicFactor: 0.4, roughnessFactor: 0.5 } }], accessors: [{ bufferView: 0, componentType: 5126, count: 3, type: 'VEC3', min: [-1, -1, 0], max: [1, 1, 0] }], bufferViews: [{ buffer: 0, byteLength: 36 }], buffers: [{ byteLength: 36 }], ...patch }
   const text = new TextEncoder().encode(JSON.stringify(json)), length = Math.ceil(text.length / 4) * 4

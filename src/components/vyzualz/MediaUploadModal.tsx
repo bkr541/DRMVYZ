@@ -34,6 +34,8 @@ import { useReactStore } from '../../stores/reactStore'
 import { notify, useNotificationPage } from '../../stores/notificationStore'
 import { describeFontFile } from './react/renderers/fontGlyphUtils'
 import { FontUploadFields } from './MediaUploadFontFields'
+import { ModelUploadFields } from './MediaUploadModelFields'
+import { useModelEditorStore } from '../../features/models/state/modelEditorStore'
 import {
   FONT_UPLOAD_ACCEPT,
   FONT_UPLOAD_LABEL,
@@ -44,6 +46,14 @@ import {
   isFontUploadFile,
   type FontQueueEntry,
 } from './mediaUploadFonts'
+import {
+  MODEL_UPLOAD_ACCEPT,
+  MODEL_UPLOAD_LABEL,
+  explainModelSelection,
+  isModelEntryUploadable,
+  isModelUploadFile,
+  type ModelQueueEntry,
+} from './mediaUploadModels'
 
 // ── Local display metadata ────────────────────────────────────────────────────
 // Separate from store queue — purely for thumbnail/dims display in modal file list
@@ -300,8 +310,16 @@ export function MediaUploadModal({
   const [fontPreviewText, setFontPreviewText] = useState('')
   const [fontPreviewReady, setFontPreviewReady] = useState<ReadonlySet<string>>(new Set())
   const registeredFacesRef = useRef(new Map<string, FontFace>())
+  // 3D models (.glb) queued in this dialog. They are imported into the 3D Models library, not saved as media records.
+  const [modelQueue, setModelQueue] = useState<ModelQueueEntry[]>([])
+  const [activeModelId, setActiveModelId] = useState<string | null>(null)
+  const modelInspectionsRef = useRef(new Map<string, AbortController>())
+  const modelQueueRef = useRef<ModelQueueEntry[]>([])
+  modelQueueRef.current = modelQueue
   const isFontQueue = !isEdit && fontQueue.length > 0
-  const hasQueuedFiles = isFontQueue || uploadQueue.length > 0
+  const isModelQueue = !isEdit && modelQueue.length > 0
+  const hasQueuedFiles = isFontQueue || isModelQueue || uploadQueue.length > 0
+  const activeModel = modelQueue.find(entry => entry.id === activeModelId) ?? modelQueue[0] ?? null
   const activeFont = fontQueue.find(entry => entry.id === activeFontId) ?? fontQueue[0] ?? null
 
   const fileInputId = useId()
@@ -339,6 +357,11 @@ export function MediaUploadModal({
   useEffect(() => () => {
     for (const face of registeredFacesRef.current.values()) document.fonts?.delete(face)
     registeredFacesRef.current.clear()
+  }, [])
+  useEffect(() => () => {
+    modelInspectionsRef.current.forEach(controller => controller.abort())
+    modelInspectionsRef.current.clear()
+    modelQueueRef.current.forEach(entry => { if (entry.thumbnailUrl) URL.revokeObjectURL(entry.thumbnailUrl) })
   }, [])
 
   // Whether the current queue is all audio files
@@ -448,7 +471,43 @@ export function MediaUploadModal({
     }))
   }, [])
 
+  // Each GLB is fully checked (container, budgets, a real decode, a thumbnail) as soon as it is queued, so a bad file is reported before the upload.
+  const addModelFiles = useCallback(async (files: File[]) => {
+    const entries: ModelQueueEntry[] = files.map(file => ({
+      id: `model-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      file, inspection: null, fileError: null, thumbnailUrl: null,
+      name: file.name.replace(/\.glb$/i, '').replace(/[_-]+/g, ' ').trim(), description: '', tags: [], collectionIds: [], status: 'ready' as const,
+    }))
+    setModelQueue(prev => [...prev, ...entries])
+    setActiveModelId(current => current ?? entries[0]?.id ?? null)
+    const { inspectGlbFile } = await import('../../features/models/import/glbImport')
+    // One at a time: each decode holds the model's textures in memory until it finishes.
+    for (const entry of entries) {
+      const controller = new AbortController()
+      modelInspectionsRef.current.set(entry.id, controller)
+      try {
+        const inspection = await inspectGlbFile(entry.file, controller.signal)
+        if (controller.signal.aborted) continue
+        const thumbnailUrl = inspection.thumbnail ? URL.createObjectURL(inspection.thumbnail) : null
+        setModelQueue(prev => {
+          if (!prev.some(item => item.id === entry.id)) { if (thumbnailUrl) URL.revokeObjectURL(thumbnailUrl); return prev }
+          return prev.map(item => (item.id === entry.id ? { ...item, inspection, thumbnailUrl } : item))
+        })
+      } catch (error) {
+        if (controller.signal.aborted) continue
+        setModelQueue(prev => prev.map(item => (item.id === entry.id ? { ...item, fileError: error instanceof Error ? error.message : 'This model could not be read.' } : item)))
+      } finally { modelInspectionsRef.current.delete(entry.id) }
+    }
+  }, [])
+
   const addFiles = useCallback(async (files: File[]) => {
+    const modelProblem = explainModelSelection({ files, mediaQueued: uploadQueue.length, fontsQueued: fontQueue.length, modelsQueued: modelQueue.length, audioOnly })
+    if (modelProblem) { setUploadError(modelProblem); return }
+    if (files.length > 0 && files.every(isModelUploadFile)) {
+      setUploadError(null)
+      await addModelFiles(files)
+      return
+    }
     const selectionProblem = explainFontSelection({ files, mediaQueued: uploadQueue.length, fontsQueued: fontQueue.length, audioOnly })
     if (selectionProblem) { setUploadError(selectionProblem); return }
     if (files.length > 0 && files.every(isFontUploadFile)) {
@@ -559,7 +618,7 @@ export function MediaUploadModal({
       newMeta.forEach((v, k) => next.set(k, v))
       return next
     })
-  }, [audioOnly, uploadQueue.length, fontQueue.length, addFontFiles, addFilesToUploadQueue]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [audioOnly, uploadQueue.length, fontQueue.length, modelQueue.length, addFontFiles, addModelFiles, addFilesToUploadQueue]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Files handed in by the Media Library's drop zone go through the same checks and queues as files chosen inside the dialog.
   useEffect(() => {
@@ -581,11 +640,27 @@ export function MediaUploadModal({
     setDisplayMeta(new Map())
     setFontQueue([])
     setActiveFontId(null)
+    modelInspectionsRef.current.forEach(controller => controller.abort())
+    modelInspectionsRef.current.clear()
+    modelQueueRef.current.forEach(entry => { if (entry.thumbnailUrl) URL.revokeObjectURL(entry.thumbnailUrl) })
+    setModelQueue([])
+    setActiveModelId(null)
   }
 
   const removeFontEntry = (id: string) => {
     setFontQueue(prev => prev.filter(entry => entry.id !== id))
     setActiveFontId(current => (current === id ? null : current))
+  }
+  const removeModelEntry = (id: string) => {
+    modelInspectionsRef.current.get(id)?.abort()
+    const removed = modelQueue.find(entry => entry.id === id)
+    if (removed?.thumbnailUrl) URL.revokeObjectURL(removed.thumbnailUrl)
+    setModelQueue(prev => prev.filter(entry => entry.id !== id))
+    setActiveModelId(current => (current === id ? null : current))
+  }
+  const patchActiveModel = (patch: Partial<ModelQueueEntry>) => {
+    if (!activeModel) return
+    setModelQueue(prev => prev.map(entry => (entry.id === activeModel.id ? { ...entry, ...patch } : entry)))
   }
   const patchActiveFont = (patch: Partial<FontQueueEntry>) => {
     if (!activeFont) return
@@ -594,10 +669,10 @@ export function MediaUploadModal({
 
   // Tags
   // Tags and collections edit whichever item the form is showing: the active font when fonts are queued, otherwise the media draft.
-  const currentTags: string[] = isFontQueue ? (activeFont?.tags ?? []) : uploadDraft.tags
-  const currentCollectionIds: string[] = isFontQueue ? (activeFont?.collectionIds ?? []) : uploadDraft.collectionIds
-  const setCurrentTags = (tags: string[]) => { if (isFontQueue) patchActiveFont({ tags }); else setUploadDraftTags(tags) }
-  const setCurrentCollectionIds = (ids: string[]) => { if (isFontQueue) patchActiveFont({ collectionIds: ids }); else setUploadDraftCollections(ids) }
+  const currentTags: string[] = isModelQueue ? (activeModel?.tags ?? []) : isFontQueue ? (activeFont?.tags ?? []) : uploadDraft.tags
+  const currentCollectionIds: string[] = isModelQueue ? (activeModel?.collectionIds ?? []) : isFontQueue ? (activeFont?.collectionIds ?? []) : uploadDraft.collectionIds
+  const setCurrentTags = (tags: string[]) => { if (isModelQueue) patchActiveModel({ tags }); else if (isFontQueue) patchActiveFont({ tags }); else setUploadDraftTags(tags) }
+  const setCurrentCollectionIds = (ids: string[]) => { if (isModelQueue) patchActiveModel({ collectionIds: ids }); else if (isFontQueue) patchActiveFont({ collectionIds: ids }); else setUploadDraftCollections(ids) }
 
   const addTag = (raw: string) => {
     const tag = normalizeTag(raw)
@@ -693,8 +768,57 @@ export function MediaUploadModal({
       : (useReactStore.getState().fontUploadError ?? 'The font could not be uploaded.'))
   }
 
+  // GLBs are stored as imported models (original bytes, thumbnail, measured stats), one at a time, each with its own result.
+  const handleModelUpload = async () => {
+    const pending = modelQueue.filter(isModelEntryUploadable)
+    if (pending.length === 0) return
+    const controller = new AbortController()
+    uploadAbortRef.current = controller
+    setUploading(true)
+    setUploadError(null)
+    clearLoadError()
+    setProgress({ completed: 0, total: pending.length })
+    const { importGlbModel } = await import('../../features/models/import/glbImport')
+    let completed = 0
+    let failed = 0
+    let firstName = ''
+    let lastReason = ''
+    for (const entry of pending) {
+      if (controller.signal.aborted) break
+      setModelQueue(prev => prev.map(item => (item.id === entry.id ? { ...item, status: 'uploading', uploadError: undefined } : item)))
+      try {
+        await importGlbModel(entry.inspection!, {
+          name: entry.name, description: entry.description.trim() || null, tags: entry.tags, collectionIds: entry.collectionIds,
+        }, { signal: controller.signal })
+        completed += 1
+        if (!firstName) firstName = entry.name.trim() || entry.file.name
+        setModelQueue(prev => prev.map(item => (item.id === entry.id ? { ...item, status: 'done' } : item)))
+        // The 3D Models grid reloads when this changes, so the new model appears without a manual refresh.
+        useModelEditorStore.setState(state => ({ libraryRevision: state.libraryRevision + 1 }))
+      } catch (error) {
+        failed += 1
+        lastReason = error instanceof Error ? error.message : 'The model could not be imported.'
+        setModelQueue(prev => prev.map(item => (item.id === entry.id ? { ...item, status: 'error', uploadError: lastReason } : item)))
+      }
+      setProgress({ completed: completed + failed, total: pending.length })
+    }
+    uploadAbortRef.current = null
+    setUploading(false)
+    if (completed > 0) {
+      notifyUploaded(
+        completed === 1 ? '3D model imported' : '3D models imported',
+        completed === 1 ? `"${firstName}" was added to your 3D Models.` : `${completed} models were added to your 3D Models.`,
+      )
+    }
+    if (failed === 0 && !controller.signal.aborted) { onClose(); return }
+    setUploadError(completed > 0
+      ? `${completed} model${completed === 1 ? '' : 's'} imported. ${failed} failed and can be retried.`
+      : (lastReason || 'The model import was cancelled.'))
+  }
+
   // Upload
   const handleUpload = async () => {
+    if (isModelQueue) { await handleModelUpload(); return }
     if (isFontQueue) { await handleFontUpload(); return }
     if (!uploadQueue.length || bpmError) return
     const controller = new AbortController()
@@ -822,7 +946,9 @@ export function MediaUploadModal({
   const detectedDur  = activeMeta?.duration !== undefined ? activeMeta.duration.toFixed(2) : undefined
 
   const busy      = uploading || saving || editMutation?.status === 'pending'
-  const canUpload = isFontQueue
+  const canUpload = isModelQueue
+    ? !busy && modelQueue.some(isModelEntryUploadable)
+    : isFontQueue
     ? !busy && fontQueue.some(isFontEntryUploadable)
     : uploadQueue.length > 0 && !busy && !bpmError
   const canSave   = !busy
@@ -1027,7 +1153,7 @@ export function MediaUploadModal({
           <div>
             <div className="mum-title">
               <AppIcon kind="upload" className="mum-title-icon" />
-              {isEdit ? 'EDIT MEDIA' : isFontQueue ? 'FONT UPLOAD' : (audioOnly || isAudioQueue) ? 'AUDIO UPLOAD' : 'MEDIA UPLOAD'}
+              {isEdit ? 'EDIT MEDIA' : isModelQueue ? '3D MODEL IMPORT' : isFontQueue ? 'FONT UPLOAD' : (audioOnly || isAudioQueue) ? 'AUDIO UPLOAD' : 'MEDIA UPLOAD'}
             </div>
           </div>
           <button className="mum-close" onClick={() => { if (!busy) onClose() }} aria-label="Close"><AppIcon kind="close" size={14} /></button>
@@ -1050,7 +1176,7 @@ export function MediaUploadModal({
                   <div className="mum-drop-label">Drag &amp; Drop Media Here</div>
                   <div className="mum-drop-or">or</div>
                   <label htmlFor={fileInputId} className="mum-browse-btn">Browse Files</label>
-                  <div className="mum-drop-hint">{audioOnly ? `Max file size: ${MAX_FILE_LABEL}` : `Media up to ${MAX_FILE_LABEL} · Fonts: ${FONT_UPLOAD_LABEL}`}</div>
+                  <div className="mum-drop-hint">{audioOnly ? `Max file size: ${MAX_FILE_LABEL}` : `Media up to ${MAX_FILE_LABEL} · Fonts: ${FONT_UPLOAD_LABEL} · 3D models: ${MODEL_UPLOAD_LABEL}`}</div>
                 </div>
               </div>
               <div className="mum-dropzone-panel" aria-hidden={!hasQueuedFiles}>
@@ -1062,12 +1188,62 @@ export function MediaUploadModal({
                 ref={fileInputRef}
                 id={fileInputId}
                 type="file"
-                accept={audioOnly ? AUDIO_ACCEPT : `${ACCEPT},${FONT_UPLOAD_ACCEPT}`}
+                accept={audioOnly ? AUDIO_ACCEPT : `${ACCEPT},${FONT_UPLOAD_ACCEPT},${MODEL_UPLOAD_ACCEPT}`}
                 multiple
                 style={{ display: 'none' }}
                 onChange={e => { addFiles(Array.from(e.target.files ?? [])); e.target.value = '' }}
               />
             </div>
+
+            {/* 3D model list */}
+            {isModelQueue && (
+              <div className="mum-filelist">
+                <div className="mum-filelist-header">
+                  <span>{modelQueue.length} model{modelQueue.length !== 1 ? 's' : ''} selected</span>
+                  <IconChipButton onClick={clearAll} disabled={uploading}>Clear</IconChipButton>
+                </div>
+                <div className="mum-filelist-items">
+                  {modelQueue.map(entry => {
+                    const selected = entry.id === activeModel?.id
+                    const badgeStatus = entry.fileError ? 'error' : entry.inspection === null && entry.status === 'ready' ? 'uploading' : entry.status
+                    const stats = entry.inspection?.stats
+                    return (
+                      <div
+                        key={entry.id}
+                        className={`mum-file-row${selected ? ' mum-file-row--selected' : ''}`}
+                        role="button"
+                        tabIndex={0}
+                        aria-pressed={selected}
+                        aria-label={`Edit details for ${entry.file.name}`}
+                        onClick={() => setActiveModelId(entry.id)}
+                        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setActiveModelId(entry.id) } }}
+                      >
+                        <div className="mum-file-thumb">
+                          {entry.thumbnailUrl ? <img src={entry.thumbnailUrl} alt="" /> : <AppIcon kind="layers" size={20} color="currentColor" />}
+                        </div>
+                        <div className="mum-file-info">
+                          <div className="mum-file-name">{entry.name.trim() || entry.file.name}</div>
+                          <div className="mum-file-meta">
+                            {entry.file.name} · {stats ? `${stats.triangles.toLocaleString('en-US')} triangles · ${stats.meshes} mesh${stats.meshes === 1 ? '' : 'es'}` : entry.fileError ? 'Cannot be imported' : 'Checking…'}
+                          </div>
+                          {(entry.fileError || entry.uploadError) && <div className="mum-file-error" role="alert">{entry.fileError ?? entry.uploadError}</div>}
+                        </div>
+                        <StatusBadge status={badgeStatus} errorMsg={entry.fileError ?? entry.uploadError} />
+                        <button
+                          type="button"
+                          className="mum-file-remove"
+                          onClick={e => { e.stopPropagation(); removeModelEntry(entry.id) }}
+                          disabled={uploading}
+                          aria-label={`Remove ${entry.file.name}`}
+                        >
+                          <AppIcon kind="delete" size={13} color="currentColor" />
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Font list */}
             {isFontQueue && (
@@ -1120,7 +1296,7 @@ export function MediaUploadModal({
             )}
 
             {/* File list */}
-            {!isFontQueue && uploadQueue.length > 0 && (
+            {!isFontQueue && !isModelQueue && uploadQueue.length > 0 && (
               <div className="mum-filelist">
                 <div className="mum-filelist-header">
                   <span>{uploadQueue.length} file{uploadQueue.length !== 1 ? 's' : ''} selected</span>
@@ -1182,6 +1358,18 @@ export function MediaUploadModal({
           {/* Right: metadata form */}
           <div className="mum-right">
 
+            {isModelQueue && modelQueue.length > 1 && (
+              <div className="mum-editing-banner">
+                <span>Editing <strong>{activeModel?.name.trim() || activeModel?.file.name || 'a model'}</strong></span>
+                <IconChipButton
+                  onClick={() => { if (activeModel) setModelQueue(prev => prev.map(entry => ({ ...entry, tags: [...activeModel.tags], collectionIds: [...activeModel.collectionIds] }))) }}
+                  disabled={!activeModel || uploading}
+                >
+                  Apply tags &amp; collections to all {modelQueue.length} models
+                </IconChipButton>
+              </div>
+            )}
+
             {isFontQueue && fontQueue.length > 1 && (
               <div className="mum-editing-banner">
                 <span>Editing <strong>{activeFont?.name.trim() || activeFont?.file.name || 'a font'}</strong></span>
@@ -1194,7 +1382,7 @@ export function MediaUploadModal({
               </div>
             )}
 
-            {!isEdit && !isFontQueue && uploadQueue.length > 1 && (
+            {!isEdit && !isFontQueue && !isModelQueue && uploadQueue.length > 1 && (
               <IconChipButton
                 className="mum-apply-to-all"
                 onClick={applyUploadDraftToAllQueued}
@@ -1205,7 +1393,14 @@ export function MediaUploadModal({
             )}
 
             {/* ── Font queue: font name, preview, tags, collections and file details ─── */}
-            {isFontQueue && activeFont ? (
+            {isModelQueue && activeModel ? (
+              <ModelUploadFields
+                entry={activeModel}
+                onNameChange={name => patchActiveModel({ name })}
+                onDescriptionChange={description => patchActiveModel({ description })}
+                tagsAndCollections={tagsAndCollectionsRow}
+              />
+            ) : isFontQueue && activeFont ? (
               <FontUploadFields
                 entry={activeFont}
                 previewText={fontPreviewText}
@@ -1421,6 +1616,8 @@ export function MediaUploadModal({
             >
               {uploading
                 ? `Uploading ${progress.completed}/${progress.total}…`
+                : isModelQueue
+                  ? `Import ${modelQueue.filter(isModelEntryUploadable).length || ''} 3D Model${modelQueue.filter(isModelEntryUploadable).length === 1 ? '' : 's'}`.replace('  ', ' ')
                 : isFontQueue
                   ? `Upload ${fontQueue.filter(isFontEntryUploadable).length || ''} Font${fontQueue.filter(isFontEntryUploadable).length === 1 ? '' : 's'}`.replace('  ', ' ')
                   : isAudioQueue

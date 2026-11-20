@@ -12,8 +12,6 @@ import { IconChipButton } from '../react/controls/IconChipButton'
 import { Collapsible } from '../react/ReactControlRows'
 import { computeVirtualMediaWindow, MEDIA_SHEET_GAP } from './mediaLibraryWindow'
 
-const MIN_MODEL_TILE = 96
-const MAX_MODEL_TILE = 128
 const MODEL_LIST_ROW_HEIGHT = 64
 
 function ModelThumbnail({ asset }: { asset: ModelAsset }) {
@@ -76,14 +74,12 @@ export function ModelLibraryCards({ search, favorites, viewMode, activeId, onSel
     (!collectionId || (page.key === key && page.builtinIds.includes(model.id)))
       && `${model.name} ${model.description}`.toLowerCase().includes(search.trim().toLowerCase())) : []
   const rows = [...builtins.map(model => ({kind:'builtin' as const,model})), ...items.map(asset => ({kind:'saved' as const,asset}))]
-  const gridColumns = metrics.width >= MIN_MODEL_TILE * 2 + MEDIA_SHEET_GAP ? 2 : 1
+  const grid = viewMode === 'grid'
   const windowed = computeVirtualMediaWindow({
-    itemCount: rows.length, ...metrics, viewMode, manager: true, gridColumns, listRowHeight: MODEL_LIST_ROW_HEIGHT,
-    width: Math.min(metrics.width, gridColumns * MAX_MODEL_TILE + (gridColumns - 1) * MEDIA_SHEET_GAP),
+    itemCount: rows.length, ...metrics, viewMode, manager: true, listRowHeight: MODEL_LIST_ROW_HEIGHT,
   })
-  const cardLayout = viewMode === 'grid' ? {
+  const cardLayout = grid ? {
     '--vz-sheet-tile': `${windowed.tileSize}px`,
-    gridTemplateColumns: `repeat(${windowed.columns}, var(--vz-sheet-tile))`,
   } : { '--mm-model-list-card-height': `${windowed.rowHeight - MEDIA_SHEET_GAP}px` }
   const loadMore = async () => {
     if (inFlight.current || page.key !== key || !page.cursor) return
@@ -111,22 +107,25 @@ export function ModelLibraryCards({ search, favorites, viewMode, activeId, onSel
       {error && <NoticeCard tone="error" title="Model library unavailable" role="alert">{error} <IconChipButton onClick={() => setRefresh(n => n + 1)}>Retry models</IconChipButton></NoticeCard>}
       {!loading && !error && !rows.length && <div className="vz-media-page-state">{search ? 'No models match this search.' : 'No saved 3D models.'}</div>}
       {windowed.topSpacer > 0 && <div style={{ height: windowed.topSpacer }} aria-hidden="true" />}
-      <div className={viewMode === 'grid' ? 'vz-media-sheet' : 'vz-media-list mm-model-card-list'} style={cardLayout as CSSProperties}>
+      <div className={grid ? 'vz-media-sheet' : 'vz-media-list mm-model-card-list'} style={cardLayout as CSSProperties}>
         {rows.slice(windowed.startIndex, windowed.endIndex).map(row => {
           const asset = row.kind === 'saved' ? row.asset : null
           const model = row.kind === 'builtin' ? row.model : row.asset
-          const type = !asset ? 'Conduit' : asset.status === 'deletion_pending' ? 'Deletion pending' : asset.currentVersion ? `3D · v${asset.currentVersion}` : 'Draft record'
-          return <div key={`${row.kind}:${model.id}`} className={`mm-model-card ${viewMode === 'list' ? 'mm-model-card--list' : ''}`}>
-            <button type="button" className="mm-model-card-select" aria-label={`Select 3D model ${model.name}`} aria-pressed={activeId === model.id}
+          const type = !asset ? 'Conduit' : asset.status === 'deletion_pending' ? 'Deletion pending' : asset.currentVersion ? `${asset.kind === 'imported' ? 'GLB' : '3D'} · v${asset.currentVersion}` : 'Draft record'
+          return <div key={`${row.kind}:${model.id}`} className={`mm-model-card ${grid ? 'vz-media-card vz-media-card--sheet' : 'mm-model-card--list'}`}>
+            <button type="button" className="mm-model-card-select" aria-label={`Select 3D model ${model.name}`} aria-pressed={activeId === model.id} title={model.name}
               onClick={() => { if (row.kind === 'builtin') onSelectBuiltin?.(row.model); else onSelect(row.asset) }}>
               <span className="mm-model-card-preview">
                 {row.kind === 'builtin' ? <img src={row.model.thumbnailUrl} alt="" loading="lazy" decoding="async" />
                   : <ModelThumbnail key={row.asset.currentVersion} asset={row.asset} />}
               </span>
-              <span className="mm-model-card-text">
+              {grid ? <>
+                <span className="vz-media-type-badge" title={type}>{type}</span>
+                <span className="vz-media-sheet-name">{model.name}</span>
+              </> : <span className="mm-model-card-text">
                 <span className="mm-model-card-name" title={model.name}>{model.name}</span>
                 <span className="mm-model-card-type">{type}</span>
-              </span>
+              </span>}
             </button>
             {asset && <button type="button" className="mm-model-favorite" aria-label={`Favorite model ${asset.name}`} aria-pressed={asset.favorite}
               disabled={busy === asset.id || asset.status === 'deletion_pending'} onClick={() => { void favorite(asset) }}><AppIcon kind="star" size={12} /></button>}

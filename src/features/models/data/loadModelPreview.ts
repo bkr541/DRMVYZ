@@ -1,7 +1,7 @@
 import { BUILTIN_MODELS, type BuiltinModel } from '../domain/builtinModels'
 import { Box3, Mesh } from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
-import { MODEL_MAX_FILE_BYTES, parseModelGeometryStats, type ModelAsset } from '../domain/modelAssetTypes'
+import { MODEL_MAX_FILE_BYTES, MODEL_MAX_TRIANGLES, parseModelGeometryStats, type ModelAsset } from '../domain/modelAssetTypes'
 import { disposeModelGroup } from '../geometry/createExtrudedModel'
 import { checkAbort } from '../geometry/modelQualityBudget'
 import { modelAssetRepository } from './modelAssetRepository'
@@ -29,7 +29,8 @@ export async function loadBuiltinModelPreview(model: BuiltinModel, signal: Abort
   return decodeModelPreview(await response.arrayBuffer(), signal)
 }
 
-async function decodeModelPreview(bytes: ArrayBuffer | null, signal: AbortSignal) {
+/** Decodes GLB bytes into a group the caller owns (call `dispose` to release its geometry, materials and textures). */
+export async function decodeModelPreview(bytes: ArrayBuffer | null, signal: AbortSignal) {
   if (!bytes || bytes.byteLength < 20 || bytes.byteLength > MODEL_MAX_FILE_BYTES) throw new Error('Saved model is empty or too large.')
   const header = new DataView(bytes)
   if (header.getUint32(0, true) !== 0x46546c67 || header.getUint32(4, true) !== 2 || header.getUint32(8, true) !== bytes.byteLength || header.getUint32(16, true) !== 0x4e4f534a) throw new Error('Saved model has an invalid GLB header.')
@@ -47,7 +48,12 @@ async function decodeModelPreview(bytes: ArrayBuffer | null, signal: AbortSignal
       vertices += positions.count; triangles += (object.geometry.index?.count ?? positions.count) / 3
     })
     const box = new Box3().setFromObject(loaded.scene)
+    // Say which budget was exceeded; the stats parser below only knows the number is out of range.
+    if (triangles < 1) throw new Error('This model contains no triangles to display.')
+    if (triangles > MODEL_MAX_TRIANGLES) throw new Error(`This model has ${Math.round(triangles).toLocaleString('en-US')} triangles; the limit is ${MODEL_MAX_TRIANGLES.toLocaleString('en-US')}.`)
+    if (vertices > 1_000_000) throw new Error(`This model has ${vertices.toLocaleString('en-US')} vertices; the limit is 1,000,000.`)
+    if (meshes > 1024) throw new Error(`This model has ${meshes.toLocaleString('en-US')} meshes; the limit is 1,024.`)
     const stats = parseModelGeometryStats({ triangles, vertices, meshes, bounds: { min: box.min.toArray(), max: box.max.toArray() } })
-    return { group: loaded.scene, stats, dispose: () => disposeModelGroup(loaded.scene) }
+    return { group: loaded.scene, stats, animations: loaded.animations.length, dispose: () => disposeModelGroup(loaded.scene) }
   } catch (error) { disposeModelGroup(loaded.scene); throw error }
 }

@@ -11,8 +11,15 @@ export interface ModelGeneratorRecipe {
   preview: { background: string; lightIntensity: number; environment: 'neutral' | 'studio'; grid?: boolean; shadows?: boolean; turntable?: boolean }
 }
 
+/** Generated models are traced from an image; imported models are a GLB the user made elsewhere and are stored as-is. */
+export type ModelKind = 'generated' | 'imported'
+
+/** What was measured on an imported GLB when it was checked, kept so the inspector can show it without decoding the file again. */
+export interface ModelImportStats { fileName: string; imageCount: number; maxImageSide: number }
+
 export interface ModelGeometryStats {
   glbBytes?: number
+  imported?: ModelImportStats
   materialCount?: number
   source?: { width: number; height: number; mimeType: string; byteSize: number }
   triangles: number
@@ -24,6 +31,7 @@ export interface ModelGeometryStats {
 export interface ModelAsset {
   id: string
   userId: string
+  kind: ModelKind
   sourceMediaId: string | null
   name: string
   description: string | null
@@ -40,10 +48,11 @@ export interface ModelAssetVersion {
   version: number
   operationId: string
   glbPath: string
-  sourceSnapshotPath: string
-  traceSvgPath: string
+  /** Null for an imported model, which keeps only its GLB and thumbnail. */
+  sourceSnapshotPath: string | null
+  traceSvgPath: string | null
   thumbnailPath: string | null
-  generatorRecipe: ModelGeneratorRecipe
+  generatorRecipe: ModelGeneratorRecipe | null
   geometryStats: ModelGeometryStats
   createdAt: string
 }
@@ -53,9 +62,10 @@ export interface ModelSaveOperation {
   modelAssetId: string
   expectedVersion: number
   state: 'uploading' | 'published' | 'cleanup_pending' | 'cancelled'
-  sourceExtension: 'png' | 'svg'
+  kind: ModelKind
+  sourceExtension: 'png' | 'svg' | null
   hasThumbnail: boolean
-  generatorRecipe: ModelGeneratorRecipe
+  generatorRecipe: ModelGeneratorRecipe | null
   geometryStats: ModelGeometryStats
   createdAt: string
 }
@@ -146,7 +156,9 @@ export function parseModelGeometryStats(value: unknown): ModelGeometryStats {
   const min = vector(bounds.min), max = vector(bounds.max)
   if (min.some((n, i) => n > max[i])) invalid('Inverted model bounds.')
   const source = v.source === undefined ? undefined : record(v.source)
+  const imported = v.imported === undefined ? undefined : record(v.imported)
   return {
+    ...(imported ? { imported: { fileName: text(imported.fileName, 300), imageCount: number(imported.imageCount, 0, 1024, true), maxImageSide: number(imported.maxImageSide, 0, 65536, true) } } : {}),
     ...(v.glbBytes === undefined ? {} : { glbBytes: number(v.glbBytes, 1, MODEL_MAX_FILE_BYTES, true) }),
     ...(v.materialCount === undefined ? {} : { materialCount: number(v.materialCount, 1, 128, true) }),
     ...(source ? { source: { width: number(source.width, 0, 1e6), height: number(source.height, 0, 1e6), mimeType: choice(source.mimeType, ['image/png', 'image/svg+xml', 'image/jpeg', 'image/webp']), byteSize: number(source.byteSize, 1, MODEL_MAX_FILE_BYTES, true) } } : {}),
@@ -155,13 +167,14 @@ export function parseModelGeometryStats(value: unknown): ModelGeometryStats {
 
 export function parseModelAsset(value: unknown): ModelAsset {
   const v = record(value)
-  return { id: uuid(v.id), userId: uuid(v.user_id), sourceMediaId: v.source_media_id === null ? null : uuid(v.source_media_id), name: text(v.name), description: v.description === null ? null : text(v.description, 4000), favorite: boolean(v.favorite), currentVersion: versionNumber(v.current_version), status: choice(v.status, ['draft', 'ready', 'deletion_pending']), createdAt: timestamp(v.created_at), updatedAt: timestamp(v.updated_at) }
+  return { id: uuid(v.id), userId: uuid(v.user_id), kind: v.kind === undefined ? 'generated' : choice(v.kind, ['generated', 'imported'] as const), sourceMediaId: v.source_media_id === null ? null : uuid(v.source_media_id), name: text(v.name), description: v.description === null ? null : text(v.description, 4000), favorite: boolean(v.favorite), currentVersion: versionNumber(v.current_version), status: choice(v.status, ['draft', 'ready', 'deletion_pending']), createdAt: timestamp(v.created_at), updatedAt: timestamp(v.updated_at) }
 }
 
-export function modelStoragePaths(userId: string, modelId: string, version: number, operationId: string, sourceExtension: 'png' | 'svg', hasThumbnail: boolean) {
+/** `sourceExtension` is null for an imported model, which has no source snapshot or trace. */
+export function modelStoragePaths(userId: string, modelId: string, version: number, operationId: string, sourceExtension: 'png' | 'svg' | null, hasThumbnail: boolean) {
   const root = `${uuid(userId)}/${uuid(modelId)}/${versionNumber(version, 1)}/${uuid(operationId)}`
-  choice(sourceExtension, ['png', 'svg'])
-  return { glbPath: `${root}/model.glb`, sourceSnapshotPath: `${root}/source.${sourceExtension}`, traceSvgPath: `${root}/trace.svg`, thumbnailPath: hasThumbnail ? `${root}/thumbnail.png` : null }
+  if (sourceExtension !== null) choice(sourceExtension, ['png', 'svg'])
+  return { glbPath: `${root}/model.glb`, sourceSnapshotPath: sourceExtension ? `${root}/source.${sourceExtension}` : null, traceSvgPath: sourceExtension ? `${root}/trace.svg` : null, thumbnailPath: hasThumbnail ? `${root}/thumbnail.png` : null }
 }
 
 export function assertOwnedModelPath(path: string, userId: string, modelId: string): void {
@@ -174,14 +187,17 @@ export function assertOwnedModelPath(path: string, userId: string, modelId: stri
 export function parseModelVersion(value: unknown, userId: string): ModelAssetVersion {
   const v = record(value)
   const modelAssetId = uuid(v.model_asset_id), operationId = uuid(v.operation_id), version = versionNumber(v.version, 1)
-  const glbPath = text(v.glb_path, 300), sourceSnapshotPath = text(v.source_snapshot_path, 300), traceSvgPath = text(v.trace_svg_path, 300)
+  const glbPath = text(v.glb_path, 300)
+  const sourceSnapshotPath = v.source_snapshot_path === null ? null : text(v.source_snapshot_path, 300)
+  const traceSvgPath = v.trace_svg_path === null ? null : text(v.trace_svg_path, 300)
+  if ((sourceSnapshotPath === null) !== (traceSvgPath === null) || (sourceSnapshotPath === null) !== (v.generator_recipe === null)) invalid('Model version has a partial generated payload.')
   const thumbnailPath = v.thumbnail_path === null ? null : text(v.thumbnail_path, 300)
-  const paths = modelStoragePaths(userId, modelAssetId, version, operationId, sourceSnapshotPath.endsWith('.svg') ? 'svg' : 'png', thumbnailPath !== null)
+  const paths = modelStoragePaths(userId, modelAssetId, version, operationId, sourceSnapshotPath === null ? null : sourceSnapshotPath.endsWith('.svg') ? 'svg' : 'png', thumbnailPath !== null)
   if (glbPath !== paths.glbPath || sourceSnapshotPath !== paths.sourceSnapshotPath || traceSvgPath !== paths.traceSvgPath || thumbnailPath !== paths.thumbnailPath) invalid('Model version paths do not match its identity.')
-  return { id: uuid(v.id), modelAssetId, operationId, version, ...paths, generatorRecipe: parseModelRecipe(v.generator_recipe), geometryStats: parseModelGeometryStats(v.geometry_stats), createdAt: timestamp(v.created_at) }
+  return { id: uuid(v.id), modelAssetId, operationId, version, ...paths, generatorRecipe: v.generator_recipe === null ? null : parseModelRecipe(v.generator_recipe), geometryStats: parseModelGeometryStats(v.geometry_stats), createdAt: timestamp(v.created_at) }
 }
 
 export function parseModelOperation(value: unknown): ModelSaveOperation {
   const v = record(value)
-  return { id: uuid(v.id), modelAssetId: uuid(v.model_asset_id), expectedVersion: versionNumber(v.expected_version), state: choice(v.state, ['uploading', 'published', 'cleanup_pending', 'cancelled']), sourceExtension: choice(v.source_extension, ['png', 'svg']), hasThumbnail: boolean(v.has_thumbnail), generatorRecipe: parseModelRecipe(v.generator_recipe), geometryStats: parseModelGeometryStats(v.geometry_stats), createdAt: timestamp(v.created_at) }
+  return { id: uuid(v.id), modelAssetId: uuid(v.model_asset_id), expectedVersion: versionNumber(v.expected_version), state: choice(v.state, ['uploading', 'published', 'cleanup_pending', 'cancelled']), kind: v.kind === undefined ? 'generated' : choice(v.kind, ['generated', 'imported'] as const), sourceExtension: v.source_extension === null ? null : choice(v.source_extension, ['png', 'svg'] as const), hasThumbnail: boolean(v.has_thumbnail), generatorRecipe: v.generator_recipe === null ? null : parseModelRecipe(v.generator_recipe), geometryStats: parseModelGeometryStats(v.geometry_stats), createdAt: timestamp(v.created_at) }
 }

@@ -16,6 +16,8 @@ const HEADER_ACTIONS = {
   clear: { kind: 'close', bounds: '8 8 16 16' },
   clearAll: { kind: 'clearAll', bounds: '2 4 28 25' },
   reset: { kind: 'undo', bounds: '4 5 24 21' },
+  download: { kind: 'download', bounds: '4 2 24 28' },
+  restore: { kind: 'rotateLeft', bounds: '2 2 26 28' },
   delete: { kind: 'delete', bounds: '4 2 24 28' },
   lyrics: { kind: 'lyrics', bounds: '2 6 28 20' },
   undo: { kind: 'undo', bounds: '4 5 24 21' },

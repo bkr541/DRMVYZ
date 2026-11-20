@@ -68,3 +68,31 @@ describe('model domain persistence contract', () => {
   })
 
 })
+
+describe('imported model records', () => {
+  const base = { id: 'c0000000-0000-4000-8000-000000000001', user_id: 'a0000000-0000-4000-8000-000000000001', source_media_id: null, name: 'Diamond', description: null, favorite: false, current_version: 1, status: 'ready', created_at: '2026-11-20T00:00:00Z', updated_at: '2026-11-20T00:00:00Z' }
+  const OP = 'd0000000-0000-4000-8000-000000000001', root = `${base.user_id}/${base.id}/1/${OP}`
+  const version = { id: 'e0000000-0000-4000-8000-000000000001', model_asset_id: base.id, version: 1, operation_id: OP, glb_path: `${root}/model.glb`, source_snapshot_path: null, trace_svg_path: null,
+    thumbnail_path: `${root}/thumbnail.png`, generator_recipe: null, geometry_stats: { triangles: 12, vertices: 24, meshes: 1, bounds: { min: [-1, -1, -1], max: [1, 1, 1] }, imported: { fileName: 'a.glb', imageCount: 1, maxImageSide: 4096 } }, created_at: '2026-11-20T00:00:00Z' }
+
+  it('reads the kind, defaulting rows that predate it to generated', () => {
+    expect(parseModelAsset({ ...base, kind: 'imported' }).kind).toBe('imported')
+    expect(parseModelAsset(base).kind).toBe('generated')
+    expect(() => parseModelAsset({ ...base, kind: 'scanned' })).toThrow()
+  })
+
+  it('parses an imported version with no source, trace or recipe', () => {
+    expect(parseModelVersion(version, base.user_id)).toMatchObject({ sourceSnapshotPath: null, traceSvgPath: null, generatorRecipe: null, thumbnailPath: `${root}/thumbnail.png` })
+  })
+
+  it('refuses a version that has only part of a generated payload, or paths that do not match its identity', () => {
+    expect(() => parseModelVersion({ ...version, source_snapshot_path: `${root}/source.png` }, base.user_id)).toThrow(/partial/)
+    expect(() => parseModelVersion({ ...version, glb_path: `${root}/other.glb` }, base.user_id)).toThrow()
+  })
+
+  it('parses imported operations and builds their paths without source files', () => {
+    expect(parseModelOperation({ id: OP, model_asset_id: base.id, expected_version: 0, state: 'uploading', kind: 'imported', source_extension: null, has_thumbnail: true, generator_recipe: null, geometry_stats: version.geometry_stats, created_at: '2026-11-20T00:00:00Z' }))
+      .toMatchObject({ kind: 'imported', sourceExtension: null, generatorRecipe: null })
+    expect(modelStoragePaths(base.user_id, base.id, 1, OP, null, false)).toEqual({ glbPath: `${root}/model.glb`, sourceSnapshotPath: null, traceSvgPath: null, thumbnailPath: null })
+  })
+})
