@@ -3,7 +3,7 @@ import type { Cinema2Runtime } from '../cinema2/runtime/Cinema2Runtime'
 import { type Cinema2InspectorControlModel } from '../cinema2/parameters/Cinema2InspectorModel'
 import type { Cinema2ParameterState } from '../cinema2/parameters/Cinema2ParameterState'
 import {
-  CINEMA2_TEXT_FIELDS, applySavedText, createTextDraft, isCinema2TextPreset, textContentError, textLines, textParameters,
+  CINEMA2_TEXT_FIELDS, applySavedText, cinema2TextLineFields, createTextDraft, isCinema2TextPreset, textContentError, textLines, textParameters,
   type Cinema2SavedText, type Cinema2TextPresetId,
 } from '../cinema2/text/Cinema2TextConfiguration'
 import { captureCinema2WorkspacePresetState } from '../cinema2/runtime/Cinema2WorkspaceSession'
@@ -132,7 +132,8 @@ function TextLibrary({ runtime, presetId, mode }: { runtime: Cinema2Runtime; pre
   // Reuse canonical definitions and controls; signs remain editable while disabled in the draft.
   const controls: Cinema2InspectorControlModel[] = draft ? CINEMA2_TEXT_FIELDS[presetId].flatMap(id => {
     const definition = draft.getDefinition(id as Parameters<Cinema2ParameterState['getDefinition']>[0])!
-    if (id.endsWith('-line-2-text') && draftValues?.[id.replace('line-2-text', 'line-mode')] !== 'two') return []
+    const lineFields = cinema2TextLineFields(presetId)
+    if (lineFields && id === lineFields.line2 && draftValues?.[lineFields.mode] !== 'two') return []
     return [{ definition, value: draft.getValue(definition.id), enabled: true, disabledReason: null }]
   }) : []
   const change = (control: Cinema2InspectorControlModel, value: Parameters<Cinema2ParameterState['setPersistentValue']>[1]) => {

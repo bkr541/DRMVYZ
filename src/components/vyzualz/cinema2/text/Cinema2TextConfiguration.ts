@@ -5,12 +5,19 @@ import type { Cinema2Runtime } from '../runtime/Cinema2Runtime'
 import { sanitizeCinema2SayItText } from '../modules/sayIt/Cinema2SayItTextLayout'
 import alphabet from '../modules/nightshift/Cinema2NightshiftSignAlphabet.generated.json'
 
-const EXTRUDED_TEXT_NAMES = { 'say-it': 'SAY IT', submerge: 'SUBMERGE', orbital: 'ORBITAL' } as const
+/** The one- or two-line extruded text presets: the field ids of their Line Mode, Line 1 and Line 2, and the name shown in messages. */
+const EXTRUDED_TEXT = {
+  'say-it': { name: 'SAY IT', mode: 'say-it-line-mode', line1: 'say-it-text', line2: 'say-it-line-2-text' },
+  submerge: { name: 'SUBMERGE', mode: 'submerge-line-mode', line1: 'submerge-text', line2: 'submerge-line-2-text' },
+  orbital: { name: 'ORBITAL', mode: 'orbital-line-mode', line1: 'orbital-text', line2: 'orbital-line-2-text' },
+  'crate-paradox-weave': { name: 'Paradox Weave', mode: 'parallax-cipher-line-mode', line1: 'parallax-cipher-text', line2: 'parallax-cipher-line-two-text' },
+} as const
 
 export const CINEMA2_TEXT_FIELDS = {
   'drmvyz.cinema2.orbital': ['orbital-line-mode', 'orbital-text', 'orbital-line-2-text', 'orbital-alignment', 'orbital-tracking', 'orbital-line-spacing', 'orbital-glyph-scale', 'orbital-material-style', 'orbital-roughness', 'orbital-letter-depth', 'orbital-led-outline', 'orbital-background', 'orbital-chrome', 'orbital-outline-color', 'orbital-gyroscope-size', 'orbital-planet', 'orbital-debris'],
   'drmvyz.cinema2.submerge': ['submerge-line-mode', 'submerge-text', 'submerge-line-2-text', 'submerge-alignment', 'submerge-tracking', 'submerge-line-spacing', 'submerge-glyph-scale', 'submerge-material-style', 'submerge-roughness', 'submerge-letter-depth', 'submerge-led-outline', 'submerge-background', 'submerge-chrome', 'submerge-outline-color', 'submerge-architecture', 'submerge-waves', 'submerge-sunlight', 'submerge-sun-color', 'submerge-foam-color', 'submerge-caustics', 'submerge-haze', 'submerge-particles', 'submerge-bubbles'],
   'drmvyz.cinema2.say-it': ['say-it-line-mode', 'say-it-text', 'say-it-line-2-text', 'say-it-alignment', 'say-it-tracking', 'say-it-line-spacing', 'say-it-glyph-scale', 'say-it-material-style', 'say-it-led-outline', 'say-it-background', 'say-it-chrome', 'say-it-outline-color'],
+  'drmvyz.cinema2.crate-paradox-weave': ['parallax-cipher-line-mode', 'parallax-cipher-text', 'parallax-cipher-line-two-text'],
   'drmvyz.cinema2.marquee': ['marquee-front-text', 'marquee-left-text', 'marquee-right-text', 'marquee-sign-illumination', 'marquee-marquee-color'],
   'drmvyz.cinema2.nightshift': ['nightshift-enable-signs', 'nightshift-sign-text', 'nightshift-sign-text-left', 'nightshift-sign-text-front', 'nightshift-sign-text-right', 'nightshift-sign-size', 'nightshift-sign-color'],
 } as const
@@ -54,13 +61,14 @@ export function validateTextParameters(presetId: Cinema2TextPresetId, input: unk
   if (!result.ok) throw new Error(result.diagnostics[0]?.message ?? 'Invalid text settings.')
   return textParameters(presetId, draft)
 }
-function extrudedTextPrefix(presetId: Cinema2TextPresetId): keyof typeof EXTRUDED_TEXT_NAMES | null {
-  const slug = presetId.slice('drmvyz.cinema2.'.length) as keyof typeof EXTRUDED_TEXT_NAMES
-  return Object.hasOwn(EXTRUDED_TEXT_NAMES, slug) ? slug : null
+/** The Line Mode, Line 1 and Line 2 field ids of a one- or two-line text preset, or null for the sign presets. */
+export function cinema2TextLineFields(presetId: Cinema2TextPresetId): (typeof EXTRUDED_TEXT)[keyof typeof EXTRUDED_TEXT] | null {
+  const slug = presetId.slice('drmvyz.cinema2.'.length)
+  return Object.hasOwn(EXTRUDED_TEXT, slug) ? EXTRUDED_TEXT[slug as keyof typeof EXTRUDED_TEXT] : null
 }
 export function textLines(presetId: Cinema2TextPresetId, parameters: TextParameters, includeInactive = false): string[] {
-  const prefix = extrudedTextPrefix(presetId)
-  const ids = prefix ? [`${prefix}-text`, ...(includeInactive || parameters[`${prefix}-line-mode`] === 'two' ? [`${prefix}-line-2-text`] : [])]
+  const fields = cinema2TextLineFields(presetId)
+  const ids = fields ? [fields.line1, ...(includeInactive || parameters[fields.mode] === 'two' ? [fields.line2] : [])]
     : presetId.endsWith('marquee') ? ['marquee-front-text', 'marquee-left-text', 'marquee-right-text']
       : ['nightshift-sign-text', 'nightshift-sign-text-left', 'nightshift-sign-text-front', 'nightshift-sign-text-right']
   return ids.map(id => typeof parameters[id] === 'string' ? parameters[id] as string : '')
@@ -68,11 +76,11 @@ export function textLines(presetId: Cinema2TextPresetId, parameters: TextParamet
 export function textContentError(presetId: Cinema2TextPresetId, parameters: TextParameters): string | null {
   const lines = textLines(presetId, parameters)
   if (!lines.some(line => line.trim())) return 'Enter at least one text message.'
-  const prefix = extrudedTextPrefix(presetId)
-  if (prefix) {
-    const result = sanitizeCinema2SayItText({ line1: lines[0], line2: lines[1] }, parameters[`${prefix}-line-mode`] === 'one' ? 1 : 2)
+  const fields = cinema2TextLineFields(presetId)
+  if (fields) {
+    const result = sanitizeCinema2SayItText({ line1: lines[0], line2: lines[1] }, parameters[fields.mode] === 'one' ? 1 : 2)
     if (result.truncated) return 'Use up to 12 characters per line and 20 characters total.'
-    if (result.replacementCount) return `${EXTRUDED_TEXT_NAMES[prefix]} supports English letters, numbers and Basic Latin punctuation.`
+    if (result.replacementCount) return `${fields.name} supports English letters, numbers and Basic Latin punctuation.`
   } else {
     const limit = presetId.endsWith('marquee') ? 48 : 64
     if (lines.some(line => Array.from(line).length > limit)) return `Use up to ${limit} characters per sign.`
