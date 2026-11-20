@@ -141,6 +141,5 @@ export function ModelEditorStage() {
       {error && <NoticeCard tone="error" role="alert" title="3D viewport unavailable">{error} <IconChipButton onClick={() => setEpoch(value => value + 1)}>Retry viewport</IconChipButton></NoticeCard>}
       {exportError && <NoticeCard tone="error" role="alert" title="GLB download failed">{exportError}</NoticeCard>}
     </div>}
-    <div className="mm-model-navigation">Drag to orbit · Right-drag or two fingers to pan · Scroll or pinch to zoom</div>
   </section>
 }

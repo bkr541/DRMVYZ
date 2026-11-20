@@ -127,6 +127,27 @@ describe('media upload dialog with 3D models', () => {
     expect(detail('TRIANGLES')).toBe('14,760'); expect(detail('MESHES')).toBe('9'); expect(detail('TEXTURES')).toBe('2 · up to 4096 px')
   })
 
+  it('keeps the preview frame while inspection and image loading finish', async () => {
+    const file = glbFile()
+    let finishInspection!: (result: ReturnType<typeof inspection>) => void
+    mocks.inspect.mockImplementationOnce(() => new Promise(resolve => { finishInspection = resolve }))
+    await act(async () => { root.render(<MediaUploadModal onClose={() => undefined} />) })
+    await chooseFiles([file])
+
+    const frame = container.querySelector('[aria-label="Model preview"]')!
+    expect(frame.getAttribute('aria-busy')).toBe('true')
+    expect(frame.querySelector('img')).toBeNull()
+
+    await act(async () => { finishInspection(inspection(file.name)) })
+    const image = frame.querySelector('img')!
+    expect(frame.getAttribute('aria-busy')).toBe('true')
+    expect(image.hidden).toBe(true)
+
+    await act(async () => { image.dispatchEvent(new Event('load')) })
+    expect(frame.getAttribute('aria-busy')).toBe('false')
+    expect(image.hidden).toBe(false)
+  })
+
   it('queues two GLBs in one batch and imports both, each with its own result, then closes', async () => {
     const onClose = vi.fn()
     await act(async () => { root.render(<MediaUploadModal onClose={onClose} />) })
@@ -146,6 +167,8 @@ describe('media upload dialog with 3D models', () => {
     await act(async () => { root.render(<MediaUploadModal onClose={() => undefined} />) })
     await chooseFiles([glbFile('bad.glb'), glbFile('good.glb')])
     expect(text()).toContain('Draco-compressed geometry')
+    expect(container.querySelector('[aria-label="Model preview"]')?.getAttribute('aria-busy')).toBe('false')
+    expect(text()).toContain('Preview unavailable')
     expect(button(/Import 1 3D Model$/)).toBeTruthy()
     await act(async () => { button(/Import 1 3D Model$/).click() })
     for (let i = 0; i < 10; i++) await act(async () => { await Promise.resolve() })

@@ -53,6 +53,7 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
   const builtinEdited = useModelEditorStore(selectBuiltinModelEdited)
   const builtinExporting = useModelEditorStore(state => state.builtinExporting)
   const modelLoaded = useModelEditorStore(state => !!state.model)
+  const modelGenerationPending = useModelEditorStore(state => state.generationPending)
   const modelCanGenerate = useModelEditorStore(selectModelCanGenerate)
   const modelId = useModelEditorStore(state => state.id), modelStatus = useModelEditorStore(state => state.status), modelAsset = useModelEditorStore(state => state.asset)
   const modelPendingSave = useModelEditorStore(state => !!state.publishedVersion || !!state.pendingOperationId || (!!state.saveTarget && state.saveTarget.id !== state.asset?.id))
@@ -70,6 +71,8 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
   const selectedMedia = selectedMediaId ? mediaItems.find(item => item.id === selectedMediaId) ?? null : null
   const selectedTrack = selectedTrackId ? savedTracks.find(track => track.id === selectedTrackId) ?? null : null
   const modelSelected = selection?.kind === 'model'
+  const modelBusy = modelStatus === 'saving' || modelStatus === 'deleting'
+  const modelDownloadDisabled = !modelLoaded || modelBusy || modelStatus === 'loading-model'
   const builtinActionsDisabled = !builtinEdited || builtinExporting || modelStatus === 'saving'
   const commitSelection = useCallback((next: MediaManagerSelection | null, font: OscillatorFontAsset | null = null) => {
     useModelEditorStore.getState().reset()
@@ -153,7 +156,7 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
               title={modelSelected ? 'Delete this model and its versions' : 'Delete this media item'}
               icon={<HeaderActionIcon action="delete" />}
               danger
-              disabled={modelSelected ? !modelAsset || modelStatus === 'saving' || modelStatus === 'deleting' || modelPendingSave : !headerActions?.onDelete || headerActions.deleting}
+              disabled={modelSelected ? !modelAsset || modelBusy || modelPendingSave : !headerActions?.onDelete || headerActions.deleting}
               onClick={() => { if (modelSelected) setDeleteModelOpen(true); else headerActions?.onDelete?.() }}
             />
             {modelSelected && builtinModel && <>
@@ -169,6 +172,20 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
                 icon={<HeaderActionIcon action="restore" />}
                 disabled={builtinActionsDisabled}
                 onClick={() => useModelEditorStore.getState().resetBuiltinEdits()}
+              />
+            </>}
+            {modelSelected && !builtinModel && <>
+              <HeaderIconKey
+                label={modelAsset?.kind === 'imported' ? 'Download Original GLB' : 'Download GLB'}
+                icon={<HeaderActionIcon action="download" />}
+                disabled={modelDownloadDisabled || modelGenerationPending}
+                onClick={() => { void useModelEditorStore.getState().download('glb') }}
+              />
+              <HeaderIconKey
+                label="Download Preview PNG"
+                icon={<HeaderActionIcon action="capture" />}
+                disabled={modelDownloadDisabled}
+                onClick={() => { void useModelEditorStore.getState().download('png') }}
               />
             </>}
           </HeaderControlGroup>

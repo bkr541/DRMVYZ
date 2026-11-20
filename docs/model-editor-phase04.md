@@ -8,9 +8,9 @@ model Save/Delete actions. Phase 05 integration has not been started.
 `ModelEditorInspector.tsx` supplies model-only Info/Edit/Output tabs using the
 shared controls. `ModelCreateInspector.tsx` remains a compatibility export.
 
-- Info: name, description, favorite, source link and snapshot dimensions/format,
+- Info: fixed Media Role, name, description, source link and snapshot dimensions/format,
   model bounds, triangle/vertex/material counts, active/latest version, owner,
-  modified date, tags and owned collections.
+  modified date, tags and owned collections. Use the model card to toggle a favorite.
 - Edit: raster alpha/luminance threshold, inversion, foreground confirmation,
   smoothing, quality, depth, bevel width/thickness/segments, curve detail, pivot,
   uniform scale, X/Y/Z rotation, and independent front/cap and side PBR materials. Chrome, Black
@@ -22,7 +22,8 @@ shared controls. `ModelCreateInspector.tsx` remains a compatibility export.
   lights, helpers and camera are not baked into GLB. Turntable stops on viewport
   navigation. PNG export captures the current view; saved thumbnails fit the
   model and omit helper geometry.
-- Output: immutable version selector, GLB and PNG downloads, Save/Save New
+- Toolbar: icon-only GLB and PNG downloads for imported and generated models.
+- Output: immutable version selector, Save/Save New
   Version, and Save As with a distinct ID/history. Reset/Revert discards edits
   after confirmation. A conflict offers an explicit reload of the latest asset.
 
@@ -150,6 +151,6 @@ A `.glb` you made elsewhere can be uploaded from **New Media** (or dropped on th
 - **Entry points.** The New Media picker and the library drop zone accept `.glb`. GLBs go to their own import queue (like fonts), not the media upload queue, so a batch of GLBs is checked and imported one by one with a result per file. A GLB cannot be mixed with images, video, audio or fonts in one batch.
 - **Checks before upload** (`src/features/models/import/`). The container is read first (GLB 2.0, complete, self-contained; Draco, Meshopt and KTX2 are refused by name because the viewer has no decoder for them), and every embedded PNG/JPEG is sized from its header so an oversized texture is refused before the browser decodes it (8192 px per side, about 768 MiB decoded in total). The file is then decoded for real and held to the existing budgets (64 MiB, 250,000 triangles, 1,000,000 vertices, 1,024 meshes, 128 materials); WebP textures, whose size the header scan cannot read, are measured after decoding. A thumbnail is drawn with the viewport's lighting and framing; if WebGL cannot draw one the model still imports with a placeholder card.
 - **Storage.** `supabase/migrations/0058_imported_models.sql` adds `kind` (`generated` or `imported`) to `model_assets` and to version operations. An imported version stores the original GLB bytes, an optional thumbnail and the measured stats (including the original file name and texture size); its source snapshot, trace and recipe are null, and a check keeps the three together. Versions stay immutable, private and published only through `begin_model_version` / `publish_model_version`; the storage write policy reads the same `model_operation_paths` function, which now knows an imported operation has only `model.glb` and an optional `thumbnail.png`. The kind is chosen when the draft is created and cannot change afterwards.
-- **Opening and editing.** An imported model opens its saved GLB directly: nothing is traced or regenerated, and the Edit tab says why. Title, description, favorite, tags and collections save as metadata on the same version. **Download Original GLB** returns the uploaded bytes. Save As New Model is not offered (it needs a generated recipe).
+- **Opening and editing.** An imported model opens its saved GLB directly. Title, description, tags and collections save as metadata on the same version. The toolbar’s **Download Original GLB** returns the uploaded bytes, and **Download Preview PNG** captures the viewport. Save As New Model requires a generated recipe.
 - **Cleanup.** Closing a preview, cancelling an import or removing a queued file disposes geometry, materials and textures (`disposeModelGroup` now releases textures and closes their image bitmaps). A failed import removes its half-made record.
 - **Not in this version.** Imported models cannot be re-scaled, re-rotated or re-materialed in the editor, and animations are kept in the file but not played.

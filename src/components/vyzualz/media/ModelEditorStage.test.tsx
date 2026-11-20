@@ -28,5 +28,6 @@ describe('3D model stage message', () => {
     expect(message()).toBe('Generating 3D geometry…')
     await act(async () => { useModelEditorStore.setState({ status: 'idle' }) })
     expect(message()).toBe('Prepare the source, then generate a 3D model.')
+    expect(container.textContent).not.toContain('Drag to orbit')
   })
 })

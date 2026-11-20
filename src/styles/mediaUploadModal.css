@@ -827,31 +827,41 @@
 
 /* 3D model import */
 .mum-file-thumb > svg { display: block; margin: auto; color: rgba(245, 248, 250, 0.7); }
-.mum-model-thumb {
-  display: block;
-  width: 100%;
+.mum-model-preview-frame {
+  display: grid;
+  grid-template: 100% / 100%;
+  place-items: center;
   height: clamp(120px, 18vh, 170px);
-  object-fit: contain;
+  overflow: hidden;
   border-radius: 6px;
   background: #10181d;
 }
+.mum-model-preview-frame[aria-busy="true"] {
+  background: linear-gradient(90deg, #10181d 25%, #1a2a32 50%, #10181d 75%) 0 0 / 200% 100%;
+  animation: vz-skeleton-shimmer 1.4s infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mum-model-preview-frame[aria-busy="true"] { animation: none; }
+}
+.mum-model-thumb { width: 100%; height: 100%; object-fit: contain; }
+.mum-model-preview-placeholder {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  text-align: center;
+}
 .mum-model-summary {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 3fr);
+  grid-template-columns: minmax(0, 3fr) minmax(0, 1fr);
   gap: 12px;
 }
 .mum-model-form { min-width: 0; gap: 12px; }
-.mum-model-form:only-child { grid-column: 1 / -1; }
 .mum-model-identity { grid-template-columns: minmax(0, .65fr) repeat(2, minmax(0, 1.675fr)); }
 .mum-model-details {
-  grid-template-columns: repeat(5, minmax(0, 1fr)) minmax(0, 1.7fr) minmax(0, 1.9fr) minmax(0, 3.4fr);
-  column-gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 1.65fr);
 }
 .mum-model-details .mum-addinfo-input { text-overflow: ellipsis; }
 
-@media (max-width: 800px) {
-  .mum-model-details { grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 1.5fr); }
-}
 @media (max-width: 720px) {
   .mum-model-identity { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); }
   .mum-model-identity > :last-child { grid-column: 1 / -1; }

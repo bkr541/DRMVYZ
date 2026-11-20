@@ -20,6 +20,11 @@ function ModelInfoRow({ label, children }: { label: string; children: ReactNode 
   </div>
 }
 
+function ModelRoleField({ imported = false }: { imported?: boolean }) {
+  return <SelectRow id="mmi-role" label="Media Role" value="model" disabled
+    options={[{ value: 'model', label: imported ? '3D Model · Imported GLB' : '3D Model' }]} onChange={() => {}} />
+}
+
 function modelDimensions(model: ModelEditorState['model']) {
   return model ? model.stats.bounds.max.map((n, i) => (n - model.stats.bounds.min[i]).toFixed(3)).join(' × ') : '—'
 }
@@ -90,7 +95,7 @@ function BuiltinModelInspector({ model }: { model: BuiltinModel }) {
     <MediaDetailsHeader activeTab={tab} onChange={setTab} />
     {tab === 'info' && <div className="mmi-body mm-model-inspector">
       <Collapsible label="Details" defaultOpen>
-        <ModelInfoRow label="Media Role">3D Model</ModelInfoRow>
+        <ModelRoleField />
         <ModelInfoRow label="Title">{model.name}</ModelInfoRow>
         <ModelInfoRow label="Description">{model.description}</ModelInfoRow>
       </Collapsible>
@@ -159,10 +164,9 @@ function EditableModelInspector({ onSelectSource }: { onSelectSource?: () => voi
     <div className="mmi-body mm-model-inspector">
       {tab === 'info' && <>
         <Collapsible label="Details" defaultOpen>
-          <ModelInfoRow label="Media Role">{imported ? '3D Model · Imported GLB' : '3D Model'}</ModelInfoRow>
+          <ModelRoleField imported={imported} />
           <TextInputRow label="Title" value={s.name} maxLength={200} disabled={busy} onChange={name => s.setMetadata({ name })} />
           <TextAreaRow label="Description" value={s.description ?? ''} disabled={busy} onChange={description => s.setMetadata({ description: description.slice(0, 4000) || null })} />
-          <ToggleRow label="Favorite model" value={s.favorite} disabled={busy} onChange={favorite => s.setMetadata({ favorite })} />
         </Collapsible>
         <ModelOrganizationFields state={s} disabled={busy || s.status === 'loading-model'} />
         <Collapsible label="Additional Info" defaultOpen={false}>
@@ -178,7 +182,7 @@ function EditableModelInspector({ onSelectSource }: { onSelectSource?: () => voi
         </Collapsible>
       </>}
       {tab === 'edit' && imported && <Collapsible label="Imported Model" icon={<AppIcon kind="layers" size={14} />} defaultOpen>
-        <p>This model was imported from a GLB and is stored exactly as it was uploaded, so there is no source image to trace or regenerate. You can change its title, description, tags and collections on the Info tab, and download the original GLB from Output.</p>
+        <p>Update the title, description, tags and collections on the Info tab. Use Download Original GLB in the toolbar to retrieve the uploaded file.</p>
       </Collapsible>}
       {tab === 'edit' && recipe && <>
         <Collapsible label="Source Preparation" icon={<AppIcon kind="image" size={14} />}>
@@ -233,8 +237,6 @@ function EditableModelInspector({ onSelectSource }: { onSelectSource?: () => voi
         <p>{s.activeVersion ? `Viewing version ${s.activeVersion}` : 'Unsaved model'} · {s.artifact?.glb.size.toLocaleString() ?? s.versions.find(v => v.version === s.activeVersion)?.geometryStats.glbBytes?.toLocaleString() ?? '—'} GLB bytes</p>
         {!!s.versions.length && <SelectRow label="Model version" value={String(s.activeVersion)} disabled={busy} options={s.versions.map(v => ({ value: String(v.version), label: `Version ${v.version}` }))} onChange={version => loadVersion(Number(version))} />}
         {s.versions.length >= 50 && <IconChipButton onClick={() => { void s.moreVersions() }}>Load older versions</IconChipButton>}
-        <IconChipButton disabled={!s.model || busy || s.generationPending} onClick={() => { void s.download('glb') }}>{imported ? 'Download Original GLB' : 'Download GLB'}</IconChipButton>
-        <IconChipButton disabled={!s.model || busy} onClick={() => { void s.download('png') }}>Download Preview PNG</IconChipButton>
         <IconChipButton disabled={!canSave} onClick={() => { void s.save() }}>Save{!s.asset ? ' Model' : s.savedRecipe && JSON.stringify(s.savedRecipe) === JSON.stringify(s.recipe) ? ' Metadata' : ' New Version'}</IconChipButton>
         <IconChipButton disabled={!s.artifact || !s.source || busy || s.generationPending || !!s.publishedVersion || !!s.pendingOperationId || !!s.saveTarget} onClick={() => setCopyName(`${s.name} copy`)}>Save As New Model</IconChipButton>
       </Collapsible>}

@@ -31,10 +31,11 @@ underline inputs. Preview Text sits to the right of Font Name, above the live
 specimen. The desktop Font Details grid places Collections under Format and
 Tags under File Size.
 
-3D Model Import places the preview beside the editable fields on desktop and
-groups the eight read-only Model Details fields in one row. The layout wraps
-on narrower screens, and long values remain available through the read-only
-inputs and their tooltips.
+3D Model Import reserves a preview on the right of the form on desktop and shows
+a skeleton until the image loads. If no preview is available, the same space
+shows a placeholder. Model Details uses two rows below Tags and Collections on
+desktop and wraps on narrower screens. Long values remain available through the
+read-only inputs and their tooltips.
 
 ## Information popovers
 

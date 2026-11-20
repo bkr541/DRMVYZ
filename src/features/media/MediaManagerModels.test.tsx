@@ -19,6 +19,7 @@ import { registerModelViewport } from '../models/state/modelViewportBridge'
 import { MEDIA_DECK_CAPABILITIES, MEDIA_MANAGER_CAPABILITIES } from '../../components/vyzualz/media/mediaLibraryCapabilities'
 import { useMediaEditStore } from '../../stores/mediaEditStore'
 import { BUILTIN_MODELS } from '../models/domain/builtinModels'
+import type { ModelAsset } from '../models/domain/modelAssetTypes'
 import { createBuiltinModelEdit } from '../models/geometry/builtinModelEdits'
 import { BoxGeometry, Group, Mesh, MeshStandardMaterial } from 'three'
 let container: HTMLDivElement, root: ReturnType<typeof createRoot>
@@ -83,6 +84,48 @@ describe('model mode selection and guards', () => {
     unregister()
     await act(async () => { useModelEditorStore.setState({ model: null }) })
   })
+  it('keeps imported-model downloads in the toolbar and shows a disabled media role in Details', async () => {
+    const asset: ModelAsset = {
+      id: 'imported-model', userId: 'owner', kind: 'imported', sourceMediaId: null, name: 'Imported model',
+      description: null, favorite: true, currentVersion: 1, status: 'ready',
+      createdAt: '2026-11-20T00:00:00Z', updatedAt: '2026-11-20T00:00:00Z',
+    }
+    const download = vi.spyOn(useModelEditorStore.getState(), 'download').mockResolvedValue(undefined)
+    vi.spyOn(useModelEditorStore.getState(), 'load').mockImplementation(() => {
+      useModelEditorStore.setState({ id: asset.id, asset, name: asset.name, favorite: asset.favorite, status: 'loading-model' })
+    })
+
+    expect(button('Download Original GLB')).toBeUndefined()
+    expect(button('Download Preview PNG')).toBeUndefined()
+    await invoke('onSelectModel', asset)
+
+    const role = button('Media Role')
+    expect(role.disabled).toBe(true)
+    expect(role.textContent).toContain('3D Model · Imported GLB')
+    expect(container.querySelector('.mm-model-inspector')?.textContent).not.toContain('Favorite model')
+
+    const toolbar = container.querySelector('[role="toolbar"][aria-label="Media Manager controls"]')
+    const glb = button('Download Original GLB'), png = button('Download Preview PNG')
+    for (const action of [glb, png]) {
+      expect(toolbar?.contains(action)).toBe(true)
+      expect(action.textContent).toBe('')
+      expect(action.title).toBe(action.getAttribute('aria-label'))
+      expect(action.disabled).toBe(true)
+    }
+
+    await act(async () => {
+      useModelEditorStore.setState({
+        status: 'ready',
+        model: { group: new Group(), dispose: vi.fn(), stats: { triangles: 1, vertices: 3, meshes: 1, bounds: { min: [0, 0, 0], max: [1, 1, 1] } } },
+      })
+    })
+    await act(async () => glb.click())
+    await act(async () => button('Output').click())
+    await act(async () => png.click())
+    expect(download.mock.calls).toEqual([['glb'], ['png']])
+    expect(container.querySelector('.mm-model-inspector')?.textContent).toContain('Model Output')
+    expect(container.querySelector('.mm-model-inspector')?.textContent).not.toMatch(/Download (Original GLB|Preview PNG)/)
+  })
   it.each(['onSelect', 'onSelectTrack', 'onSelectFont', 'onSelectModel'])('guards an unsaved model on %s; Cancel keeps it and Discard proceeds', async callback => {
     await invoke('onSelect', 'image-1'); await act(async () => button('Create 3D Model').click())
     const value = callback === 'onSelect' ? 'image-1' : { id: callback === 'onSelectModel' ? 'image-1' : 'other', currentVersion: 0 }
@@ -141,6 +184,7 @@ it('opens the wordmark with organization fields and editing controls for the loa
  }
  expect(button('Info').getAttribute('aria-selected')).toBe('true')
  expect(container.textContent).toContain('Media Details')
+ expect(button('Media Role').disabled).toBe(true)
  expect(Array.from(container.querySelectorAll('.mm-model-inspector .drc-header')).map(header => header.textContent)).toEqual(['Details', 'Tags & Collections', 'Additional Info'])
  expect(container.querySelector<HTMLInputElement>('#model-tags')?.disabled).toBe(false)
  await act(async () => button('Edit').click())

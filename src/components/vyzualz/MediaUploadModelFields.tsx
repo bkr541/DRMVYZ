@@ -1,5 +1,37 @@
+import { useState } from 'react'
+import { AppIcon } from '../shared/icons/AppIcon'
 import { DreamVizTextInput } from './react/controls/DreamVizTextInput'
 import { formatModelBytes, type ModelQueueEntry } from './mediaUploadModels'
+
+function ModelUploadPreview({ entry }: { entry: ModelQueueEntry }) {
+  const [imageStatus, setImageStatus] = useState<'loading' | 'ready' | 'failed'>('loading')
+  const loading = !entry.fileError && (!entry.inspection || (entry.thumbnailUrl !== null && imageStatus === 'loading'))
+  const showImage = entry.thumbnailUrl !== null && imageStatus === 'ready'
+
+  return (
+    <div className="mum-field mum-model-preview">
+      <div className="mum-field-label">PREVIEW</div>
+      <div className="mum-model-preview-frame" role="group" aria-label="Model preview" aria-busy={loading}>
+        {entry.thumbnailUrl && (
+          <img
+            className="mum-model-thumb"
+            src={entry.thumbnailUrl}
+            alt={`Preview of ${entry.name || entry.file.name}`}
+            hidden={!showImage}
+            onLoad={() => setImageStatus('ready')}
+            onError={() => setImageStatus('failed')}
+          />
+        )}
+        {!loading && !showImage && (
+          <div className="mum-model-preview-placeholder mum-font-note">
+            <AppIcon kind="layers" size={20} />
+            Preview unavailable
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
 
 /** Fields for the active 3D model in the media upload queue. */
 export function ModelUploadFields({ entry, onNameChange, onDescriptionChange, tagsAndCollections }: {
@@ -21,13 +53,6 @@ export function ModelUploadFields({ entry, onNameChange, onDescriptionChange, ta
   return (
     <>
       <div className="mum-model-summary">
-        {entry.thumbnailUrl && (
-          <div className="mum-field mum-model-preview">
-            <div className="mum-field-label">PREVIEW</div>
-            <img className="mum-model-thumb" src={entry.thumbnailUrl} alt={`Preview of ${entry.name || entry.file.name}`} />
-          </div>
-        )}
-
         <div className="mum-field mum-model-form">
           <div className="mum-upload-grid mum-model-identity">
             <div className="mum-field">
@@ -60,29 +85,25 @@ export function ModelUploadFields({ entry, onNameChange, onDescriptionChange, ta
             </div>
           </div>
           {tagsAndCollections}
+          <div className="mum-field">
+            <div className="mum-field-label">MODEL DETAILS</div>
+            <div className="mum-upload-grid mum-upload-metadata mum-model-details">
+              {item('TRIANGLES', stats ? stats.triangles.toLocaleString('en-US') : '—')}
+              {item('VERTICES', stats ? stats.vertices.toLocaleString('en-US') : '—')}
+              {item('MESHES', stats ? String(stats.meshes) : '—')}
+              {item('MATERIALS', stats?.materialCount ? String(stats.materialCount) : '—')}
+              {item('FILE SIZE', formatModelBytes(entry.file.size))}
+              {item('TEXTURES', stats?.imported ? (stats.imported.imageCount ? `${stats.imported.imageCount} · up to ${stats.imported.maxImageSide} px` : 'None') : '—')}
+              {item('DIMENSIONS', size)}
+              {item('FILE NAME', entry.file.name)}
+            </div>
+          </div>
         </div>
+        <ModelUploadPreview key={entry.id} entry={entry} />
       </div>
 
       {entry.fileError && <div className="mum-field-error" role="alert">{entry.fileError}</div>}
       {entry.inspection?.warnings.map(warning => <div key={warning} className="mum-font-note">{warning}</div>)}
-
-      <div className="mum-field">
-        <div className="mum-field-label">MODEL DETAILS</div>
-        <div className="mum-upload-grid mum-upload-metadata mum-model-details">
-          {item('TRIANGLES', stats ? stats.triangles.toLocaleString('en-US') : '—')}
-          {item('VERTICES', stats ? stats.vertices.toLocaleString('en-US') : '—')}
-          {item('MESHES', stats ? String(stats.meshes) : '—')}
-          {item('MATERIALS', stats?.materialCount ? String(stats.materialCount) : '—')}
-          {item('FILE SIZE', formatModelBytes(entry.file.size))}
-          {item('TEXTURES', stats?.imported ? (stats.imported.imageCount ? `${stats.imported.imageCount} · up to ${stats.imported.maxImageSide} px` : 'None') : '—')}
-          {item('DIMENSIONS', size)}
-          {item('FILE NAME', entry.file.name)}
-        </div>
-      </div>
-
-      <div className="mum-font-note">
-        The GLB is stored exactly as you made it in your 3D Models library, with version history, tags and collections.
-      </div>
     </>
   )
 }
