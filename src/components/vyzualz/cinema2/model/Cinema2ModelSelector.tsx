@@ -4,7 +4,7 @@ import { Dropdown } from '../../../shared/Dropdown/Dropdown'
 import { AppIcon } from '../../../shared/icons/AppIcon'
 import { TextInputRow } from '../../react/ReactControlRows'
 import { IconChipButton } from '../../react/controls/IconChipButton'
-import { NoticeCard } from '../../react/controls/NoticeCard'
+import { DrawerNotice } from '../../shared/DrawerNotice'
 import { useMediaStore } from '../../../../stores/mediaStore'
 import { modelAssetRepository, type ModelListCursor } from '../../../../features/models/data/modelAssetRepository'
 import type { ModelAsset } from '../../../../features/models/domain/modelAssetTypes'
@@ -12,13 +12,7 @@ import { DEFAULT_MODEL_BINDING, parseUserModelBinding, serializeUserModelBinding
 import './Cinema2ModelSelector.css'
 export const Cinema2ModelSelectorContext = createContext<{ openManager?: () => void; runtime?: Cinema2Runtime }>({})
 export function Cinema2ModelSelector({ id, label, value, disabled, onChange }: { id: string; label: string; value: unknown; disabled: boolean; onChange(value: string): void }) {
-  const account = useMediaStore(s => s.accountId), { openManager, runtime } = useContext(Cinema2ModelSelectorContext)
-  const [runtimeNotice, setRuntimeNotice] = useState<{ code: string; message: string } | null>(null)
-  useEffect(() => {
-    if (!runtime) return
-    const update = () => { const diagnostic = runtime.getModuleRuntimeSnapshot().modules.flatMap(module => module.diagnostics).find(entry => entry.code.startsWith('CINEMA2_USER_MODEL_')); setRuntimeNotice(previous => previous?.code === diagnostic?.code && previous?.message === diagnostic?.message ? previous : diagnostic ? { code: diagnostic.code, message: diagnostic.message } : null) }
-    update(); const timer = setInterval(update, 500); return () => clearInterval(timer)
-  }, [runtime, value])
+  const account = useMediaStore(s => s.accountId), { openManager } = useContext(Cinema2ModelSelectorContext)
   const requestKey = useRef(''), selectionSerial = useRef(0)
   const [search, setSearch] = useState(''), [refresh, setRefresh] = useState(0)
   const [page, setPage] = useState<{ items: ModelAsset[]; cursor: ModelListCursor | null }>({ items: [], cursor: null })
@@ -77,7 +71,6 @@ export function Cinema2ModelSelector({ id, label, value, disabled, onChange }: {
       void modelAssetRepository.list({ search, cursor: cursor!, limit: 50 }).then(result => { if (requestKey.current === key) setPage(p => ({ items: [...new Map([...p.items, ...result.items.filter(a => a.status === 'ready')].map(a => [a.id, a])).values()], cursor: result.nextCursor })) }).catch(error => setError(error instanceof Error ? error.message : 'More models could not be loaded.')).finally(() => setLoading(false))
     }}>Load more models</IconChipButton>}
     <IconChipButton disabled={!openManager} onClick={openManager}>Create in Media Manager</IconChipButton>
-    {runtimeNotice && (runtimeNotice.code === 'CINEMA2_USER_MODEL_LOADING' ? <span role="status">{runtimeNotice.message}</span> : <NoticeCard tone="warning" title="Selected model unavailable" role="alert">{runtimeNotice.message} Choose Default model or another saved model to continue.</NoticeCard>)}
-    {error && <NoticeCard tone="warning" title="Model unavailable" role="alert">{error} <IconChipButton onClick={() => setRefresh(n => n + 1)}>Retry models</IconChipButton></NoticeCard>}
+    {error && <DrawerNotice tone="warning" title="Model unavailable" role="alert">{error} <IconChipButton onClick={() => setRefresh(n => n + 1)}>Retry models</IconChipButton></DrawerNotice>}
   </div>
 }

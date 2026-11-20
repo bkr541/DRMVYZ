@@ -59,8 +59,10 @@ describe.each(kinds)('%s model preview Auto Performance', kind => {
     controller.update(context(values, 2))
     controller.update(context(values, 2.5, undefined, 1, 0, { build: 0.8 }))
     expect(controller.inspect().pattern).toBe(programs.build)
+    if (kind === 'dust') expect(controller.inspect().dustCycle?.stage).toBe('gathering')
     controller.update(context(values, 4, 'drop', 2, 0, { build: 0.8 }))
     expect(controller.inspect().pattern).toBe(programs.drop)
+    if (kind === 'dust') expect(controller.inspect().dustCycle?.stage).toBe('drifting')
     expect(values.pattern).toBe(CINEMA2_USER_MODEL_PREVIEWS[kind][0])
   })
 

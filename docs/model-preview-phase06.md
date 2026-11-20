@@ -198,3 +198,262 @@ private model versioning remain the owners established in earlier phases.
 Authenticated real-Supabase end-to-end validation and migration 0047/0048
 deployment remain pending. Packaging, real-account/security acceptance and the
 release gate belong to Phase 07, which was not started.
+
+
+## User-model buildout — Phase 2: shared preparation
+
+All six previews now use `Cinema2UserModelPreparation.ts` once on model attachment.
+It reads the pinned model's actual indexed or non-indexed triangles through nested
+transforms, retains mesh/material-slot and source-triangle identities, transformed
+normals and UV0, and computes exact surface bounds. A centered rest frame and
+`scaleToUnit` (two-unit longest side) provide consistent coordinates without changing
+the GLB, its buffers, materials, hierarchy or saved model/version binding. This replaces
+sample-derived framing; the existing camera and neutral stage are unchanged.
+
+A deterministic area-stratified sampler provides 1,536 surface positions plus normals,
+UVs, triangle IDs and barycentric weights. This avoids assigning most particles to
+small but densely tessellated details. Preparation also records 14 horizontal section
+intervals and each triangle's overlapping section range, including triangles crossing
+multiple intervals. These are broad-phase inputs for future actual cuts, not completed
+slice meshes, end caps, fracture pieces, voxel volumes or dissolution choreography.
+
+Limits are checked before large buffer allocation: 250,000 source triangles, 1,024
+meshes and 32 MiB of typed preparation buffers per attachment. The estimate reserves
+116 bytes per source triangle and 48 bytes per surface sample. This is a **CPU**
+preparation allowance, separate from Cinema 2.0's GPU quality budgets; existing proxy
+quality draw limits still apply. Invalid indices/coordinates/UVs, incomplete triangles,
+unsupported skinned/instanced meshes and empty surfaces fail explicitly. Zero-area
+triangles are excluded. Existing import validation and account authorization remain
+in place. No cross-account or idle preparation cache is introduced.
+
+Duplicate attach is idempotent. Quality switches and animation reuse the prepared
+rest data. Detach restores the original subtree and instance material state, releases
+owned proxies and preparation buffers, and does not dispose leased source geometry
+or textures. Failed attachment rolls back reparenting and releases its owned resources.
+Inspection reports triangle/sample/section counts, buffer bytes and frame dimensions.
+Dust's point buffers are now sized to the maximum rendered count rather than twice
+that count per cloud. No effect-specific buildout from Phases 3–8 is included.
+
+Validation: focused preparation, preview, musical-state and private-model lifecycle
+tests cover transformed bounds, area weighting, provenance, material groups, crossing
+sections, invalid/over-budget geometry, repeated attachment, failure rollback, and all
+six preview lifecycles. Final visual approval of the individual effects belongs to their
+later implementation phases.
+
+## User-model buildout — Phases 3 and 4: Form and Dust
+
+Form and Dust now have a frontal neutral studio presentation using the existing
+shipped neutral HDR reflection environment and a palette-controlled rim light. Their
+placeholder floor, pedestal ring and contour halo are hidden/omitted. The other four
+previews retain their earlier presentation and effects. Names and preset IDs stay
+unchanged. Revision 1 is retained for these additive controls so the Phase 1 pinned
+asset/version and previously saved settings restore; absent new fields take defaults.
+
+### Form
+
+The original mesh, UVs, texture maps, roughness, metalness and other physical-material
+properties remain the baseline. Primary/Secondary tint is now opt-in via **Tint Model
+from Palette**, default off. Intensity, opacity and emission remain intentional user
+controls; their saved values are respected. New defaults use intensity 1 and emission 0.
+Model Rotation is -180…180 degrees and Model Scale is 0.5…1.2. The six existing patterns
+provide distinct whole-model motions: frontal drift, three-quarter presentation,
+suspension, rocking, breathing and a slow turn. They animate during playback with
+Pattern Change and Auto Performance off; zero movement/speed holds the pose.
+
+### Dust
+
+Each selected pattern now runs a complete repeatable lifecycle: solid hold, progressive
+surface dissolution, particle choreography, gathering, and surface reconstruction.
+**Dissolve Cycle** defaults to 16 beats (8 seconds at 120 BPM and speed 1), range 8…64
+beats; Movement Speed scales its timing. It does not depend on Pattern Change. Manual
+pattern changes and transport discontinuities restart from the solid model. With no
+track playing it shows the solid model. Ordinary pause freezes the base cycle. Shared
+Auto Performance retains its existing authority: a build gathers and a fresh drop
+releases particles, without writing to the authored Pattern or toggles.
+
+Dissolution patches the instance's original PBR shader rather than replacing its
+material. A root-local surface rank shared by the shader and CPU controls where the
+mesh disappears and where sampled particles release. The particle field is bounded
+and uses six distinct vector fields: surface dispersal, rising drift, halo orbit, twin
+plumes, wave gathering and compressed mist. Gathering brings every particle back to
+its own sampled rest position before the original mesh is progressively restored.
+Grains have circular soft edges and individual opacity; the source file is never edited.
+
+Dust quality limits are 1,024 / 4,096 / 16,384 total grains at Low / Medium / High.
+Preparation accepts an explicitly bounded sample count up to 16,384, while the other
+previews keep their 1,536-sample default and the 32 MiB typed preparation limit. Point
+buffers are allocated once and reused; quality changes alter draw counts. Their
+resident 256 KiB at maximum quality allocation are now included in the bridge's GPU
+estimate (the existing mesh-only measurement omitted Points). Shader hooks, proxy
+buffers and preparation are released/restored on detach.
+
+Both developed previews also follow real transport playback and the shared tempo
+fallback while analysis is unavailable, without inventing energy, beats or semantic
+musical events. Analyzed audio continues to use the established shared beat clock.
+Existing Auto Performance, source binding and palette controls are preserved.
+
+Validation: 113 focused tests pass across preparation, all six declarations/arrangements,
+Form/Dust lifecycle, saved-state compatibility, private-model ownership and shared
+Auto Performance. TypeScript and focused lint checks pass. An isolated WebGL browser
+fixture rendered Form plus all Dust stages (solid, dissolve, drift, gather, reform,
+restored), with no shader errors or GL errors. Live app inspection confirmed the
+user's pinned **DVYDRM Logo Pure Diamond 3D · v1** loads in both developed previews
+and exposes the new canonical controls. No live song was started; representative
+whole-song visual acceptance and casting validation remain part of Phase 9.
+
+## User-model buildout — Phase 5: actual Slices
+
+The Source panel now omits the selected-model status row, Remove Model and Open
+Media Manager in **all six** previews, as well as Bass Sigil. Search, grid/list,
+model selection, pinned versions and availability/update notices remain functional.
+This is enforced by shared preview identity, not separate duplicated panels.
+
+Slices now clips the pinned model's actual triangles into 14 horizontal bands;
+rectangular envelope proxies are removed. Intersections interpolate normals, UV0–UV3
+and vertex RGBA. Source material groups and cloned physical materials retain their
+texture references and other PBR properties. The source buffers and textures remain
+leased and immutable. Closed cut contours are welded and triangulated with nested
+hole support; both neighboring bands receive outward-facing cut caps. Open or
+non-manifold contours remain uncapped and report a recoverable model diagnostic.
+They are not filled with invented geometry. A flat model without vertical thickness,
+or preparation exceeding a limit, keeps the original visible and reports the reason.
+
+The existing six names now drive actual sections: Layer Stack, Stair Step, Fan
+Sections, Alternating Bands, Ribbon Wave and Collapsed Layers. Every selected pattern
+runs an assembled → separated → reassembled cycle with Pattern Change off. Slice
+Cycle defaults to 16 beats, range 8–64; Movement Amount, Movement Speed, shared BPM,
+reactivity, rotation and scale retain their bounds. Ordinary pause freezes the base
+cycle. Auto Performance gathers during a detected build and releases on a fresh drop
+without changing authored settings. All bands stay present at every quality tier;
+Low no longer drops sections and destroys the model's silhouette.
+
+At full assembly the original model is shown, avoiding coincident internal cap seams.
+During separation only the actual sections are drawn. Slices uses the same neutral
+studio presentation and opt-in material tint as Form/Dust; Accent colors the cut caps
+and rim light. The compatible preset ID/revision and pinned asset/version persist.
+
+Preparation is once per attachment, never per animation frame or quality switch.
+Output is bounded by 400,000 generated triangles **or** 64 MiB of typed vertex data,
+whichever is reached first, plus 100,000 cut segments, 2,048 loops per boundary and
+8,192 material groups. Chunked temporary buffers avoid unbounded number arrays;
+finalization can temporarily retain both chunks and completed attribute buffers.
+These limits are separate from the 32 MiB shared rest-data limit. Resident slice
+geometry is measured by the existing bridge GPU accounting. Owned geometry and
+material clones are disposed once on replacement, failure or shutdown; shared textures
+and source geometry are never disposed by the slice representation.
+
+Validation: 15 Source-panel DOM tests include each preview and Bass Sigil. The model
+suite passes 125 tests, including 12 actual-slicing checks for area/volume preservation,
+cap winding, hollow sections, material/UV/color interpolation, open surfaces, pause,
+reassembly and cleanup. An isolated GPU fixture rendered all six slice patterns plus
+assembled/reassembled poses without GL or shader errors. The torus fixture produced
+14 bands, 7,564 triangles (2,552 cap triangles), zero open contours, approximately
+1.56 MiB vertex buffers and 28 separated draw calls. Representative live-song and
+casting acceptance remain in Phase 9; Shatter, Hologram and Voxel buildouts are not
+part of this phase.
+
+## Model buildout — Phases 6–9 (2026-11-20)
+
+These sections supersede the original proxy descriptions for Shatter, Hologram
+and Voxel above. All six presets now use the neutral studio presentation and
+preserve their existing preset IDs, revision 1 and pinned model/version bindings.
+
+### Phase 6: Shatter
+
+Shatter partitions the actual model through three differently oriented cutting
+stages (4 × 3 × 2), producing up to 24 independently pivoted fragments. Exterior
+normals, vertex colors, UV channels and PBR texture references survive clipping.
+Closed contours receive triangulated cut faces; open/non-manifold contours are
+reported and are not filled with invented geometry. Fragment choreography covers
+the six existing patterns and returns to the exact assembled rest pose.
+
+Preparation is bounded to 400,000 output triangles and 64 MiB of final geometry,
+plus the shared per-cut/intersection/preparation limits. All fragments remain
+present at every quality tier. This is geometric partitioning, not a physics
+simulation. An over-budget preparation keeps the original model visible and
+reports the limitation.
+
+### Phase 7: Hologram
+
+Projection is applied to the actual PBR surface shader: spatial scan lines,
+traveling scan fronts, bounded signal modulation, pulse and cross-scan variants.
+Actual crease edges supply the wire contour and paired echoes. Tilt and pulse
+also affect model presentation. No generic scan-plane substitute remains.
+Shader hooks are chained and restored when the asset detaches.
+
+Contour preparation is limited to 120,000 input triangles and 200,000 edge
+vertices. Models over that budget retain surface projection with an explicit
+contour limitation. Edge buffers are counted in GPU estimates. This is surface
+projection, not volumetric light scattering.
+
+### Phase 8: Voxel
+
+Each quality tier builds a unique spatial occupancy grid from triangle/AABB
+intersection tests, rather than snapping random samples or filling a bounding
+box. Welded edge incidence identifies closed geometry. Closed models receive an
+exterior flood fill and solid interior; open/non-manifold models use their
+actual surface shell with an explicit notice. Through-holes remain empty when
+resolved by the grid. Six existing choreographies animate this representation,
+with a short material crossfade and return to the original model each cycle.
+
+Low/medium/high use 12/18/24 cells along the maximum extent, with a 20,000-cell
+limit per tier and 8,000,000 triangle/box tests across preparation. Geometry,
+instance matrices and colors are allocated once; switching tiers does not
+allocate instance color buffers. GPU estimates include all resident instance
+buffers. Cell colors average intersected source material base colors; voxel
+cubes do not reproduce the original texture maps. Resolution can merge details
+smaller than a cell. Watertightness is conservatively diagnosed; intersecting or
+non-manifold input is not silently repaired.
+
+### Phase 9: integration and validation
+
+Shatter, Hologram and Voxel have an 8–64 beat Transformation Cycle (16 by default).
+Each selected pattern transforms and reforms the model while Pattern Change is
+off. Movement Amount or Movement Speed zero assembles the original. Shared BPM
+Sync, rhythm/structure event identities, manual pattern authority and bounded
+Auto Performance build/drop overrides remain authoritative. Basic transport
+motion works before analysis is available; no synthetic beat events are created.
+Pause freezes baseline transport choreography; Auto Performance intentionally
+releases its override on pause. Seek, track change and context-generation changes
+reset transient state. Added controls restore defaults in legacy saved states
+without losing pinned private asset versions.
+
+Preparation notices now say “Model effect preparation” in both the Source panel
+and model selector. They do not tell the user that a successfully loaded model
+is unavailable. Fatal private-model loading errors retain their existing handling.
+The three removed Source-panel elements remain absent from all six presets.
+
+Validation:
+
+- Focused model suites cover exact fragment volume/bounds/reassembly, nested
+  transforms, texture ownership, real projection shader hooks, complete voxel
+  occupancy, torus holes, open shells, all six pattern arrangements, musical
+  trigger/Auto Performance authority, persistence and cleanup.
+- A synthetic three-minute transport for each preset exercises repeated cycles,
+  quality switching, pause, seek, track/context resets and stable buffer counts.
+- Isolated real WebGL fixture: 36 patterns, 144 renders across all quality tiers
+  and reassembly, zero shader/WebGL errors, 36 live canvas-capture checks. Each
+  relay copy's visible-pixel count matches its rendered source (tolerance 10
+  pixels). Output dispatch and preview source replacement also pass their
+  existing production-path tests. This does not certify a physical receiver.
+- Fixture preparation peaked at 65.9 ms on this machine. The recorded render
+  timings include shader compilation and synchronous pixel readback and are
+  not a real-time FPS benchmark.
+- Native app inspection confirmed the saved DVYDRM Logo Pure Diamond 3D · v1
+  selection loads in Shatter, with the new controls and the three Source actions
+  absent. Its open contour notice is retained honestly. Native whole-song
+  playback and physical external-display/Google Cast receiver acceptance were
+  not performed; no track or receiver was active.
+- TypeScript and focused ESLint checks passed. Generated fixture files and
+  screenshots are local ignored artifacts under `artifacts/user-model-final/`.
+
+### Notification placement correction
+
+Live model warnings are owned once by the Cinema 2.0 Stage and registered through
+`DrawerNotice` in React's standard right-side Notifications modal. They remain
+available independently of the Source/Design tab selection, deduplicate identical
+module diagnostics and disappear when resolved or when the runtime retires.
+Source and Inspector no longer draw duplicate runtime warning cards inline.
+Model-library errors and newer-version notices also use the existing drawer
+workflow, retaining their original retry/update actions. Transient loading does
+not register a warning notification.

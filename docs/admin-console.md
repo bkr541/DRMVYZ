@@ -28,3 +28,5 @@ Lists every preset in `PRESET_MANAGER_PRESETS` (all engines), by engine or by pa
 `announcements` + `announcement_acknowledgments`. Admins create, edit, activate and deactivate, and delete announcements (title, message, optional image upload or address, optional button, active, publish date) and read eligible / acknowledged / not-yet counts (`admin_announcement_stats()`, eligible = every registered user).
 
 In the app (`AnnouncementPopover`, mounted in `App.tsx`): a signed-in user sees each active, published, unacknowledged announcement in the standard dialog, one after another, oldest first. **Got It** writes the user's acknowledgment (never shown again); **Close** hides it for the session only, so it returns at the next sign-in. Users can read only live announcements and write only their own acknowledgment.
+
+The Admin Console uses the shared application header slot, logo/name/divider brand and standard header status controls. Its section tabs stay in the content window without a duplicate window-title header.

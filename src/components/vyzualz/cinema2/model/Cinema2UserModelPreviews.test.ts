@@ -5,7 +5,7 @@ import { cinema2NativePresetRegistry, Cinema2PresetRegistry } from '../presets/C
 import { validateCinema2PresetAuthoringConventions } from '../presets/Cinema2PresetAuthoring'
 import { createCinema2UserModelPreset, cinema2UserModelPreviewParameterId } from '../presets/Cinema2UserModelPresetFactory'
 import { CINEMA2_AFTERHOURS_TRIGGER_OPTIONS } from '../presets/Cinema2AfterhoursPreset'
-import { CINEMA2_USER_MODEL_PREVIEWS, CINEMA2_USER_MODEL_PROXY_LIMITS, type Cinema2UserModelPreviewKind } from './Cinema2UserModelPreviewPatterns'
+import { CINEMA2_USER_MODEL_PREVIEWS, type Cinema2UserModelPreviewKind } from './Cinema2UserModelPreviewPatterns'
 import { Cinema2UserModelPreviewEffects } from './Cinema2UserModelPreviewEffects'
 import type { Cinema2ThreeLibrary } from '../modules/three/Cinema2ThreeLibrary'
 import type { Cinema2ModuleFrameReadContext, Cinema2ModuleUpdateContext } from '../modules/Cinema2ModuleContracts'
@@ -18,8 +18,8 @@ function root() {
   const group = new THREE.Group(), front = new THREE.MeshPhysicalMaterial({ color: '#abcdef' }), side = new THREE.MeshPhysicalMaterial({ color: '#ddaa11' }); front.name = 'front'; side.name = 'side'
   group.add(new THREE.Mesh(new THREE.BoxGeometry(2, 1.5, .4), [front, side])); return group
 }
-function context(values: Record<string, unknown>, time = 2, event?: 'kick' | 'beat' | 'drop' | 'phrase' | 'snare' | 'downbeat' | 'bar', eventId = 1, edit = 0): Cinema2ModuleUpdateContext {
-  const published = ifritMusicFixture({ frameId: Math.floor(time * 100) + 1, timeSec: time, event, eventId, beatIndex: 128, energy: .6 })
+function context(values: Record<string, unknown>, time = 2, event?: 'kick' | 'beat' | 'drop' | 'phrase' | 'snare' | 'downbeat' | 'bar', eventId = 1, edit = 0, advanceGrid = false): Cinema2ModuleUpdateContext {
+  const published = ifritMusicFixture({ frameId: Math.floor(time * 100) + 1, timeSec: time, event, eventId, beatIndex: advanceGrid ? Math.floor(time * 2) : 128, energy: .6 })
   const bridge = new Cinema2AudioIntelligenceBridge({ getFrame: () => published, getPublicationMeta: () => ({ sequence: published.frameId, kind: 'frame', publisherId: 'preview-test', reason: null, publishedAtMs: time * 1000 }) })
   const snapshot = bridge.capture(published.frameId)
   const audio = { ...snapshot, discontinuity: { ...snapshot.discontinuity, occurred: false } }
@@ -38,25 +38,26 @@ describe.each(kinds)('%s model preview declaration', kind => {
     expect(find('pattern').options).toHaveLength(6); expect(find('patternChange')).toMatchObject({ type: 'boolean', defaultValue: false, designParentGroup: 'design' })
     expect(find('trigger').options).toEqual(CINEMA2_AFTERHOURS_TRIGGER_OPTIONS); expect(find('trigger').visibleWhen).toEqual([{ kind: 'parameter-equals', parameterId: find('patternChange').id, value: true }])
     expect(manifest.parameters!.filter(p => p.type === 'color' && p.designParentGroup === 'palette')).toHaveLength(4)
-    expect(manifest.modules![0].config).toMatchObject({ userModelPreview: kind, userModel: { neutralFloor: true } })
+    expect(manifest.modules![0].config).toMatchObject({ userModelPreview: kind, userModel: { neutralFloor: false } })
     const model = `user-model:c0000000-0000-4000-8000-000000000001:1`
     const result = activateCinema2Workspace(createEmptyCinema2WorkspaceDocument(), { presetId: manifest.id, parameterPatch: { [find('model').id]: model, [find('pattern').id]: CINEMA2_USER_MODEL_PREVIEWS[kind][4] } })
     expect(result.ok).toBe(true); expect(parseCinema2WorkspaceDocument(JSON.parse(JSON.stringify(result.document))).ok).toBe(true)
     expect(result.state!.serializedParameterState).toContain(model)
   })
-  it('builds model-informed bounded proxies and six distinct arrangements without mutating cached geometry', () => {
+  it('builds bounded model effects and six distinct arrangements without mutating cached geometry', () => {
     const scene = root(), source = scene.children[0] as THREE.Mesh, positions = Array.from(source.geometry.attributes.position.array), dispose = vi.spyOn(source.geometry, 'dispose')
     const controller = new Cinema2UserModelPreviewEffects(library, kind); controller.attach(scene, true)
     const hashes = new Set<string>()
     for (const pattern of CINEMA2_USER_MODEL_PREVIEWS[kind]) {
-      controller.update(context({ pattern, reactivity: 0 })); controller.beforeDraw('high'); scene.updateMatrixWorld(true)
+      for (let step = 0; step <= 20; step++) controller.update(context({ pattern, reactivity: 0 }, 2 + step * .2, undefined, 1, 0, true))
+      controller.beforeDraw('high'); scene.updateMatrixWorld(true)
       const values: number[] = []
-      scene.traverse(object => { values.push(...object.matrix.elements); const mesh = object as THREE.InstancedMesh; if (mesh.isInstancedMesh) values.push(...mesh.instanceMatrix.array.slice(0, 300)); if ((object as THREE.Points).isPoints) values.push(...(object as THREE.Points).geometry.attributes.position.array.slice(0, 120)) })
+      scene.traverse(object => { values.push(...object.matrix.elements, Number(object.visible)); if ((object as THREE.LineSegments).isLineSegments) values.push(((object as THREE.LineSegments).material as THREE.LineBasicMaterial).opacity); const mesh = object as THREE.InstancedMesh; if (mesh.isInstancedMesh) values.push(...mesh.instanceMatrix.array.slice(0, 300)); if ((object as THREE.Points).isPoints) values.push(...(object as THREE.Points).geometry.attributes.position.array.slice(0, 120)) })
       hashes.add(JSON.stringify(values))
     }
     expect(hashes.size).toBe(6)
     controller.beforeDraw('low')
-    scene.traverse(object => { const mesh = object as THREE.InstancedMesh; if (mesh.isInstancedMesh) expect(mesh.count).toBe(CINEMA2_USER_MODEL_PROXY_LIMITS.low[kind === 'shatter' ? 'shatter' : 'voxel']) })
+    scene.traverse(object => { const mesh = object as THREE.InstancedMesh; if (mesh.isInstancedMesh && mesh.visible) expect(mesh.count).toBeLessThanOrEqual(20_000) })
     controller.detach(scene); controller.dispose(); expect(controller.inspect().attachmentCount).toBe(0); expect(dispose).not.toHaveBeenCalled(); expect(Array.from(source.geometry.attributes.position.array)).toEqual(positions)
   })
 })

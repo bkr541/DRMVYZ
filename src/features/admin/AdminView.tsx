@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { AppIcon } from '../../components/shared/icons/AppIcon'
-import { RailWindowHeader } from '../../components/vyzualz/layout/RailWindowHeader'
+import { ApplicationHeaderControls } from '../../components/vyzualz/layout/ApplicationWorkspaceFrame'
+import { HeaderControlGroup } from '../../components/vyzualz/layout/HeaderControlGroup'
+import { VyzualzHeaderActions } from '../../components/vyzualz/shared/VyzualzHeaderActions'
 import { WorkspaceSurface } from '../../components/vyzualz/layout/FloatingWorkspace'
 import { UnderlineTabs } from '../../components/vyzualz/react/controls/UnderlineTabs'
 import { useAdminAccess } from '../../lib/adminAccess'
@@ -22,10 +23,15 @@ export function AdminView() {
   const [tab, setTab] = useState<AdminTab>('users')
   return (
     <main className="vz-main admin-view" data-testid="admin-view" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', flex: 1 }}>
+      {isAdmin && <ApplicationHeaderControls fallbackWhenUnavailable>
+        <header className="vz-header" aria-label="Admin Console header">
+          <HeaderControlGroup label="Admin Console controls">{null}</HeaderControlGroup>
+          <VyzualzHeaderActions page="admin" />
+        </header>
+      </ApplicationHeaderControls>}
       <WorkspaceSurface className="admin-view-canvas">
         {isAdmin && (
           <div className="adm">
-            <RailWindowHeader side="left" icon={<AppIcon kind="settings" size={15} color="currentColor" aria-hidden="true" />} label="Admin Console" />
             <div className="adm-tabs"><UnderlineTabs ariaLabel="Admin Console sections" activeTab={tab} onChange={setTab} tabs={TABS} /></div>
             <div className="adm-body" role="tabpanel" aria-label={TABS.find(entry => entry.id === tab)!.label}>
               {tab === 'users' && <UsersTab />}

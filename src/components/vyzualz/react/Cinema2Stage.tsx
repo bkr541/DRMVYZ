@@ -11,6 +11,7 @@ import {
   type Cinema2WorkspacePresetState,
 } from '../cinema2'
 import { notify } from '../../../stores/notificationStore'
+import { Cinema2ModelRuntimeNotices } from './Cinema2ModelRuntimeNotices'
 import { DrawerNotice } from '../shared/DrawerNotice'
 import { acquireReactLiveEngineOwnership } from './renderers/ReactLiveEngineOwnership'
 import { resolveCanvasResolution, type CanvasResolution } from './rendering/canvasResolution'
@@ -80,6 +81,7 @@ export function Cinema2Stage({
     bpm: typeof bpm === 'number' && Number.isFinite(bpm) && bpm > 0 ? bpm : null,
     getAudioTime,
   })
+  const [activeRuntime, setActiveRuntime] = useState<Cinema2Runtime | null>(null)
   const [runtimeSnapshot, setRuntimeSnapshot] = useState<Cinema2RuntimeSnapshot | null>(null)
   transportRef.current = {
     isPlaying: isPlaying ?? true,
@@ -148,6 +150,7 @@ export function Cinema2Stage({
       if (runtime) onRuntimeRetiringRef.current?.(captureCinema2WorkspacePresetState(runtime))
       onRuntimeReadyRef.current?.(null)
       onRuntimeSnapshotRef.current?.(null)
+      setActiveRuntime(null)
       runtime?.dispose()
       runtime = null
       analyserFramePump.dispose()
@@ -217,6 +220,7 @@ export function Cinema2Stage({
       }
 
       runtime = created.runtime
+      setActiveRuntime(runtime)
       onRuntimeReadyRef.current?.(runtime)
       void restoreCinema2WorkspaceMedia(runtime, restoreState).catch(error => {
         notify('react', {
@@ -286,6 +290,7 @@ export function Cinema2Stage({
         data-cinema2-output-canvas="true"
         aria-label="Cinema 2.0 live output"
       />
+      <Cinema2ModelRuntimeNotices runtime={activeRuntime} />
       {message && (
         <DrawerNotice
           tone={runtimeSnapshot?.phase === 'unavailable' ? 'error' : 'warning'}

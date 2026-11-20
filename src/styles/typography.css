@@ -386,6 +386,13 @@
 .rv-pads-section--expanded .rv-pad-label { font: var(--type-pad-label-expanded); }
 .rv-pads-section--expanded .rv-pad-key { font: var(--type-pad-shortcut-expanded); }
 
+/* Record rows (library cards) use the library card hierarchy already shared above: 12.5px/700 title, 11px/600 secondary and metadata. */
+:root {
+  --type-record-title: 700 12.5px/1.25 var(--type-tab-family);
+  --type-record-secondary: 600 11px/1.25 var(--type-tab-family);
+  --type-record-meta: 600 11px/1 var(--type-tab-family);
+}
+
 /* Decorative pad shortcut: a background numeral rather than a field value. */
 .ll-pad-studies .ll-study-pad-key { font: 700 clamp(64px, 60cqi, 92px)/1 var(--type-preset-name-family); }
 

@@ -1,12 +1,10 @@
 import { useState, type CSSProperties } from 'react'
 import { AppIcon } from '../../../shared/icons/AppIcon'
 import { PresetLibraryCard } from '../../presetManager/PresetLibraryCard'
-import { PRESET_MANAGER_PRESETS } from '../../presetManager/presetManagerCatalog'
 import { PresetBlueprintImage } from '../PresetBlueprintImage'
 import { AudioTrackCard } from '../../media/AudioTrackCard'
 import { ModelLibraryCard } from '../../media/ModelLibraryCard'
 import { LibraryViewToggle, type LibraryView } from '../controls/LibraryViewToggle'
-import type { SavedAudioTrack } from '../../../../stores/audioStore'
 import appearance from '../../../../styles/appearance.css?inline'
 import mediaStyles from '../../../../styles/vyzualz.css?inline'
 import presetStyles from '../../../../styles/reactView.css?inline'
@@ -16,22 +14,10 @@ import lyricStyles from '../../../../styles/lyricManager.css?inline'
 import headerStyles from '../../layout/HeaderControlGroup.css?inline'
 import viewStyles from '../controls/LibraryViewToggle.css?inline'
 import styles from './recordListingStudies.css?inline'
+import padStyles from './recordPadStudies.css?inline'
+import { RecordPadColumn } from './RecordPadStudies'
+import { LIBRARY_PRESETS, MODELS, TRACKS } from './recordListingData'
 
-const RECORDS = [
-  { id: 'drmvyz.cinema2.reactor', name: 'Reactor' },
-  { id: 'drmvyz.cinema2.glassfall', name: 'GLASSFALL' },
-  { id: 'drmvyz.cinema2.bwc', name: 'BWC' },
-  { id: 'drmvyz.cinema2.chamber', name: 'CHAMBER' },
-]
-const LIBRARY_PRESETS = ['Afterhours', 'Ancient Machine', 'ATL HOE', 'Crystalized'].map(name => PRESET_MANAGER_PRESETS.find(preset => preset.name === name)!).filter(Boolean)
-const TRACKS: SavedAudioTrack[] = ['Afterhours', 'Midnight Circuit', 'Signal Drift', 'Closing Time'].map((title, index) => ({
-  id: 'lab-audio-' + index, dbId: 'lab-audio-' + index, title, artist: 'DVYDRM',
-  fileName: title + '.wav', storagePath: null, durationSec: 240 + index * 27,
-  sampleRate: 48000, channels: 2, fileSizeByte: null, mimeType: 'audio/wav',
-  transcriptionAssets: null, genre: 'Electronic', bpm: 124 + index * 2,
-  musicalKey: ['Am', 'Fm', 'Cm', 'Dm'][index], createdAt: '2026-01-01T00:00:00Z',
-}))
-const MODELS = [RECORDS[3], { ...RECORDS[0], name: 'Reactor Assembly' }, { id: 'drmvyz.cinema2.crate-moire-orb', name: 'Moire Orb' }, { ...RECORDS[1], name: 'Glass Sculpture' }]
 // Scope the actual production CSS to this study. Production controls share
 // presentation, while all data, selection and actions stay local to the lab.
 const productionStyles = '@scope (.ll-records) {' + [appearance, mediaStyles, presetStyles, presetManagerStyles, modelStyles, lyricStyles, headerStyles, viewStyles].join('\n').replaceAll(':root', ':scope') + '}'
@@ -54,9 +40,12 @@ export function RecordListingStudies() {
     <h2 id={'ll-records-' + id}><AppIcon kind={icon} size={15} />{title}</h2>
     <LibraryViewToggle view={views[id]} onChange={view => setViews(current => ({ ...current, [id]: view }))} />
   </header>
-  return <div className="ll-records" style={productionTokens} data-theme="dark" aria-label="Record Listing studies">
+  return <div className="ll-records-compare">
     {fontStylesheet && <link rel="stylesheet" href={fontStylesheet} />}
-    <style>{productionStyles + styles}</style>
+    <style>{productionStyles + styles + padStyles}</style>
+    <div className="ll-records-lane">
+    <p className="ll-records-lane-label">Current production</p>
+    <div className="ll-records" style={productionTokens} data-theme="dark" aria-label="Record Listing studies">
     <section className="ll-records-column" aria-labelledby="ll-records-presets" data-record-section="presets" data-view={views.presets}>
       {heading('presets', 'Presets', 'navPreset')}
       <div className="ll-records-body">
@@ -89,5 +78,13 @@ export function RecordListingStudies() {
       </div>
       </div>
     </section>
+    </div>
+    </div>
+    <div className="ll-records-lane">
+      <p className="ll-records-lane-label">Performance Pad styling</p>
+      <div className="ll-records ll-records--pads" style={productionTokens} data-theme="dark" aria-label="Record Listing pad styling">
+        <RecordPadColumn />
+      </div>
+    </div>
   </div>
 }

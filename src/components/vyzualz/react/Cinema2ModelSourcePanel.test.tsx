@@ -7,11 +7,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const MODEL_ID = 'c0000000-0000-4000-8000-000000000001'
 const mocks = vi.hoisted(() => ({ get: vi.fn(), notify: vi.fn(), selectProps: {} as Record<string, unknown> }))
 vi.mock('../../../features/models/data/modelAssetRepository', () => ({ modelAssetRepository: { get: mocks.get } }))
-vi.mock('../../../stores/notificationStore', () => ({ notify: mocks.notify }))
+vi.mock('../../../stores/notificationStore', async importOriginal => ({ ...await importOriginal<typeof import('../../../stores/notificationStore')>(), notify: mocks.notify }))
 vi.mock('../media/ModelLibraryCards', () => ({
   ModelLibraryCards: (props: Record<string, unknown>) => { mocks.selectProps = props; return <div data-testid="cards">{props.searchControl as React.ReactNode}</div> },
 }))
 
+import { WithNotificationDrawer, drawerText } from '../../../test/WithNotificationDrawer'
+import { Cinema2ModelRuntimeNotices } from './Cinema2ModelRuntimeNotices'
 import { Cinema2ModelSourcePanel, findCinema2UserModelParameter } from './Cinema2ModelSourcePanel'
 import { CINEMA2_BASS_SIGIL_PRESET_MANIFEST } from '../cinema2/presets/Cinema2BassSigilPreset'
 import { CINEMA2_CRATE_PRESET_MANIFESTS } from '../cinema2/presets/Cinema2CratePresets'
@@ -20,24 +22,24 @@ import type { ModelAsset } from '../../../features/models/domain/modelAssetTypes
 
 const asset = (overrides: Partial<ModelAsset> = {}): ModelAsset => ({ id: MODEL_ID, userId: 'u', kind: 'imported', sourceMediaId: null, name: 'Pure Diamond', description: null, favorite: false, currentVersion: 1, status: 'ready', createdAt: '', updatedAt: '', ...overrides })
 
-function fakeRuntime(initial: string, diagnostics: { code: string; message: string }[] = []) {
+function fakeRuntime(initial: string, diagnostics: { code: string; message: string }[] = [], presetId = 'drmvyz.cinema2.other-model-slot') {
   let value = initial; const listeners = new Set<() => void>()
   const state = {
     subscribe: (listener: () => void) => { listeners.add(listener); return () => listeners.delete(listener) },
     getValue: () => value,
     setPersistentValue: vi.fn((_id: string, next: string) => { value = next; listeners.forEach(listener => listener()); return { ok: true } }),
   }
-  return { state, runtime: { getParameterState: () => state, getModuleRuntimeSnapshot: () => ({ modules: [{ diagnostics }] }) } as never }
+  return { state, runtime: { getCompiledPresetPlan: () => ({ presetId }), getParameterState: () => state, getModuleRuntimeSnapshot: () => ({ modules: [{ diagnostics }] }) } as never }
 }
 let container: HTMLDivElement, root: ReturnType<typeof createRoot>
 beforeEach(() => { container = document.createElement('div'); document.body.appendChild(container); root = createRoot(container); mocks.get.mockReset().mockResolvedValue(asset()); mocks.notify.mockReset() })
 afterEach(() => { act(() => root.unmount()); container.remove() })
 const flush = async () => { for (let i = 0; i < 6; i++) await act(async () => { await Promise.resolve() }) }
-const button = (label: RegExp) => [...container.querySelectorAll('button')].find(item => label.test(item.textContent ?? ''))
-const text = () => container.textContent ?? ''
+const button = (label: RegExp) => [...document.body.querySelectorAll('button')].find(item => label.test(item.textContent ?? ''))
+const text = () => (container.textContent ?? '') + drawerText()
 const render = async (initial: string, diagnostics: { code: string; message: string }[] = []) => {
   const fake = fakeRuntime(initial, diagnostics)
-  await act(async () => { root.render(<Cinema2ModelSourcePanel runtime={fake.runtime} parameterId={'p' as never} />) }); await flush()
+  await act(async () => { root.render(<WithNotificationDrawer><Cinema2ModelRuntimeNotices runtime={fake.runtime} /><Cinema2ModelSourcePanel runtime={fake.runtime} parameterId={'p' as never} /></WithNotificationDrawer>) }); await flush()
   return fake
 }
 
@@ -52,6 +54,21 @@ describe('model slot detection', () => {
 })
 
 describe('the model Source panel', () => {
+  it.each([CINEMA2_BASS_SIGIL_PRESET_MANIFEST.id, ...(['form', 'dust', 'hologram', 'shatter', 'slices', 'voxel'] as const).map(kind => createCinema2UserModelPreset(kind).id)])('omits all three source controls for %s while retaining model selection', async presetId => {
+    const fake = fakeRuntime(`user-model:${MODEL_ID}:1`, [], presetId)
+    const openMediaManager = vi.fn()
+    await act(async () => root.render(<Cinema2ModelSourcePanel runtime={fake.runtime} parameterId={'p' as never} onOpenMediaManager={openMediaManager} />))
+    await flush()
+    expect(container.querySelector('[data-testid="cards"]')).not.toBeNull()
+    expect(mocks.selectProps.activeId).toBe(MODEL_ID)
+    expect(container.querySelector('.rv-canvas-panel-status')).toBeNull()
+    expect(button(/Remove model|Open Media Manager/)).toBeUndefined()
+    await act(async () => { (mocks.selectProps.onSelect as (asset: ModelAsset) => void)(asset({ currentVersion: 2 })) })
+    expect(fake.state.setPersistentValue).toHaveBeenCalledWith('p', `user-model:${MODEL_ID}:2`)
+    expect(openMediaManager).not.toHaveBeenCalled()
+  })
+
+
   it('asks for a model when none is chosen', async () => {
     await render('default-model')
     expect(text()).toContain('None chosen'); expect(text()).toContain('Pick one of your 3D models'); expect(button(/Remove model/)).toBeUndefined()
@@ -91,9 +108,15 @@ describe('the model Source panel', () => {
     expect(text()).toContain('deleted or is unavailable'); expect(text()).toContain('The model could not be shown')
   })
 
-  it('shows loading status while the scene loads the model', async () => {
+  it.each(['SLICES_OPEN', 'SHATTER_LIMIT', 'HOLOGRAM_EDGES', 'VOXEL_SHELL'])('presents %s as an effect limitation without claiming the model failed to load', async code => {
+    await render(`user-model:${MODEL_ID}:1`, [{ code: `CINEMA2_USER_MODEL_${code}`, message: 'The model remains visible with a bounded effect.' }])
+    expect(drawerText()).toContain('Model effect preparation'); expect(container.querySelector('[data-cinema2-model-source]')?.textContent).not.toContain('The model remains visible with a bounded effect.'); expect(text()).not.toContain('The model could not be shown')
+    expect(mocks.selectProps.activeId).toBe(MODEL_ID)
+  })
+
+  it('keeps transient model loading out of the Notifications warnings', async () => {
     mocks.get.mockResolvedValue(asset())
     await render(`user-model:${MODEL_ID}:1`, [{ code: 'CINEMA2_USER_MODEL_LOADING', message: 'Loading your model…' }])
-    expect(text()).toContain('Loading your model…')
+    expect(drawerText()).not.toContain('Loading your model…'); expect(container.querySelector('[data-testid="cards"]')).not.toBeNull()
   })
 })

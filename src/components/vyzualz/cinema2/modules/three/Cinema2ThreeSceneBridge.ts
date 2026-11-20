@@ -109,6 +109,8 @@ export interface Cinema2ThreeSceneOptions {
   /** Optional preset-owned controller for named model surfaces that need richer runtime behavior than material overrides. */
   modelController?: Readonly<{
     inspect?(): Readonly<Record<string, unknown>>
+    getDiagnostics?(): readonly Cinema2ThreeBridgeDiagnostic[]
+    estimateAdditionalGpuBytes?(): number
     /** Opt-in ordering for proxy controllers that hide the source mesh. */
     afterVisibility?: boolean
     /** Original asset clips are supplied for explicit controller opt-in; the bridge never starts them itself. */
@@ -529,7 +531,8 @@ export class Cinema2ThreeSceneBridge {
 
   /** Non-fatal problems (for example a shipped environment that failed to load and fell back to the built-in room). */
   getDiagnostics(): readonly Cinema2ThreeBridgeDiagnostic[] {
-    return this.diagnostics
+    const model = this.options.modelController?.getDiagnostics?.() ?? []
+    return model.length ? [...this.diagnostics, ...model] : this.diagnostics
   }
 
   /** True once the shaders are compiled and the textures uploaded; until then `draw` prepares one step per frame and draws nothing. */
@@ -540,7 +543,7 @@ export class Cinema2ThreeSceneBridge {
   /** GPU byte estimate for everything this bridge keeps alive (used for the engine's memory budget). */
   estimateGpuBytes(): number {
     // Instances share geometry and textures, so measure them together (each shared resource counts once).
-    let bytes = measureObject(this.placed.map(placed => placed.root)).bytes
+    let bytes = measureObject(this.placed.map(placed => placed.root)).bytes + (this.options.modelController?.estimateAdditionalGpuBytes?.() ?? 0)
     if (this.appliedEnvironment()) bytes += 256 * 256 * 6 * 8 * 1.34
     return Math.round(bytes)
   }

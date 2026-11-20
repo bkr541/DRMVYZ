@@ -14,6 +14,7 @@ vi.mock('../../lib/adminAccess', () => ({ useAdminAccess: () => fixture.admin, h
 
 import { VyzualzSidebar } from '../../components/vyzualz/VyzualzSidebar'
 import { AdminView } from './AdminView'
+import { ApplicationWorkspaceFrame } from '../../components/vyzualz/layout/ApplicationWorkspaceFrame'
 
 let container: HTMLDivElement | null = null
 let root: ReturnType<typeof createRoot> | null = null
@@ -42,6 +43,19 @@ describe('Admin entrance and workspace', () => {
     expect(button.getAttribute('aria-current')).toBeNull()
     act(() => root?.render(<VyzualzSidebar appView="admin" onAppViewChange={onAppViewChange} />))
     expect(container!.querySelector('[aria-label="Admin"]')?.getAttribute('aria-current')).toBe('page')
+  })
+
+  it('uses the shared page header slot and brand without a duplicate window title', async () => {
+    fixture.admin = true
+    mount(<ApplicationWorkspaceFrame appView="admin" onAppViewChange={() => {}}><AdminView /></ApplicationWorkspaceFrame>)
+    await act(async () => { await Promise.resolve() })
+    const header = container!.querySelector('[data-app-header-slot="controls"] > .vz-header')!
+    expect(header.querySelector('.vz-header-brand-logo')).not.toBeNull()
+    expect(header.querySelector('.vz-header-brand-name')?.textContent).toBe('Admin Console')
+    expect(header.querySelector('.vz-header-brand-divider')).not.toBeNull()
+    expect(header.querySelector('[data-react-header-status]')).not.toBeNull()
+    expect(container!.querySelector<HTMLElement>('.fw-app-header-fallback')?.hidden).toBe(true)
+    expect(container!.querySelector('.admin-view-canvas .rw-window-header')).toBeNull()
   })
 
   it('renders the Admin Console with its three sections for an admin, and nothing at all for anyone else', async () => {

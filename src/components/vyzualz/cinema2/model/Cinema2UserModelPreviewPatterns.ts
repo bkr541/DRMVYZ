@@ -8,10 +8,15 @@ export const CINEMA2_USER_MODEL_PREVIEWS = {
 } as const
 export type Cinema2UserModelPreviewKind = keyof typeof CINEMA2_USER_MODEL_PREVIEWS
 export const CINEMA2_USER_MODEL_PROXY_LIMITS = {
-  low: { shatter: 24, dust: 256, slices: 6, voxel: 64 },
-  medium: { shatter: 48, dust: 768, slices: 10, voxel: 160 },
-  high: { shatter: 96, dust: 1536, slices: 14, voxel: 320 },
+  low: { shatter: 24, dust: 1024, slices: 14, voxel: 20000 },
+  medium: { shatter: 24, dust: 4096, slices: 14, voxel: 20000 },
+  high: { shatter: 24, dust: 16384, slices: 14, voxel: 20000 },
 } as const
 export function isCinema2UserModelPreview(value: unknown): value is Cinema2UserModelPreviewKind {
   return typeof value === 'string' && Object.hasOwn(CINEMA2_USER_MODEL_PREVIEWS, value)
+}
+
+/** These report a usable model with a bounded effect or open-surface limitation, not a missing asset. */
+export function isCinema2UserModelPreparationDiagnostic(code: string): boolean {
+  return /^CINEMA2_USER_MODEL_(SLICES|SHATTER|HOLOGRAM|VOXEL)_/.test(code)
 }
