@@ -1,6 +1,6 @@
 # STAGELESS rename: complete plan and reference
 
-**Status:** planning only. No rename work has been done yet, apart from the app icon (see 1.4).
+**Status:** Phase 0 done (2026-11-21): `src/brand.ts`, `electron/brand.cjs`, and the ratcheting guard test in `src/brand/__tests__/`. Phases 1-4 not started. Owner decisions are recorded in section 10, which overrides anything earlier in this file.
 **Written:** 2026-11-21, from a long planning conversation. A fresh session should be able to execute everything from this file alone.
 **New name:** `STAGELESS` (all caps). Replaces `DRMVYZ`.
 
@@ -651,3 +651,15 @@ src/help/HelpCenter.ts:6342:    "whenToUse": "Use it to locate media for editing
 3. Whether the seed lyric document title change should match both old and new titles (see section 7).
 4. Whether the npm package `name` and the repository folder should be renamed at the end (optional, invisible).
 5. Whether any build has been installed by others (affects only how loudly to announce the permission re-prompt).
+
+---
+
+## 10. Owner decisions (2026-11-21, override earlier sections)
+
+1. **`appId` = `com.stageless.app`.** No one else has installed a build.
+2. **DVYDRM is the owner's DJ name and is OUT OF SCOPE entirely** (this overrides 1.2, Appendix B and Phase 3). Do not change: the 3D wordmark/logo models and asset ids, preset descriptions saying "The DVYDRM wordmark/logo", preset authors crediting DVYDRM, `DVYDRM_*` colour constants, sample artist names, `package.json` `author`, attribution/origin text. The guard test does not check DVYDRM.
+3. **Anything tied to user data is out of scope**: seed lyric documents (`src/lib/lyricsSeed.ts`, including the "VYZUALZ Lyric Test" title, so open item 3 is moot), saved text, media and similar. The guard ignores these files.
+4. **Phase 3 is only the 2D logos**: `public/STAGELESS Logo.png` (icon) replaces `drmvyz_logo_icon.png`, and `public/STAGELESS Wordmark Logo.png` replaces `drmvyz_logo2.png`. Keep the old file names (or alias) so references do not break. No 3D or preset-artwork work.
+5. **`index.html`**: title is `STAGELESS Studio`.
+6. **npm package `name` and the repo folder are renamed at the end** (optional last step; check scripts and `node_modules/.cache` paths first).
+7. **Guard test ratchet**: `src/brand/__tests__/noOldBrandPending.ts` lists files that still have old-brand text. A listed file with no hits fails the test, so remove entries as each phase lands; done = empty list. Scan scope also covers `native/` and the two dev-launcher scripts (the original list missed visible text in `native/output`). Regenerate candidates with `BRAND_GUARD_DUMP=/tmp/x npx vitest run src/brand`.
