@@ -42,7 +42,6 @@ export const ALLOWED_TOKEN_PATTERNS: ReadonlyArray<{ pattern: RegExp; reason: st
   { pattern: /^(__)?DRMVYZ_[A-Z0-9_]+$/, reason: 'constants, env vars, discovery magic, test hooks' },
   { pattern: /^X-DRMVYZ-[\w-]+$/i, reason: 'receiver contract headers' },
   { pattern: /^drmvyz_receiver_v2_contract\.json$/, reason: 'receiver contract file' },
-  { pattern: /^drmvyz_logo(2|_icon)$/, reason: 'logo file names are kept; artwork is replaced' },
   { pattern: /^[\w$]*Drmvyz[\w$]*$/, reason: 'CamelCase code identifiers' },
   { pattern: /^drmvyz[A-Z][\w$]*$/, reason: 'camelCase code identifiers / module file names' },
 ]

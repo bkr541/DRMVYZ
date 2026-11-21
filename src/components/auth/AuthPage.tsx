@@ -104,7 +104,7 @@ function AuthLogo({ compact = false }: { compact?: boolean }) {
   return (
     <div className={`auth-logo ${compact ? 'auth-logo--compact' : ''}`}>
       <img
-        src="/drmvyz_logo2.png"
+        src="/stageless_logo.png"
         alt={BRAND_NAME}
         className="auth-logo-img"
         style={{ width: compact ? 72 : 106, height: compact ? 72 : 106, objectFit: 'contain' }}

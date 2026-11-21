@@ -32,10 +32,10 @@ const forceBuiltRenderer = process.argv.includes('--production')
 const useDevServer = !app.isPackaged && !forceBuiltRenderer
 
 // Production renders through a custom, privileged scheme instead of raw file://.
-// vite.config.ts emits root-relative asset URLs (e.g. "/drmvyz_logo2.png") for
+// vite.config.ts emits root-relative asset URLs (e.g. "/stageless_logo.png") for
 // anything outside its own bundled import graph (see AI_IMPLEMENTATION_CONTRACT.md
 // public-asset references). Those only resolve correctly against an origin, and
-// file:// has no origin — it would resolve "/drmvyz_logo2.png" to the filesystem
+// file:// has no origin — it would resolve "/stageless_logo.png" to the filesystem
 // root. A privileged custom scheme gives the renderer a real origin to resolve
 // root-relative paths against while keeping everything sandboxed to dist/.
 const APP_SCHEME = 'drmvyz-app'

@@ -7,7 +7,7 @@ interface HeaderControlGroupProps {
   children: ReactNode
 }
 
-const LOGO_SRC = `${import.meta.env.BASE_URL ?? '/'}drmvyz_logo_icon.png`
+const LOGO_SRC = `${import.meta.env.BASE_URL ?? '/'}stageless_logo.png`
 
 /** Logo, page name and divider shown at the far left of every page header. */
 function HeaderBrand({ pageName }: { pageName: string }) {
