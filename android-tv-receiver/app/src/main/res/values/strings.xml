@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">DRMVYZ Receiver</string>
-    <string name="ready_title">DRMVYZ Receiver</string>
+    <string name="app_name">STAGELESS Receiver</string>
+    <string name="ready_title">STAGELESS Receiver</string>
     <string name="ready_state">READY</string>
     <string name="pair_allow">Allow</string>
     <string name="pair_deny">Deny</string>

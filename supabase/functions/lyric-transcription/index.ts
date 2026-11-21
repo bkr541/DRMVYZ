@@ -1205,7 +1205,7 @@ function wavChunkingFailure(error: unknown): TranscriptionError {
   const detail = error instanceof WavChunkingError ? ` ${error.message}` : ''
   return new TranscriptionError(
     'transcription_asset_required',
-    `This WAV file could not be split safely on the server.${detail} Retry from DRMVYZ so it can prepare a private transcription-ready audio copy.`,
+    `This WAV file could not be split safely on the server.${detail} Retry from STAGELESS so it can prepare a private transcription-ready audio copy.`,
     409,
   )
 }
@@ -1646,7 +1646,7 @@ async function processJob(
         if (!isCustomProviderConfigured()) {
           throw new TranscriptionError(
             'transcription_asset_required',
-            'This track needs local audio preparation before transcription. Retry from DRMVYZ so it can create private transcription-ready audio chunks.',
+            'This track needs local audio preparation before transcription. Retry from STAGELESS so it can create private transcription-ready audio chunks.',
             409,
           )
         }
@@ -1674,7 +1674,7 @@ async function processJob(
         if (audioBlob.size > MAX_SERVER_DOWNLOAD_BYTES) {
           throw new TranscriptionError(
             'transcription_asset_required',
-            'This track needs local audio preparation before transcription. Retry from DRMVYZ so it can create private transcription-ready audio chunks.',
+            'This track needs local audio preparation before transcription. Retry from STAGELESS so it can create private transcription-ready audio chunks.',
             409,
           )
         }
@@ -1690,7 +1690,7 @@ async function processJob(
             if (!isCustomProviderConfigured()) {
               throw new TranscriptionError(
                 'transcription_asset_required',
-                'This track needs local audio preparation before transcription. Retry from DRMVYZ so it can create a private transcription-ready audio copy.',
+                'This track needs local audio preparation before transcription. Retry from STAGELESS so it can create a private transcription-ready audio copy.',
                 409,
               )
             }

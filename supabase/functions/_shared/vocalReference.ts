@@ -66,7 +66,7 @@ export function assessVocalReferenceCompatibility(
       durationDifferenceMs: null,
       requiresConfirmation: false,
       blocked: false,
-      reason: 'DRMVYZ cannot verify arrangement length from the available metadata. Review the selected tracks and timing offset before extraction.',
+      reason: 'STAGELESS cannot verify arrangement length from the available metadata. Review the selected tracks and timing offset before extraction.',
     }
   }
 
