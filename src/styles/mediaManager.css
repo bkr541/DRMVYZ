@@ -1205,6 +1205,9 @@
 .mm-model-field-grid__wide { grid-column: 1 / -1; min-width: 0; }
 .mm-model-canvas { flex: 1; min-width: 0; min-height: 0; overflow: hidden; }
 .mm-model-canvas canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+/* Icon-only toggle over the viewport's top-right corner. */
+.dv-icon-chip.mm-model-guides-toggle { position: absolute; top: 12px; right: 12px; z-index: 2; width: 34px; height: 34px; padding: 0; justify-content: center; backdrop-filter: blur(6px); }
+.dv-icon-chip.mm-model-guides-toggle .dv-icon-chip__icon { width: 16px; height: 16px; }
 .mm-model-stage-empty { position: absolute; inset: 45% 20px auto; text-align: center; pointer-events: none; }
 .mm-model-stage-notice { position: absolute; inset: 60px 12px auto; }
 .mm-model-inspector { overflow-y: auto; min-height: 0; }

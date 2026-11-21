@@ -17,10 +17,11 @@ import { MEDIA_MANAGER_CAPABILITIES } from '../../components/vyzualz/media/media
 import { HeaderControlGroup } from '../../components/vyzualz/layout/HeaderControlGroup'
 import { HeaderIconKey } from '../../components/vyzualz/layout/HeaderIconKey'
 import { HeaderActionIcon } from '../../components/vyzualz/layout/HeaderActionIcon'
-import { SaveGlyph } from '../../components/vyzualz/layout/HeaderGlyphs'
+import { SaveGlyph, SaveAsGlyph } from '../../components/vyzualz/layout/HeaderGlyphs'
+import { SaveAsPopover, type SaveAsInput } from '../../components/vyzualz/media/SaveAsPopover'
 import { VyzualzHeaderActions } from '../../components/vyzualz/shared/VyzualzHeaderActions'
 import type { LyricManagerNavigationIntent } from '../lyrics/lyricNavigation'
-import { selectBuiltinModelEdited, selectModelCanGenerate, selectModelCanSave, selectModelEditorNeedsGuard, useModelEditorStore } from '../models/state/modelEditorStore'
+import { selectBuiltinModelEdited, selectModelCanGenerate, selectModelCanRevert, selectModelCanSave, selectModelCanSaveAs, selectModelEditorNeedsGuard, useModelEditorStore } from '../models/state/modelEditorStore'
 import { fitModelViewport, resetModelCamera } from '../models/state/modelViewportBridge'
 import type { MediaManagerSelection, ModelAsset } from '../models/domain/modelAssetTypes'
 import type { UploadedMedia } from '../../stores/mediaStore'
@@ -33,6 +34,13 @@ const ModelEditorStage = lazy(() => import('../../components/vyzualz/media/Model
 
 interface MediaManagerViewProps {
   onOpenLyricManager: (intent: LyricManagerNavigationIntent) => void
+}
+
+/** A model's title must be present and fit the stored limit. */
+function validateModelName(name: string): string | null {
+  const trimmed = name.trim()
+  if (!trimmed) return 'Enter a name for the new model.'
+  return trimmed.length > 200 ? 'Use 200 characters or fewer.' : null
 }
 
 export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) {
@@ -59,6 +67,12 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
   const modelPendingSave = useModelEditorStore(state => !!state.publishedVersion || !!state.pendingOperationId || (!!state.saveTarget && state.saveTarget.id !== state.asset?.id))
   const modelError = useModelEditorStore(state => state.error)
   const [deleteModelOpen, setDeleteModelOpen] = useState(false)
+  const [revertModelOpen, setRevertModelOpen] = useState(false)
+  const [saveAsOpen, setSaveAsOpen] = useState(false)
+  // What a model copy starts from is read when the popover opens, so the view does not follow the model's tags and name while it is closed.
+  const [modelCopyStart, setModelCopyStart] = useState<SaveAsInput>({ name: '', tags: [], collectionIds: [] })
+  const modelCanSaveAs = useModelEditorStore(selectModelCanSaveAs)
+  const modelCanRevert = useModelEditorStore(selectModelCanRevert)
   const needsModelGuard = useModelEditorStore(selectModelEditorNeedsGuard)
   const accountId = useMediaStore(state => state.accountId)
   const previousAccount = useRef(accountId)
@@ -66,12 +80,16 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
   const [headerState, setHeaderState] = useState<{ owner: string; actions: MediaHeaderActions | null } | null>(null)
   const receiveHeaderActions = useCallback((actions: MediaHeaderActions | null) => setHeaderState({ owner: selectionKey, actions }), [selectionKey])
   const headerActions = selection?.kind !== 'model' && headerState?.owner === selectionKey ? headerState.actions : null
+  const mediaSaveAs = headerActions?.saveAs ?? null
   const selectedMediaId = selection?.kind === 'media' ? selection.id : null
   const selectedTrackId = selection?.kind === 'track' ? selection.id : null
   const selectedMedia = selectedMediaId ? mediaItems.find(item => item.id === selectedMediaId) ?? null : null
   const selectedTrack = selectedTrackId ? savedTracks.find(track => track.id === selectedTrackId) ?? null : null
   const modelSelected = selection?.kind === 'model'
   const modelBusy = modelStatus === 'saving' || modelStatus === 'deleting'
+  // Save As and Revert are offered for images, videos and 3D models (not audio tracks or fonts); a shipped 3D model has neither (it has Restore Original).
+  const showSaveAs = modelSelected ? !builtinModel : !!mediaSaveAs
+  const showRevert = modelSelected ? !builtinModel : !!headerActions?.onRevert
   const modelDownloadDisabled = !modelLoaded || modelBusy || modelStatus === 'loading-model'
   const builtinActionsDisabled = !builtinEdited || builtinExporting || modelStatus === 'saving'
   const commitSelection = useCallback((next: MediaManagerSelection | null, font: OscillatorFontAsset | null = null) => {
@@ -106,6 +124,7 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
       useModelEditorStore.getState().load(asset); setSelection({ kind: 'model', id: asset.id }); setSelectedFont(null)
     })
   }
+  useEffect(() => { setSaveAsOpen(false) }, [selectionKey])
   useEffect(() => { if (modelSelected && modelId !== selection.id) setSelection(modelId ? { kind: 'model', id: modelId } : null) }, [modelSelected, modelId, selection])
   const proceed = () => { const next = pending; setPending(null); next?.commit() }
   useEffect(() => {
@@ -148,9 +167,33 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
               label="Save Changes"
               title={modelSelected ? modelStatus === 'saving' ? 'Saving model…' : builtinModel ? 'Save model tags and collections' : 'Save model changes' : headerActions?.saving ? 'Saving…' : 'Save the changes made on the Info tab'}
               icon={<SaveGlyph />}
-              disabled={modelSelected ? !modelCanSave : !headerActions || headerActions.saving}
+              disabled={modelSelected ? !modelCanSave : !headerActions || headerActions.saving || !headerActions.canSave}
               onClick={() => { if (modelSelected) void useModelEditorStore.getState().save(); else headerActions?.onSave() }}
             />
+            {showSaveAs && <HeaderIconKey
+              label="Save As"
+              title={modelSelected ? (modelCanSaveAs ? 'Save as a new model; the original stays as it is' : 'Save As is available once the model is ready') : (mediaSaveAs?.unavailable ?? 'Save the edited result as a new item; the original stays as it is')}
+              icon={<SaveAsGlyph />}
+              disabled={modelSelected ? !modelCanSaveAs : !mediaSaveAs || mediaSaveAs.unavailable !== null || mediaSaveAs.busy}
+              onClick={() => {
+                if (!saveAsOpen) {
+                  mediaSaveAs?.clearError()
+                  if (modelSelected) {
+                    const state = useModelEditorStore.getState()
+                    const twoSided = state.asset?.kind === 'imported' ? !!state.builtinEdit?.values.twoSided : !!state.recipe?.twoSided
+                    setModelCopyStart({ name: `${state.name}${twoSided ? ' (two-sided)' : ' copy'}`, tags: [...state.tags], collectionIds: [...state.collectionIds] })
+                  }
+                }
+                setSaveAsOpen(open => !open)
+              }}
+            />}
+            {showRevert && <HeaderIconKey
+              label="Revert"
+              title={modelSelected ? (modelAsset ? 'Revert to the saved version, discarding unsaved changes' : 'Reset the model, discarding unsaved changes') : 'Discard unsaved changes to this item'}
+              icon={<HeaderActionIcon action="restore" />}
+              disabled={modelSelected ? !(modelCanRevert || (!!modelError && !!modelAsset && !modelBusy)) : !headerActions?.canRevert}
+              onClick={() => { if (modelSelected) setRevertModelOpen(true); else headerActions?.onRevert?.() }}
+            />}
             <HeaderIconKey
               label="Delete Media"
               title={modelSelected ? 'Delete this model and its versions' : 'Delete this media item'}
@@ -181,12 +224,6 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
                 disabled={modelDownloadDisabled || modelGenerationPending}
                 onClick={() => { void useModelEditorStore.getState().download('glb') }}
               />
-              {modelAsset?.kind === 'imported' && <HeaderIconKey
-                label="Restore Original"
-                icon={<HeaderActionIcon action="restore" />}
-                disabled={builtinActionsDisabled}
-                onClick={() => useModelEditorStore.getState().resetBuiltinEdits()}
-              />}
               <HeaderIconKey
                 label="Download Preview PNG"
                 icon={<HeaderActionIcon action="capture" />}
@@ -260,6 +297,21 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
           </WorkspaceRail>
         </div>
       </section>
+      {showSaveAs && saveAsOpen && <SaveAsPopover
+        description={modelSelected ? 'Create a separate model with its own version history. The original stays exactly as it is.' : 'Save the edited result as a new media item. The original stays exactly as it is.'}
+        initial={modelSelected ? modelCopyStart : mediaSaveAs?.initial ?? { name: '', tags: [], collectionIds: [] }}
+        validateName={modelSelected ? validateModelName : name => mediaSaveAs?.validateName(name) ?? null}
+        busy={modelSelected ? modelStatus === 'saving' : !!mediaSaveAs?.busy}
+        error={modelSelected ? modelError : mediaSaveAs?.error ?? null}
+        onCancel={() => setSaveAsOpen(false)}
+        onSubmit={(input: SaveAsInput) => {
+          if (modelSelected) void useModelEditorStore.getState().save(input.name, { tags: input.tags, collectionIds: input.collectionIds }).then(outcome => { if (outcome.ok) setSaveAsOpen(false) })
+          else void mediaSaveAs?.submit(input).then(saved => { if (saved) setSaveAsOpen(false) })
+        }}
+      />}
+      {revertModelOpen && <ConfirmDialog title={modelAsset ? 'Revert to saved version?' : 'Reset model?'} message="Your unsaved changes to this model will be discarded." confirmLabel={modelAsset ? 'Revert' : 'Reset'}
+        onCancel={() => setRevertModelOpen(false)}
+        onConfirm={() => { const state = useModelEditorStore.getState(); if (state.error && state.asset) void state.reloadLatest(); else state.revert(); setRevertModelOpen(false) }} />}
       {deleteModelOpen && <ConfirmDialog title="Delete 3D Model" message="Delete this model, all versions and unsaved edits? Projects or presets referring to it will show a missing-model warning."
         confirmLabel={modelAsset?.status === 'deletion_pending' ? 'Retry Delete' : 'Delete'} busy={modelStatus === 'deleting'} notice={modelError ?? undefined} noticeTitle="Deletion incomplete" noticeTone="error"
         onCancel={() => setDeleteModelOpen(false)} onConfirm={() => { void useModelEditorStore.getState().deleteModel().then(ok => { if (ok) setDeleteModelOpen(false) }) }} />}

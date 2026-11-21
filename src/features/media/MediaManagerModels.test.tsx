@@ -189,7 +189,7 @@ it('opens the wordmark with organization fields and editing controls for the loa
  expect(Array.from(container.querySelectorAll('.mm-model-inspector .drc-header')).map(header => header.textContent)).toEqual(['Details', 'Tags & Collections', 'Additional Info'])
  expect(container.querySelector<HTMLInputElement>('#model-tags')?.disabled).toBe(false)
  await act(async () => button('Edit').click())
- expect(Array.from(container.querySelectorAll('.mm-model-inspector .drc-header')).map(header => header.textContent)).toEqual(['Transform', 'Materials'])
+ expect(Array.from(container.querySelectorAll('.mm-model-inspector .drc-header')).map(header => header.textContent)).toEqual(['Transform', 'Sides', 'Materials'])
  expect(container.querySelectorAll('.mm-model-inspector input[type="range"]')).toHaveLength(6)
  expect(button('Download Edited GLB').disabled).toBe(true)
  await act(async () => useModelEditorStore.getState().editBuiltin({ scale: 1.4 }))
@@ -204,4 +204,105 @@ it('opens the wordmark with organization fields and editing controls for the loa
  await act(async () => restore.click())
  expect(download.disabled).toBe(true)
  expect(restore.disabled).toBe(true)
+})
+
+describe('3D model Save, Save As and Revert are toolbar keys', () => {
+  const asset: ModelAsset = {
+    id: 'imported-model', userId: 'owner', kind: 'imported', sourceMediaId: null, name: 'DVYDRM', description: null, favorite: false,
+    currentVersion: 2, status: 'ready', createdAt: '2026-11-20T00:00:00Z', updatedAt: '2026-11-20T00:00:00Z',
+  }
+  const model = () => ({ group: new Group(), dispose: vi.fn(), stats: { triangles: 1, vertices: 3, meshes: 1, bounds: { min: [0, 0, 0], max: [1, 1, 1] } } }) as never
+  async function openModel(extra: Record<string, unknown> = {}) {
+    vi.spyOn(useModelEditorStore.getState(), 'load').mockImplementation(() => {
+      useModelEditorStore.setState({ id: asset.id, asset, name: asset.name, tags: ['logo'], collectionIds: ['collection-1'], model: model(), status: 'ready', ...extra })
+    })
+    await invoke('onSelectModel', asset)
+  }
+  const popover = () => document.querySelector<HTMLElement>('.dv-confirm-dialog')
+  const popoverButton = (label: string) => [...popover()!.querySelectorAll<HTMLButtonElement>('button')].find(b => b.textContent?.trim() === label)!
+
+  it('puts Save Changes, Save As and Revert in the toolbar, in that order, as icon-only keys', async () => {
+    await openModel()
+    const labels = [...container.querySelectorAll('.mmv-header .vz-header-group button')].map(b => b.getAttribute('aria-label'))
+    expect(labels.filter(label => ['Save Changes', 'Save As', 'Revert'].includes(label ?? ''))).toEqual(['Save Changes', 'Save As', 'Revert'])
+    for (const label of ['Save As', 'Revert']) {
+      expect(button(label).textContent?.trim()).toBe('')
+      expect(button(label).querySelector('svg')).not.toBeNull()
+    }
+    expect(button('Restore Original')).toBeUndefined()
+  })
+
+  it('Save As opens a popover with Title, Tags and Collections starting from the model, and saves a separate model with them', async () => {
+    await openModel()
+    const save = vi.spyOn(useModelEditorStore.getState(), 'save').mockResolvedValue({ ok: true, id: 'new', version: 1 })
+    expect(button('Save As').disabled).toBe(false)
+    await act(async () => button('Save As').click())
+    expect(popover()).not.toBeNull()
+    const title = popover()!.querySelector<HTMLInputElement>('input')!
+    expect(title.value).toBe('DVYDRM copy')
+    expect(popover()!.textContent).toContain('Tags')
+    expect(popover()!.textContent).toContain('Collections')
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(title, 'DVYDRM (two-sided)')
+      title.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    await act(async () => { popoverButton('Save As').click(); await Promise.resolve() })
+    expect(save).toHaveBeenCalledTimes(1)
+    expect(save).toHaveBeenCalledWith('DVYDRM (two-sided)', { tags: ['logo'], collectionIds: ['collection-1'] })
+    expect(popover()).toBeNull()
+  })
+
+  it('a blank name is refused and the popover stays open', async () => {
+    await openModel()
+    const save = vi.spyOn(useModelEditorStore.getState(), 'save').mockResolvedValue({ ok: true, id: 'new', version: 1 })
+    await act(async () => button('Save As').click())
+    const title = popover()!.querySelector<HTMLInputElement>('input')!
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(title, '  ')
+      title.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    await act(async () => { popoverButton('Save As').click() })
+    expect(save).not.toHaveBeenCalled()
+    expect(popover()!.textContent).toContain('Enter a name for the new model.')
+  })
+
+  it('stays open and shows the model error when the copy cannot be saved, and Cancel closes it', async () => {
+    await openModel({ error: 'The new model could not be created.' })
+    vi.spyOn(useModelEditorStore.getState(), 'save').mockResolvedValue({ ok: false })
+    await act(async () => button('Save As').click())
+    await act(async () => { popoverButton('Save As').click(); await Promise.resolve() })
+    expect(popover()).not.toBeNull()
+    expect(popover()!.textContent).toContain('The new model could not be created.')
+    await act(async () => popoverButton('Cancel').click())
+    expect(popover()).toBeNull()
+  })
+
+  it('Save As is disabled while the model is not ready', async () => {
+    await openModel({ status: 'loading-model' })
+    expect(button('Save As').disabled).toBe(true)
+  })
+
+  it('Revert is disabled until there are unsaved changes, then asks before discarding them and reverts', async () => {
+    await openModel()
+    const revert = vi.spyOn(useModelEditorStore.getState(), 'revert').mockImplementation(() => undefined)
+    expect(button('Revert').disabled).toBe(true)
+    await act(async () => { useModelEditorStore.setState({ dirty: true }) })
+    expect(button('Revert').disabled).toBe(false)
+    await act(async () => button('Revert').click())
+    expect(document.querySelector('.dv-confirm-dialog')?.textContent).toContain('Revert to saved version?')
+    expect(revert).not.toHaveBeenCalled()
+    await act(async () => { [...document.querySelectorAll<HTMLButtonElement>('.dv-confirm-dialog button')].find(b => b.textContent?.trim() === 'Revert')!.click() })
+    expect(revert).toHaveBeenCalledTimes(1)
+    expect(document.querySelector('.dv-confirm-dialog')).toBeNull()
+  })
+
+  it('the Output tab no longer holds Save, Save As or Revert', async () => {
+    await openModel({ dirty: true, versions: [{ version: 2, geometryStats: {} }, { version: 1, geometryStats: {} }], activeVersion: 2 })
+    await act(async () => { [...container.querySelectorAll<HTMLElement>('[role="tab"]')].find(tab => tab.textContent?.trim() === 'Output')!.click() })
+    const output = container.querySelector('.mm-model-inspector')!
+    expect(output.textContent).toContain('Viewing version 2')
+    for (const label of ['Save', 'Save Model', 'Save New Version', 'Save Metadata', 'Save As New Model', 'Revert to Saved Version', 'Reset Model']) {
+      expect([...output.querySelectorAll('button')].some(b => b.textContent?.trim() === label), label).toBe(false)
+    }
+  })
 })

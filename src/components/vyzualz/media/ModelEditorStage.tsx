@@ -6,6 +6,7 @@ import { registerModelViewport } from '../../../features/models/state/modelViewp
 import { selectBuiltinModelEdited, selectBuiltinModelNeedsExport, useModelEditorStore } from '../../../features/models/state/modelEditorStore'
 import { IconChipButton } from '../react/controls/IconChipButton'
 import { NoticeCard } from '../react/controls/NoticeCard'
+import { AppIcon } from '../../shared/icons/AppIcon'
 export function ModelEditorStage() {
   const group = useModelEditorStore(s => s.model?.group), status = useModelEditorStore(s => s.status)
   const sessionKey = useModelEditorStore(s => s.sessionKey)
@@ -17,6 +18,20 @@ export function ModelEditorStage() {
     if (!s.builtinExportError && selectBuiltinModelEdited(s) && !selectBuiltinModelNeedsExport(s)) return 'Edited GLB download started.'
     return ''
   })
+  // The floor grid and axis lines. A generated model keeps this in its recipe's preview settings (the same "Preview grid" switch in the Edit tab); an existing
+  // model has no recipe, so it is a view setting here.
+  const hasRecipe = useModelEditorStore(s => !!s.recipe)
+  const recipeGrid = useModelEditorStore(s => s.recipe?.preview.grid ?? true)
+  const [localGuides, setLocalGuides] = useState(true)
+  const showGuides = hasRecipe ? recipeGrid : localGuides
+  const guides = useRef(showGuides), applyGuides = useRef<(() => void) | null>(null)
+  guides.current = showGuides
+  useEffect(() => { applyGuides.current?.() }, [showGuides])
+  const toggleGuides = () => {
+    const state = useModelEditorStore.getState()
+    if (state.recipe) state.setRecipe({ preview: { ...state.recipe.preview, grid: !showGuides } })
+    else setLocalGuides(!showGuides)
+  }
   const cameraPose = useRef<{ session: number; position: Vector3; target: Vector3 } | null>(null)
   const root = useRef<HTMLDivElement>(null)
   const [error, setError] = useState<string | null>(null), [epoch, setEpoch] = useState(0)
@@ -39,7 +54,8 @@ export function ModelEditorStage() {
     const resources = new Group(), grid = new GridHelper(4, 20, '#4d7182', '#263b45')
     const floor = new Mesh(new PlaneGeometry(6, 6), new ShadowMaterial({ opacity: 0.3 }))
     floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true
-    resources.add(grid, floor, new AxesHelper(0.5))
+    const axes = new AxesHelper(0.5)
+    resources.add(grid, floor, axes)
     const updateBounds = () => {
       bounds.setFromObject(group).getCenter(center)
       bounds.getSize(size)
@@ -83,11 +99,12 @@ export function ModelEditorStage() {
       hemisphere.intensity = 2 * intensity; key.intensity = 4 * intensity; fill.intensity = 2 * intensity
       scene.environment = environment?.texture ?? null
       scene.environmentIntensity = (preview?.environment === 'neutral' ? 0.5 : 1) * intensity
-      grid.visible = preview?.grid ?? true; floor.visible = preview?.shadows ?? true
+      grid.visible = axes.visible = guides.current; floor.visible = preview?.shadows ?? true
       renderer.shadowMap.enabled = preview?.shadows ?? true
       controls.autoRotate = preview?.turntable ?? false; controls.autoRotateSpeed = 1
       invalidate()
     }
+    applyGuides.current = applyPreview
     const unsubscribe = useModelEditorStore.subscribe((next, previous) => {
       if (next.recipe?.preview !== previous.recipe?.preview) applyPreview()
       if (next.model?.group !== group || next.builtinEdit?.values === previous.builtinEdit?.values) return
@@ -124,7 +141,7 @@ export function ModelEditorStage() {
     try { studio(); applyPreview(); resize(); fit(); const pose = cameraPose.current; if (pose?.session === sessionKey) { camera.position.copy(pose.position); controls.target.copy(pose.target); controls.update(); invalidate() } } catch { lost = true; setError('The studio preview could not initialize. Retry the viewport.') }
     return () => {
       cameraPose.current = { session: sessionKey, position: camera.position.clone(), target: controls.target.clone() }
-      unregister(); unsubscribe(); controls.removeEventListener('start', stopTurntable)
+      unregister(); unsubscribe(); applyGuides.current = null; controls.removeEventListener('start', stopTurntable)
       disposed = true; cancelAnimationFrame(frame)
       observer.disconnect(); intersection?.disconnect(); controls.dispose(); document.removeEventListener('visibilitychange', visibility)
       canvas.removeEventListener('webglcontextlost', onLost); canvas.removeEventListener('webglcontextrestored', onRestored)
@@ -135,6 +152,8 @@ export function ModelEditorStage() {
   }, [group, epoch, sessionKey])
   return <section className="mm-model-stage" aria-label="3D model editor">
     <div className="mm-model-canvas" ref={root} />
+    {group && <IconChipButton className="mm-model-guides-toggle" tone={showGuides ? 'primary' : 'default'} aria-label="Floor grid and axis lines" aria-pressed={showGuides}
+      title={showGuides ? 'Hide floor grid and lines' : 'Show floor grid and lines'} icon={<AppIcon kind="grid" size={14} />} onClick={toggleGuides} />}
     {!group && <div className="mm-model-stage-empty" role="status">{status === 'generating' ? 'Generating 3D geometry…' : status === 'loading-model' ? 'Loading saved model…' : status === 'error' ? (storeError ?? 'Model unavailable. Retry loading or select another asset.') : 'Prepare the source, then generate a 3D model.'}</div>}
     <div className="sr-only" role="status">{exportStatus}</div>
     {(error || exportError) && <div className="mm-model-stage-notice">

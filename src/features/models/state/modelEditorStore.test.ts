@@ -10,7 +10,7 @@ vi.mock('./modelViewportBridge', () => ({ captureModelPreview: mocks.capture }))
 vi.mock('../data/loadModelPreview', () => ({ loadModelPreview: mocks.load }))
 vi.mock('../export/exportGlb', () => ({ exportModelGlb: mocks.exportGlb }))
 vi.mock('../import/glbImport', () => ({ inspectGlbFile: mocks.inspectGlb, importGlbModel: mocks.importGlb }))
-import { useModelEditorStore, selectModelEditorNeedsGuard, selectModelCanSave } from './modelEditorStore'
+import { useModelEditorStore, selectModelEditorNeedsGuard, selectModelCanSave, selectModelCanSaveAs, selectModelCanRevert } from './modelEditorStore'
 import { recipe, stats, MODEL_ID, USER_A } from '../__tests__/modelAssetFixtures'
 import type { UploadedMedia } from '../../../stores/mediaStore'
 const source = new Blob(['source'], { type: 'image/png' })
@@ -303,4 +303,45 @@ describe('model save and edit lifecycle', () => {
     })
   })
 
+})
+
+describe('Save As and Revert availability, and the copy\'s tags and collections', () => {
+  it('Revert needs unsaved changes and an idle editor, and a shipped model never has it', () => {
+    const state = () => useModelEditorStore.getState()
+    expect(selectModelCanRevert(state())).toBe(false)
+    useModelEditorStore.setState({ dirty: true })
+    expect(selectModelCanRevert(state())).toBe(true)
+    useModelEditorStore.setState({ status: 'saving' })
+    expect(selectModelCanRevert(state())).toBe(false)
+    useModelEditorStore.setState({ status: 'ready', builtinModel: { id: 'b', name: 'B', description: '', url: '', thumbnailUrl: '' } })
+    expect(selectModelCanRevert(state())).toBe(false)
+  })
+
+  it('Save As needs a ready model (imported) or a prepared one with nothing pending (generated), and never a shipped model', () => {
+    const state = () => useModelEditorStore.getState()
+    expect(selectModelCanSaveAs(state())).toBe(false)
+    useModelEditorStore.setState({ asset: { ...savedAsset(), kind: 'imported' } as never, model: { group: new Group(), stats, dispose: vi.fn() } as never, status: 'ready' })
+    expect(selectModelCanSaveAs(state())).toBe(true)
+    useModelEditorStore.setState({ status: 'loading-model' })
+    expect(selectModelCanSaveAs(state())).toBe(false)
+    useModelEditorStore.setState({ asset: savedAsset() as never, status: 'ready', artifact: artifact() as never, source: source as never, generationPending: false })
+    expect(selectModelCanSaveAs(state())).toBe(true)
+    useModelEditorStore.setState({ generationPending: true })
+    expect(selectModelCanSaveAs(state())).toBe(false)
+    useModelEditorStore.setState({ generationPending: false, builtinModel: { id: 'b', name: 'B', description: '', url: '', thumbnailUrl: '' } })
+    expect(selectModelCanSaveAs(state())).toBe(false)
+  })
+
+  it('a copy takes the tags and collections chosen for it along with its name', async () => {
+    useModelEditorStore.setState({ tags: ['old'], collectionIds: ['c-old'] })
+    // Nothing is prepared, so the save itself is refused; the chosen organization and name are what this checks.
+    await useModelEditorStore.getState().save('Copy', { tags: ['new', 'tags'], collectionIds: ['c-new'] })
+    expect(useModelEditorStore.getState()).toMatchObject({ name: 'Copy', tags: ['new', 'tags'], collectionIds: ['c-new'] })
+  })
+
+  it('an ordinary save leaves the organization alone', async () => {
+    useModelEditorStore.setState({ tags: ['keep'], collectionIds: ['c-keep'] })
+    await useModelEditorStore.getState().save()
+    expect(useModelEditorStore.getState()).toMatchObject({ tags: ['keep'], collectionIds: ['c-keep'] })
+  })
 })

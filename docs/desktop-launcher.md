@@ -5,7 +5,7 @@ Run `launch.command` from Finder or the repository. It selects Node 22 and runs
 
 The desktop icon is `electron/assets/app-icon.png`, generated from the supplied
 `stageless_app_logo_1.png` (preserved as `electron/assets/app-icon-source.png`).
-The icon fits a transparent 1024px square without stretching the artwork.
+The icon follows Apple's macOS icon grid: the rounded tile fills 824px of a transparent 1024px square (about 100px of margin on every side) with a soft drop shadow, so it sits at the same size as other Dock icons. The artwork is not stretched.
 Electron uses it for window icons and the macOS Dock;
 electron-builder uses it for macOS, Windows and Linux packages. Restart the app
 to update the running icon; installed application bundles need a new build.

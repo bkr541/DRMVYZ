@@ -42,7 +42,7 @@ export interface ModelEditorState extends ModelMetadata {
   setRecipe(patch: Partial<ModelGeneratorRecipe>): void
   setMetadata(patch: Partial<ModelMetadata>): void
   confirmForeground(confirmed: boolean): void
-  generate(): Promise<void>; save(asNewName?: string): Promise<ModelSaveOutcome>; deleteModel(): Promise<boolean>
+  generate(): Promise<void>; save(asNewName?: string, organization?: { tags: string[]; collectionIds: string[] }): Promise<ModelSaveOutcome>; deleteModel(): Promise<boolean>
   acceptFavorite(assetId: string, favorite: boolean): void
   revert(): void; reloadLatest(): Promise<void>; moreVersions(): Promise<void>; download(kind: 'glb' | 'png'): Promise<void>
   cancel(): void; reset(): void
@@ -68,6 +68,15 @@ export const selectBuiltinModelNeedsExport = (state: ModelEditorState) => {
 export const selectModelEditorNeedsGuard = (state: ModelEditorState) => state.dirty || busy(state) || selectBuiltinModelNeedsExport(state)
 /** Whether Generate 3D Model (or Regenerate) can run now: a prepared preview exists, the foreground is confirmed where that is required, and the model is not busy, published or locked. */
 export const selectModelCanGenerate = (state: ModelEditorState) => !(busy(state) || !!state.publishedVersion || !!state.pendingOperationId || !state.source) && !!state.preview && !(state.needsConfirmation && !state.confirmed)
+/** Whether the open model can be saved as a separate model right now (a shipped model cannot be). */
+export const selectModelCanSaveAs = (state: ModelEditorState) => {
+  if (state.builtinModel || busy(state)) return false
+  if (state.asset?.kind === 'imported') return !!state.model && state.status !== 'loading-model'
+  return !!state.artifact && !!state.source && !state.generationPending && !state.publishedVersion && !state.pendingOperationId && !state.saveTarget
+}
+/** Whether the open model has unsaved changes the toolbar's Revert can throw away. */
+export const selectModelCanRevert = (state: ModelEditorState) => !state.builtinModel && state.dirty && !busy(state)
+
 export const selectModelCanSave = (state: ModelEditorState) => state.builtinModel
   ? !!state.savedMetadata && state.dirty && !busy(state) && state.status !== 'loading-model'
   // An imported model is stored as-is, so only its title, description, favorite, tags and collections can change.
@@ -357,8 +366,10 @@ export const useModelEditorStore = create<ModelEditorState>((set, get) => {
         set({ dirty: dirty() })
       } catch (error) { if (current(token)) set({ status: 'error', generationPending: false, error: message(error) }) }
     },
-    async save(asNewName) {
+    async save(asNewName, organization) {
       if (busy(get())) return { ok: false }
+      // A copy starts with the tags and collections chosen for it, which replace the original's for this save.
+      if (asNewName && organization && !get().builtinModel) set({ tags: [...organization.tags], collectionIds: [...organization.collectionIds] })
       const { builtinModel } = get()
       if (builtinModel) return asNewName ? { ok: false } : saveBuiltinOrganization(builtinModel)
       stopTimer()

@@ -34,7 +34,7 @@ vi.mock('../../../features/media/backgroundRemoval/removeImageBackground', () =>
 }))
 
 import { MediaEditPanel } from './MediaEditPanel'
-import { selectMediaEditDirty, useMediaEditStore } from '../../../stores/mediaEditStore'
+import { selectMediaEditCanSave, selectMediaEditDirty, useMediaEditStore } from '../../../stores/mediaEditStore'
 import type { UploadedMedia } from '../../../stores/mediaStore'
 import { useNotificationStore } from '../../../stores/notificationStore'
 
@@ -52,7 +52,6 @@ function media(overrides: Partial<UploadedMedia> = {}): UploadedMedia {
 
 let container: HTMLDivElement | null = null
 let root: ReturnType<typeof createRoot> | null = null
-const onMediaCreated = vi.fn()
 
 async function flush() {
   await act(async () => { await Promise.resolve(); await Promise.resolve() })
@@ -64,7 +63,7 @@ async function renderPanel(item: UploadedMedia = media(), onCreateModel?: (media
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
-  await act(async () => { root?.render(<MediaEditPanel media={item} onMediaCreated={onMediaCreated} onCreateModel={onCreateModel} />) })
+  await act(async () => { root?.render(<MediaEditPanel media={item} onCreateModel={onCreateModel} />) })
 }
 
 const q = <T extends Element = HTMLElement>(selector: string) => container?.querySelector<T>(selector) ?? null
@@ -126,8 +125,8 @@ describe('Edit tab', () => {
     for (const label of ['Brightness', 'Contrast', 'Saturation', 'Hue', 'Opacity', 'Sharpness', 'Blur']) {
       expect(container!.textContent, label).toContain(label)
     }
-    expect(button('Save')).not.toBeNull()
-    expect(button('Save As')).not.toBeNull()
+    // Save, Save As and Revert are toolbar keys; the editor itself has no save buttons.
+    for (const label of ['Save', 'Save As', 'Reset']) expect(button(label), label).toBeNull()
     expect(button('Remove Background') !== null).toBe(item.type === 'image')
   })
 
@@ -138,8 +137,7 @@ describe('Edit tab', () => {
 
     expect(mocks.removeImageBackground).toHaveBeenCalledTimes(1)
     expect(selectMediaEditDirty(useMediaEditStore.getState())).toBe(true)
-    expect(button('Save')!.disabled).toBe(false)
-    expect(button('Save As')!.disabled).toBe(false)
+    expect(selectMediaEditCanSave(useMediaEditStore.getState())).toBe(true)
 
     await click(button('Restore Background'))
     expect(selectMediaEditDirty(useMediaEditStore.getState())).toBe(false)
@@ -149,7 +147,7 @@ describe('Edit tab', () => {
   it('places the groups and buttons in the specified reading order', async () => {
     await renderPanel()
     const text = container!.textContent ?? ''
-    const order = ['Transform', 'Crop', 'Rotate', 'Flip', 'Mirror', 'Color', 'Brightness', 'Contrast', 'Saturation', 'Hue', 'Opacity', 'Detail', 'Sharpness', 'Blur', 'Save']
+    const order = ['Transform', 'Crop', 'Rotate', 'Flip', 'Mirror', 'Color', 'Brightness', 'Contrast', 'Saturation', 'Hue', 'Opacity', 'Detail', 'Sharpness', 'Blur']
       .map(label => text.indexOf(label))
     expect(order.every(index => index >= 0)).toBe(true)
     expect([...order].sort((a, b) => a - b)).toEqual(order)
@@ -165,23 +163,21 @@ describe('Edit tab', () => {
     expect(readouts).toEqual(expect.arrayContaining(['+20', '-45°', '60%']))
   })
 
-  it('starts neutral with Save and Save As disabled', async () => {
+  it('starts neutral with nothing to save', async () => {
     await renderPanel()
-    expect(button('Save')!.disabled).toBe(true)
-    expect(button('Save As')!.disabled).toBe(true)
+    expect(selectMediaEditCanSave(useMediaEditStore.getState())).toBe(false)
     expect(selectMediaEditDirty(useMediaEditStore.getState())).toBe(false)
   })
 
-  it('enables Save when a value moves off the baseline and disables it again when it returns', async () => {
+  it('can be saved once a value moves off the baseline, and not again when it returns', async () => {
     await renderPanel()
     await setRange('mmi-edit-brightness', 20)
     expect(useMediaEditStore.getState().edit.brightness).toBe(20)
-    expect(button('Save')!.disabled).toBe(false)
-    expect(button('Save As')!.disabled).toBe(false)
+    expect(selectMediaEditCanSave(useMediaEditStore.getState())).toBe(true)
 
     await setRange('mmi-edit-brightness', 0)
     expect(selectMediaEditDirty(useMediaEditStore.getState())).toBe(false)
-    expect(button('Save')!.disabled).toBe(true)
+    expect(selectMediaEditCanSave(useMediaEditStore.getState())).toBe(false)
   })
 
   it.each([
@@ -213,7 +209,8 @@ describe('Edit tab', () => {
     await click(button('Crop'))
     expect(useMediaEditStore.getState().cropMode).toBe(true)
     expect(button('Rotate right 90 degrees')!.disabled).toBe(true)
-    expect(button('Save')!.disabled).toBe(true)
+    // A half-drawn crop cannot be saved.
+    expect(selectMediaEditCanSave(useMediaEditStore.getState())).toBe(false)
   })
 
   it('offers a crop reset once a crop exists', async () => {
@@ -225,127 +222,88 @@ describe('Edit tab', () => {
     expect(useMediaEditStore.getState().edit.crop).toEqual({ x: 0, y: 0, width: 1, height: 1 })
   })
 
-  it('Reset returns every value to neutral', async () => {
+  it('discarding (the toolbar\'s Revert) returns every value to neutral', async () => {
     await renderPanel()
     await setRange('mmi-edit-blur', 40)
-    await click(button('Reset'))
+    act(() => useMediaEditStore.getState().discard())
+    await flush()
     expect(selectMediaEditDirty(useMediaEditStore.getState())).toBe(false)
+    expect(useMediaEditStore.getState().edit.blur).toBe(0)
   })
 })
 
-describe('Save from the Edit tab', () => {
+// The toolbar's Save and Save As call these two store actions, so the render, upload and replace paths are covered here.
+describe('saving the edits (Save)', () => {
+  const dirty = async () => { await renderPanel(); await setRange('mmi-edit-contrast', 25) }
+
   it('invokes the real render + replace path for the same item', async () => {
-    await renderPanel()
-    await setRange('mmi-edit-contrast', 25)
-    await click(button('Save'))
+    await dirty()
+    await act(async () => { void useMediaEditStore.getState().save() })
     await flush()
     expect(mocks.renderEditedMedia).toHaveBeenCalledTimes(1)
     expect(mocks.replaceMediaContent).toHaveBeenCalledWith('db-1', expect.any(File), expect.anything())
     expect(selectMediaEditDirty(useMediaEditStore.getState())).toBe(false)
-    expect(button('Save')!.disabled).toBe(true)
-    expect(cards()).toHaveLength(1)
-    expect(cards()[0]).toMatchObject({ tone: 'success', title: 'Media saved', message: 'Your edits to "Sunset" were saved.' })
   })
 
-  it('shows a useful error and stays dirty when saving fails', async () => {
+  it('reports a useful error and stays dirty when saving fails', async () => {
     mocks.replaceMediaContent.mockResolvedValueOnce({ ok: false, kind: 'failed', error: 'Storage permission denied — check RLS policies' })
-    await renderPanel()
-    await setRange('mmi-edit-contrast', 25)
-    await click(button('Save'))
+    await dirty()
+    await act(async () => { void useMediaEditStore.getState().save() })
     await flush()
     expect(container!.querySelector('[role="alert"]')?.textContent).toContain('Storage permission denied')
     expect(selectMediaEditDirty(useMediaEditStore.getState())).toBe(true)
-    expect(button('Save')!.disabled).toBe(false)
-    expect(cards()).toHaveLength(0)
+    expect(selectMediaEditCanSave(useMediaEditStore.getState())).toBe(true)
   })
 })
 
-describe('Save As dialog', () => {
-  async function openDialog() {
-    await renderPanel()
-    await setRange('mmi-edit-contrast', 25)
-    await click(button('Save As'))
-  }
-  const nameInput = () => document.querySelector<HTMLInputElement>('.dv-confirm-dialog input')
-  const dialogButton = (label: string) =>
-    [...document.querySelectorAll<HTMLButtonElement>('.dv-confirm-dialog button')].find(b => b.textContent?.trim() === label) ?? null
-  async function type(value: string) {
-    await act(async () => {
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(nameInput(), value)
-      nameInput()!.dispatchEvent(new Event('input', { bubbles: true }))
-    })
-  }
+describe('saving a copy (Save As)', () => {
+  const dirty = async () => { await renderPanel(media({ tags: ['warm'], collectionIds: ['c-1'] })); await setRange('mmi-edit-contrast', 25) }
+  const saveAs = (name: string, organization?: { tags: string[]; collectionIds: string[] }) => useMediaEditStore.getState().saveAs(name, organization)
 
-  it('opens a "Save As" dialog prefilled with a derivative of the media title, with Cancel and Save As', async () => {
-    await openDialog()
-    expect(document.querySelector('.dv-confirm-dialog h2')?.textContent).toBe('Save As')
-    expect(nameInput()?.value).toBe('Sunset (edited)')
-    expect(dialogButton('Cancel')).not.toBeNull()
-    expect(dialogButton('Save As')).not.toBeNull()
-    document.querySelector('.dv-confirm-backdrop')?.remove()
-  })
-
-  it('rejects a blank name and does not save', async () => {
-    await openDialog()
-    await type('   ')
-    await click(dialogButton('Save As'))
-    expect(document.querySelector('.dv-confirm-dialog [role="alert"]')?.textContent).toMatch(/Enter a name/)
+  it('rejects a blank name and one with invalid filename characters, and saves nothing', async () => {
+    await dirty()
+    expect(await saveAs('   ')).toMatchObject({ ok: false, kind: 'invalid', error: expect.stringMatching(/Enter a name/) })
+    expect(await saveAs('a/b')).toMatchObject({ ok: false, kind: 'invalid', error: expect.stringMatching(/cannot contain/) })
     expect(mocks.uploadCanonicalVisualFile).not.toHaveBeenCalled()
     expect(mocks.renderEditedMedia).not.toHaveBeenCalled()
   })
 
-  it('rejects invalid filename characters', async () => {
-    await openDialog()
-    await type('a/b')
-    await click(dialogButton('Save As'))
-    expect(document.querySelector('.dv-confirm-dialog [role="alert"]')?.textContent).toMatch(/cannot contain/)
-    expect(mocks.uploadCanonicalVisualFile).not.toHaveBeenCalled()
-  })
-
-  it('Cancel closes the dialog and keeps the edits', async () => {
-    await openDialog()
-    await click(dialogButton('Cancel'))
-    expect(document.querySelector('.dv-confirm-dialog')).toBeNull()
-    expect(useMediaEditStore.getState().edit.contrast).toBe(25)
-  })
-
-  it('creates a new item, selects it, and starts it clean', async () => {
-    await openDialog()
-    await type('  Sunset  Night ')
-    await click(dialogButton('Save As'))
-    await flush()
+  it('creates a new item, leaves the original alone, starts the new one clean, and carries the original\'s tags and collections by default', async () => {
+    await dirty()
+    const outcome = await act(async () => saveAs('  Sunset  Night '))
+    expect(outcome).toEqual({ ok: true, mediaId: 'db-2' })
     expect(mocks.uploadCanonicalVisualFile).toHaveBeenCalledTimes(1)
-    expect((mocks.uploadCanonicalVisualFile.mock.calls[0]![0] as File).name).toBe('Sunset Night.png')
+    const [file, options] = mocks.uploadCanonicalVisualFile.mock.calls[0] as [File, { title: string; tags: string[]; collectionIds: string[] }]
+    expect(file.name).toBe('Sunset Night.png')
+    expect(options).toMatchObject({ title: 'Sunset Night', tags: ['warm'], collectionIds: ['c-1'] })
     expect(mocks.replaceMediaContent).not.toHaveBeenCalled()
-    expect(onMediaCreated).toHaveBeenCalledWith('db-2')
-    expect(cards()).toHaveLength(1)
-    expect(cards()[0]).toMatchObject({ tone: 'success', title: 'Copy saved', message: 'Your edited copy "Sunset Night" was added to your media library.' })
-    expect(document.querySelector('.dv-confirm-dialog')).toBeNull()
     expect(useMediaEditStore.getState().mediaId).toBe('db-2')
     expect(selectMediaEditDirty(useMediaEditStore.getState())).toBe(false)
   })
 
-  it('keeps the dialog open with the error when it fails, and does not select anything', async () => {
-    mocks.uploadCanonicalVisualFile.mockResolvedValueOnce({ ok: false, error: 'Sign in to upload media.', phase: 'failed' })
-    await openDialog()
-    await click(dialogButton('Save As'))
-    await flush()
-    expect(document.querySelector('.dv-confirm-dialog')).not.toBeNull()
-    expect(document.querySelector('.dv-confirm-dialog')?.textContent).toContain('Sign in to upload media.')
-    expect(onMediaCreated).not.toHaveBeenCalled()
-    expect(cards()).toHaveLength(0)
-    document.querySelector('.dv-confirm-backdrop')?.remove()
+  it('gives the copy the tags and collections chosen in the Save As popover instead', async () => {
+    await dirty()
+    await act(async () => saveAs('Cold copy', { tags: ['cold', 'night'], collectionIds: [] }))
+    expect(mocks.uploadCanonicalVisualFile.mock.calls[0]![1]).toMatchObject({ title: 'Cold copy', tags: ['cold', 'night'], collectionIds: [] })
   })
 
-  it('double-clicking Save As creates one asset', async () => {
+  it('keeps the edits and reports the error when the copy fails, without selecting anything', async () => {
+    mocks.uploadCanonicalVisualFile.mockResolvedValueOnce({ ok: false, error: 'Sign in to upload media.', phase: 'failed' })
+    await dirty()
+    const outcome = await act(async () => saveAs('Copy'))
+    expect(outcome).toMatchObject({ ok: false, error: 'Sign in to upload media.' })
+    expect(useMediaEditStore.getState().mediaId).toBe('db-1')
+    expect(useMediaEditStore.getState().edit.contrast).toBe(25)
+  })
+
+  it('a double press creates one asset', async () => {
     let release!: (value: unknown) => void
     mocks.uploadCanonicalVisualFile.mockReturnValueOnce(new Promise(resolve => { release = resolve }))
-    await openDialog()
-    const submit = dialogButton('Save As')!
-    await act(async () => { submit.click(); submit.click(); await Promise.resolve() })
-    await act(async () => { dialogButton('Saving…')?.click(); await Promise.resolve() })
-    await act(async () => { release({ ok: true, item: media({ id: 'db-2' }) }); await Promise.resolve() })
-    await flush()
+    await dirty()
+    const first = saveAs('Once'), second = await saveAs('Once')
+    expect(second).toMatchObject({ ok: false, kind: 'busy' })
+    release({ ok: true, item: media({ id: 'db-2' }) })
+    await first
     expect(mocks.uploadCanonicalVisualFile).toHaveBeenCalledTimes(1)
   })
 })
@@ -357,7 +315,6 @@ describe('unsupported media', () => {
   ])('explains why %s cannot be edited instead of offering a lossy save', async (_kind, item) => {
     await renderPanel(item)
     expect(container!.textContent).toContain('Editing unavailable')
-    expect(button('Save')).toBeNull()
   })
 })
 

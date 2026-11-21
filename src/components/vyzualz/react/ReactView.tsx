@@ -988,7 +988,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager, onOpenPreset
                 </div>
                 <div className="rv-lower-workspace-actions">
                   <div className="rv-lower-workspace-output-actions">
-                    {activeLowerSurface === 'trackMap' && (
+                    {activeLowerSurface === 'trackMap' && engine.currentTrack != null && (
                       <button
                         type="button"
                         className={`rv-track-map-lane-icons-toggle${trackMapLaneIconsExpanded ? ' is-active' : ''}`}

@@ -2,7 +2,7 @@ import '../../../styles/reactView.css'
 import { useEffect, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import type { ReactNode } from 'react'
-import { selectBuiltinModelEdited, selectModelCanSave, useModelEditorStore, type ModelEditorState } from '../../../features/models/state/modelEditorStore'
+import { useModelEditorStore, type ModelEditorState } from '../../../features/models/state/modelEditorStore'
 import type { BuiltinModel } from '../../../features/models/domain/builtinModels'
 import { BUILTIN_MODEL_SCALE_RANGE, type BuiltinMaterialValues, type ModelRotation } from '../../../features/models/geometry/builtinModelEdits'
 import { MODEL_MATERIAL_PRESETS } from '../../../features/models/materials/modelMaterials'
@@ -49,6 +49,8 @@ function ModelRotationRows({ rotation, disabled, onChange }: { rotation: ModelRo
     formatValue={value => `${value}°`} resetValue={0} disabled={disabled} onChange={value => onChange(index, value)} />)
 }
 
+const TWO_SIDED_DESCRIPTION = 'Keeps the front and adds a matching back, so a logo or wordmark reads correctly (not mirrored) as the model turns. Best for flat or extruded shapes. To keep your original, use Save As New Model in the Output tab.'
+
 function BuiltinModelEditPanel() {
   const { edit, exporting, saving, error, editBuiltin } = useModelEditorStore(useShallow(s => ({
     edit: s.builtinEdit, exporting: s.builtinExporting, saving: s.status === 'saving', error: s.error, editBuiltin: s.editBuiltin,
@@ -58,7 +60,8 @@ function BuiltinModelEditPanel() {
     ? <NoticeCard tone="error" title="Model unavailable">{error}</NoticeCard>
     : <p role="status">Loading model for editing…</p>
 
-  const { scale, rotation, materials } = edit.values, material = materials[materialIndex]
+  const { scale, rotation, materials, twoSided } = edit.values, material = materials[materialIndex]
+  const sides = edit.twoSidedAvailable
   const disabled = exporting || saving
   const changeMaterial = (patch: Partial<BuiltinMaterialValues>) => editBuiltin({
     materials: materials.map((value, index) => index === materialIndex ? { ...value, ...patch } : value),
@@ -72,6 +75,10 @@ function BuiltinModelEditPanel() {
           const next: ModelRotation = [...rotation]; next[axis] = degrees; editBuiltin({ rotation: next })
         }} />
       </div>
+    </Collapsible>
+    <Collapsible label="Sides" icon={<AppIcon kind="layers" size={14} />}>
+      <ToggleRow label="Readable from both sides" value={twoSided} disabled={disabled || !sides.ok} onChange={value => editBuiltin({ twoSided: value })}
+        description={sides.ok ? TWO_SIDED_DESCRIPTION : sides.reason} />
     </Collapsible>
     {material && <Collapsible label="Materials" icon={<AppIcon kind="edit" size={14} />}>
       <SelectRow label="Material" value={String(materialIndex)} disabled={disabled} options={materials.map((value, index) => ({
@@ -124,16 +131,15 @@ export function ModelEditorInspector(props: { onSelectSource?: () => void }) {
 }
 
 function EditableModelInspector({ onSelectSource }: { onSelectSource?: () => void }) {
-  const s = useModelEditorStore(), canSave = useModelEditorStore(selectModelCanSave)
+  const s = useModelEditorStore()
   const [tab, setTab] = useState<MediaInspectorTab>(() => useModelEditorStore.getState().asset ? 'info' : 'edit')
-  const [url, setUrl] = useState<string | null>(null), [copyName, setCopyName] = useState<string | null>(null)
+  const [url, setUrl] = useState<string | null>(null)
   const [pendingVersion, setPendingVersion] = useState<number | null>(null), [revertOpen, setRevertOpen] = useState(false)
   useEffect(() => { if (!s.preview) { setUrl(null); return }; const next = URL.createObjectURL(s.preview); setUrl(next); return () => URL.revokeObjectURL(next) }, [s.preview])
   const busy = s.status === 'saving' || s.status === 'deleting'
   const locked = busy || !!s.publishedVersion || !!s.pendingOperationId || !s.source
   const recipe = s.recipe
   const imported = s.asset?.kind === 'imported'
-  const importedEdited = imported && selectBuiltinModelEdited(s)
   const importedStats = imported ? s.versions.find(v => v.version === s.activeVersion)?.geometryStats.imported : undefined
   const geometry = recipe?.geometry, preview = recipe?.preview
   const loadVersion = (version: number) => { if (!s.asset) return; if (s.dirty) setPendingVersion(version); else s.load(s.asset, version) }
@@ -216,6 +222,7 @@ function EditableModelInspector({ onSelectSource }: { onSelectSource?: () => voi
             <NumberInputRow label="Depth" value={geometry.depth} min={0.01} max={10} step={0.01} disabled={locked} onChange={depth => s.setRecipe({ geometry: { ...geometry, depth } })} />
             <NumberInputRow label="Curve detail" value={geometry.curveSegments} min={1} max={64} step={1} disabled={locked} onChange={curveSegments => s.setRecipe({ geometry: { ...geometry, curveSegments } })} />
             <SelectRow label="Pivot" value={recipe.transform.pivot} disabled={locked} options={[{ value: 'center', label: 'Center' }, { value: 'bottom', label: 'Bottom' }]} onChange={pivot => s.setRecipe({ transform: { ...recipe.transform, pivot: pivot as 'center' | 'bottom' } })} />
+            <div className="mm-model-field-grid__wide"><ToggleRow label="Readable from both sides" value={recipe.twoSided ?? false} disabled={locked} description={TWO_SIDED_DESCRIPTION} onChange={twoSided => s.setRecipe({ twoSided })} /></div>
             <div className="mm-model-field-grid__wide"><ToggleRow label="Bevel" value={geometry.bevelEnabled} disabled={locked} onChange={bevelEnabled => s.setRecipe({ geometry: { ...geometry, bevelEnabled } })} /></div>
             {geometry.bevelEnabled && <>
               <NumberInputRow label="Bevel width" value={geometry.bevelSize} min={0} max={1} step={0.005} disabled={locked} onChange={bevelSize => s.setRecipe({ geometry: { ...geometry, bevelSize } })} />
@@ -239,20 +246,15 @@ function EditableModelInspector({ onSelectSource }: { onSelectSource?: () => voi
         <p>{s.activeVersion ? `Viewing version ${s.activeVersion}` : 'Unsaved model'} · {s.artifact?.glb.size.toLocaleString() ?? s.versions.find(v => v.version === s.activeVersion)?.geometryStats.glbBytes?.toLocaleString() ?? '—'} GLB bytes</p>
         {!!s.versions.length && <SelectRow label="Model version" value={String(s.activeVersion)} disabled={busy} options={s.versions.map(v => ({ value: String(v.version), label: `Version ${v.version}` }))} onChange={version => loadVersion(Number(version))} />}
         {s.versions.length >= 50 && <IconChipButton onClick={() => { void s.moreVersions() }}>Load older versions</IconChipButton>}
-        <IconChipButton disabled={!canSave} onClick={() => { void s.save() }}>Save{!s.asset ? ' Model' : imported ? (importedEdited ? ' New Version' : ' Metadata') : s.savedRecipe && JSON.stringify(s.savedRecipe) === JSON.stringify(s.recipe) ? ' Metadata' : ' New Version'}</IconChipButton>
-        <IconChipButton disabled={imported ? !s.model || busy || s.status === 'loading-model' : !s.artifact || !s.source || busy || s.generationPending || !!s.publishedVersion || !!s.pendingOperationId || !!s.saveTarget} onClick={() => setCopyName(`${s.name} copy`)}>Save As New Model</IconChipButton>
       </Collapsible>}
-      {s.dirty && <IconChipButton disabled={busy} onClick={() => setRevertOpen(true)}>{s.asset ? 'Revert to Saved Version' : 'Reset Model'}</IconChipButton>}
       {(s.status === 'loading-source' || s.status === 'loading-model' || s.status === 'generating' || s.generationPending || busy) && <div role="status">{s.progress ?? (s.generationPending ? 'Updating 3D geometry…' : 'Loading model source…')} <IconChipButton disabled={s.status === 'deleting'} onClick={s.cancel}>Cancel operation</IconChipButton></div>}
       {s.error && <NoticeCard tone="error" role="alert" title="Model operation failed">{s.error}
         {(s.saveTarget || s.saveFailure) && <IconChipButton onClick={() => { void s.save() }}>Retry Save</IconChipButton>}
         {!s.saveTarget && !s.saveFailure && s.source && <IconChipButton onClick={() => { void s.prepare() }}>Retry preparation</IconChipButton>}
         {!s.source && !s.asset && <IconChipButton onClick={() => { void s.retrySource() }}>Retry source</IconChipButton>}
-        {s.asset && <IconChipButton disabled={busy} onClick={() => setRevertOpen(true)}>Reload latest saved version</IconChipButton>}
       </NoticeCard>}
       {s.warnings.map(warning => <NoticeCard key={warning} tone="warning" title="Model source">{warning}</NoticeCard>)}
     </div>
-    {copyName !== null && <ConfirmDialog title="Save As New Model" message="Create a separate model and version history." confirmLabel="Save New Model" danger={false} confirmTone="primary" confirmDisabled={!copyName.trim()} onCancel={() => setCopyName(null)} onConfirm={() => { const name = copyName; setCopyName(null); void s.save(name) }}><TextInputRow label="New model name" value={copyName} maxLength={200} onChange={setCopyName} /></ConfirmDialog>}
     {(pendingVersion !== null || revertOpen) && <ConfirmDialog title="Discard model edits?" message="Reloading a saved version replaces your current edits." confirmLabel="Discard and Reload" onCancel={() => { setPendingVersion(null); setRevertOpen(false) }} onConfirm={() => { if (pendingVersion !== null && s.asset) s.load(s.asset, pendingVersion); else if (s.error) void s.reloadLatest(); else s.revert(); setPendingVersion(null); setRevertOpen(false) }} />}
   </>
 }

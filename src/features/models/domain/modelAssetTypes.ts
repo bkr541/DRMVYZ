@@ -9,6 +9,8 @@ export interface ModelGeneratorRecipe {
   materials: Array<{ region: string; color: string; metalness: number; roughness: number; opacity: number; emissive: string; emissiveIntensity?: number; clearcoat?: number; clearcoatRoughness?: number }>
   transform: { position: [number, number, number]; rotation: [number, number, number]; scale: [number, number, number]; pivot: 'center' | 'bottom' }
   preview: { background: string; lightIntensity: number; environment: 'neutral' | 'studio'; grid?: boolean; shadows?: boolean; turntable?: boolean }
+  /** Keep the front half and add a matching back, so the model reads correctly from both sides as it turns. Off when absent. */
+  twoSided?: boolean
 }
 
 /** Generated models are traced from an image; imported models are a GLB the user made elsewhere and are stored as-is. */
@@ -148,6 +150,7 @@ export function parseModelRecipe(value: unknown): ModelGeneratorRecipe {
       ...(preview.shadows === undefined ? {} : { shadows: boolean(preview.shadows) }),
       ...(preview.turntable === undefined ? {} : { turntable: boolean(preview.turntable) }),
     },
+    ...(v.twoSided === undefined ? {} : { twoSided: boolean(v.twoSided) }),
   }
 }
 

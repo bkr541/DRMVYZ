@@ -1,5 +1,5 @@
 import { AppIcon } from '../../shared/icons/AppIcon'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { useShallow } from 'zustand/react/shallow'
 import { Collapsible, NumberInputRow, SelectRow, TextInputRow, ToggleRow } from '../react/ReactControlRows'
@@ -18,6 +18,10 @@ import type { SavedAudioTrack } from '../../../stores/audioStore'
 import { MediaDeleteConfirmDialog } from './MediaDeleteConfirmDialog'
 import { notify } from '../../../stores/notificationStore'
 import { MediaEditPanel } from './MediaEditPanel'
+import { selectMediaEditCanSave, selectMediaEditDirty, useMediaEditStore } from '../../../stores/mediaEditStore'
+import { mediaEditUnsupportedReason } from '../../../features/media/edit/mediaEditRender'
+import { suggestEditedTitle, validateMediaName } from '../../../features/media/edit/mediaEditOutput'
+import type { SaveAsInput } from './SaveAsPopover'
 import {
   MEDIA_ROLE_LABELS,
   MUSICAL_KEYS,
@@ -34,8 +38,28 @@ import { useReactStore } from '../../../stores/reactStore'
 export interface MediaHeaderActions {
   onSave: () => void
   saving: boolean
+  /** False while there is nothing to save (the key is shown disabled). */
+  canSave: boolean
+  /** Throws away unsaved changes. `null` for types that have nothing to revert. */
+  onRevert: (() => void) | null
+  canRevert: boolean
+  /** The Save As popover's contents and behaviour. `null` for types that cannot be copied (the key is not offered). */
+  saveAs: MediaSaveAs | null
   onDelete: (() => void) | null
   deleting: boolean
+}
+
+export interface MediaSaveAs {
+  /** Why Save As cannot be used right now (the key is disabled and shows this); null when it can be. */
+  unavailable: string | null
+  /** The new item starts as a copy of these. */
+  initial: SaveAsInput
+  validateName: (name: string) => string | null
+  busy: boolean
+  error: string | null
+  clearError: () => void
+  /** Resolves true when the copy was saved, and the popover then closes. */
+  submit: (input: SaveAsInput) => Promise<boolean>
 }
 
 type HeaderActionsSink = (actions: MediaHeaderActions | null) => void
@@ -141,29 +165,54 @@ export function TagsCollectionsGroup({
   )
 }
 
-/** Publishes the tab's header actions while it is mounted. Handlers are read through a ref so publishing never loops. */
+/** Publishes the header actions while the component is mounted. Handlers are read through a ref so publishing never loops. */
 function useHeaderActions(
   publish: HeaderActionsSink | undefined,
-  handlers: { save: () => void; remove: (() => void) | null },
-  state: { saving: boolean; deleting: boolean },
+  handlers: {
+    save: () => void
+    remove: (() => void) | null
+    revert?: (() => void) | null
+    saveAs?: { validateName: (name: string) => string | null; clearError: () => void; submit: (input: SaveAsInput) => Promise<boolean> } | null
+  },
+  state: {
+    saving: boolean
+    deleting: boolean
+    canSave?: boolean
+    canRevert?: boolean
+    saveAs?: { unavailable: string | null; initial: SaveAsInput; busy: boolean; error: string | null } | null
+  },
 ) {
   const latest = useRef(handlers)
   latest.current = handlers
   const hasDelete = handlers.remove !== null
+  const hasRevert = !!handlers.revert
+  const saveAsState = state.saveAs ?? null
+  const saveAsKey = saveAsState ? JSON.stringify([saveAsState.unavailable, saveAsState.initial, saveAsState.busy, saveAsState.error]) : null
   useEffect(() => {
     publish?.({
       onSave: () => latest.current.save(),
       saving: state.saving,
+      canSave: state.canSave ?? true,
+      onRevert: hasRevert ? () => latest.current.revert?.() : null,
+      canRevert: state.canRevert ?? false,
+      saveAs: saveAsState ? {
+        ...saveAsState,
+        validateName: name => latest.current.saveAs?.validateName(name) ?? null,
+        clearError: () => latest.current.saveAs?.clearError(),
+        submit: input => latest.current.saveAs?.submit(input) ?? Promise.resolve(false),
+      } : null,
       onDelete: hasDelete ? () => latest.current.remove?.() : null,
       deleting: state.deleting,
     })
-  }, [publish, state.saving, state.deleting, hasDelete])
+    // `saveAsState` is rebuilt every render; its contents are what matter, so `saveAsKey` stands in for it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [publish, state.saving, state.deleting, state.canSave, state.canRevert, hasDelete, hasRevert, saveAsKey])
   useEffect(() => () => publish?.(null), [publish])
 }
 
 // ── Visual media editor ──────────────────────────────────────────────────────
 
-function VisualMediaInspector({ media, onHeaderActions }: { media: UploadedMedia; onHeaderActions?: HeaderActionsSink }) {
+function VisualMediaInspector({ media, onMediaCreated, onHeaderActions }: { media: UploadedMedia; onMediaCreated?: (mediaId: string) => void; onHeaderActions?: HeaderActionsSink }) {
   const { saveMediaEdits, removeItem } = useMediaStore(useShallow(state => ({
     saveMediaEdits: state.saveMediaEdits,
     removeItem: state.removeItem,
@@ -191,7 +240,7 @@ function VisualMediaInspector({ media, onHeaderActions }: { media: UploadedMedia
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
+  const resetDraft = () => {
     setRole(media.mediaRole)
     setTitle(media.title ?? '')
     setDescription(media.description ?? '')
@@ -201,14 +250,33 @@ function VisualMediaInspector({ media, onHeaderActions }: { media: UploadedMedia
     setLoopable(media.metadata.loopable ?? false)
     setHasAlpha(media.metadata.hasAlpha ?? false)
     setError(null)
+  }
+  useEffect(() => {
+    resetDraft()
     setConfirmingDelete(false)
     setDeleting(false)
   }, [media.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The toolbar's Save and Revert cover both halves of this item: the details drafted here and the image or video edits made in the Edit tab.
+  const edit = useMediaEditStore(useShallow(state => ({
+    active: state.mediaId === media.id,
+    dirty: state.mediaId === media.id && selectMediaEditDirty(state),
+    canSave: state.mediaId === media.id && selectMediaEditCanSave(state),
+    busy: state.busy,
+    error: state.error,
+  })))
+  const sameList = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((value, index) => value === b[index])
+  const detailsDirty = useMemo(() => (
+    role !== media.mediaRole || title !== (media.title ?? '') || description !== (media.description ?? '') || !sameList(tags, media.tags) || !sameList(collectionIds, media.collectionIds)
+    || fps !== (media.metadata.fps != null ? String(media.metadata.fps) : '') || loopable !== (media.metadata.loopable ?? false) || hasAlpha !== (media.metadata.hasAlpha ?? false)
+  ), [role, title, description, tags, collectionIds, fps, loopable, hasAlpha, media])
 
   const handleSave = async () => {
     setSaving(true)
     setError(null)
     const parsedFps = fps.trim() ? Number(fps) : undefined
+    // Saved image or video edits change the item's own measurements, so build on its latest record rather than the one this render started from.
+    const latest = useMediaStore.getState?.().items.find(item => item.id === media.id) ?? media
     const saved = await saveMediaEdits(media.id, {
       role,
       title: title.trim(),
@@ -216,7 +284,7 @@ function VisualMediaInspector({ media, onHeaderActions }: { media: UploadedMedia
       tags,
       collectionIds,
       metadata: {
-        ...media.metadata,
+        ...latest.metadata,
         fps: parsedFps,
         loopable,
         hasAlpha,
@@ -236,10 +304,47 @@ function VisualMediaInspector({ media, onHeaderActions }: { media: UploadedMedia
     else setError('Could not delete this media item. Try again.')
   }
 
+  const saveEverything = async () => {
+    const session = useMediaEditStore.getState()
+    if (session.mediaId === media.id && selectMediaEditCanSave(session)) {
+      const outcome = await session.save()
+      if (!outcome.ok) return
+      notify('media-manager', { tone: 'success', title: 'Media saved', message: `Your edits to "${media.title ?? media.name}" were saved.` })
+    }
+    if (detailsDirty) await handleSave()
+  }
+  const revertEverything = () => {
+    const session = useMediaEditStore.getState()
+    if (session.mediaId === media.id && session.busy === 'idle' && selectMediaEditDirty(session)) session.discard()
+    resetDraft()
+  }
+  const unsupported = mediaEditUnsupportedReason(media)
+  const copyUnavailable = unsupported ?? (edit.canSave ? null : 'Make an edit in the Edit tab first. Save As saves the edited result as a new item.')
+  const working = saving || edit.busy !== 'idle'
   useHeaderActions(
     onHeaderActions,
-    { save: () => { void handleSave() }, remove: () => setConfirmingDelete(true) },
-    { saving, deleting },
+    {
+      save: () => { void saveEverything() }, remove: () => setConfirmingDelete(true), revert: revertEverything,
+      saveAs: {
+        validateName: name => { const checked = validateMediaName(name); return checked.ok ? null : checked.error },
+        clearError: () => useMediaEditStore.getState().clearError(),
+        submit: async input => {
+          const outcome = await useMediaEditStore.getState().saveAs(input.name, { tags: input.tags, collectionIds: input.collectionIds })
+          if (!outcome.ok) return false
+          onMediaCreated?.(outcome.mediaId)
+          notify('media-manager', { tone: 'success', title: 'Copy saved', message: `Your edited copy "${input.name.trim()}" was added to your media library.` })
+          return true
+        },
+      },
+    },
+    {
+      saving: working, deleting, canSave: !working && (edit.canSave || detailsDirty), canRevert: !working && (edit.dirty || detailsDirty),
+      saveAs: {
+        unavailable: copyUnavailable,
+        initial: { name: suggestEditedTitle(title.trim() || media.title || media.name.replace(/\.[A-Za-z0-9]{1,8}$/, '')), tags, collectionIds },
+        busy: edit.busy === 'saving-as', error: edit.error,
+      },
+    },
   )
 
   return (
@@ -542,19 +647,23 @@ export function MediaManagerInspector({
     <>
       <MediaDetailsHeader activeTab={activeTab} onChange={setActiveTab} />
       {/* Output is intentionally empty for now. */}
+      {/* The details form stays mounted on the Edit tab, so the toolbar's Save, Save As and Revert always have the whole item to act on. */}
+      {media && (
+        <div style={{ display: activeTab === 'info' ? 'contents' : 'none' }}>
+          <VisualMediaInspector key={media.id} media={media} onMediaCreated={onMediaCreated} onHeaderActions={onHeaderActions} />
+        </div>
+      )}
       {activeTab === 'edit' && (
         media ? (
-          <MediaEditPanel key={media.id} media={media} onMediaCreated={id => onMediaCreated?.(id)} onCreateModel={onCreateModel} />
+          <MediaEditPanel key={media.id} media={media} onCreateModel={onCreateModel} />
         ) : (
           <div className="mmi-empty">
             <p>{track ? 'Audio tracks are edited from the Info tab.' : font ? 'Fonts are viewed from the Info tab.' : 'Select an image or video to edit it.'}</p>
           </div>
         )
       )}
-      {activeTab === 'info' && (
-        media ? (
-          <VisualMediaInspector key={media.id} media={media} onHeaderActions={onHeaderActions} />
-        ) : track ? (
+      {activeTab === 'info' && !media && (
+        track ? (
           <AudioTrackInspector key={track.id} track={track} onHeaderActions={onHeaderActions} />
         ) : font ? (
           <FontInspector key={font.id} font={font} onHeaderActions={onHeaderActions} onFontRenamed={onFontRenamed} />

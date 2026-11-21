@@ -2,6 +2,7 @@ import { Box3, BufferGeometry, ExtrudeGeometry, Group, Mesh, Vector3 } from 'thr
 import { parseModelGeometryStats, parseModelRecipe, type ModelGeneratorRecipe, type ModelGeometryStats } from '../domain/modelAssetTypes'
 import { createModelMaterials } from '../materials/modelMaterials'
 import { extractModelContours } from './extractContours'
+import { bakeTwoSided } from './twoSidedModel'
 import { checkAbort, MODEL_QUALITY, ModelGenerationError, type ModelDiagnostic, type ModelQuality } from './modelQualityBudget'
 export interface GeneratedModel { group: Group; recipe: ModelGeneratorRecipe; stats: ModelGeometryStats; materialCount: number; dimensions: [number, number, number]; warnings: ModelDiagnostic[]; dispose(): void }
 /** Releases everything the group owns: geometry, materials, and the textures those materials hold (an imported GLB carries multi-megapixel images). */
@@ -54,6 +55,8 @@ export function createExtrudedModel(svg: string, input: ModelGeneratorRecipe, qu
     const bounds = new Box3().setFromObject(group), center = bounds.getCenter(new Vector3())
     const offset = new Vector3(-center.x, recipe.transform.pivot === 'bottom' ? -bounds.min.y : -center.y, -center.z)
     group.children.forEach(child => { if (child instanceof Mesh) child.geometry.translate(offset.x, offset.y, offset.z) })
+    // Readable from both sides: keep the front half and add a turned copy as the back (see twoSidedModel).
+    if (recipe.twoSided && !bakeTwoSided(group)) warnings.push({ code: 'two_sided_unavailable', message: 'This model could not be made two-sided.' })
     group.position.fromArray(recipe.transform.position); group.rotation.fromArray([...recipe.transform.rotation, 'XYZ']); group.scale.fromArray(recipe.transform.scale)
     group.updateMatrixWorld(true)
     const finalBounds = new Box3().setFromObject(group)

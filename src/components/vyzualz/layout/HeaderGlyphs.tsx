@@ -9,3 +9,8 @@ export function SaveGlyph() {
 export function SaveActiveGlyph() {
   return <HeaderActionIcon action="saveActive" />
 }
+
+/** Save As: the save disk with an add mark, for saving the item as a new copy. */
+export function SaveAsGlyph() {
+  return <HeaderActionIcon action="saveAs" />
+}

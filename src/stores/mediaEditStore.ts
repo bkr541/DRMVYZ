@@ -7,6 +7,7 @@
 import { create } from 'zustand'
 import {
   createDefaultMediaEdit,
+  isMediaEditNeutral,
   mediaEditsEqual,
   normalizeCrop,
   normalizeMediaEdit,
@@ -70,7 +71,8 @@ interface MediaEditSessionState {
   discard(): void
   clearError(): void
   save(): Promise<MediaEditSaveOutcome>
-  saveAs(name: string): Promise<MediaEditSaveOutcome>
+  /** `organization` overrides the tags and collections the copy starts with (they otherwise carry over from the original). */
+  saveAs(name: string, organization?: { tags: readonly string[]; collectionIds: readonly string[] }): Promise<MediaEditSaveOutcome>
 }
 
 let inFlightAbort: AbortController | null = null
@@ -268,7 +270,7 @@ export const useMediaEditStore = create<MediaEditSessionState>((set, get) => {
       }
     },
 
-    async saveAs(rawName) {
+    async saveAs(rawName, organization) {
       const validation = validateMediaName(rawName)
       if (!validation.ok) return { ok: false, kind: 'invalid', error: validation.error }
       const started = begin('saving-as')
@@ -283,8 +285,8 @@ export const useMediaEditStore = create<MediaEditSessionState>((set, get) => {
           role: fresh.mediaRole,
           title: validation.name,
           description: fresh.description,
-          tags: [...fresh.tags],
-          collectionIds: [...fresh.collectionIds],
+          tags: [...(organization?.tags ?? fresh.tags)],
+          collectionIds: [...(organization?.collectionIds ?? fresh.collectionIds)],
           // No fingerprint: the copy is new content, never a Deck-pinned source.
           metadata: deriveEditedMetadata(fresh.metadata, rendered),
           signal,
@@ -306,6 +308,11 @@ export const useMediaEditStore = create<MediaEditSessionState>((set, get) => {
 
 export function selectMediaEditDirty(state: Pick<MediaEditSessionState, 'edit' | 'baseline' | 'backgroundRemoval'>): boolean {
   return state.backgroundRemoval !== null || !mediaEditsEqual(state.edit, state.baseline)
+}
+
+/** Whether the session has edits worth writing: something changed, nothing is running, no crop is half-drawn, and the result differs from the original. */
+export function selectMediaEditCanSave(state: Pick<MediaEditSessionState, 'edit' | 'baseline' | 'backgroundRemoval' | 'busy' | 'cropMode'>): boolean {
+  return selectMediaEditDirty(state) && state.busy === 'idle' && !state.cropMode && (state.backgroundRemoval !== null || !isMediaEditNeutral(state.edit))
 }
 
 /** True while leaving would lose work: unsaved edits, or a save that has not finished. */

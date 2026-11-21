@@ -4,22 +4,18 @@ import { useState } from 'react'
 import { Collapsible, SliderRow, ToggleRow } from '../react/ReactControlRows'
 import { IconChipButton } from '../react/controls/IconChipButton'
 import { DrawerNotice } from '../shared/DrawerNotice'
-import { SaveAsMediaDialog } from './SaveAsMediaDialog'
 import {
   MEDIA_EDIT_RANGES,
   formatDegrees,
   formatPercent,
   formatSignedPercent,
-  isMediaEditNeutral,
   mediaEditsEqual,
   createDefaultMediaEdit,
   type MediaEditSliderKey,
 } from '../../../features/media/edit/mediaEditModel'
 import { mediaEditUnsupportedReason } from '../../../features/media/edit/mediaEditRender'
-import { suggestEditedTitle } from '../../../features/media/edit/mediaEditOutput'
 import { selectMediaEditDirty, useMediaEditStore } from '../../../stores/mediaEditStore'
 import type { UploadedMedia } from '../../../stores/mediaStore'
-import { notify } from '../../../stores/notificationStore'
 import { isModelSourceImage } from '../../../features/models/domain/modelSourceTypes'
 
 interface SliderSpec {
@@ -43,8 +39,6 @@ const DETAIL_SLIDERS: SliderSpec[] = [
 
 interface MediaEditPanelProps {
   media: UploadedMedia
-  /** Called with the new item's id after a successful Save As so the view can select it. */
-  onMediaCreated: (mediaId: string) => void
   /** Starts the 3D model flow from this image. Offered for the image types a model can be generated from. */
   onCreateModel?: (media: UploadedMedia) => void
 }
@@ -71,13 +65,12 @@ function CreateModelGroup({ media, onCreateModel }: { media: UploadedMedia; onCr
 }
 
 /** The Edit tab for one image or video. All state lives in useMediaEditStore. */
-export function MediaEditPanel({ media, onMediaCreated, onCreateModel }: MediaEditPanelProps) {
+export function MediaEditPanel({ media, onCreateModel }: MediaEditPanelProps) {
   const session = useMediaEditStore(state => state.mediaId === media.id ? state : null)
   const dirty = useMediaEditStore(selectMediaEditDirty)
   const busy = useMediaEditStore(state => state.busy)
   const progress = useMediaEditStore(state => state.progress)
   const error = useMediaEditStore(state => state.error)
-  const [savingAsOpen, setSavingAsOpen] = useState(false)
 
   const displayName = media.title ?? media.name
   const unsupported = mediaEditUnsupportedReason(media)
@@ -99,7 +92,6 @@ export function MediaEditPanel({ media, onMediaCreated, onCreateModel }: MediaEd
   // Rotate / flip / mirror change the frame the crop rectangle is drawn on, so they wait for Apply or Cancel.
   const transformDisabled = working || cropMode
   const cropIsFull = mediaEditsEqual({ ...createDefaultMediaEdit(), crop: edit.crop }, createDefaultMediaEdit())
-  const canSave = dirty && !working && !cropMode && (backgroundRemoval !== null || !isMediaEditNeutral(edit))
 
   const renderSlider = ({ key, label, format }: SliderSpec) => {
     const range = MEDIA_EDIT_RANGES[key]
@@ -224,38 +216,6 @@ export function MediaEditPanel({ media, onMediaCreated, onCreateModel }: MediaEd
       {error && <DrawerNotice tone="error" role="alert" title="Edit failed">{error}</DrawerNotice>}
       {progressLabel && <div className="mmi-edit-progress" role="status" aria-live="polite">{progressLabel}</div>}
 
-      <div className="mmi-actions mmi-actions--row">
-        <IconChipButton tone="primary" disabled={!canSave} onClick={() => {
-          void store.save().then(outcome => {
-            if (outcome.ok) notify('media-manager', { tone: 'success', title: 'Media saved', message: `Your edits to "${displayName}" were saved.` })
-          })
-        }}>
-          {busy === 'saving' ? 'Saving…' : 'Save'}
-        </IconChipButton>
-        <IconChipButton disabled={!canSave} onClick={() => { store.clearError(); setSavingAsOpen(true) }}>
-          Save As
-        </IconChipButton>
-        {dirty && !working && (
-          <IconChipButton onClick={() => store.discard()}>Reset</IconChipButton>
-        )}
-      </div>
-
-      {savingAsOpen && (
-        <SaveAsMediaDialog
-          initialName={suggestEditedTitle(media.title ?? media.name.replace(/\.[A-Za-z0-9]{1,8}$/, ''))}
-          busy={busy === 'saving-as'}
-          error={error}
-          onCancel={() => { if (busy !== 'saving-as') setSavingAsOpen(false) }}
-          onSubmit={name => {
-            void store.saveAs(name).then(outcome => {
-              if (!outcome.ok) return
-              setSavingAsOpen(false)
-              onMediaCreated(outcome.mediaId)
-              notify('media-manager', { tone: 'success', title: 'Copy saved', message: `Your edited copy "${name.trim()}" was added to your media library.` })
-            })
-          }}
-        />
-      )}
     </div>
   )
 }

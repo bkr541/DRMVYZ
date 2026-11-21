@@ -12,6 +12,7 @@ const HEADER_ACTIONS = {
   open: { kind: 'folder', bounds: '2 2 28 28' },
   save: { kind: 'save', bounds: '4 4 24 24' },
   saveActive: { kind: 'saveActive', bounds: '5 2 25 28' },
+  saveAs: { kind: 'saveAs', bounds: '4 4 24 24' },
   duplicate: { kind: 'copy', bounds: '2 2 28 28' },
   clear: { kind: 'close', bounds: '8 8 16 16' },
   clearAll: { kind: 'clearAll', bounds: '2 4 28 25' },

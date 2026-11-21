@@ -22,6 +22,8 @@ export const CARBON_GLYPHS = {
   open: ['M26 28H6a2.003 2.003 0 0 1-2-2V6a2.003 2.003 0 0 1 2-2h10v2H6v20h20V16h2v10a2.003 2.003 0 0 1-2 2', 'M20 2v2h6.586L18 12.586L19.414 14L28 5.414V12h2V2z'],
   copy: ['M28 10v18H10V10zm0-2H10a2 2 0 0 0-2 2v18a2 2 0 0 0 2 2h18a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2', 'M4 18H2V4a2 2 0 0 1 2-2h14v2H4Z'],
   save: ['m27.71 9.29l-5-5A1 1 0 0 0 22 4H6a2 2 0 0 0-2 2v20a2 2 0 0 0 2 2h20a2 2 0 0 0 2-2V10a1 1 0 0 0-.29-.71M12 6h8v4h-8Zm8 20h-8v-8h8Zm2 0v-8a2 2 0 0 0-2-2h-8a2 2 0 0 0-2 2v8H6V6h4v4a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V6.41l4 4V26Z'],
+  // Save As: the save disk (same 24-unit footprint, outline weight and slots as `save`) with its lower right corner notched out for an add mark: a save that makes a new copy.
+  saveAs: ['M22 19h2v3h3v2h-3v3h-2v-3h-3v-2h3Z', 'M6 4H22L28 10V18H18V28H6A2 2 0 0 1 4 26V6A2 2 0 0 1 6 4ZM6 6V26H16V16H26V10.83L21.17 6ZM12 6H20V10H12ZM8 18H14V24H8Z'],
   saveActive: ['m22 27.18l-2.59-2.59L18 26l4 4l8-8l-1.41-1.41z', 'M25 5h-3V4a2.006 2.006 0 0 0-2-2h-8a2.006 2.006 0 0 0-2 2v1H7a2.006 2.006 0 0 0-2 2v21a2.006 2.006 0 0 0 2 2h9v-2H7V7h3v3h12V7h3v11h2V7a2.006 2.006 0 0 0-2-2m-5 3h-8V4h8Z'],
   folder: ['m11.17 6l3.42 3.41l.58.59H28v16H4V6zm0-2H4a2 2 0 0 0-2 2v20a2 2 0 0 0 2 2h24a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2H16l-3.41-3.41A2 2 0 0 0 11.17 4'],
   folderAdd: ['M26 20h-2v4h-4v2h4v4h2v-4h4v-2h-4z', 'M28 8H16l-3.4-3.4c-.4-.4-.9-.6-1.4-.6H4c-1.1 0-2 .9-2 2v20c0 1.1.9 2 2 2h14v-2H4V6h7.2l3.4 3.4l.6.6H28v8h2v-8c0-1.1-.9-2-2-2'],

@@ -39,6 +39,7 @@ export const OUTLINE_GLYPHS: Record<string, readonly string[]> = {
   file: ['M5 3h9l5 5v13H5Z', 'M14 3v5h5M8 13h8M8 17h5'],
   fileAdd: ['M5 3h9l5 5v13H5Z', 'M12 12v6m-3-3h6'], fileImport: ['M5 3h9l5 5v13H5Z', 'M3 12h10m-3-3 3 3-3 3'],
   save: ['M4 3h13l3 3v15H4Z', 'M8 3v6h8V3M8 21v-8h8v8'],
+  saveAs: ['M4 3h13l3 3v9M4 3v18h8M8 3v6h8V3m-2.5 12.5v6m-3-3h6'],
   saveActive: ['M4 3h13l3 3v9M4 3v18h8M8 3v6h8V3m-2 15 3 3 5-6'],
   edit: ['m4 16 12-12 4 4L8 20H4Zm10-10 4 4'],
   copy: ['M8 8h12v13H8ZM4 16V3h12'],

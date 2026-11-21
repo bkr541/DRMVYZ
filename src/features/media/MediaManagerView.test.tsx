@@ -35,6 +35,8 @@ vi.mock('../../components/vyzualz/media/MediaManagerInspector', () => ({
     mocks.inspectorProps.current = props
     return <div data-testid="inspector" />
   },
+  // The Save As popover reuses the Info tab's tag and collection pickers.
+  TagsCollectionsGroup: () => <div data-testid="tags-collections" />,
 }))
 
 import { MediaManagerView } from './MediaManagerView'
@@ -120,15 +122,126 @@ describe('MediaManagerView', () => {
 
     const onSave = vi.fn()
     const onDelete = vi.fn()
-    act(() => { mocks.inspectorProps.current?.onHeaderActions?.({ onSave, saving: false, onDelete, deleting: false }) })
+    act(() => { mocks.inspectorProps.current?.onHeaderActions?.({ onSave, saving: false, canSave: true, onRevert: null, canRevert: false, saveAs: null, onDelete, deleting: false }) })
     expect(buttons().every(button => !button.disabled)).toBe(true)
     act(() => { buttons()[0]!.click() })
     act(() => { buttons()[1]!.click() })
     expect(onSave).toHaveBeenCalledTimes(1)
     expect(onDelete).toHaveBeenCalledTimes(1)
 
-    act(() => { mocks.inspectorProps.current?.onHeaderActions?.({ onSave, saving: true, onDelete: null, deleting: false }) })
+    act(() => { mocks.inspectorProps.current?.onHeaderActions?.({ onSave, saving: true, canSave: true, onRevert: null, canRevert: false, saveAs: null, onDelete: null, deleting: false }) })
     expect(buttons()[0]!.title).toBe('Saving…')
     expect(buttons().every(button => button.disabled)).toBe(true)
+  })
+
+  describe('Save, Save As and Revert', () => {
+    const open = () => {
+      container = document.createElement('div')
+      document.body.appendChild(container)
+      root = createRoot(container)
+      act(() => { root?.render(<MediaManagerView onOpenLyricManager={vi.fn()} />) })
+    }
+    const key = (label: string) => container!.querySelector<HTMLButtonElement>(`.mmv-header button[aria-label="${label}"]`)
+    const publish = (overrides: Record<string, unknown> = {}) => {
+      const actions = {
+        onSave: vi.fn(), saving: false, canSave: true, onRevert: vi.fn(), canRevert: true, onDelete: vi.fn(), deleting: false,
+        saveAs: {
+          unavailable: null as string | null, initial: { name: 'Sunset (edited)', tags: ['warm'], collectionIds: ['collection-1'] }, busy: false, error: null as string | null,
+          validateName: vi.fn((name: string) => name.trim() ? null : 'Enter a name.'), clearError: vi.fn(), submit: vi.fn(async () => true),
+        },
+        ...overrides,
+      }
+      act(() => { mocks.inspectorProps.current?.onHeaderActions?.(actions) })
+      return actions
+    }
+    const popover = () => document.querySelector<HTMLElement>('.dv-confirm-dialog')
+
+    it('puts all three as icon-only keys in the toolbar, in the order Save, Save As, Revert, and none of them in the inspector', () => {
+      open()
+      publish()
+      const labels = [...container!.querySelectorAll('.mmv-header .vz-header-group button')].map(button => button.getAttribute('aria-label'))
+      expect(labels).toEqual(['New Collection', 'New Media', 'Save Changes', 'Save As', 'Revert', 'Delete Media'])
+      for (const label of ['Save Changes', 'Save As', 'Revert']) {
+        expect(key(label)!.textContent?.trim(), label).toBe('')
+        expect(key(label)!.querySelector('svg'), label).not.toBeNull()
+      }
+      expect(container!.querySelector('[data-testid="inspector"]')!.textContent).toBe('')
+    })
+
+    it('Save As is not offered for an item that cannot be copied (an audio track or a font), and neither is Revert', () => {
+      open()
+      publish({ saveAs: null, onRevert: null, canRevert: false })
+      expect(key('Save As')).toBeNull()
+      expect(key('Revert')).toBeNull()
+      expect(key('Save Changes')).not.toBeNull()
+    })
+
+    it('Revert calls the item\'s revert and is disabled when there is nothing to revert', () => {
+      open()
+      const actions = publish()
+      act(() => { key('Revert')!.click() })
+      expect(actions.onRevert).toHaveBeenCalledTimes(1)
+      publish({ canRevert: false })
+      expect(key('Revert')!.disabled).toBe(true)
+    })
+
+    it('Save is disabled when there is nothing to save, and a copy needs an edit first', () => {
+      open()
+      publish({ canSave: false })
+      expect(key('Save Changes')!.disabled).toBe(true)
+      const actions = publish()
+      actions.saveAs.unavailable = 'Make an edit in the Edit tab first.'
+      publish({ saveAs: { ...actions.saveAs, unavailable: 'Make an edit in the Edit tab first.' } })
+      expect(key('Save As')!.disabled).toBe(true)
+      expect(key('Save As')!.title).toBe('Make an edit in the Edit tab first.')
+    })
+
+    it('Save As opens the standard centered popover with Title, Tags and Collections, starting from the current item', () => {
+      open()
+      publish()
+      expect(popover()).toBeNull()
+      act(() => { key('Save As')!.click() })
+      expect(popover()!.querySelector('h2')!.textContent).toBe('Save As')
+      expect(popover()!.querySelector<HTMLInputElement>('input')!.value).toBe('Sunset (edited)')
+      expect(popover()!.querySelector('[data-testid="tags-collections"]')).not.toBeNull()
+      expect([...popover()!.querySelectorAll('button')].map(button => button.textContent?.trim()).filter(Boolean)).toEqual(expect.arrayContaining(['Cancel', 'Save As']))
+      act(() => { [...popover()!.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent?.trim() === 'Cancel')!.click() })
+      expect(popover()).toBeNull()
+    })
+
+    it('submits the new title with its tags and collections, then closes; a blank title is refused', async () => {
+      open()
+      const actions = publish()
+      act(() => { key('Save As')!.click() })
+      const input = popover()!.querySelector<HTMLInputElement>('input')!
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, '   ')
+        input.dispatchEvent(new Event('input', { bubbles: true }))
+      })
+      const submit = () => [...popover()!.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent?.trim() === 'Save As')!
+      await act(async () => { submit().click() })
+      expect(actions.saveAs.submit).not.toHaveBeenCalled()
+      expect(popover()!.querySelector('[role="alert"]')!.textContent).toBe('Enter a name.')
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, 'Sunset warm')
+        input.dispatchEvent(new Event('input', { bubbles: true }))
+      })
+      await act(async () => { submit().click(); await Promise.resolve() })
+      expect(actions.saveAs.submit).toHaveBeenCalledWith({ name: 'Sunset warm', tags: ['warm'], collectionIds: ['collection-1'] })
+      expect(popover()).toBeNull()
+    })
+
+    it('stays open with the error when the copy fails, and Cancel closes it without saving', async () => {
+      open()
+      const actions = publish()
+      actions.saveAs.submit.mockResolvedValueOnce(false)
+      publish({ saveAs: { ...actions.saveAs, error: 'Storage permission denied' } })
+      act(() => { key('Save As')!.click() })
+      await act(async () => { [...popover()!.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent?.trim() === 'Save As')!.click(); await Promise.resolve() })
+      expect(popover()).not.toBeNull()
+      expect(popover()!.textContent).toContain('Storage permission denied')
+      act(() => { [...popover()!.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent?.trim() === 'Cancel')!.click() })
+      expect(popover()).toBeNull()
+    })
   })
 })
