@@ -1,3 +1,4 @@
+import { BRAND_NAME } from '../../../brand'
 /**
  * Mobile App Preview: the real application, running in a phone-sized frame inside its own window. It is a second instance of the app
  * (same origin, so it shares the signed-in session), loaded with `?mobilePreview=1` so that instance knows it is the preview and does
@@ -46,7 +47,7 @@ export function mobileAppPreviewUrl(location: Pick<Location, 'origin' | 'pathnam
 /** Writes the phone frame and the app frame into an empty window. Returns a function that tears the window's listeners down. */
 export function renderMobileAppPreview(popup: Window, url: string): void {
   const doc = popup.document
-  doc.title = 'DRMVYZ — Mobile App Preview'
+  doc.title = `${BRAND_NAME} — Mobile App Preview`
   doc.head.innerHTML = `<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>
     html, body { margin: 0; height: 100%; background: #020304; overflow: auto; }
     body { display: flex; align-items: center; justify-content: center; min-height: 100%; padding: ${FRAME_PADDING}px; box-sizing: border-box; }
@@ -62,7 +63,7 @@ export function renderMobileAppPreview(popup: Window, url: string): void {
   const device = doc.createElement('div')
   device.className = 'device'
   const frame = doc.createElement('iframe')
-  frame.title = 'DRMVYZ on iPhone 16'
+  frame.title = `${BRAND_NAME} on iPhone 16`
   frame.src = url
   // The app needs the microphone, fullscreen and the clipboard, exactly as a top-level page does.
   frame.allow = 'microphone; camera; fullscreen; autoplay; clipboard-read; clipboard-write; display-capture'

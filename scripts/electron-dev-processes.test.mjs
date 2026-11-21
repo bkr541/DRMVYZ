@@ -12,12 +12,22 @@ test('finds isolated development, packaged and helper processes regardless of in
 `, options)
   assert.deepEqual(result.map(p => p.pid), [11,12,13,14])
 })
+test('finds STAGELESS packaged, helper and isolated development processes', () => {
+  const result = findDrmvyzProcesses(`
+  51 /repo/node_modules/.cache/drmvyz-electron/43/STAGELESS Dev.app/Contents/MacOS/Electron
+  52 /Applications/STAGELESS.app/Contents/MacOS/STAGELESS
+  53 /Users/a/My Apps/STAGELESS.app/Contents/Frameworks/STAGELESS Helper.app/Contents/MacOS/STAGELESS Helper
+  54 /another checkout/STAGELESS Dev.app/Contents/MacOS/Electron
+`, options)
+  assert.deepEqual(result.map(p => p.pid), [51,52,53,54])
+})
 test('leaves unrelated Electron apps, similarly named folders and the current process alone', () => {
   const result = findDrmvyzProcesses(`
   21 /Applications/Codex.app/Contents/MacOS/Codex
   22 /Applications/Other.app/Contents/MacOS/Electron
   23 /repo/node_modules/.cache/drmvyz-electron-other/Electron
   24 /Applications/DRMVYZ Tools.app/Contents/MacOS/Tools
+  26 /Applications/STAGELESS Tools.app/Contents/MacOS/Tools
   25 /repo/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron
   99 /Applications/DRMVYZ.app/Contents/MacOS/DRMVYZ
 `, options)

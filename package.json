@@ -164,9 +164,9 @@
     "rekordbox-parser": "^0.1.2"
   },
   "build": {
-    "appId": "com.dvydrm.drmvyz",
+    "appId": "com.stageless.app",
     "afterPack": "scripts/after-pack-continuity-camera.cjs",
-    "productName": "DRMVYZ",
+    "productName": "STAGELESS",
     "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
     "directories": {
       "output": "release"
@@ -189,12 +189,12 @@
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
       "extendInfo": {
-        "NSMicrophoneUsageDescription": "DRMVYZ uses the default microphone only when you select Live Input for realtime analysis.",
-        "NSLocalNetworkUsageDescription": "DRMVYZ uses the local network to discover and connect to receivers and to stream output to local casting devices you choose.",
+        "NSMicrophoneUsageDescription": "STAGELESS uses the default microphone only when you select Live Input for realtime analysis.",
+        "NSLocalNetworkUsageDescription": "STAGELESS uses the local network to discover and connect to receivers and to stream output to local casting devices you choose.",
         "NSBonjourServices": [
           "_drmvyz-cast._tcp"
         ],
-        "NSCameraUsageDescription": "DRMVYZ uses the camera only when you open Headliner to display the camera feed in your visual performance.",
+        "NSCameraUsageDescription": "STAGELESS uses the camera only when you open Headliner to display the camera feed in your visual performance.",
         "NSCameraUseContinuityCameraDeviceType": true
       }
     },

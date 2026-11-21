@@ -1,7 +1,7 @@
 # Desktop development launcher
 
 Run `launch.command` from Finder or the repository. It selects Node 22 and runs
-`scripts/run-electron-dev.mjs` to start Vite and the isolated DRMVYZ Electron shell.
+`scripts/run-electron-dev.mjs` to start Vite and the isolated STAGELESS Electron shell.
 
 The desktop icon is `electron/assets/app-icon.png`, generated from the supplied
 `stageless_app_logo_1.png` (preserved as `electron/assets/app-icon-source.png`).
@@ -16,17 +16,17 @@ available port among the next 19 ports. It prints the selected address and uses
 the same host/port for Vite, readiness checks and Electron. A configured
 `DRMVYZ_VITE_DEV_SERVER_URL` supplies the preferred address instead.
 
-Every launch checks for running DRMVYZ before starting its replacement. On
-macOS this includes packaged `DRMVYZ.app`, isolated `DRMVYZ Dev.app` instances,
+Every launch checks for running STAGELESS before starting its replacement. On
+macOS this includes packaged `STAGELESS.app`, isolated `STAGELESS Dev.app` instances (legacy `STAGELESS` bundles are also closed),
 and their helper processes, even outside this checkout. A stock Electron shell
 is closed only when its executable and working directory identify this repo.
 The launcher sends SIGTERM, waits, force-stops any remaining identified processes,
 and confirms they exited before continuing. Failure to inspect or close them
 stops startup rather than launching a second instance.
 
-Stale DRMVYZ Vite processes are stopped only when their working directory and
+Stale STAGELESS Vite processes are stopped only when their working directory and
 Vite command identify this repository. Vanished listeners are skipped; missing
-process metadata no longer causes a fatal port-conflict error. The DRMVYZ app check runs independently of which port is occupied. If no port is available in
+process metadata no longer causes a fatal port-conflict error. The STAGELESS app check runs independently of which port is occupied. If no port is available in
 the bounded search, startup reports an actionable error.
 
 Validation: `node --test scripts/electron-dev-port.test.mjs` covers requested

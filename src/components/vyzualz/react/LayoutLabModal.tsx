@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { LayoutLabMockup } from './LayoutLabMockup'
+import { BRAND_NAME } from '../../../brand'
 
 const POPUP_NAME = 'drmvyz-layout-lab'
 // Keep the blank workspace at the application's normal window size.
@@ -22,7 +23,7 @@ export function LayoutLabModal({ onClose }: { onClose: () => void }) {
     }
 
     popupRef.current = popup
-    popup.document.title = 'DRMVYZ — Layout Lab'
+    popup.document.title = `${BRAND_NAME} — Layout Lab`
     popup.document.documentElement.style.background = '#060d10'
     popup.document.body.style.margin = '0'
     popup.document.body.style.height = '100vh'

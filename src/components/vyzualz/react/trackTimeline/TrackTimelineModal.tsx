@@ -4,6 +4,7 @@ import type { TrackIntelligenceAnalysis } from '../../../../features/musicIntell
 import type { RgbWaveformAnalysis } from '../../../../features/waveform/rgbWaveformTypes'
 import type { ReactTrackSection } from '../ReactTypes'
 import { TrackTimelineVisualizer } from './TrackTimelineVisualizer'
+import { BRAND_NAME } from '../../../../brand'
 
 const POPUP_NAME = 'drmvyz-track-timeline'
 const POPUP_FEATURES = 'width=1600,height=1000,menubar=no,toolbar=no,location=no,status=no'
@@ -53,7 +54,7 @@ export function TrackTimelineModal({
     }
 
     popupRef.current = popup
-    popup.document.title = 'DRMVYZ — Track Timeline Visualizer'
+    popup.document.title = `${BRAND_NAME} — Track Timeline Visualizer`
     popup.document.documentElement.style.background = 'var(--color-background, #090d0f)'
     popup.document.documentElement.style.height = '100%'
     popup.document.documentElement.style.overflow = 'hidden'

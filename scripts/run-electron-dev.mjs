@@ -49,13 +49,13 @@ async function stopProcesses(pids, timeoutMs = 5_000) {
 /**
  * Stops a dev server and Electron shell left over from an earlier run of THIS repository, so a relaunch works.
  * A process is only touched when it provably belongs here: Vite must be listening on the dev port with this
- * repository as its working directory. DRMVYZ app bundles and this repository's Electron shell are closed first.
+ * repository as its working directory. STAGELESS app bundles and this repository's Electron shell are closed first.
  * Other applications' Vite or Electron processes are never stopped; occupied ports are skipped during startup.
  */
 async function clearStaleRepoProcesses() {
   if (process.platform === 'win32') return
 
-  console.error('[electron:dev] Checking for running DRMVYZ instances...')
+  console.error('[electron:dev] Checking for running STAGELESS instances...')
   const runningApps = findDrmvyzProcesses(execFileSync('ps', ['-axww', '-o', 'pid=,comm='], { encoding: 'utf8' }), {
     cacheRoot: electronCacheRoot,
     stockElectronBinary,
@@ -65,15 +65,15 @@ async function clearStaleRepoProcesses() {
     },
   })
   if (runningApps.length) {
-    console.error(`[electron:dev] Closing running DRMVYZ (${runningApps.length} process(es)) before relaunch.`)
+    console.error(`[electron:dev] Closing running STAGELESS (${runningApps.length} process(es)) before relaunch.`)
     await stopProcesses(runningApps.map(app => app.pid))
     // Give forced exits time to be reaped before allowing a replacement shell.
     const deadline = Date.now() + 1_000
     while (Date.now() < deadline && runningApps.some(app => isAlive(app.pid))) await new Promise(resolve => setTimeout(resolve, 50))
     const remaining = runningApps.filter(app => isAlive(app.pid))
-    if (remaining.length) throw new Error(`Could not close DRMVYZ process(es): ${remaining.map(app => app.pid).join(', ')}. Quit DRMVYZ and launch again.`)
+    if (remaining.length) throw new Error(`Could not close STAGELESS process(es): ${remaining.map(app => app.pid).join(', ')}. Quit STAGELESS and launch again.`)
   } else {
-    console.error('[electron:dev] No running DRMVYZ instance found.')
+    console.error('[electron:dev] No running STAGELESS instance found.')
   }
 
   const listeners = run('lsof', ['-nP', `-iTCP:${devPort}`, '-sTCP:LISTEN', '-t']).split('\n').map(Number).filter(Boolean)
@@ -94,7 +94,7 @@ async function clearStaleRepoProcesses() {
     console.error(`[electron:dev] Port ${devPort} is occupied; leaving its listener(s) running and selecting an available port:\n${details}`)
   }
   if (owned.length) {
-    console.error(`[electron:dev] Stopping DRMVYZ Vite server left over on port ${devPort} (pid ${owned.map(item => item.pid).join(', ')}).`)
+    console.error(`[electron:dev] Stopping STAGELESS Vite server left over on port ${devPort} (pid ${owned.map(item => item.pid).join(', ')}).`)
     await stopProcesses(owned.map(item => item.pid))
   }
 }
@@ -122,19 +122,19 @@ function resolveElectronBinary() {
   // Electron's downloaded development shell identifies every project as
   // com.github.Electron. macOS can consequently treat unrelated dev apps as
   // the same application and terminate one when another launches. Use an APFS
-  // clone with DRMVYZ-specific bundle identifiers while leaving node_modules'
+  // clone with STAGELESS-specific bundle identifiers while leaving node_modules'
   // stock Electron distribution untouched.
   const stockApp = path.dirname(path.dirname(path.dirname(stockElectronBinary)))
   const cacheRoot = path.join(process.cwd(), 'node_modules', '.cache', 'drmvyz-electron', electronVersion)
-  const appPath = path.join(cacheRoot, 'DRMVYZ Dev.app')
+  const appPath = path.join(cacheRoot, 'STAGELESS Dev.app')
   const binaryPath = path.join(appPath, 'Contents', 'MacOS', 'Electron')
   // A shell prepared before the Continuity Camera key existed is rebuilt once.
   if (existsSync(binaryPath) && hasContinuityCameraKey(path.join(appPath, 'Contents', 'Info.plist'))) return binaryPath
 
   mkdirSync(cacheRoot, { recursive: true })
-  const stagingPath = path.join(cacheRoot, `DRMVYZ Dev.app.preparing-${process.pid}`)
+  const stagingPath = path.join(cacheRoot, `STAGELESS Dev.app.preparing-${process.pid}`)
   rmSync(stagingPath, { recursive: true, force: true })
-  console.error('[electron:dev] Preparing the isolated DRMVYZ macOS development shell...')
+  console.error('[electron:dev] Preparing the isolated STAGELESS macOS development shell...')
   cpSync(stockApp, stagingPath, {
     recursive: true,
     mode: constants.COPYFILE_FICLONE,
@@ -142,19 +142,19 @@ function resolveElectronBinary() {
   })
 
   const bundleIds = new Map([
-    ['Contents/Info.plist', 'com.dvydrm.drmvyz.dev'],
-    ['Contents/Frameworks/Electron Helper.app/Contents/Info.plist', 'com.dvydrm.drmvyz.dev.helper'],
-    ['Contents/Frameworks/Electron Helper (GPU).app/Contents/Info.plist', 'com.dvydrm.drmvyz.dev.helper.GPU'],
-    ['Contents/Frameworks/Electron Helper (Plugin).app/Contents/Info.plist', 'com.dvydrm.drmvyz.dev.helper.Plugin'],
-    ['Contents/Frameworks/Electron Helper (Renderer).app/Contents/Info.plist', 'com.dvydrm.drmvyz.dev.helper.Renderer'],
+    ['Contents/Info.plist', 'com.stageless.app.dev'],
+    ['Contents/Frameworks/Electron Helper.app/Contents/Info.plist', 'com.stageless.app.dev.helper'],
+    ['Contents/Frameworks/Electron Helper (GPU).app/Contents/Info.plist', 'com.stageless.app.dev.helper.GPU'],
+    ['Contents/Frameworks/Electron Helper (Plugin).app/Contents/Info.plist', 'com.stageless.app.dev.helper.Plugin'],
+    ['Contents/Frameworks/Electron Helper (Renderer).app/Contents/Info.plist', 'com.stageless.app.dev.helper.Renderer'],
   ])
   for (const [relativePlistPath, bundleId] of bundleIds) {
     setPlistValue(path.join(stagingPath, relativePlistPath), 'CFBundleIdentifier', bundleId)
     execFileSync('/usr/bin/plutil', ['-replace', CONTINUITY_CAMERA_KEY, '-bool', 'true', path.join(stagingPath, relativePlistPath)])
   }
   const mainPlist = path.join(stagingPath, 'Contents', 'Info.plist')
-  setPlistValue(mainPlist, 'CFBundleName', 'DRMVYZ Dev')
-  setPlistValue(mainPlist, 'CFBundleDisplayName', 'DRMVYZ Dev')
+  setPlistValue(mainPlist, 'CFBundleName', 'STAGELESS Dev')
+  setPlistValue(mainPlist, 'CFBundleDisplayName', 'STAGELESS Dev')
 
   rmSync(appPath, { recursive: true, force: true })
   renameSync(stagingPath, appPath)

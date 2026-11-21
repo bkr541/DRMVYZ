@@ -3,8 +3,23 @@
 const path = require('node:path')
 const { pathToFileURL } = require('node:url')
 const { app, BrowserWindow, dialog, ipcMain, net, protocol, screen, session, shell, systemPreferences } = require('electron')
+const { BRAND_NAME } = require('./brand.cjs')
+const { applyStagelessProfile } = require('../native/system/userDataMigration.cjs')
+
+// Electron derives userData and the log folder from the product name, and
+// app.setName() does not change them, so both are set explicitly. Legacy
+// DRMVYZ folders are moved over first (docs/stageless-rename.md section 5).
+// This runs before ./logging.cjs and before app.whenReady(); the outcome is
+// logged once logging is available.
+const profileMigration = applyStagelessProfile({ app, brandName: BRAND_NAME, isDevelopment: !app.isPackaged })
+
 // Must load before the native bridges so console.* is redirected before they run.
 const log = require('./logging.cjs')
+for (const { scope, status, error } of profileMigration) {
+  const entry = log.scope('system:app')
+  if (status === 'failed') entry.warn(`${scope} migration failed; continuing with the legacy folder`, { error: error?.message })
+  else if (status !== 'no-old' && status !== 'already-migrated') entry.info(`${scope} migration: ${status}`)
+}
 const { installRekordboxUsbBridge } = require('../native/rekordbox/rekordboxUsbBridge.cjs')
 const { installOutputCastBridge } = require('../native/output/outputCastBridge.cjs')
 const { installDiagnosticsBridge } = require('../native/diagnostics/diagnosticsBridge.cjs')
@@ -29,10 +44,10 @@ const DIST_DIR = path.join(app.getAppPath(), 'dist')
 const APP_ICON = path.join(__dirname, 'assets', 'app-icon.png')
 let mainWindow = null
 
-// Keep development state and its single-instance lock separate from both the
-// packaged application and unrelated Electron projects.
-app.setName('DRMVYZ')
-if (!app.isPackaged) app.setPath('userData', path.join(app.getPath('appData'), 'DRMVYZ Development'))
+// The development profile (and its single-instance lock) stays separate from
+// both the packaged application and unrelated Electron projects; the folder
+// names are set in applyStagelessProfile above.
+app.setName(BRAND_NAME)
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -132,7 +147,7 @@ function createMainWindow() {
     minHeight: 760,
     show: false,
     backgroundColor: '#05070a',
-    title: 'DRMVYZ',
+    title: BRAND_NAME,
     icon: APP_ICON,
     autoHideMenuBar: process.platform !== 'darwin',
     webPreferences: {
@@ -159,8 +174,8 @@ function createMainWindow() {
     // Device previews are blank same-origin design surfaces, never arbitrary web content. Each is a named, blank-window request only.
     // Mobile Preview: the mockup pages. Mobile App Preview: the running app in a 393 × 852 phone frame (content 449 × 908 with its padding).
     const devicePreview = {
-      'drmvyz-mobile-preview': { width: 1200, height: 1000, minWidth: 800, minHeight: 960, title: 'DRMVYZ — Mobile Preview' },
-      'drmvyz-mobile-app-preview': { width: 449, height: 908, minWidth: 449, minHeight: 480, title: 'DRMVYZ — Mobile App Preview' },
+      'drmvyz-mobile-preview': { width: 1200, height: 1000, minWidth: 800, minHeight: 960, title: `${BRAND_NAME} — Mobile Preview` },
+      'drmvyz-mobile-app-preview': { width: 449, height: 908, minWidth: 449, minHeight: 480, title: `${BRAND_NAME} — Mobile App Preview` },
     }[frameName]
     if (devicePreview && (url === '' || url === 'about:blank')) {
       const { title, ...size } = devicePreview
@@ -173,11 +188,11 @@ function createMainWindow() {
       } }
     }
     const popupConfig = frameName === 'drmvyz-layout-lab'
-      ? { title: 'DRMVYZ — Layout Lab', backgroundColor: '#060d10' }
+      ? { title: `${BRAND_NAME} — Layout Lab`, backgroundColor: '#060d10' }
       : frameName === 'drmvyz-lyric-manager-layout'
-        ? { title: 'DRMVYZ — Lyric Manager Layout', backgroundColor: '#060d10' }
+        ? { title: `${BRAND_NAME} — Lyric Manager Layout`, backgroundColor: '#060d10' }
         : frameName === 'drmvyz-track-timeline'
-          ? { title: 'DRMVYZ — Track Timeline Visualizer', backgroundColor: '#090d0f' }
+          ? { title: `${BRAND_NAME} — Track Timeline Visualizer`, backgroundColor: '#090d0f' }
           : null
 
     if (popupConfig) {
@@ -226,7 +241,7 @@ function createMainWindow() {
 }
 
 if (!app.requestSingleInstanceLock()) {
-  log.scope('system:app').warn('another DRMVYZ instance owns the development profile; focusing it instead')
+  log.scope('system:app').warn('another STAGELESS instance owns the development profile; focusing it instead')
   app.quit()
 } else {
   app.on('before-quit', () => log.scope('system:app').info('before-quit'))

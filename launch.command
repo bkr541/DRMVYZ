@@ -2,9 +2,9 @@
 set -euo pipefail
 
 # =========================================================
-# DRMVYZ Desktop Launcher
+# STAGELESS Desktop Launcher
 # - Installs dependencies when needed
-# - Closes running DRMVYZ instances before starting a fresh desktop shell
+# - Closes running STAGELESS instances before starting a fresh desktop shell
 # - Starts Vite and the Electron desktop shell
 # - Connects the native Rekordbox USB parser bridge
 # =========================================================
@@ -37,16 +37,16 @@ require_cmd npm
 
 NODE_MAJOR="$(node -p 'Number(process.versions.node.split(".")[0])')"
 if [[ "$NODE_MAJOR" -ne 22 ]]; then
-  echo "❌ DRMVYZ requires Node 22, but $(node --version) is active at $(command -v node)."
+  echo "❌ STAGELESS requires Node 22, but $(node --version) is active at $(command -v node)."
   echo "   Install Node 22 with: brew install node@22"
-  echo "   Then launch DRMVYZ again."
+  echo "   Then launch STAGELESS again."
   exit 1
 fi
 
-echo "🚀 Starting DRMVYZ Desktop..."
+echo "🚀 Starting STAGELESS Desktop..."
 
 if [[ ! -f "$DIR/package.json" ]]; then
-  echo "❌ package.json not found. Put launch.command in the DRMVYZ repo root."
+  echo "❌ package.json not found. Put launch.command in the repository root."
   exit 1
 fi
 
@@ -55,5 +55,5 @@ if [[ ! -d "$DIR/node_modules" ]] || ! node -e "const fs=require('node:fs'); try
   npm install
 fi
 
-echo "🟢 Checking for running DRMVYZ and opening a fresh desktop app. Press Ctrl+C here to stop it."
+echo "🟢 Checking for running STAGELESS and opening a fresh desktop app. Press Ctrl+C here to stop it."
 npm run electron:dev

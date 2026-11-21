@@ -5,6 +5,7 @@ import { MobileProductionMockup, MOBILE_PRODUCTION_PAGES, type MobileProductionP
 import previewStyles from './mobilePreview.css?inline'
 import { mobilePreviewProductionStyles, mirrorMobilePreviewAppearance } from './mobilePreviewProductionStyles'
 import { mobileAppPreviewUrl } from './mobileAppPreview'
+import { BRAND_NAME } from '../../../brand'
 
 export const MOBILE_PREVIEW_WINDOW_NAME = 'drmvyz-mobile-preview'
 export const MOBILE_PREVIEW_WIDTH = 1200
@@ -46,7 +47,7 @@ function MobilePreviewWorkspace() {
             <div className="mobile-preview-island" aria-hidden="true" />
             {active === 'mobile-auth'
               ? <main className="mobile-preview-content mobile-preview-content--app" aria-label="Mobile preview canvas" data-mobile-view={active}>
-                  <iframe className="mobile-preview-app-frame" title="DRMVYZ sign-in on iPhone 16" src={mobileAppPreviewUrl(window.location, 'auth')} />
+                  <iframe className="mobile-preview-app-frame" title={`${BRAND_NAME} sign-in on iPhone 16`} src={mobileAppPreviewUrl(window.location, 'auth')} />
                 </main>
               : <main className="mobile-preview-content" aria-label="Mobile preview canvas" data-mobile-view={active}>
                   {mobilePage && <MobileProductionMockup page={mobilePage} onPageChange={next => setActive(`mobile-${next.toLowerCase()}`)} />}
@@ -75,7 +76,7 @@ export function MobilePreviewLauncher() {
     if (!popup) { setBlocked(true); return }
     setBlocked(false)
     popupRef.current = popup
-    popup.document.title = 'DRMVYZ — Mobile Preview'
+    popup.document.title = `${BRAND_NAME} — Mobile Preview`
     const style = popup.document.createElement('style')
     style.textContent = `${mobilePreviewProductionStyles}\n${previewStyles}`
     popup.document.head.appendChild(style)

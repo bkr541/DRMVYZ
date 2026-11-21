@@ -8,6 +8,8 @@ export const IGNORED_PATH_PATTERNS: ReadonlyArray<{ pattern: RegExp; reason: str
   { pattern: /(^|\/)__tests__\//, reason: 'test files may assert historical identifiers' },
   { pattern: /\.(test|spec)\.[cm]?[tj]sx?$/, reason: 'test files' },
   { pattern: /(^|\/)__fixtures__\//, reason: 'test fixtures mirror the UI strings they cover' },
+  { pattern: /^native\/system\/userDataMigration\.cjs$/, reason: 'must name the legacy folders it migrates' },
+  { pattern: /^scripts\/electron-dev-processes\.mjs$/, reason: 'must still recognise legacy DRMVYZ app bundles' },
   { pattern: /^src\/test\//, reason: 'test harness pages and fixtures' },
   { pattern: /^src\/lib\/lyricsSeed\.ts$/, reason: 'seed lyric documents are user data (owner decision)' },
 ]

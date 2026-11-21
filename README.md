@@ -1,6 +1,6 @@
-# DRMVYZ
+# STAGELESS
 
-DRMVYZ is a desktop-first VJ and audio-reactive visualization system for DVYDRM. It combines a six-engine live performance workspace, track-aware choreography, media and brand libraries, lyric tooling, recording, and a classic modular audio-visualizer workspace.
+STAGELESS is a desktop-first VJ and audio-reactive visualization system for DVYDRM. It combines a six-engine live performance workspace, track-aware choreography, media and brand libraries, lyric tooling, recording, and a classic modular audio-visualizer workspace.
 
 The default performance workspace is **React View**. The older modular **Visualizer** remains available for analyzer-style layouts and social-format capture.
 
@@ -57,7 +57,7 @@ npm ci
 npm run electron:dev
 ```
 
-On macOS, `launch.command` selects the repository's required Node 22 runtime and starts the same development workflow. It also gives the development Electron shell a DRMVYZ-specific macOS identity so it can run alongside other Electron projects.
+On macOS, `launch.command` selects the repository's required Node 22 runtime and starts the same development workflow. It also gives the development Electron shell a STAGELESS-specific macOS identity so it can run alongside other Electron projects.
 
 The Electron shell enables native Rekordbox USB scanning, including `export.pdb` and `PIONEER/USBANLZ` cue and beat-grid metadata.
 
@@ -95,7 +95,7 @@ System audio from another application still requires operating-system routing su
 
 ## Music Intelligence and performance timing
 
-DRMVYZ uses one shared analysis and timing authority:
+STAGELESS uses one shared analysis and timing authority:
 
 1. The audio engine and loaded-track analysis publish Music Intelligence data.
 2. Shared Performance Core resolves authoritative beat, bar, phrase, section, occurrence, confidence, and transport state.

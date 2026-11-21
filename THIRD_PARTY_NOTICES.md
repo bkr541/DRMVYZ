@@ -41,7 +41,7 @@ Abstract sphere by deecube1, supplied as `metal_sphere.glb`.
 Embedded source: https://sketchfab.com/3d-models/abstract-sphere-a525fc48c1d245e2883241e344773aa4
 Author: https://sketchfab.com/deecube1
 License: CC BY 4.0, https://creativecommons.org/licenses/by/4.0/
-DRMVYZ converts the specular/glossiness material to metal/rough PBR, caps maps at
+STAGELESS converts the specular/glossiness material to metal/rough PBR, caps maps at
 1024px, encodes WebP quality 95, and reuses the material maps on ORBITAL lettering.
 Original meshes and animation are retained. The source hash and generated
 attribution are recorded in the Cinema asset catalog.
