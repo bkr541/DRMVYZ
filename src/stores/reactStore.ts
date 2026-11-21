@@ -2331,7 +2331,7 @@ export function buildPresetPatch(
   currentLaserSettings?: LaserDmxSettings,
 ) {
   if (!isSelectableReactEngineId(preset.engine)) {
-    throw new Error(`[DRMVYZ] Preset "${preset.id}" belongs to retired engine "${preset.engine}" and must resolve through Cinema compatibility migration.`)
+    throw new Error(`[STAGELESS] Preset "${preset.id}" belongs to retired engine "${preset.engine}" and must resolve through Cinema compatibility migration.`)
   }
 
   const laserDmxWorkspaceMode = resolveReactPresetLaserDmxWorkspace(preset)

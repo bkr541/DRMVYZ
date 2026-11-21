@@ -3,7 +3,7 @@
   "kind": "model",
   "compression": "none",
   "license": "CC-BY-4.0",
-  "attribution": "Need some space? by Loïc Norgeot (https://sketchfab.com/norgeotloic). Source: https://sketchfab.com/3d-models/need-some-space-d6521362b37b48e3a82bce4911409303. Licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Modified by DRMVYZ: positions quantized to 16 bits and colors to 8 bits to fit the installer budget; the runtime recenters the galaxy on the black hole, scales it and draws its 50,000 stars as audio-reactive points for EVENT HORIZON.",
+  "attribution": "Need some space? by Loïc Norgeot (https://sketchfab.com/norgeotloic). Source: https://sketchfab.com/3d-models/need-some-space-d6521362b37b48e3a82bce4911409303. Licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Modified by STAGELESS: positions quantized to 16 bits and colors to 8 bits to fit the installer budget; the runtime recenters the galaxy on the black hole, scales it and draws its 50,000 stars as audio-reactive points for EVENT HORIZON.",
   "origin": "User-supplied space.glb (a 50,000-point spiral galaxy with per-star colors); original source: https://sketchfab.com/3d-models/need-some-space-d6521362b37b48e3a82bce4911409303. Repacked by scripts/cinema2-assets/pack-event-horizon-space.mjs (same stars, 16-bit positions and 8-bit colors).",
   "files": {
     "high": "public/cinema2/models/event-horizon-space.glb"

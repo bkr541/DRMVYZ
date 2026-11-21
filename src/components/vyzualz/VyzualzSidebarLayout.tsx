@@ -2,6 +2,7 @@ import type { ReactNode, Ref } from 'react'
 import { AppIcon } from '../shared/icons/AppIcon'
 import { NavMedallionIcon } from './navMedallionIcons'
 import type { AppView } from './appView'
+import { BRAND_NAME } from '../../brand'
 
 const NAV_ICON_SIZE = 36
 
@@ -177,7 +178,7 @@ export function VyzualzBrandToggle({
         <AppIcon kind="brand" size={32} />
       </div>
       <div className="az-logo-text">
-        <span className="az-logo-mark">DRMVYZ</span>
+        <span className="az-logo-mark">{BRAND_NAME}</span>
       </div>
     </button>
   )

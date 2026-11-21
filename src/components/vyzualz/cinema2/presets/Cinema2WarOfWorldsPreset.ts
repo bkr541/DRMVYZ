@@ -38,7 +38,7 @@ const CINEMA2_WAR_OF_WORLDS_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePres
   metadata: {
     name: 'War Of Worlds',
     description: 'The supplied War Of The Tripods scene, with its original geometry and textured materials. Static scene for framing and visual review.',
-    author: 'DRMVYZ; WAR OF THE TRIPODS by pinguinoconpulgares (CC BY 4.0)',
+    author: 'STAGELESS; WAR OF THE TRIPODS by pinguinoconpulgares (CC BY 4.0)',
     tags: ['3d', 'tripods', 'science-fiction', 'review'],
   },
   capabilities: [

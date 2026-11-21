@@ -1,6 +1,6 @@
 # STAGELESS rename: complete plan and reference
 
-**Status:** Phase 0 done (2026-11-21): `src/brand.ts`, `electron/brand.cjs`, and the ratcheting guard test in `src/brand/__tests__/`. Phases 1-4 not started. Owner decisions are recorded in section 10, which overrides anything earlier in this file.
+**Status:** Phase 0 done (2026-11-21): `src/brand.ts`, `electron/brand.cjs`, and the ratcheting guard test in `src/brand/__tests__/`. Phase 1 done (2026-11-21, uncommitted): all visible text in `src/` and `native/`, recorder download names, preset/store authors, regenerated attributions (source: `assets/cinema2/*/asset.json`, then `npm run assets:build`). Left for Phase 2 by design: the four popup-window titles (`MobilePreviewLauncher`, `mobileAppPreview`, `LayoutLabModal`, `TrackTimelineModal`). Left for Phase 4: `supabase/functions/**` messages and the Android `strings.xml` (the Supabase redeploy was not done). Phases 2-4 not started. Owner decisions are recorded in section 10, which overrides anything earlier in this file.
 **Written:** 2026-11-21, from a long planning conversation. A fresh session should be able to execute everything from this file alone.
 **New name:** `STAGELESS` (all caps). Replaces `DRMVYZ`.
 

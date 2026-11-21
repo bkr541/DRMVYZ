@@ -634,7 +634,7 @@ export function createHazeCo2PerformanceProgram(): LaserDmxShowDirectorPerforman
         `Maximum authored virtual CO2-style burst: ${HAZE_CO2_PERFORMANCE_LIMITS.maximumCo2BurstDurationMs} ms.`,
         'Atmosphere recedes in the pre-drop and breakdown instead of becoming permanent gray output.',
         'Three section-controlled PAR uplights reveal haze and virtual CO₂ without projecting fake laser geometry.',
-        'All plume behavior is virtual DRMVYZ visualization and remains subordinate to final blackout authority.',
+        'All plume behavior is virtual STAGELESS visualization and remains subordinate to final blackout authority.',
         'Four-bar atmosphere motifs, eight-bar capped recruitment, and sixteen-bar evolution remain below the authored haze and burst limits.',
       ],
     },

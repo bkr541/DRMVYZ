@@ -457,7 +457,7 @@ function resolveAmbiguousType(
   const contextualType = context.primaryType === 'preDrop' ? 'build' : context.primaryType
   return {
     type: contextualType,
-    explanation: `Unrecognized Rekordbox phrase kind was interpreted from DRMVYZ contextual Audio Intelligence without changing its boundaries.`,
+    explanation: `Unrecognized Rekordbox phrase kind was interpreted from STAGELESS contextual Audio Intelligence without changing its boundaries.`,
   }
 }
 
@@ -578,7 +578,7 @@ export function buildRekordboxAuthoritativeSections(input: {
           .map(([type, value]) => ({ type: type as ReactSectionType, confidence: rounded(value ?? 0) }))
           .sort((a, b) => b.confidence - a.confidence)
           .slice(0, 3),
-        boundaryRefinementReason: 'Rekordbox PSSI owns this region boundary; DRMVYZ semantic analysis is enrichment-only.',
+        boundaryRefinementReason: 'Rekordbox PSSI owns this region boundary; STAGELESS semantic analysis is enrichment-only.',
         classificationDiagnostics: {
           scores: context.scores,
           evidence: [resolved.explanation, ...context.evidence, ...preDropEvidence].slice(0, 12),

@@ -40,7 +40,7 @@ const CINEMA2_PSYLO_AUTHORED_PRESET_MANIFEST:Readonly<Cinema2NativePresetManifes
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID, schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_PSYLO_PRESET_ID, revision: 2,
   metadata: {
-    name: 'PSYLO', author: 'DRMVYZ; attributed mushroom sources (CC BY 4.0)',
+    name: 'PSYLO', author: 'STAGELESS; attributed mushroom sources (CC BY 4.0)',
     description: 'A 3D mushroom forest with travel, grove orbit, canopy passage, eight rooted geometry programs and independent palette controls. Shared choreography and Visual Director significance shape eight bounded spatial programs and smooth musical Pattern transitions. Depth-aware fog, ground mist, luminous shafts and HDR bloom surround the grove; optional Auto Performance supplies temporary build/drop programs.',
     tags: ['3d', 'mushrooms', 'bioluminescent', 'forest', 'psychedelic'],
   },

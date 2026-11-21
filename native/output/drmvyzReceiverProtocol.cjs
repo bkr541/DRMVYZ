@@ -64,9 +64,9 @@ function normalizeQualityPolicy(value) {
 }
 
 function buildCapabilityDocument({ deviceId, name, displays, paired, qualityPolicy = DRMVYZ_RECEIVER_QUALITY_POLICY }) {
-  if (!isValidDeviceId(deviceId)) throw new Error('Invalid DRMVYZ receiver device id')
+  if (!isValidDeviceId(deviceId)) throw new Error('Invalid STAGELESS receiver device id')
   const normalizedDisplays = Array.isArray(displays) ? displays.map(normalizeDisplayCapability).filter(Boolean) : []
-  if (normalizedDisplays.length === 0) throw new Error('DRMVYZ receiver has no selectable displays')
+  if (normalizedDisplays.length === 0) throw new Error('STAGELESS receiver has no selectable displays')
   const policy = normalizeQualityPolicy(qualityPolicy)
   return {
     protocol: {
@@ -76,7 +76,7 @@ function buildCapabilityDocument({ deviceId, name, displays, paired, qualityPoli
     },
     device: {
       id: deviceId,
-      name: cleanString(name, 160) || 'DRMVYZ Receiver',
+      name: cleanString(name, 160) || 'STAGELESS Receiver',
     },
     pairing: {
       required: true,
@@ -100,7 +100,7 @@ function normalizeCapabilityDocument(value) {
   if (!value || typeof value !== 'object') throw new Error('The receiver returned an invalid capability document')
   const protocol = value.protocol
   if (!protocol || protocol.name !== DRMVYZ_RECEIVER_PROTOCOL_NAME || protocol.version !== DRMVYZ_RECEIVER_PROTOCOL_VERSION) {
-    throw new Error(`Receiver protocol is incompatible; DRMVYZ Receiver V${DRMVYZ_RECEIVER_PROTOCOL_VERSION} is required`)
+    throw new Error(`Receiver protocol is incompatible; STAGELESS Receiver V${DRMVYZ_RECEIVER_PROTOCOL_VERSION} is required`)
   }
   if (!isValidDeviceId(value.device?.id)) throw new Error('The receiver capability identity is invalid')
   const displays = Array.isArray(value.displays) ? value.displays.map(normalizeDisplayCapability).filter(Boolean) : []
@@ -113,7 +113,7 @@ function normalizeCapabilityDocument(value) {
     },
     device: {
       id: value.device.id,
-      name: cleanString(value.device.name, 160) || 'DRMVYZ Receiver',
+      name: cleanString(value.device.name, 160) || 'STAGELESS Receiver',
     },
     pairing: {
       required: value.pairing?.required !== false,
@@ -161,7 +161,7 @@ function normalizePairRequest(value) {
   return {
     protocolVersion: Number(value.protocolVersion),
     senderDeviceId: value.senderDeviceId,
-    senderName: senderName || 'DRMVYZ Sender',
+    senderName: senderName || 'STAGELESS Sender',
     receiverToken: cleanString(value.receiverToken, 256),
   }
 }

@@ -289,7 +289,7 @@ function safeStringify(value: unknown): string {
 function buildDiagnosticsReport(): string {
   const entries = getRecentLogEntries()
   const lines = [
-    `DRMVYZ diagnostics — ${new Date().toISOString()}`,
+    `STAGELESS diagnostics — ${new Date().toISOString()}`,
     `Platform: ${window.drmvyzNative?.runtime?.platform ?? 'unknown'} (electron: ${window.drmvyzNative?.runtime?.isElectron ? 'yes' : 'no'})`,
     `User agent: ${navigator.userAgent}`,
     '',
@@ -413,7 +413,7 @@ export function SystemSettingsView({
         <div className="vsm-settings-group-heading vsm-settings-group-heading--action">
           <div>
             <h2>Auto Quality</h2>
-            <p>Allow DRMVYZ to adjust quality inside the selected bounds.</p>
+            <p>Allow STAGELESS to adjust quality inside the selected bounds.</p>
           </div>
           <IconMorphToggle
             checked={autoQualityEnabled}

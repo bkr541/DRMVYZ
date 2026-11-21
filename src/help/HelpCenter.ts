@@ -2771,7 +2771,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
     "group": "CANVAS React Controls — Motion + Particles",
     "title": "Particle Color Mode",
     "componentType": "select",
-    "summary": "Chooses whether CANVAS particles use source colors, the DRMVYZ palette, or audio-reactive recoloring.",
+    "summary": "Chooses whether CANVAS particles use source colors, the STAGELESS palette, or audio-reactive recoloring.",
     "whatItDoes": [
       "Original samples colors from the active media.",
       "Palette uses the cyan and emerald visual palette, while Audio Reactive lets audio features influence particle color."
@@ -6339,7 +6339,7 @@ export const PRIORITY_ONE_HELP_ENTRIES = [
       "Uses media-type tabs to filter the browser.",
       "Opening a collection changes the visible browsing context."
     ],
-    "whenToUse": "Use it to locate media for editing, selection, or assignment elsewhere in DRMVYZ.",
+    "whenToUse": "Use it to locate media for editing, selection, or assignment elsewhere in STAGELESS.",
     "affects": [
       "visible Media Library results and collection context"
     ],

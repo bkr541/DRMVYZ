@@ -14,6 +14,7 @@ export const IGNORED_PATH_PATTERNS: ReadonlyArray<{ pattern: RegExp; reason: str
 
 /** Text removed from a line before scanning. */
 export const IGNORED_LINE_TEXT: ReadonlyArray<{ pattern: RegExp; reason: string }> = [
+  { pattern: /DRMVYZ starter texture: /g, reason: 'runtime three.js texture tag used to find starter textures; not shown to users' },
   { pattern: /DRMVYZ Anton/g, reason: 'internal CSS font-family name' },
   { pattern: /urn:x-cast:com\.dvydrm\.drmvyz\.live/g, reason: 'Google Cast namespace' },
   { pattern: /com\.drmvyz\.receiver/g, reason: 'Android applicationId/namespace' },

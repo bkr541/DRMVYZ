@@ -389,7 +389,7 @@ export function BrandKitSettingsPanel() {
         <SyncStatus />
         <div className="bk-empty">
           <div className="bk-empty-mark" aria-hidden="true"><AppIcon kind="shape" size={14} /></div>
-          <h2>Make DRMVYZ feel like your booth</h2>
+          <h2>Make STAGELESS feel like your booth</h2>
           <p>Create a Brand Kit from your logos or artwork, then use it across Sound Drawing, Cinema, and LaserDMX.</p>
           <label className="bk-field-label" htmlFor="bk-first-name">Brand Kit name</label>
           <DreamVizTextInput id="bk-first-name" value={newKitName} onChange={event => setNewKitName(event.target.value)} placeholder={suggestedName} />
@@ -452,7 +452,7 @@ export function BrandKitSettingsPanel() {
                   value={kit.useForAppAccent}
                   onChange={useForAppAccent => void patchKit({ useForAppAccent })}
                   label="Use for application accents"
-                  description="Use the Brand Kit primary color for selected DRMVYZ interface accents."
+                  description="Use the Brand Kit primary color for selected STAGELESS interface accents."
                   disabled={syncing}
                 />
               </DualRailCollapsible>

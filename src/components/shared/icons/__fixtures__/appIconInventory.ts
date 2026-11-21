@@ -21,7 +21,7 @@ function inventory(screen: string, sources: readonly string[], entries: readonly
  */
 export const APP_ICON_INVENTORY: readonly AppIconEntry[] = [
   ...inventory('Navigation', ['src/components/vyzualz/VyzualzSidebar.tsx'], [
-    ['DRMVYZ', 'brand'], ['React', 'navReact'], ['Preset Manager', 'navPreset'], ['Show Manager', 'navShow'],
+    ['STAGELESS', 'brand'], ['React', 'navReact'], ['Preset Manager', 'navPreset'], ['Show Manager', 'navShow'],
     ['Lyric Manager', 'navLyrics'], ['Media Manager', 'navMedia'],
     ['Expand sidebar', 'right'], ['Collapse sidebar', 'left'],
   ]),
@@ -177,7 +177,7 @@ export const APP_ICON_INVENTORY: readonly AppIconEntry[] = [
   ...inventory('Output', ['src/components/vyzualz/react/output/OutputCastControl.tsx', 'src/components/vyzualz/react/ReactGlobalOutputControls.tsx'], [
     ['Cast visual output', 'cast'], ['Close cast panel', 'close'], ['Window', 'window'], ['Borderless', 'borderless'], ['Full Screen', 'expand'],
     ['16:9', 'ratio16x9'], ['16:10', 'ratio16x10'], ['4:3', 'ratio4x3'], ['3:2', 'ratio3x2'], ['1:1', 'ratio1x1'], ['9:16', 'ratio9x16'], ['Current Devices', 'waveform'], ['Available Devices', 'people'], ['Refresh output devices', 'sync'],
-    ['Local displays', 'monitor'], ['DRMVYZ receivers', 'cast'], ['Open macOS Displays', 'apple'], ['Open Windows Displays', 'windows'], ['Choose Google Cast Device', 'google'],
+    ['Local displays', 'monitor'], ['STAGELESS receivers', 'cast'], ['Open macOS Displays', 'apple'], ['Open Windows Displays', 'windows'], ['Choose Google Cast Device', 'google'],
     ['OUTPUT SAFE', 'power'], ['OUTPUT ARMED', 'power'], ['OUTPUT DARK', 'blackout'], ['OUTPUT PREVIEW', 'power'], ['OUTPUT OFFLINE', 'off'], ['Reveal output', 'eye'], ['Blackout output', 'blackout'],
   ]),
   ...inventory('Performance pads', ['src/components/vyzualz/react/ReactPerformancePads.tsx'], [

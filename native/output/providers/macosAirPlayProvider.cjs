@@ -66,7 +66,7 @@ class MacOsAirPlayProvider {
         providerId: this.id,
         actionId,
         state: 'opened',
-        message: result?.message ?? 'macOS display controls opened. Connect with Screen Mirroring or extend the display; DRMVYZ will list the resulting system display automatically.',
+        message: result?.message ?? 'macOS display controls opened. Connect with Screen Mirroring or extend the display; STAGELESS will list the resulting system display automatically.',
       }
     } catch (error) {
       this.lastError = error instanceof Error ? error.message : 'Could not open macOS display controls'

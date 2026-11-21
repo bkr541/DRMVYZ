@@ -132,16 +132,16 @@ const BASE_ITEMS: readonly StoreItemBase[] = [
 const STANDARD_LICENSE = 'Personal & commercial performance use'
 
 const ITEM_DETAILS: Readonly<Record<string, StoreItemDetails>> = {
-  'pack-midnight-signals': { author: 'DRMVYZ Studio', version: '1.2.0', category: 'Cinematic', tags: ['neon', 'atmospheric', 'night'], sizeMb: 184, license: STANDARD_LICENSE },
-  'pack-lumen-vault': { author: 'DRMVYZ Studio', version: '1.0.3', category: 'Cinematic', tags: ['glass', 'volumetric', 'architectural'], sizeMb: 266, license: STANDARD_LICENSE },
+  'pack-midnight-signals': { author: 'STAGELESS Studio', version: '1.2.0', category: 'Cinematic', tags: ['neon', 'atmospheric', 'night'], sizeMb: 184, license: STANDARD_LICENSE },
+  'pack-lumen-vault': { author: 'STAGELESS Studio', version: '1.0.3', category: 'Cinematic', tags: ['glass', 'volumetric', 'architectural'], sizeMb: 266, license: STANDARD_LICENSE },
   'pack-static-bloom': { author: 'Signal Garden', version: '1.1.0', category: 'Abstract', tags: ['noise', 'analog', 'texture'], sizeMb: 92, license: STANDARD_LICENSE },
   'pack-afterglow-district': { author: 'North Alley Co.', version: '2.0.1', category: 'Cinematic', tags: ['city', 'neon', 'laser'], sizeMb: 231, license: STANDARD_LICENSE },
-  'preset-prism-drift': { author: 'DRMVYZ Studio', version: '1.0.1', category: 'Cinematic', tags: ['refraction', 'fluid', 'organic'], sizeMb: 21, license: STANDARD_LICENSE },
+  'preset-prism-drift': { author: 'STAGELESS Studio', version: '1.0.1', category: 'Cinematic', tags: ['refraction', 'fluid', 'organic'], sizeMb: 21, license: STANDARD_LICENSE },
   'preset-ghost-frequency': { author: 'Signal Garden', version: '1.0.0', category: 'Pixel Art', tags: ['spectral', 'texture', 'haunting'], sizeMb: 14, license: STANDARD_LICENSE },
-  'preset-monochrome-pulse': { author: 'DRMVYZ Studio', version: '1.3.0', category: 'Cinematic', tags: ['minimal', 'monochrome', 'pulse'], sizeMb: 9, license: STANDARD_LICENSE },
+  'preset-monochrome-pulse': { author: 'STAGELESS Studio', version: '1.3.0', category: 'Cinematic', tags: ['minimal', 'monochrome', 'pulse'], sizeMb: 9, license: STANDARD_LICENSE },
   'preset-surface-noise': { author: 'Signal Garden', version: '1.0.2', category: 'Abstract', tags: ['grain', 'metallic', 'slow'], sizeMb: 6, license: STANDARD_LICENSE },
   'preset-neon-flats': { author: 'North Alley Co.', version: '1.0.0', category: 'Pixel Art', tags: ['flat', 'neon', 'kick'], sizeMb: 5, license: STANDARD_LICENSE },
-  'preset-echo-field': { author: 'DRMVYZ Studio', version: '1.1.0', category: 'Sound Drawing', tags: ['echo', 'concentric', 'melody'], sizeMb: 4, license: STANDARD_LICENSE },
+  'preset-echo-field': { author: 'STAGELESS Studio', version: '1.1.0', category: 'Sound Drawing', tags: ['echo', 'concentric', 'melody'], sizeMb: 4, license: STANDARD_LICENSE },
 }
 
 const PACK_MOTIFS: readonly StoreMotif[] = ['triangle', 'ring', 'crystal', 'cube', 'peaks', 'waves', 'frame', 'noise']

@@ -40,7 +40,7 @@ const CINEMA2_NEON_FOREST_AUTHORED_PRESET_MANIFEST:Readonly<Cinema2NativePresetM
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID, schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_NEON_FOREST_PRESET_ID, revision: 1,
   metadata: {
-    name: 'NEON FOREST', author: 'DRMVYZ; Neon Stage by AnixMoon (CC BY 4.0)',
+    name: 'NEON FOREST', author: 'STAGELESS; Neon Stage by AnixMoon (CC BY 4.0)',
     description: 'A complete 3D crystal grove inspired by Neon Stage: eight rooted geometry programs, an articulated neon portal, aisle travel, grove orbit, shared musical choreography, mandatory BPM Sync and opt-in Auto Performance, visible light shafts, drifting ground mist and HDR bloom.',
     tags: ['3d', 'crystals', 'neon', 'forest', 'choreography'],
   },

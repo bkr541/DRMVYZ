@@ -36,7 +36,7 @@ export const CINEMA2_ASSET_RECORDS = [
     "kind": "model",
     "compression": "none",
     "license": "CC-BY-4.0",
-    "attribution": "Crystal by Zambur (https://sketchfab.com/Zambur), https://sketchfab.com/3d-models/crystal-ba43c7bbcca143c8ad2f77f5841b39de, licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Modified by DRMVYZ: resized and positioned in the generated monolith scene; textures resized to 1024px and 512px. Surrounding monolith geometry/textures generated in-house.",
+    "attribution": "Crystal by Zambur (https://sketchfab.com/Zambur), https://sketchfab.com/3d-models/crystal-ba43c7bbcca143c8ad2f77f5841b39de, licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Modified by STAGELESS: resized and positioned in the generated monolith scene; textures resized to 1024px and 512px. Surrounding monolith geometry/textures generated in-house.",
     "files": {
       "high": {
         "url": "/cinema2/models/atmosphere-monoliths.glb",
@@ -414,7 +414,7 @@ export const CINEMA2_ASSET_RECORDS = [
     "kind": "model",
     "compression": "none",
     "license": "CC-BY-4.0",
-    "attribution": "Need some space? by Loïc Norgeot (https://sketchfab.com/norgeotloic). Source: https://sketchfab.com/3d-models/need-some-space-d6521362b37b48e3a82bce4911409303. Licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Modified by DRMVYZ: positions quantized to 16 bits and colors to 8 bits to fit the installer budget; the runtime recenters the galaxy on the black hole, scales it and draws its 50,000 stars as audio-reactive points for EVENT HORIZON.",
+    "attribution": "Need some space? by Loïc Norgeot (https://sketchfab.com/norgeotloic). Source: https://sketchfab.com/3d-models/need-some-space-d6521362b37b48e3a82bce4911409303. Licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Modified by STAGELESS: positions quantized to 16 bits and colors to 8 bits to fit the installer budget; the runtime recenters the galaxy on the black hole, scales it and draws its 50,000 stars as audio-reactive points for EVENT HORIZON.",
     "files": {
       "high": {
         "url": "/cinema2/models/event-horizon-space.glb",
@@ -490,7 +490,7 @@ export const CINEMA2_ASSET_RECORDS = [
     "kind": "model",
     "compression": "meshopt",
     "license": "CC-BY-4.0",
-    "attribution": "Derived from Neon Stage by AnixMoon (https://sketchfab.com/ani111), https://sketchfab.com/3d-models/neon-stage-6037d87967fc4acf8e8ba1de875dc743, licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Modified by DRMVYZ: baked affine transforms, omitted sky, cleared travel corridor, assigned coherent rooted surface attributes, adapted PBR materials and ground texture, added surrounding prism groves, terrain, portal segments and root filaments. Source hash and provenance in scripts/cinema2-assets/sources/neon-forest/source.json.",
+    "attribution": "Derived from Neon Stage by AnixMoon (https://sketchfab.com/ani111), https://sketchfab.com/3d-models/neon-stage-6037d87967fc4acf8e8ba1de875dc743, licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Modified by STAGELESS: baked affine transforms, omitted sky, cleared travel corridor, assigned coherent rooted surface attributes, adapted PBR materials and ground texture, added surrounding prism groves, terrain, portal segments and root filaments. Source hash and provenance in scripts/cinema2-assets/sources/neon-forest/source.json.",
     "files": {
       "high": {
         "url": "/cinema2/models/neon-forest-static.glb",
@@ -528,7 +528,7 @@ export const CINEMA2_ASSET_RECORDS = [
     "kind": "model",
     "compression": "none",
     "license": "CC-BY-4.0",
-    "attribution": "Derived from Pretty simple discoball by pan.stasian (https://sketchfab.com/3d-models/pretty-simple-discoball-6b1921865be14de982f9483040acaa2d) and Animated Dance Floor neon lights by WwWuengy (https://sketchfab.com/3d-models/animated-dance-floor-neon-lights-440e71d520d94dccbb397a8a7df9bb47), licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Modified by DRMVYZ: ball re-materialed, floor chassis flattened/rescaled, invalid source animation clips omitted, addressable floor inserts and overhead frame added.",
+    "attribution": "Derived from Pretty simple discoball by pan.stasian (https://sketchfab.com/3d-models/pretty-simple-discoball-6b1921865be14de982f9483040acaa2d) and Animated Dance Floor neon lights by WwWuengy (https://sketchfab.com/3d-models/animated-dance-floor-neon-lights-440e71d520d94dccbb397a8a7df9bb47), licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Modified by STAGELESS: ball re-materialed, floor chassis flattened/rescaled, invalid source animation clips omitted, addressable floor inserts and overhead frame added.",
     "files": {
       "high": {
         "url": "/cinema2/models/nightshift-static.glb",
@@ -547,7 +547,7 @@ export const CINEMA2_ASSET_RECORDS = [
     "kind": "model",
     "compression": "meshopt",
     "license": "generated-in-house",
-    "attribution": "OPEN DECKS CDJ model: DRMVYZ. Full-device illustration extended with built-in image_gen from the owner-supplied illustration and CDJ layout references. Procedural 3D club, lighting rig and articulated crowd: DRMVYZ.",
+    "attribution": "OPEN DECKS CDJ model: STAGELESS. Full-device illustration extended with built-in image_gen from the owner-supplied illustration and CDJ layout references. Procedural 3D club, lighting rig and articulated crowd: STAGELESS.",
     "files": {
       "high": {
         "url": "/cinema2/models/open-decks.glb",
@@ -566,7 +566,7 @@ export const CINEMA2_ASSET_RECORDS = [
     "kind": "model",
     "compression": "none",
     "license": "CC-BY-4.0",
-    "attribution": "Abstract sphere by deecube1 (https://sketchfab.com/deecube1), CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Source: https://sketchfab.com/3d-models/abstract-sphere-a525fc48c1d245e2883241e344773aa4. Supplied as metal_sphere.glb; converted from specular/glossiness to metal/rough PBR for DRMVYZ; original meshes and animation retained; textures reused on ORBITAL lettering.",
+    "attribution": "Abstract sphere by deecube1 (https://sketchfab.com/deecube1), CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Source: https://sketchfab.com/3d-models/abstract-sphere-a525fc48c1d245e2883241e344773aa4. Supplied as metal_sphere.glb; converted from specular/glossiness to metal/rough PBR for STAGELESS; original meshes and animation retained; textures reused on ORBITAL lettering.",
     "files": {
       "high": {
         "url": "/cinema2/models/orbital-metal-sphere.glb",
@@ -585,7 +585,7 @@ export const CINEMA2_ASSET_RECORDS = [
     "kind": "model",
     "compression": "meshopt",
     "license": "CC-BY-4.0",
-    "attribution": "Derived from Stylized mushrooms by QumoDone (https://sketchfab.com/3d-models/stylized-mushrooms-9d22e02ce2a548959b1c4c4c1d546842), Stylized Mushrooms - Low Poly by Camille Barral (https://sketchfab.com/3d-models/stylized-mushrooms-low-poly-33e4073b371a4fbd93e65bfb16473032), Mushrooms by leha_pu (https://sketchfab.com/3d-models/mushrooms-f9dbd4c34a4f4389bf3901527ecc89a0), Mushrooms by Gwappa (https://sketchfab.com/3d-models/mushrooms-c2dbb88a5e9c4e82a180e13b472015ed), and Mushroom Magic by Tycho Magnetic Anomaly (https://sketchfab.com/3d-models/mushroom-magic-a1afc8a3ebc74648965127cac2da5349). All licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Modified by DRMVYZ: geometry selected, normalized, grounded, simplified and batched; unlit materials adapted to PBR; textures resized and color maps converted to WebP; positions quantized to 16 bits; terrain, groundcover and mycelium added. Full source hashes and metadata in scripts/cinema2-assets/sources/psylo/sources.json.",
+    "attribution": "Derived from Stylized mushrooms by QumoDone (https://sketchfab.com/3d-models/stylized-mushrooms-9d22e02ce2a548959b1c4c4c1d546842), Stylized Mushrooms - Low Poly by Camille Barral (https://sketchfab.com/3d-models/stylized-mushrooms-low-poly-33e4073b371a4fbd93e65bfb16473032), Mushrooms by leha_pu (https://sketchfab.com/3d-models/mushrooms-f9dbd4c34a4f4389bf3901527ecc89a0), Mushrooms by Gwappa (https://sketchfab.com/3d-models/mushrooms-c2dbb88a5e9c4e82a180e13b472015ed), and Mushroom Magic by Tycho Magnetic Anomaly (https://sketchfab.com/3d-models/mushroom-magic-a1afc8a3ebc74648965127cac2da5349). All licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Modified by STAGELESS: geometry selected, normalized, grounded, simplified and batched; unlit materials adapted to PBR; textures resized and color maps converted to WebP; positions quantized to 16 bits; terrain, groundcover and mycelium added. Full source hashes and metadata in scripts/cinema2-assets/sources/psylo/sources.json.",
     "files": {
       "high": {
         "url": "/cinema2/models/psylo-static.glb",
@@ -824,7 +824,7 @@ export const CINEMA2_ASSET_RECORDS = [
     "kind": "model",
     "compression": "meshopt",
     "license": "CC-BY-4.0",
-    "attribution": "WAR OF THE TRIPODS by pinguinoconpulgares (https://sketchfab.com/pinguinoconpulgares), https://sketchfab.com/3d-models/war-of-the-tripods-9df8ea66182749bd90abc717a9153c53, licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Modified by DRMVYZ: split into aligned parts, mesh names made unique, geometry compressed losslessly, textures resized and color maps converted to WebP.",
+    "attribution": "WAR OF THE TRIPODS by pinguinoconpulgares (https://sketchfab.com/pinguinoconpulgares), https://sketchfab.com/3d-models/war-of-the-tripods-9df8ea66182749bd90abc717a9153c53, licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Modified by STAGELESS: split into aligned parts, mesh names made unique, geometry compressed losslessly, textures resized and color maps converted to WebP.",
     "files": {
       "high": {
         "url": "/cinema2/models/war-of-worlds-a.glb",
@@ -848,7 +848,7 @@ export const CINEMA2_ASSET_RECORDS = [
     "kind": "model",
     "compression": "meshopt",
     "license": "CC-BY-4.0",
-    "attribution": "WAR OF THE TRIPODS by pinguinoconpulgares (https://sketchfab.com/pinguinoconpulgares), https://sketchfab.com/3d-models/war-of-the-tripods-9df8ea66182749bd90abc717a9153c53, licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Modified by DRMVYZ: split into aligned parts, mesh names made unique, geometry compressed losslessly, textures resized and color maps converted to WebP.",
+    "attribution": "WAR OF THE TRIPODS by pinguinoconpulgares (https://sketchfab.com/pinguinoconpulgares), https://sketchfab.com/3d-models/war-of-the-tripods-9df8ea66182749bd90abc717a9153c53, licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Modified by STAGELESS: split into aligned parts, mesh names made unique, geometry compressed losslessly, textures resized and color maps converted to WebP.",
     "files": {
       "high": {
         "url": "/cinema2/models/war-of-worlds-b.glb",
@@ -898,7 +898,7 @@ export const CINEMA2_ASSET_RECORDS = [
     "kind": "model",
     "compression": "none",
     "license": "CC-BY-4.0",
-    "attribution": "Demon Mask by egorova.e (https://sketchfab.com/silentegor), https://sketchfab.com/3d-models/demon-mask-e8f1ddf1cd344a50bdb4a30beaff8333, licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Modified by DRMVYZ: textures resized to 1024px; portrait registration and solid red material/lighting at runtime. Character bust uses MakeHuman hm08 CC0 (Data Collection AB, Joel Palmius, Jonas Hauquier), extracted by generate-switch-it-human.mjs.",
+    "attribution": "Demon Mask by egorova.e (https://sketchfab.com/silentegor), https://sketchfab.com/3d-models/demon-mask-e8f1ddf1cd344a50bdb4a30beaff8333, licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Modified by STAGELESS: textures resized to 1024px; portrait registration and solid red material/lighting at runtime. Character bust uses MakeHuman hm08 CC0 (Data Collection AB, Joel Palmius, Jonas Hauquier), extracted by generate-switch-it-human.mjs.",
     "files": {
       "high": {
         "url": "/cinema2/models/switch-it-demon-mask.glb",

@@ -21,7 +21,7 @@ const targets: OutputTarget[] = [
   {
     id: 'receiver:lan-stage-01:display:stage-led',
     kind: 'network',
-    name: 'Booth Mac · DRMVYZ — Stage LED',
+    name: 'Booth Mac · STAGELESS — Stage LED',
     detail: '2560 × 1440 · Pair on first use',
     available: true,
     receiverId: 'lan-stage-01',
@@ -33,7 +33,7 @@ const targets: OutputTarget[] = [
   {
     id: 'receiver:lan-stage-01:display:preview',
     kind: 'network',
-    name: 'Booth Mac · DRMVYZ — Preview',
+    name: 'Booth Mac · STAGELESS — Preview',
     detail: '1920 × 1080 · Primary · Paired',
     available: true,
     receiverId: 'lan-stage-01',
@@ -94,7 +94,7 @@ beforeEach(async () => {
         { providerId: 'local-display', label: 'Connected displays', state: 'available', targetCount: 1, message: null, capabilities: { targetEnumeration: true, sessions: true, picker: false, actions: [] } },
         { providerId: 'airplay', label: 'AirPlay / Wireless Displays', state: 'available', targetCount: 0, message: null, capabilities: { targetEnumeration: false, sessions: false, picker: true, actions: ['open-system-picker'] } },
         { providerId: 'miracast', label: 'Windows Wireless Displays', state: 'unsupported', targetCount: 0, message: 'Windows only.', capabilities: { targetEnumeration: false, sessions: false, picker: true, actions: ['open-system-picker'] } },
-        { providerId: 'drmvyz-receiver', label: 'DRMVYZ Receivers', state: 'available', targetCount: 2, message: null, capabilities: { targetEnumeration: true, sessions: true, picker: false, actions: [] } },
+        { providerId: 'drmvyz-receiver', label: 'STAGELESS Receivers', state: 'available', targetCount: 2, message: null, capabilities: { targetEnumeration: true, sessions: true, picker: false, actions: [] } },
         { providerId: 'google-cast', label: 'Google Cast', state: 'configuration-required', targetCount: 0, message: 'Google Cast deployment configuration is missing.', capabilities: { targetEnumeration: false, sessions: true, picker: true, actions: ['open-picker'] } },
       ],
     })),
@@ -232,12 +232,12 @@ describe('OutputCastControl', () => {
   it('shows discovered network receivers in the same chooser', async () => {
     const trigger = container.querySelector<HTMLButtonElement>('[aria-label="Cast visual output"]')
     await act(async () => trigger?.click())
-    expect(document.body.textContent).toContain('Booth Mac · DRMVYZ — Stage LED')
-    expect(document.body.textContent).toContain('Booth Mac · DRMVYZ — Preview')
+    expect(document.body.textContent).toContain('Booth Mac · STAGELESS — Stage LED')
+    expect(document.body.textContent).toContain('Booth Mac · STAGELESS — Preview')
     expect(document.body.textContent).toContain('Pair & Cast')
     expect(document.body.textContent).toContain('Wireless Displays')
     expect(document.body.textContent).toContain('Local Displays')
-    expect(document.body.textContent).toContain('DRMVYZ Receivers')
+    expect(document.body.textContent).toContain('STAGELESS Receivers')
   })
 
 
@@ -364,7 +364,7 @@ describe('OutputCastControl', () => {
       providers: [
         { providerId: 'local-display', label: 'Connected displays', state: 'available', targetCount: 1, message: null, capabilities: { targetEnumeration: true, sessions: true, picker: false, actions: [] } },
         { providerId: 'google-cast', label: 'Google Cast', state: 'available', targetCount: 0, message: null, capabilities: { targetEnumeration: false, sessions: true, picker: true, actions: ['open-picker'] } },
-        { providerId: 'drmvyz-receiver', label: 'DRMVYZ Receivers', state: 'available', targetCount: 2, message: null, capabilities: { targetEnumeration: true, sessions: true, picker: false, actions: [] } },
+        { providerId: 'drmvyz-receiver', label: 'STAGELESS Receivers', state: 'available', targetCount: 2, message: null, capabilities: { targetEnumeration: true, sessions: true, picker: false, actions: [] } },
       ],
     }))
     await act(async () => {
@@ -580,7 +580,7 @@ describe('OutputCastControl', () => {
         { providerId: 'local-display', label: 'Connected displays', state: 'available', targetCount: 1, message: null, capabilities: { targetEnumeration: true, sessions: true, picker: false, actions: [] } },
         { providerId: 'airplay', label: 'AirPlay / Wireless Displays', state: 'unsupported', targetCount: 0, message: 'macOS only.', capabilities: { targetEnumeration: false, sessions: false, picker: true, actions: ['open-system-picker'] } },
         { providerId: 'miracast', label: 'Windows Wireless Displays', state: 'available', targetCount: 0, message: null, capabilities: { targetEnumeration: false, sessions: false, picker: true, actions: ['open-system-picker'] } },
-        { providerId: 'drmvyz-receiver', label: 'DRMVYZ Receivers', state: 'available', targetCount: 2, message: null, capabilities: { targetEnumeration: true, sessions: true, picker: false, actions: [] } },
+        { providerId: 'drmvyz-receiver', label: 'STAGELESS Receivers', state: 'available', targetCount: 2, message: null, capabilities: { targetEnumeration: true, sessions: true, picker: false, actions: [] } },
       ],
     }))
 

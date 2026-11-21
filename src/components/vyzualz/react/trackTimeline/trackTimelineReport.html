@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>DRMVYZ Track Timeline Export</title>
+<title>STAGELESS Track Timeline Export</title>
 <style>
 :root{color-scheme:dark;--bg:#101619;--panel:#171f23;--ink:#e8f2f4;--muted:#abc0c7;--line:#33434b;--aqua:#64d7e4;--gold:#f1bc75}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 system-ui,sans-serif}
@@ -42,7 +42,7 @@ main{--time-gutter:116px;--time-tail:15px}
 <body>
 <main>
 <header>
-  <div class="hero"><div><div class="eyebrow">DRMVYZ track timeline export</div><h1 id="title"></h1></div><a class="download" id="download" download="track-timeline.json">Download exact JSON</a></div>
+  <div class="hero"><div><div class="eyebrow">STAGELESS track timeline export</div><h1 id="title"></h1></div><a class="download" id="download" download="track-timeline.json">Download exact JSON</a></div>
   <p class="status" id="subtitle"></p>
   <dl class="stats" id="stats"></dl>
 </header>
@@ -138,7 +138,7 @@ const pretty = name => String(name ?? '—').replace(/([a-z0-9])([A-Z])/g, '$1 $
 const count = value => value.toLocaleString('en-US');
 const write = (id, text) => { $(id).textContent = text; };
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
-const all = [...timeline.timelineEvents.map(event => ({ ...event, source: 'DRMVYZ timeline' }))];
+const all = [...timeline.timelineEvents.map(event => ({ ...event, source: 'STAGELESS timeline' }))];
 const add = (time, label, type, source, durationSec = null, confidence = null, value = null) => {
   if (Number.isFinite(time)) all.push({ time, label, type, source, duration: durationSec, confidence, value });
 };
@@ -154,7 +154,7 @@ all.sort((a, b) => a.time - b.time || a.source.localeCompare(b.source) || a.type
 const blob = URL.createObjectURL(new Blob([dataText], {type:'application/json'}));
 $('download').href = blob;
 write('title', track.title);
-document.title = track.title + ' | DRMVYZ Track Timeline';
+document.title = track.title + ' | STAGELESS Track Timeline';
 const captured = new Date(data.capturedAt).toLocaleString(undefined, {dateStyle:'medium',timeStyle:'short'});
 write('subtitle', [track.artist, track.filename, 'Captured ' + captured, 'Analysis ' + analysis.analysisVersion].filter(Boolean).join('  ·  '));
 const statPairs = [
@@ -184,7 +184,7 @@ write('diagnostics', JSON.stringify({musicalGrid, analysisSources:analysis.analy
 const frame = data.playbackSnapshot;
 const frameFields = ['timeSec','frameId','capabilities','rhythm','bands','energy','section','harmonic','stems','lyrics','semantics'];
 write('snapshot', frame ? JSON.stringify(Object.fromEntries(frameFields.map(key => [key,frame[key]])), null, 2) : 'No matching live frame in the capture.');
-write('footer', 'Exported from the DRMVYZ Track Timeline Visualizer. The JSON contains the full waveform, analysis, and available import metadata.');
+write('footer', 'Exported from the STAGELESS Track Timeline Visualizer. The JSON contains the full waveform, analysis, and available import metadata.');
 
 const sectionColors = {intro:'#63d5a7',verse:'#57cbd9',build:'#dfbc63',predrop:'#f79f64',drop:'#ed6980',breakdown:'#ca84d4',bridge:'#79a6ff',outro:'#80dfc0',unknown:'#82929a'};
 const colors = { low:'#f0a061', mid:'#56d6e6', high:'#e58de0', semantic:'#ff8c9d', rekordbox:'#ffd479', boundary:'#ac9cf5' };
@@ -215,10 +215,10 @@ const trackMapCues = [
   ...trackMap.pixGridActionCues.map(cue => ({time:cue.timeSec, label:cue.label || cue.id, detail:['PixGrid action', pretty(cue.action?.type), cue.enabled ? 'Enabled' : 'Disabled']})),
 ];
 const lanes = [
-  {name:'DRMVYZ beats', kind:'beats', items:beatItems(timeline.beats, 'Effective grid'), color:'#68daca'},
-  {name:'DRMVYZ sections', kind:'ranges', items:sectionItems(analysis.sections)},
+  {name:'STAGELESS beats', kind:'beats', items:beatItems(timeline.beats, 'Effective grid'), color:'#68daca'},
+  {name:'STAGELESS sections', kind:'ranges', items:sectionItems(analysis.sections)},
   {name:'Playback sections', kind:'ranges', items:trackMap.manualSections.length || trackMap.suppressedSectionIds.length ? sectionItems(trackMap.resolvedSections) : []},
-  {name:'DRMVYZ phrases', kind:'points', color:'#7be1cb', items:analysis.phrases.map(phrase => ({
+  {name:'STAGELESS phrases', kind:'points', color:'#7be1cb', items:analysis.phrases.map(phrase => ({
     time:phrase.timeSec, label:(phrase.lengthBars ?? phrase.phraseLength) + ' bars',
     detail:[pretty(phrase.source), Number.isFinite(phrase.barIndex) ? 'Bar ' + (phrase.barIndex + 1) : '',
       confidence(phrase.confidence), phrase.reason ?? '', ...(phrase.supportingSignals ?? [])],

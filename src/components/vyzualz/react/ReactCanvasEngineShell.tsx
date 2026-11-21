@@ -4698,7 +4698,7 @@ function renderCanvasPresetControl(
         value={canvasPresetSettings.particleColorMode}
         onChange={value => setCanvasPresetSettings({ particleColorMode: value as CanvasPresetColorMode })}
         options={CANVAS_PARTICLE_COLOR_MODE_OPTIONS}
-        description="Original samples source color, Palette uses the DRMVYZ cyan/emerald palette, and Audio Reactive lets highs and bass recolor the particles."
+        description="Original samples source color, Palette uses the STAGELESS cyan/emerald palette, and Audio Reactive lets highs and bass recolor the particles."
       />
     )
   }

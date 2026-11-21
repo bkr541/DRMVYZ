@@ -162,7 +162,7 @@ class GoogleCastProvider {
     if (!this.servicePort) {
       return {
         state: 'unavailable',
-        message: 'Google Cast is waiting for the local DRMVYZ media/control service to start.',
+        message: 'Google Cast is waiting for the local STAGELESS media/control service to start.',
       }
     }
     if (this.lastError) return { state: 'initialization-failed', message: this.lastError }

@@ -71,7 +71,7 @@ function loadOrCreateReceiverDeviceId(app, { fsImpl = fs, cryptoImpl = crypto } 
     fsImpl.mkdirSync(userDataPath, { recursive: true })
     fsImpl.writeFileSync(identityPath, `${JSON.stringify({ version: 1, deviceId })}\n`, { encoding: 'utf8', mode: 0o600 })
   } catch (error) {
-    console.warn('[DRMVYZ Output] Could not persist receiver identity; discovery identity will change after restart:', error)
+    console.warn('[STAGELESS Output] Could not persist receiver identity; discovery identity will change after restart:', error)
   }
   return deviceId
 }
@@ -256,7 +256,7 @@ connect().catch(error => {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; media-src blob:">
-<title>DRMVYZ Output</title>
+<title>STAGELESS Output</title>
 <style>
 html,body{width:100%;height:100%;margin:0;overflow:hidden;background:#000;color:#7eeaf2;font:600 12px/1.4 system-ui,sans-serif}
 body{display:grid;place-items:center}
@@ -315,7 +315,7 @@ async function openWindowsWirelessDisplaySettings({ shell } = {}) {
   await shell.openExternal('ms-settings:display')
   return {
     opened: 'ms-settings:display',
-    message: 'Windows Display settings opened. Use Connect under Multiple displays to choose a wireless display; DRMVYZ will detect the display Windows adds.',
+    message: 'Windows Display settings opened. Use Connect under Multiple displays to choose a wireless display; STAGELESS will detect the display Windows adds.',
   }
 }
 
@@ -339,7 +339,7 @@ async function openMacOsDisplaySettings({ shell, fsImpl = fs } = {}) {
     if (!errorMessage) {
       return {
         opened: candidate.path,
-        message: `${candidate.label} opened. Use Screen Mirroring or display extension there; DRMVYZ will detect any display macOS connects.`,
+        message: `${candidate.label} opened. Use Screen Mirroring or display extension there; STAGELESS will detect any display macOS connects.`,
       }
     }
     lastError = errorMessage
@@ -373,8 +373,8 @@ async function approveReceiverPairing(dialog, senderName, senderDeviceId) {
     defaultId: 1,
     cancelId: 1,
     noLink: true,
-    title: 'Pair DRMVYZ Receiver',
-    message: `Allow ${senderName} to cast to this DRMVYZ receiver?`,
+    title: 'Pair STAGELESS Receiver',
+    message: `Allow ${senderName} to cast to this STAGELESS receiver?`,
     detail: `Sender identity: ${senderDeviceId}`,
   })
   return result?.response === 0
@@ -443,7 +443,7 @@ function installOutputCastBridge({
           server.removeListener('error', onError)
           const address = server.address()
           if (!address || typeof address === 'string') {
-            reject(new Error('Could not bind the DRMVYZ output service'))
+            reject(new Error('Could not bind the STAGELESS output service'))
             return
           }
           resolve(address.port)
@@ -463,7 +463,7 @@ function installOutputCastBridge({
       try {
         if (!window.isDestroyed() && !window.webContents.isDestroyed?.()) window.webContents.send(channel, payload)
       } catch (error) {
-        console.warn(`[DRMVYZ Output] Could not deliver ${channel} to a renderer:`, error)
+        console.warn(`[STAGELESS Output] Could not deliver ${channel} to a renderer:`, error)
       }
     }
   }
@@ -481,7 +481,7 @@ function installOutputCastBridge({
       fullscreenable: true,
       backgroundColor: '#000000',
       autoHideMenuBar: true,
-      title: 'DRMVYZ Output',
+      title: 'STAGELESS Output',
       webPreferences: {
         contextIsolation: true,
         nodeIntegration: false,
@@ -688,7 +688,7 @@ function installOutputCastBridge({
         const paired = receiverTrustStore.verifySenderToken(senderDeviceId, pairingToken)
         jsonResponse(response, 200, buildCapabilityDocument({
           deviceId: receiverDeviceId,
-          name: `${os.hostname()} · DRMVYZ`,
+          name: `${os.hostname()} · STAGELESS`,
           displays: buildReceiverDisplayCapabilities(screen),
           paired,
           qualityPolicy: DRMVYZ_RECEIVER_QUALITY_POLICY,
@@ -808,7 +808,7 @@ function installOutputCastBridge({
 
       if (request.method === 'POST' && (url.pathname === '/api/start-cast' || url.pathname === '/api/stop-cast')) {
         jsonResponse(response, 426, {
-          error: `DRMVYZ Receiver V${DRMVYZ_RECEIVER_PROTOCOL_VERSION} session protocol is required`,
+          error: `STAGELESS Receiver V${DRMVYZ_RECEIVER_PROTOCOL_VERSION} session protocol is required`,
           protocolVersion: DRMVYZ_RECEIVER_PROTOCOL_VERSION,
         })
         return
@@ -824,7 +824,7 @@ function installOutputCastBridge({
     const server = http.createServer((request, response) => void handleHttpRequest(request, response))
     try {
       const port = await listenServer(server, host)
-      if (!Number.isInteger(port) || port <= 0 || port > 65_535) throw new Error('Could not bind the DRMVYZ output service')
+      if (!Number.isInteger(port) || port <= 0 || port > 65_535) throw new Error('Could not bind the STAGELESS output service')
       return { server, port }
     } catch (error) {
       try { server.close() } catch { /* Server never reached the listening state. */ }
@@ -1027,7 +1027,7 @@ function installOutputCastBridge({
   })
 
   const providerStartPromise = targetManager.start().then(() => broadcastTargets()).catch(error => {
-    console.error('[DRMVYZ Output] Provider initialization failed:', error)
+    console.error('[STAGELESS Output] Provider initialization failed:', error)
   })
   const localRelayServerStartPromise = startHttpServer('127.0.0.1').then(({ server, port }) => {
     localRelayServer = server
@@ -1035,7 +1035,7 @@ function installOutputCastBridge({
     return broadcastTargets()
   }).catch(error => {
     void broadcastTargets()
-    console.error('[DRMVYZ Output] Local display relay failed to start:', error)
+    console.error('[STAGELESS Output] Local display relay failed to start:', error)
   })
   const networkServiceStartPromise = startHttpServer('0.0.0.0').then(({ server, port }) => {
     networkServiceServer = server
@@ -1047,7 +1047,7 @@ function installOutputCastBridge({
     receiverProvider.reportReceiverServiceError(error)
     googleCastProvider.reportServiceError?.(error)
     void broadcastTargets()
-    console.error('[DRMVYZ Output] Network casting service failed to start:', error)
+    console.error('[STAGELESS Output] Network casting service failed to start:', error)
   })
 
   sessionGcInterval = setInterval(() => {

@@ -8,5 +8,5 @@
     "high": "public/cinema2/models/atmosphere-monoliths.glb",
     "low": "public/cinema2/models/atmosphere-monoliths-512.glb"
   },
-  "attribution": "Crystal by Zambur (https://sketchfab.com/Zambur), https://sketchfab.com/3d-models/crystal-ba43c7bbcca143c8ad2f77f5841b39de, licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Modified by DRMVYZ: resized and positioned in the generated monolith scene; textures resized to 1024px and 512px. Surrounding monolith geometry/textures generated in-house."
+  "attribution": "Crystal by Zambur (https://sketchfab.com/Zambur), https://sketchfab.com/3d-models/crystal-ba43c7bbcca143c8ad2f77f5841b39de, licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Modified by STAGELESS: resized and positioned in the generated monolith scene; textures resized to 1024px and 512px. Surrounding monolith geometry/textures generated in-house."
 }

@@ -875,7 +875,7 @@ export function ReactEnginePanel({
                   value={osc.text}
                   onChange={(v) => set({ text: v })}
                   maxLength={128}
-                  placeholder="DRMVYZ"
+                  placeholder="STAGELESS"
                 />
               ) : (
                 <>

@@ -51,7 +51,7 @@ const CINEMA2_OPEN_DECKS_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetM
   metadata: {
     name: 'Open Decks',
     description: 'A 3D model of the Open Decks CDJ seated on a wooden DJ table, styled with the supplied gold-and-ink illustration: the raised screen housing with its glass set back, the hot-cue pads, rotary and knobs are real volumes, so they have depth when the camera orbits. A dark 3D crowd dances beyond the booth under gold club lights; Auto Performance dips the camera toward the room on drops.',
-    author: 'DRMVYZ',
+    author: 'STAGELESS',
     tags: ['3d', 'cdj', 'dj', 'club'],
   },
   capabilities: [

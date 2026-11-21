@@ -18,6 +18,7 @@ import './stores/mediaDeletionGuardBootstrap'
 import { usePerformancePadSync } from './features/performancePads/usePerformancePadSync'
 import { resolveMobileApp } from './components/vyzualz/mobile/mobileDevice'
 import { isMobileAppPreviewFrame } from './components/vyzualz/layout/mobileAppPreview'
+import { BRAND_NAME } from './brand'
 
 const VyzualzView = lazy(() =>
   import('./components/vyzualz/VyzualzView').then(module => ({ default: module.VyzualzView })),
@@ -165,7 +166,7 @@ export default function App() {
     return (
       <AudioEngineProvider>
         <VyzualzErrorBoundary section="MobileApp">
-          <Suspense fallback={<div className="auth-loading" role="status" aria-label="Loading DRMVYZ" />}>
+          <Suspense fallback={<div className="auth-loading" role="status" aria-label={`Loading ${BRAND_NAME}`} />}>
             <MobileApp />
           </Suspense>
         </VyzualzErrorBoundary>
@@ -179,7 +180,7 @@ export default function App() {
       <ActiveTrackLyricsBridge />
       <AnnouncementPopover />
       <VyzualzErrorBoundary section="VyzualzView">
-        <Suspense fallback={<div className="auth-loading" role="status" aria-label="Loading DRMVYZ" />}>
+        <Suspense fallback={<div className="auth-loading" role="status" aria-label={`Loading ${BRAND_NAME}`} />}>
           <VyzualzView activeView="vyzualz" onNavigate={() => {}} />
         </Suspense>
       </VyzualzErrorBoundary>

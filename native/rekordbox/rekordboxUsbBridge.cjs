@@ -240,7 +240,7 @@ async function scanRekordboxUsbRoot(rootPath, log) {
       tracks = mergePdbAndAnlzTracks(pdbResult.tracks, tracks)
       parserMode = anlzLibrary.tracks.length > 0 ? 'hybrid' : 'rekordbox-parser'
     } else if (!pdbResult.available) {
-      warnings.push('export.pdb was found, but the optional rekordbox-parser module is not installed. DRMVYZ parsed ANLZ cue and beat-grid files directly instead.')
+      warnings.push('export.pdb was found, but the optional rekordbox-parser module is not installed. STAGELESS parsed ANLZ cue and beat-grid files directly instead.')
     }
   }
 

@@ -11,7 +11,7 @@ const THEME_OPTIONS: ThemeOption[] = [
   {
     id: 'dark',
     label: 'Dark',
-    description: 'The current DRMVYZ cyan and emerald interface.',
+    description: 'The current STAGELESS cyan and emerald interface.',
   },
   {
     id: 'light',
@@ -66,7 +66,7 @@ export function AppearanceSettingsView({ theme, loading, syncing, error, current
         <div className="vsm-settings-group-heading">
           <div>
             <h2 id="vsm-theme-heading">Theme</h2>
-            <p>Choose the standard UI surface and control palette used throughout DRMVYZ.</p>
+            <p>Choose the standard UI surface and control palette used throughout STAGELESS.</p>
           </div>
         </div>
 

@@ -1,4 +1,5 @@
 import { CastPreviewWindow } from './CastPreviewWindow'
+import { BRAND_RECEIVERS } from '../../../../brand'
 import { isCanvasFrameReady } from '../../../../lib/canvasFrameReadiness'
 import { FrameCadence } from '../../../../lib/frameCadence'
 import { recordPerformanceEvent, setPerformanceCastActive } from '../../../../lib/performanceTelemetry'
@@ -500,7 +501,7 @@ function useGoogleCastBroadcaster(
       try {
         if (!canvasRef.current) throw new Error('The live visualizer has not published an output canvas yet')
         if (!bridge.beginGoogleCastStream || !bridge.publishGoogleCastChunk || !bridge.endGoogleCastStream) {
-          throw new Error('This DRMVYZ build does not expose the Google Cast live media bridge')
+          throw new Error('This STAGELESS build does not expose the Google Cast live media bridge')
         }
         const mimeType = chooseGoogleCastMimeType()
         if (!mimeType) throw new Error('This Chromium runtime cannot encode a Google Cast compatible WebM stream')
@@ -926,7 +927,7 @@ function OutputCastPopover({
             </div>
 
             {!bridge && (
-              <DrawerNotice tone="info" role="status" title="Desktop app required">Casting is available in the DRMVYZ desktop app. Browser builds keep the visualizer local.</DrawerNotice>
+              <DrawerNotice tone="info" role="status" title="Desktop app required">Casting is available in the STAGELESS desktop app. Browser builds keep the visualizer local.</DrawerNotice>
             )}
             {bridge && !canvasReady && (
               <DrawerNotice tone="info" role="status" title="Output canvas preparing">The active engine is still preparing its live output canvas.</DrawerNotice>
@@ -999,10 +1000,10 @@ function OutputCastPopover({
               {renderTargets(groups.displays, 'No local displays are currently available.')}
             </section>
 
-            <section className="rv-cast-device-category" aria-label="DRMVYZ receivers">
-              <span className="rv-cast-device-category-hdr">DRMVYZ Receivers</span>
-              {renderTargets(groups.network, 'No DRMVYZ receivers were found on this network.')}
-              <p className="rv-cast-device-note">Open DRMVYZ on another computer to make it discoverable. Each Receiver V2 display is selectable independently; first use asks the receiving computer to approve pairing.</p>
+            <section className="rv-cast-device-category" aria-label="STAGELESS receivers">
+              <span className="rv-cast-device-category-hdr">{BRAND_RECEIVERS}</span>
+              {renderTargets(groups.network, 'No STAGELESS receivers were found on this network.')}
+              <p className="rv-cast-device-note">Open STAGELESS on another computer to make it discoverable. Each Receiver V2 display is selectable independently; first use asks the receiving computer to approve pairing.</p>
             </section>
           </div>
         </div>

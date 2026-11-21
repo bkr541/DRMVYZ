@@ -1170,7 +1170,7 @@ export const DEFAULT_OSCILLATOR_SETTINGS: OscillatorSettings = {
   svgRenderMode:       'auto',
   svgUseReactPalette:  true,
   autoRotate:          false,
-  text:                'DRMVYZ',
+  text:                'STAGELESS',
   textSource:          'static',
   lyricGapBehavior:    'hide',
   lyricFallbackText:   '',
@@ -4727,8 +4727,8 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
   },
   {
     id: 'preset-drmvyz-text-trace',
-    name: 'DRMVYZ Text Trace',
-    description: 'The DRMVYZ logotype traced as a glyph path — dual trace with high glow.',
+    name: 'STAGELESS Text Trace',
+    description: 'The STAGELESS logotype traced as a glyph path — dual trace with high glow.',
     engine: 'oscilloscope',
     palette: PALETTE_PRISM_TRACE,
     params: { intensity: 0.75, motion: 0.42, glow: 0.88, bassReactivity: 0.75 },
@@ -4736,7 +4736,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     sectionMappings: makeMappings('dtt'),
     oscillatorSettings: {
       sourceType:        'text',
-      text:              'DRMVYZ',
+      text:              'STAGELESS',
       renderMode:        'multiTrace',
       autoSectionMode:   true,
       autoRotate:        false,
@@ -4838,7 +4838,7 @@ export const DEFAULT_PERFORMANCE_PADS: ReactPerformancePad[] = [
   { id: 'pad-19', presetId: 'preset-bass-triangle-reactor',  label: 'Triangle', color: DVYDRM_CRIMSON, keyBinding: 'g', transitionTimeMs: 250 },
   // Row 4 — Peak / enhanced visuals
   { id: 'pad-13', presetId: null,                            label: 'Empty',    color: '#3a4650',      keyBinding: 'z', transitionTimeMs: 200 },
-  { id: 'pad-14', presetId: 'preset-drmvyz-text-trace',      label: 'DRMVYZ',   color: '#b84fc9',      keyBinding: 'x', transitionTimeMs: 400 },
+  { id: 'pad-14', presetId: 'preset-drmvyz-text-trace',      label: 'STAGELESS',   color: '#b84fc9',      keyBinding: 'x', transitionTimeMs: 400 },
   { id: 'pad-15', presetId: 'preset-star-drop-burst',        label: 'StarBurst',color: DVYDRM_GOLD,    keyBinding: 'c', transitionTimeMs: 250 },
   { id: 'pad-16', presetId: 'preset-glyph-circle-pulse',     label: 'Circle',   color: DVYDRM_CYAN,    keyBinding: 'v', transitionTimeMs: 400 },
   { id: 'pad-20', presetId: LASER_DMX_BEAM_MATRIX_REACT_PRESET_ID,      label: 'Laser Fan',color: '#00ffdc',      keyBinding: 'b', transitionTimeMs: 300 },

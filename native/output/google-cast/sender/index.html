@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>DRMVYZ Google Cast Sender</title>
+  <title>STAGELESS Google Cast Sender</title>
   <style>
     :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
     body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #111; color: #f5f5f5; }
@@ -19,7 +19,7 @@
 <body>
   <main>
     <h1>Choose a Google Cast device</h1>
-    <p>Use the Cast button below. Keep this secure browser page open while DRMVYZ is casting; the browser owns the supported Google Cast sender session.</p>
+    <p>Use the Cast button below. Keep this secure browser page open while STAGELESS is casting; the browser owns the supported Google Cast sender session.</p>
     <div class="actions">
       <google-cast-launcher aria-label="Choose Google Cast device"></google-cast-launcher>
       <button id="cancel" type="button">Cancel</button>
@@ -76,7 +76,7 @@
           })
           return response.ok
         } catch (error) {
-          setStatus(`DRMVYZ connection failed: ${error instanceof Error ? error.message : 'local callback unavailable'}`)
+          setStatus(`STAGELESS connection failed: ${error instanceof Error ? error.message : 'local callback unavailable'}`)
           return false
         }
       }
@@ -93,11 +93,11 @@
           const url = new URL(`${callbackUrl.toString().replace(/\/$/, '')}/commands`)
           url.searchParams.set('token', callbackToken)
           const response = await fetch(url, { method: 'GET', mode: 'cors', cache: 'no-store' })
-          if (!response.ok) throw new Error(`DRMVYZ returned HTTP ${response.status}`)
+          if (!response.ok) throw new Error(`STAGELESS returned HTTP ${response.status}`)
           const payload = await response.json()
           if (payload?.command) await handleCommand(payload.command)
         } catch (error) {
-          setStatus(`Waiting for DRMVYZ: ${error instanceof Error ? error.message : 'local control unavailable'}`)
+          setStatus(`Waiting for STAGELESS: ${error instanceof Error ? error.message : 'local control unavailable'}`)
         } finally {
           if (currentSession) commandTimer = window.setTimeout(() => void pollCommands(), 300)
         }
@@ -106,7 +106,7 @@
       async function handleCommand(command) {
         if (!currentSession || command?.protocolVersion !== PROTOCOL_VERSION) return
         if (command.type === 'start') {
-          setStatus('Starting live DRMVYZ output…')
+          setStatus('Starting live STAGELESS output…')
           await currentSession.sendMessage(NAMESPACE, command)
           return
         }
@@ -121,7 +121,7 @@
         try { value = typeof message === 'string' ? JSON.parse(message) : message } catch { return }
         if (!value || value.protocolVersion !== PROTOCOL_VERSION) return
         if (value.type === 'playing') {
-          setStatus('Connected — DRMVYZ live output is playing.')
+          setStatus('Connected — STAGELESS live output is playing.')
           void postEvent('connected')
         } else if (value.type === 'error') {
           setStatus(value.message || 'The Google Cast receiver reported an error.')
@@ -144,7 +144,7 @@
             receiverId: device?.deviceId || null,
           })
         }
-        setStatus(`Selected ${device?.friendlyName || 'Google Cast device'} — waiting for DRMVYZ live media…`)
+        setStatus(`Selected ${device?.friendlyName || 'Google Cast device'} — waiting for STAGELESS live media…`)
         void pollCommands()
       }
 
@@ -161,7 +161,7 @@
 
       callbackUrl = parseCallbackUrl(callbackUrlValue)
       if (!callbackUrl || !/^[0-9A-F]{8}$/.test(appId) || !transactionId || !callbackToken) {
-        setStatus('This Google Cast sender link is invalid or incomplete. Return to DRMVYZ and try again.')
+        setStatus('This Google Cast sender link is invalid or incomplete. Return to STAGELESS and try again.')
         cancelButton.disabled = true
         return
       }

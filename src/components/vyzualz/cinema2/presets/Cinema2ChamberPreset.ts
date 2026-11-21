@@ -103,7 +103,7 @@ const authored: Readonly<Cinema2NativePresetManifest> = {
   metadata: {
     name: 'CHAMBER',
     description: 'Rowan Design’s Darkspore Editor Chamber: a glossy interior with a glowing platform ring, floor ticks, corner beacons and an overhead device, with eight light programs and a camera that can drift or be placed by hand.',
-    author: 'DRMVYZ. Original model by Rowan Design (CC BY 4.0).',
+    author: 'STAGELESS. Original model by Rowan Design (CC BY 4.0).',
     tags: ['reference', 'animated', '3d', 'scene-preview'],
   },
   capabilities: [

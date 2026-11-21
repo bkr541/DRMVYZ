@@ -142,7 +142,7 @@ export function registerDrmvyzWebGLContext(
   } else {
     duplicateOwnershipCount += 1
     console.warn(
-      `[WebGLContextLifecycle] duplicate DRMVYZ ownership for context ${record.id}: ` +
+      `[WebGLContextLifecycle] duplicate STAGELESS ownership for context ${record.id}: ` +
       `${record.ownership.role}/${record.ownership.engine} and ${ownership.role}/${ownership.engine}`,
     )
   }
@@ -283,7 +283,7 @@ function warnIfOwnedBoundExceeded(ownership: WebGLContextOwnership): void {
     }
     if (activeThumbnailContexts > MAX_ACTIVE_DRMVYZ_THUMBNAIL_WEBGL_CONTEXTS) {
       console.warn(
-        '[WebGLContextLifecycle] DRMVYZ thumbnail context bound exceeded: ' +
+        '[WebGLContextLifecycle] STAGELESS thumbnail context bound exceeded: ' +
         `${activeThumbnailContexts} active, expected at most ${MAX_ACTIVE_DRMVYZ_THUMBNAIL_WEBGL_CONTEXTS}`,
       )
     }
@@ -299,7 +299,7 @@ function warnIfOwnedBoundExceeded(ownership: WebGLContextOwnership): void {
   }
   if (active > max) {
     console.warn(
-      `[WebGLContextLifecycle] DRMVYZ context bound exceeded for ${ownership.role}: ` +
+      `[WebGLContextLifecycle] STAGELESS context bound exceeded for ${ownership.role}: ` +
       `${active} active, expected at most ${max}`,
     )
   }

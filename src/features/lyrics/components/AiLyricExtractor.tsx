@@ -1021,7 +1021,7 @@ export function AiLyricExtractor({
           {job.errorMessage && (
             <div className="lmv-job-error" role="alert">
               {preparationRecoverable
-                ? 'This track needs a fresh transcription-ready audio copy. Retry Extraction and DRMVYZ will prepare it locally before restarting the server job.'
+                ? 'This track needs a fresh transcription-ready audio copy. Retry Extraction and STAGELESS will prepare it locally before restarting the server job.'
                 : job.errorMessage}
             </div>
           )}

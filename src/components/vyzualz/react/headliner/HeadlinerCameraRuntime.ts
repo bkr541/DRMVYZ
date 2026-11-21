@@ -92,12 +92,12 @@ export function headlinerCameraErrorMessage(
   switch (code) {
     case 'permission-denied':
       if (context.osAccess === 'restricted') {
-        return 'Camera access is restricted on this computer (for example by parental controls or a managed-device policy), so DRMVYZ cannot open it.'
+        return 'Camera access is restricted on this computer (for example by parental controls or a managed-device policy), so STAGELESS cannot open it.'
       }
       if (context.osAccess === 'denied') {
-        return 'Your system is blocking camera access for DRMVYZ. Turn DRMVYZ on in your system camera privacy settings, then quit and reopen DRMVYZ.'
+        return 'Your system is blocking camera access for STAGELESS. Turn STAGELESS on in your system camera privacy settings, then quit and reopen STAGELESS.'
       }
-      return 'Camera access was blocked. Allow DRMVYZ to use the camera in your system camera privacy settings, then try again.'
+      return 'Camera access was blocked. Allow STAGELESS to use the camera in your system camera privacy settings, then try again.'
     case 'no-camera':
       return context.specificDevice
         ? 'The selected camera is not connected. Reconnect it or choose another camera.'
@@ -107,7 +107,7 @@ export function headlinerCameraErrorMessage(
     case 'no-video':
       return 'A camera was detected but it never sent video. Another app may be holding it, or it may need a moment to wake up. Try again.'
     default:
-      return `DRMVYZ could not start the camera${errorName ? ` (${errorName})` : ''}.`
+      return `STAGELESS could not start the camera${errorName ? ` (${errorName})` : ''}.`
   }
 }
 
@@ -516,7 +516,7 @@ export class HeadlinerCameraRuntime {
     this.setSnapshot({
       status: 'disconnected',
       errorCode: resolved.errorCode,
-      message: 'The camera connection was lost. DRMVYZ is waiting to reconnect.',
+      message: 'The camera connection was lost. STAGELESS is waiting to reconnect.',
     })
     this.scheduleRecovery()
   }

@@ -133,7 +133,7 @@ describe('Sound Drawing XY settings normalization', () => {
   it('keeps text to one line of bounded length and an unknown preset falls back', () => {
     expect(normalizeXyScopeText('A\nB\tC')).toBe('A B C')
     expect(normalizeXyScopeText('X'.repeat(80))).toHaveLength(XY_SCOPE_TEXT_MAX_LENGTH)
-    expect(normalizeXyScopeText(42)).toBe('DRMVYZ')
+    expect(normalizeXyScopeText(42)).toBe('STAGELESS')
     expect(normalizeXyScopeSettings({ presetId: 'missing' }).presetId).toBe('conversation')
     expect(normalizeXyScopeSettings({ presetId: null }).presetId).toBeNull()
     expect(normalizeXyScopeSettings({ text: '' }).text).toBe('')

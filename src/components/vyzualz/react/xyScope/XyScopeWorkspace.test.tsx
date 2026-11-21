@@ -83,7 +83,7 @@ describe('Sound Drawing XY engine selection', () => {
     const state = useReactStore.getState()
     expect(state.activeReactEngineId).toBe('xyScope')
     expect(state.activeReactPresetId).toBeNull()
-    expect(state.xyScopeSettings.text).toBe('DRMVYZ')
+    expect(state.xyScopeSettings.text).toBe('STAGELESS')
     expect(state.xyScopeSettings.presetId).toBe('conversation')
   })
 })

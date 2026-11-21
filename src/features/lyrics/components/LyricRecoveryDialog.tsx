@@ -31,7 +31,7 @@ export function LyricRecoveryDialog({
   const conflict = recoveryConflictsWithServer(recovery, document)
   const differences = describeLyricRecoveryDifferences(recovery, document, canonicalCues)
   const title = conflict ? 'Recovered lyric draft conflicts with the server' : 'Recovered lyric draft available'
-  const message = `DRMVYZ found local lyric edits from ${new Date(recovery.lastEditAt).toLocaleString()}${conflict
+  const message = `STAGELESS found local lyric edits from ${new Date(recovery.lastEditAt).toLocaleString()}${conflict
     ? `. The server advanced from revision ${recovery.baseServerRevision ?? 'none'} to ${document?.revision ?? 'none'}, so neither version will be overwritten automatically.`
     : '. Restore them as unsaved local changes, review the differences, or discard only this recovery copy.'}`
 

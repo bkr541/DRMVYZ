@@ -79,7 +79,7 @@ describe('Sound Drawing XY store and persistence contract', () => {
   it('gives projects saved before this engine existed safe defaults, and repairs corrupt saved values', () => {
     expect(migrateReactStore({ activeReactEngineId: 'oscilloscope' }, 80).xyScopeSettings).toEqual(DEFAULT_XY_SCOPE_SETTINGS)
     const corrupt = migrateReactStore({ xyScopeSettings: { text: 7, parameters: { glow: 'bright' } } }, 80).xyScopeSettings as typeof DEFAULT_XY_SCOPE_SETTINGS
-    expect(corrupt.text).toBe('DRMVYZ')
+    expect(corrupt.text).toBe('STAGELESS')
     expect(corrupt.parameters.glow).toBe(1)
   })
 

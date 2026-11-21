@@ -46,7 +46,7 @@ function truncateUtf8(value, maxBytes) {
 
 function normalizeReceiverName(value) {
   const name = typeof value === 'string' ? truncateUtf8(value.trim(), 120) : ''
-  return name || 'DRMVYZ Receiver'
+  return name || 'STAGELESS Receiver'
 }
 
 function isValidDeviceId(value) {
@@ -80,12 +80,12 @@ function serializeDiscoveryAdvertisement(advertisement) {
     version: DISCOVERY_VERSION,
     ...advertisement,
   })
-  if (!normalized) throw new Error('Invalid DRMVYZ discovery advertisement')
+  if (!normalized) throw new Error('Invalid STAGELESS discovery advertisement')
   const payload = Buffer.from(JSON.stringify({
     ...normalized,
     transport: 'legacy-udp-compat',
   }), 'utf8')
-  if (payload.length > DISCOVERY_MAX_PAYLOAD_BYTES) throw new Error('DRMVYZ discovery advertisement is too large')
+  if (payload.length > DISCOVERY_MAX_PAYLOAD_BYTES) throw new Error('STAGELESS discovery advertisement is too large')
   return payload
 }
 
@@ -290,7 +290,7 @@ function createMdnsQueryPacket() {
 
 function createMdnsAnnouncementPacket({ deviceId, name, port, receiverToken, addresses = [], ttl = 12 }) {
   if (!isValidDeviceId(deviceId) || !Number.isInteger(port) || port <= 0 || port > 65_535 || !isValidReceiverToken(receiverToken)) {
-    throw new Error('Invalid DRMVYZ mDNS advertisement')
+    throw new Error('Invalid STAGELESS mDNS advertisement')
   }
   const names = mdnsNames(deviceId)
   const txt = encodeTxt([
@@ -310,7 +310,7 @@ function createMdnsAnnouncementPacket({ deviceId, name, port, receiverToken, add
     if (data) additionals.push(dnsRecord(names.hostname, DNS_TYPE_A, ttl, data))
   }
   const packet = createDnsPacket({ flags: DNS_RESPONSE_FLAGS, answers, additionals })
-  if (packet.length > MDNS_MAX_PACKET_BYTES) throw new Error('DRMVYZ mDNS advertisement is too large')
+  if (packet.length > MDNS_MAX_PACKET_BYTES) throw new Error('STAGELESS mDNS advertisement is too large')
   return packet
 }
 
@@ -381,10 +381,10 @@ class DrmvyzReceiverProvider {
     clearIntervalImpl = clearInterval,
     setTimeoutImpl = setTimeout,
     trustStore = null,
-    senderName = () => `${hostname()} · DRMVYZ`,
+    senderName = () => `${hostname()} · STAGELESS`,
   }) {
     this.id = DRMVYZ_RECEIVER_PROVIDER_ID
-    this.label = 'DRMVYZ Receivers'
+    this.label = 'STAGELESS Receivers'
     this.capabilities = Object.freeze({ targetEnumeration: true, sessions: true, picker: false, actions: [] })
     this.isPrivateNetworkAddress = isPrivateNetworkAddress
     this.resolveReachableLocalAddress = resolveReachableLocalAddress
@@ -436,7 +436,7 @@ class DrmvyzReceiverProvider {
 
   reportReceiverServiceError(error) {
     this.receiverService = null
-    this.receiverServiceError = classifyDiscoveryError(error, 'DRMVYZ receiver service')
+    this.receiverServiceError = classifyDiscoveryError(error, 'STAGELESS receiver service')
     this.updateDiscoveryStatus()
   }
 
@@ -499,7 +499,7 @@ class DrmvyzReceiverProvider {
         headers: this.capabilityHeaders(receiver, pairingToken),
         signal: AbortSignal.timeout(2_500),
       })
-      if (response.status === 426) throw new Error(`Receiver protocol is incompatible; DRMVYZ Receiver V${DRMVYZ_RECEIVER_PROTOCOL_VERSION} is required`)
+      if (response.status === 426) throw new Error(`Receiver protocol is incompatible; STAGELESS Receiver V${DRMVYZ_RECEIVER_PROTOCOL_VERSION} is required`)
       if (!response.ok) throw new Error(`Receiver capability handshake failed (${response.status})`)
       const value = normalizeCapabilityDocument(await response.json())
       if (value.device.id !== receiver.deviceId) throw new Error('Receiver capability identity does not match discovery identity')
@@ -557,7 +557,7 @@ class DrmvyzReceiverProvider {
         })
         if (response.status === 401 || response.status === 403) throw new Error('Receiver trust is no longer valid; pair the receiver again')
         if (response.status === 409) throw new Error('The selected receiver display is no longer available')
-        if (response.status === 426) throw new Error(`Receiver protocol is incompatible; DRMVYZ Receiver V${DRMVYZ_RECEIVER_PROTOCOL_VERSION} is required`)
+        if (response.status === 426) throw new Error(`Receiver protocol is incompatible; STAGELESS Receiver V${DRMVYZ_RECEIVER_PROTOCOL_VERSION} is required`)
         if (!response.ok) throw new Error(`The receiver refused the cast (${response.status})`)
         return response
       } catch (error) {
@@ -671,13 +671,13 @@ class DrmvyzReceiverProvider {
     if (!this.started || generation !== this.generation) return
     if (mdnsResult.status === 'rejected') {
       this.mdnsReady = false
-      this.mdnsError = classifyDiscoveryError(mdnsResult.reason, 'DRMVYZ local service discovery')
+      this.mdnsError = classifyDiscoveryError(mdnsResult.reason, 'STAGELESS local service discovery')
       try { this.mdnsSocket?.close() } catch { /* Failed startup socket may already be closed. */ }
       this.mdnsSocket = null
     }
     if (legacyResult.status === 'rejected') {
       this.legacyReady = false
-      this.legacyError = classifyDiscoveryError(legacyResult.reason, 'DRMVYZ UDP compatibility discovery')
+      this.legacyError = classifyDiscoveryError(legacyResult.reason, 'STAGELESS UDP compatibility discovery')
       try { this.legacySocket?.close() } catch { /* Failed startup socket may already be closed. */ }
       this.legacySocket = null
     }
@@ -693,7 +693,7 @@ class DrmvyzReceiverProvider {
     socket.on('error', error => {
       if (generation !== this.generation || !this.started) return
       this.mdnsReady = false
-      this.mdnsError = classifyDiscoveryError(error, 'DRMVYZ local service discovery')
+      this.mdnsError = classifyDiscoveryError(error, 'STAGELESS local service discovery')
       this.updateDiscoveryStatus()
     })
     const error = await startSocket(socket, MDNS_PORT, '0.0.0.0')
@@ -741,7 +741,7 @@ class DrmvyzReceiverProvider {
     socket.on('error', error => {
       if (generation !== this.generation || !this.started) return
       this.legacyReady = false
-      this.legacyError = classifyDiscoveryError(error, 'DRMVYZ UDP compatibility discovery')
+      this.legacyError = classifyDiscoveryError(error, 'STAGELESS UDP compatibility discovery')
       this.updateDiscoveryStatus()
     })
     const error = await startSocket(socket, DISCOVERY_PORT, '0.0.0.0')
@@ -892,7 +892,7 @@ class DrmvyzReceiverProvider {
       const addresses = this.getInterfaceInfo().map(info => info.address)
       const payload = createMdnsAnnouncementPacket({
         deviceId: this.deviceId,
-        name: `${this.hostname()} · DRMVYZ`,
+        name: `${this.hostname()} · STAGELESS`,
         port: this.receiverService.port,
         receiverToken: this.receiverService.receiverToken,
         addresses,
@@ -910,7 +910,7 @@ class DrmvyzReceiverProvider {
     try {
       payload = serializeDiscoveryAdvertisement({
         deviceId: this.deviceId,
-        name: `${this.hostname()} · DRMVYZ`,
+        name: `${this.hostname()} · STAGELESS`,
         port: this.receiverService.port,
         receiverToken: this.receiverService.receiverToken,
         goodbye,
@@ -930,7 +930,7 @@ class DrmvyzReceiverProvider {
     const parsedTarget = parseReceiverDisplayTargetId(target.id)
     const receiverId = target.receiverId ?? parsedTarget?.receiverDeviceId
     const displayId = target.receiverDisplayId ?? parsedTarget?.displayId
-    if (!receiverId || !displayId) throw new Error(`Select a DRMVYZ Receiver V${DRMVYZ_RECEIVER_PROTOCOL_VERSION} display before casting`)
+    if (!receiverId || !displayId) throw new Error(`Select a STAGELESS Receiver V${DRMVYZ_RECEIVER_PROTOCOL_VERSION} display before casting`)
     const receiver = this.targets.get(receiverId)
     if (!receiver) throw new Error('That network receiver is no longer available')
     if (!this.receiverService?.port) throw new Error('The output receiver is still starting')

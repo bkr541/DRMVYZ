@@ -66,7 +66,7 @@ class WindowsMiracastProvider {
         providerId: this.id,
         actionId,
         state: 'opened',
-        message: result?.message ?? 'Windows Display settings opened. Connect to a wireless display there; DRMVYZ will list the resulting Windows display automatically.',
+        message: result?.message ?? 'Windows Display settings opened. Connect to a wireless display there; STAGELESS will list the resulting Windows display automatically.',
       }
     } catch (error) {
       this.lastError = error instanceof Error ? error.message : 'Could not open Windows Display settings'

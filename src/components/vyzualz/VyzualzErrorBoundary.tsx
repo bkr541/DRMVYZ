@@ -53,7 +53,7 @@ export class VyzualzErrorBoundary extends Component<Props, State> {
         return (
           <div className="vz-error-boundary" role="alert">
             <span className="vz-error-boundary__label">
-              {this.props.section ?? 'VYZUALZ'} could not load
+              {this.props.section ?? 'STAGELESS'} could not load
             </span>
             <pre className="vz-error-boundary__message">
               Part of the app failed to download, so it can’t be shown yet. Reloading fetches it again.
@@ -71,7 +71,7 @@ export class VyzualzErrorBoundary extends Component<Props, State> {
       return (
         <div className="vz-error-boundary" role="alert">
           <span className="vz-error-boundary__label">
-            {this.props.section ?? 'VYZUALZ'} crashed
+            {this.props.section ?? 'STAGELESS'} crashed
           </span>
           <pre className="vz-error-boundary__message">
             {error.message}

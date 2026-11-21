@@ -830,9 +830,9 @@ export async function analyzeTrackBuffer(
     ...typedWarnings.map(warning => warning.message),
     ...(seed?.bpm != null ? [`BPM seeded from ${seed.source ?? 'external metadata'}.`] : []),
     ...(usesRekordboxSections
-      ? ['Track Section boundaries sourced from validated Rekordbox PSSI; DRMVYZ semantic analysis preserved those boundaries.']
+      ? ['Track Section boundaries sourced from validated Rekordbox PSSI; STAGELESS semantic analysis preserved those boundaries.']
       : rekordboxSeed && ((seed?.rekordboxPhrases?.length ?? 0) > 0 || seed?.rekordboxPssiIntegrity?.detected === true)
-        ? [`Rekordbox PSSI was not accepted for Track Section authority (${rekordboxSectionResult?.reason ?? 'validation failed'}); native DRMVYZ segmentation was used.`]
+        ? [`Rekordbox PSSI was not accepted for Track Section authority (${rekordboxSectionResult?.reason ?? 'validation failed'}); native STAGELESS segmentation was used.`]
         : []),
     ...(rekordboxSectionResult?.normalizationNotes ?? []),
     ...(!rekordboxSeed && seed?.sections?.length ? [`Sections seeded from ${seed.source ?? 'external metadata'}.`] : []),

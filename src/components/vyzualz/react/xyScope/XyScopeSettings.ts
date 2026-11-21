@@ -333,7 +333,7 @@ export function getXyScopePreset(id: string | null | undefined): XyScopePreset |
 
 export const XY_SCOPE_TEXT_MAX_LENGTH = 16
 export const XY_SCOPE_MAX_TEXT_INPUTS = 5
-export const XY_SCOPE_DEFAULT_TEXT = 'DRMVYZ'
+export const XY_SCOPE_DEFAULT_TEXT = 'STAGELESS'
 
 export interface XyScopeSettings {
   sourceMode: XyScopeSourceMode

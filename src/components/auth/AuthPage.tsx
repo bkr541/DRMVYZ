@@ -6,6 +6,7 @@ import { useId, useState } from 'react'
 import { supabase, supabaseConfigured } from '../../lib/supabase'
 import { setRememberSession } from '../../lib/authSessionStorage'
 import '../../styles/auth.css'
+import { BRAND_NAME } from '../../brand'
 
 // ── SVG emblem mark ───────────────────────────────────────────────────────────
 
@@ -104,7 +105,7 @@ function AuthLogo({ compact = false }: { compact?: boolean }) {
     <div className={`auth-logo ${compact ? 'auth-logo--compact' : ''}`}>
       <img
         src="/drmvyz_logo2.png"
-        alt="DRMVYZ"
+        alt={BRAND_NAME}
         className="auth-logo-img"
         style={{ width: compact ? 72 : 106, height: compact ? 72 : 106, objectFit: 'contain' }}
       />

@@ -21,7 +21,7 @@ const outputTarget=cinema2StableId<Cinema2RenderTargetId>('switch-it-bloom-targe
 const scenePass=SWITCH_IT_PHASE2_MANIFEST.render!.passes[0]
 const CINEMA2_SWITCH_IT_AUTHORED_PRESET_MANIFEST:Cinema2NativePresetManifest={
  ...SWITCH_IT_PHASE2_MANIFEST,id:CINEMA2_SWITCH_IT_PRESET_ID,
- metadata:{name:'Switch It',description:'A faceted portrait beneath a solid horned mask, with six native reveal programs and bounded musical performance.',author:'DRMVYZ; Demon Mask by egorova.e (CC BY 4.0)',tags:['3d','portrait','switch-it','keeper']},
+ metadata:{name:'Switch It',description:'A faceted portrait beneath a solid horned mask, with six native reveal programs and bounded musical performance.',author:'STAGELESS; Demon Mask by egorova.e (CC BY 4.0)',tags:['3d','portrait','switch-it','keeper']},
  capabilities:[...SWITCH_IT_PHASE2_MANIFEST.capabilities!,...(['audio.bands','music.build','music.vocal-presence','visual-director.significance'] as const).map(id=>({id,requirement:'optional' as const,purpose:'Shared intelligence inside explicit user permissions.'}))],
  parameters,
  modules:[{...SWITCH_IT_PHASE2_MANIFEST.modules![0],id:moduleId,typeId:SWITCH_IT_MODULE_TYPE,

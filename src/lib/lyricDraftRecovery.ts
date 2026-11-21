@@ -212,7 +212,7 @@ export function createIndexedDbLyricRecoveryRepository(
         resolve(db)
       }
       request.onerror = () => reject(request.error ?? new Error('Unable to open lyric recovery storage.'))
-      request.onblocked = () => reject(new Error('Lyric recovery storage is blocked by another DRMVYZ window.'))
+      request.onblocked = () => reject(new Error('Lyric recovery storage is blocked by another STAGELESS window.'))
     })
     return databasePromise
   }

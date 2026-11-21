@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { encodeWAV, downloadBlob } from '../utils/wavExport'
 import { notify } from '../stores/notificationStore'
+import { BRAND_FILE_PREFIX } from '../brand'
 
 export type RecorderState = 'idle' | 'recording'
 export type RecordingMode = 'video-audio' | 'video-only'
@@ -136,7 +137,7 @@ export function useRecorder(): Recorder {
     }
     mr.onstop = () => {
       const blob = new Blob(chunksRef.current, { type: mimeType })
-      downloadBlob(blob, `drmvyz-performance-${Date.now()}.webm`)
+      downloadBlob(blob, `${BRAND_FILE_PREFIX}-performance-${Date.now()}.webm`)
       chunksRef.current = []
     }
     mr.onerror = (e) => {
@@ -191,7 +192,7 @@ export function useRecorder(): Recorder {
       return
     }
     const wav = encodeWAV(samples, ringBuffer.sampleRate)
-    downloadBlob(wav, `drmvyz-capture-${seconds}s-${Date.now()}.wav`)
+    downloadBlob(wav, `${BRAND_FILE_PREFIX}-capture-${seconds}s-${Date.now()}.wav`)
   }, [])
 
   const exportPNG = useCallback((canvas?: HTMLCanvasElement | null) => {
@@ -210,7 +211,7 @@ export function useRecorder(): Recorder {
     const url = target.toDataURL('image/png')
     const a   = document.createElement('a')
     a.href     = url
-    a.download = `drmvyz-frame-${Date.now()}.png`
+    a.download = `${BRAND_FILE_PREFIX}-frame-${Date.now()}.png`
     a.click()
   }, [])
 

@@ -82,7 +82,7 @@ describe('application floating chrome (every workspace)', () => {
     expect(lab?.nextElementSibling?.classList.contains('fw-mobile-preview-launcher')).toBe(true)
     expect(lab?.nextElementSibling?.nextElementSibling?.classList.contains('az-sidebar-notifications')).toBe(true)
     expect(frame?.querySelector('.fw-app-header [data-app-icon="brand"]')).toBeNull()
-    expect(frame?.querySelector('.fw-app-header')?.textContent).not.toContain('DRMVYZ')
+    expect(frame?.querySelector('.fw-app-header')?.textContent).not.toContain('STAGELESS')
     expect(frame?.querySelectorAll('.az-sidebar')).toHaveLength(1)
     expect(frame?.querySelector('.fw-app-content [data-testid="route-stage"]')).not.toBeNull()
   })

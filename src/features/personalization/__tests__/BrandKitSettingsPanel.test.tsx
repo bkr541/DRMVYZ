@@ -74,7 +74,7 @@ describe('Brand Kit Settings states and accessibility', () => {
   it('renders empty-state onboarding with a labeled name field', async () => {
     useBrandKitStore.setState({ currentUserId: 'user-a', kits: [], activeKit: null, loading: false, syncing: false, error: null })
     await render(<BrandKitSettingsPanel />)
-    expect(container.textContent).toContain('Make DRMVYZ feel like your booth')
+    expect(container.textContent).toContain('Make STAGELESS feel like your booth')
     const label = [...container.querySelectorAll('label')].find(candidate => candidate.textContent === 'Brand Kit name') as HTMLLabelElement
     expect(label).toBeTruthy()
     expect(label.control).toBeInstanceOf(HTMLInputElement)

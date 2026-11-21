@@ -138,7 +138,7 @@ export function DjSoftwareSettingsView({ software, onSoftwareChange, status, bus
         <div className="vsm-settings-group-heading">
           <div>
             <h2>DJ Software</h2>
-            <p>Select the DJ library provider DRMVYZ should use for track metadata.</p>
+            <p>Select the DJ library provider STAGELESS should use for track metadata.</p>
           </div>
         </div>
         <div className="vsm-acct-field vsm-dj-provider-control">
@@ -197,7 +197,7 @@ export function DjSoftwareSettingsView({ software, onSoftwareChange, status, bus
 
           {!nativeIndexAvailable && busy !== 'loading' && (
             <NoticeCard title="Desktop app required" tone="warning" role="status">
-              Library indexing requires the DRMVYZ desktop app.
+              Library indexing requires the STAGELESS desktop app.
             </NoticeCard>
           )}
           {error && (

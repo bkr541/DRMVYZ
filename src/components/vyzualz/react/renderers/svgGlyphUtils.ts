@@ -937,7 +937,7 @@ export function parseSvgToGlyphPoints(
 
     if (subpaths.length === 0) {
       if (import.meta.env.DEV) {
-        console.warn('[DRMVYZ] parseSvgToGlyphPoints: No compilable shapes found — falling back to circle.')
+        console.warn('[STAGELESS] parseSvgToGlyphPoints: No compilable shapes found — falling back to circle.')
       }
       return fallbackCircle(n)
     }
@@ -966,7 +966,7 @@ export function parseSvgToGlyphPoints(
       if (filtered.length > 0) {
         if (import.meta.env.DEV && filtered.length < measured.length) {
           console.info(
-            `[DRMVYZ] SVG compiler: discarded ${measured.length - filtered.length} tiny path(s)` +
+            `[STAGELESS] SVG compiler: discarded ${measured.length - filtered.length} tiny path(s)` +
             ` (${filtered.length} retained, threshold = ${(opts.minPathLength * 100).toFixed(2)}% of total length)`,
           )
         }
@@ -984,7 +984,7 @@ export function parseSvgToGlyphPoints(
       retained = retained.filter(p => keepSet.has(p))
       if (import.meta.env.DEV) {
         console.info(
-          `[DRMVYZ] SVG compiler: capped to ${retained.length} paths` +
+          `[STAGELESS] SVG compiler: capped to ${retained.length} paths` +
           ` (budget: ${n} pts / ${opts.minPointCountPerPath} min-per-path = ${maxPaths} max paths)`,
         )
       }

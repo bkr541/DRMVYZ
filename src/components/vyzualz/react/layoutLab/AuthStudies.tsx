@@ -32,7 +32,7 @@ function AuthForm({ signingUp, onModeChange }: { signingUp: boolean; onModeChang
     event.preventDefault()
     setSubmitted(true)
   }}>
-    <span className="ll-auth-brand"><AppIcon kind="brand" size={26} /> DRMVYZ</span>
+    <span className="ll-auth-brand"><AppIcon kind="brand" size={26} /> STAGELESS</span>
     <h3 id={titleId}>{title}</h3>
     {signingUp && <>
       <AuthField label="Full name" type="text" placeholder="Your name" />

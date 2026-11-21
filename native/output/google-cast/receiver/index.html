@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>DRMVYZ Google Cast Receiver</title>
+  <title>STAGELESS Google Cast Receiver</title>
   <style>
     html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #000; }
     video { width: 100%; height: 100%; display: block; object-fit: contain; background: #000; }
@@ -12,7 +12,7 @@
 </head>
 <body>
   <video id="live" autoplay muted playsinline></video>
-  <p id="status" role="status">Waiting for DRMVYZ…</p>
+  <p id="status" role="status">Waiting for STAGELESS…</p>
   <script src="https://www.gstatic.com/cast/sdk/libs/caf_receiver/v3/cast_receiver_framework.js"></script>
   <script>
     (() => {
@@ -54,7 +54,7 @@
         try { video.pause() } catch { /* no-op */ }
         video.removeAttribute('src')
         video.load()
-        setStatus('Waiting for DRMVYZ…')
+        setStatus('Waiting for STAGELESS…')
       }
 
       function waitForPlayback(expectedGeneration, timeoutMs) {
@@ -77,7 +77,7 @@
           video.addEventListener('error', onError, { once: true })
           timer = setTimeout(() => {
             cleanup()
-            reject(new Error('Timed out while opening the DRMVYZ live stream'))
+            reject(new Error('Timed out while opening the STAGELESS live stream'))
           }, timeoutMs)
         })
       }
@@ -87,7 +87,7 @@
         const mimeType = typeof message.mimeType === 'string' ? message.mimeType : ''
         const mediaUrls = Array.isArray(message.mediaUrls) ? message.mediaUrls.filter(value => typeof value === 'string') : []
         if (!sessionId || !/^video\/webm(?:;\s*codecs=(?:vp8|vp9))?$/i.test(mimeType) || !mediaUrls.length) {
-          send(senderId, { type: 'error', sessionId, message: 'DRMVYZ sent invalid live media metadata.' })
+          send(senderId, { type: 'error', sessionId, message: 'STAGELESS sent invalid live media metadata.' })
           return
         }
         const codec = /codecs=(vp8|vp9)/i.exec(mimeType)?.[1] || ''
@@ -100,7 +100,7 @@
         }
         const safeUrls = mediaUrls.filter(value => isAllowedMediaUrl(value, sessionId))
         if (!safeUrls.length) {
-          send(senderId, { type: 'error', sessionId, message: 'DRMVYZ did not provide a valid private-network live media route.' })
+          send(senderId, { type: 'error', sessionId, message: 'STAGELESS did not provide a valid private-network live media route.' })
           return
         }
 
@@ -111,7 +111,7 @@
         for (const mediaUrl of safeUrls) {
           if (expectedGeneration !== generation) return
           try {
-            setStatus('Opening DRMVYZ live output…')
+            setStatus('Opening STAGELESS live output…')
             video.src = mediaUrl
             video.load()
             const playback = waitForPlayback(expectedGeneration, 12_000)
@@ -119,7 +119,7 @@
             if (playPromise && typeof playPromise.catch === 'function') playPromise.catch(() => undefined)
             await playback
             if (expectedGeneration !== generation) return
-            setStatus('DRMVYZ live output')
+            setStatus('STAGELESS live output')
             send(senderId, { type: 'playing', sessionId })
             return
           } catch (error) {
@@ -130,7 +130,7 @@
         }
         if (expectedGeneration !== generation) return
         activeSessionId = null
-        const messageText = lastError instanceof Error ? lastError.message : 'The Cast receiver could not reach DRMVYZ live media.'
+        const messageText = lastError instanceof Error ? lastError.message : 'The Cast receiver could not reach STAGELESS live media.'
         setStatus(messageText)
         send(senderId, { type: 'error', sessionId, message: messageText })
       }

@@ -112,7 +112,7 @@ export function ProductionOutputPanel() {
       ))}
 
       <div className="rv-ctrl-info">
-        Address, overlap, profile, exclusion-zone, stale-frame, heartbeat, cooldown, and fail-dark checks are diagnostic safeguards only. DRMVYZ does not certify physical laser or venue safety.
+        Address, overlap, profile, exclusion-zone, stale-frame, heartbeat, cooldown, and fail-dark checks are diagnostic safeguards only. STAGELESS does not certify physical laser or venue safety.
       </div>
     </Collapsible>
   )

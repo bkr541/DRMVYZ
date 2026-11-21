@@ -73,7 +73,7 @@ function createReceiverTrustStore(app, {
       fsImpl.mkdirSync(path.dirname(trustPath), { recursive: true })
       fsImpl.writeFileSync(trustPath, `${JSON.stringify(state, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 })
     } catch (error) {
-      console.warn('[DRMVYZ Output] Could not persist receiver trust:', error)
+      console.warn('[STAGELESS Output] Could not persist receiver trust:', error)
     }
   }
 

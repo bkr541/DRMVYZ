@@ -781,7 +781,7 @@ export function SoundDrawingTimelineLane({
       name:          name || `${sourceType} layer`,
       enabled:       true,
       sourceType,
-      text:          sourceType === 'text' ? 'DRMVYZ' : '',
+      text:          sourceType === 'text' ? 'STAGELESS' : '',
       textSource:    'static',
       lyricGapBehavior: 'hide',
       lyricFallbackText: '',
