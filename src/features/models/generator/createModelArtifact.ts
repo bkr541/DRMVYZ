@@ -1,7 +1,7 @@
 import { parseModelRecipe, type ModelGeneratorRecipe } from '../domain/modelAssetTypes'
 import { createExtrudedModel, type GeneratedModel } from '../geometry/createExtrudedModel'
 import { checkAbort, MODEL_QUALITY, ModelGenerationError, type ModelQuality } from '../geometry/modelQualityBudget'
-import { MODEL_MATERIAL_PRESETS } from '../materials/modelMaterials'
+import { applyModelMaterialTextures, MODEL_MATERIAL_PRESETS } from '../materials/modelMaterials'
 import { sanitizeModelSvg } from '../trace/svgSanitize'
 import { prepareModelInput } from '../trace/imageInput'
 import { VTracerVectorizer, VTRACER_VERSION } from '../trace/traceImage'
@@ -50,6 +50,7 @@ export async function createModelArtifact(input: CreateModelArtifactInput): Prom
   let model: ReturnType<typeof createExtrudedModel>
   try { model = createExtrudedModel(svg, prepared.recipe, quality, input.signal) } catch (error) { throw explainPictureTraceFailure(error, !prepared.svg) }
   try {
+    await applyModelMaterialTextures(model.group, model.recipe, input.signal)
     const glb = await exportModelGlb(model.group, input.signal)
     const sourceType = prepared.svg ? 'image/svg+xml' as const : 'image/png' as const
     return { ...model, warnings: [...prepared.warnings, ...model.warnings], traceSvg: svg, glb, sourceSnapshot: prepared.sourceSnapshot, foregroundPreview: prepared.foregroundPreview,
@@ -63,6 +64,7 @@ export async function createModelArtifactFromTrace(sourceSnapshot: Blob, traceSv
   traceSvg = sanitizeModelSvg(traceSvg)
   const model = createExtrudedModel(traceSvg, recipe, recipe.quality ?? 'normal', signal)
   try {
+    await applyModelMaterialTextures(model.group, model.recipe, signal)
     const glb = await exportModelGlb(model.group, signal)
     const type = sourceSnapshot.type === 'image/svg+xml' ? 'image/svg+xml' as const : 'image/png' as const
     return { ...model, glb, traceSvg, sourceSnapshot, files: {

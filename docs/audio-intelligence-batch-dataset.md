@@ -2,6 +2,10 @@
 
 This development-only command analyzes a directory of local audio files with the same browser decoding and DRMVYZ analyzers used by the application. It writes canonical Audio Intelligence JSON beside each track and maintains a dataset manifest at the input root.
 
+## Export from the Track Timeline Visualizer
+
+With an analyzed track loaded, open the Track Timeline Visualizer and select the download icon beside Notifications. Save the ZIP through the system or browser download flow, then extract `track-timeline.html` and `track-timeline.json`. The HTML opens offline with a zoomable full-track waveform, synchronized marker lanes, charts, and searchable events. The JSON contains the full analysis and waveform bins, effective grid, authored Track Map data, and any Rekordbox metadata available for the selected track.
+
 ## Basic usage
 
 ```bash

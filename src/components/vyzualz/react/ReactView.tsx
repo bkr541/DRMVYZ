@@ -702,6 +702,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager, onOpenPreset
               onClose={() => setTrackTimelineOpen(false)}
               analysis={effectiveTrackAnalysis}
               rgbWaveform={trackTimelineWaveformEntry.analysis}
+              resolvedSections={resolvedTrackSections}
               filename={engine.currentTrack?.displayName ?? engine.currentTrack?.name ?? 'Track'}
               trackTitle={engine.currentTrack?.title ?? engine.currentTrack?.displayName ?? engine.currentTrack?.name ?? null}
               artistName={engine.currentTrack?.artist ?? engine.currentTrack?.externalMetadata?.artist ?? null}

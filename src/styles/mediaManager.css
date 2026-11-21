@@ -1211,6 +1211,18 @@
 .mm-model-stage-empty { position: absolute; inset: 45% 20px auto; text-align: center; pointer-events: none; }
 .mm-model-stage-notice { position: absolute; inset: 60px 12px auto; }
 .mm-model-inspector { overflow-y: auto; min-height: 0; }
+.mm-model-texture .drm-dropdown__value[style*="--model-texture-swatch"]::before,
+.mm-model-texture-menu .drm-dropdown__option-label[style*="--model-texture-swatch"]::before {
+  content: '';
+  display: inline-block;
+  width: 26px;
+  height: 18px;
+  margin-inline-end: 8px;
+  border: 1px solid var(--az-border, #273b45);
+  border-radius: 3px;
+  background: var(--model-texture-swatch) center / cover;
+  vertical-align: middle;
+}
 .mm-model-source-preview { height: 160px; display: flex; justify-content: center; margin: 8px 0; background: repeating-conic-gradient(#27353b 0% 25%, #162026 0% 50%) 0 0 / 16px 16px; }
 .mm-model-source-preview img { max-width: 100%; max-height: 100%; object-fit: contain; }
 .mm-model-library { display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 440px; }

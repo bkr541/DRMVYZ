@@ -1,3 +1,5 @@
+import { isModelTextureId, type ModelTextureId } from './modelTextures'
+
 /** Version 1 is the durable interchange contract between generation, editing and Cinema. */
 export interface ModelGeneratorRecipe {
   schemaVersion: 1
@@ -6,7 +8,7 @@ export interface ModelGeneratorRecipe {
   foreground: { mode: 'alpha' | 'luminance' | 'prepared'; threshold: number; invert: boolean }
   trace: { colorMode: 'silhouette' | 'color'; threshold: number; smoothing: number; maxColors: number }
   geometry: { depth: number; bevelEnabled: boolean; bevelThickness: number; bevelSize: number; bevelSegments: number; curveSegments: number }
-  materials: Array<{ region: string; color: string; metalness: number; roughness: number; opacity: number; emissive: string; emissiveIntensity?: number; clearcoat?: number; clearcoatRoughness?: number }>
+  materials: Array<{ region: string; color: string; metalness: number; roughness: number; opacity: number; emissive: string; emissiveIntensity?: number; clearcoat?: number; clearcoatRoughness?: number; textureId?: ModelTextureId }>
   transform: { position: [number, number, number]; rotation: [number, number, number]; scale: [number, number, number]; pivot: 'center' | 'bottom' }
   preview: { background: string; lightIntensity: number; environment: 'neutral' | 'studio'; grid?: boolean; shadows?: boolean; turntable?: boolean }
   /** Keep the front half and add a matching back, so the model reads correctly from both sides as it turns. Off when absent. */
@@ -129,10 +131,12 @@ export function parseModelRecipe(value: unknown): ModelGeneratorRecipe {
   if (!Array.isArray(v.materials) || !v.materials.length || v.materials.length > 64) invalid('Invalid model material regions.')
   const materials = v.materials.map(value => {
     const m = record(value)
+    if (m.textureId !== undefined && !isModelTextureId(m.textureId)) invalid('Unknown model texture.')
     return { region: text(m.region, 80), color: color(m.color), metalness: number(m.metalness, 0, 1), roughness: number(m.roughness, 0, 1), opacity: number(m.opacity, 0, 1), emissive: color(m.emissive),
       ...(m.emissiveIntensity === undefined ? {} : { emissiveIntensity: number(m.emissiveIntensity, 0, 20) }),
       ...(m.clearcoat === undefined ? {} : { clearcoat: number(m.clearcoat, 0, 1) }),
       ...(m.clearcoatRoughness === undefined ? {} : { clearcoatRoughness: number(m.clearcoatRoughness, 0, 1) }),
+      ...(m.textureId === undefined ? {} : { textureId: m.textureId }),
     }
   })
   if (new Set(materials.map(m => m.region)).size !== materials.length) invalid('Duplicate model material region.')

@@ -153,7 +153,7 @@ export const APP_ICON_INVENTORY: readonly AppIconEntry[] = [
     ['Beats', 'rhythm'], ['Sections', 'layers'], ['Energy', 'bars'], ['Time', 'timeline'], ['Track Timeline', 'timeline'],
     ['Cues', 'cue'], ['Phrases', 'tree'], ['Moments', 'star'], ['Actions', 'route'],
     ['Back to full Track Map', 'left'], ['Expand all groups', 'expand'], ['Collapse all groups', 'collapse'],
-    ['Center on playhead', 'center'], ['Audio Intelligence details', 'waveform'],
+    ['Center on playhead', 'center'], ['Audio Intelligence details', 'waveform'], ['Export track timeline', 'download'],
     ['Retry', 'rotateLeft'], ['Reanalyze', 'rotateLeft'], ['Failed', 'close'], ['Grid stale', 'warning'],
   ]),
   ...inventory('Audio Intelligence', ['src/components/vyzualz/modulation/MusicIntelligenceDiagnosticsPanel.tsx'], [

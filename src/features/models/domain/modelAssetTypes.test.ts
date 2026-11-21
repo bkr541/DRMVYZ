@@ -15,6 +15,12 @@ describe('model domain persistence contract', () => {
     expect(parseModelAsset(assetRow())).toMatchObject({ id: MODEL_ID, currentVersion: 0, userId: USER_A })
   })
 
+  it('round-trips a starter texture by id and rejects external texture paths', () => {
+    const textured = { ...recipe, materials: [{ ...recipe.materials[0], textureId: 'wood-grain' }] }
+    expect(parseModelRecipe(textured)).toEqual(textured)
+    expect(() => parseModelRecipe({ ...recipe, materials: [{ ...recipe.materials[0], textureId: 'https://example.com/wood.webp' }] })).toThrow('Unknown model texture.')
+  })
+
   it.each([
     null, [], {}, { ...recipe, schemaVersion: 2 },
     { ...recipe, foreground: { ...recipe.foreground, threshold: NaN } },

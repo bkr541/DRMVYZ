@@ -38,11 +38,12 @@ export function encodeWAV(samples: Float32Array, sampleRate: number): Blob {
   return new Blob([buffer], { type: 'audio/wav' })
 }
 
-export function downloadBlob(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
+export function downloadBlob(blob: Blob, filename: string, ownerDocument: Document = document) {
+  const objectUrls = ownerDocument.defaultView?.URL ?? URL
+  const url = objectUrls.createObjectURL(blob)
+  const a = ownerDocument.createElement('a')
   a.href = url
   a.download = filename
   a.click()
-  setTimeout(() => URL.revokeObjectURL(url), 10_000)
+  setTimeout(() => objectUrls.revokeObjectURL(url), 10_000)
 }

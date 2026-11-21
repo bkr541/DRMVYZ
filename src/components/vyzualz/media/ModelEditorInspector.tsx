@@ -1,9 +1,10 @@
 import '../../../styles/reactView.css'
 import { useEffect, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { useModelEditorStore, type ModelEditorState } from '../../../features/models/state/modelEditorStore'
 import type { BuiltinModel } from '../../../features/models/domain/builtinModels'
+import { MODEL_TEXTURES, isModelTextureId, modelTextureUrl, type ModelTextureId } from '../../../features/models/domain/modelTextures'
 import { BUILTIN_MODEL_SCALE_RANGE, type BuiltinMaterialValues, type ModelRotation } from '../../../features/models/geometry/builtinModelEdits'
 import { MODEL_MATERIAL_PRESETS } from '../../../features/models/materials/modelMaterials'
 import { Collapsible, NumberInputRow, PaletteColorRow, SelectRow, SliderRow, TextAreaRow, TextInputRow, ToggleRow } from '../react/ReactControlRows'
@@ -51,9 +52,30 @@ function ModelRotationRows({ rotation, disabled, onChange }: { rotation: ModelRo
 
 const TWO_SIDED_DESCRIPTION = 'Keeps the front and adds a matching back, so a logo or wordmark reads correctly (not mirrored) as the model turns. Best for flat or extruded shapes. To keep your original, use Save As New Model in the Output tab.'
 
+const textureOptions = (Object.keys(MODEL_TEXTURES) as ModelTextureId[]).map(id => ({
+  value: id,
+  label: MODEL_TEXTURES[id],
+  style: { '--model-texture-swatch': `url("${modelTextureUrl(id)}")` } as CSSProperties,
+}))
+
+function ModelTextureRow({ value, defaultLabel, disabled, ariaLabel, onChange }: {
+  value?: ModelTextureId
+  defaultLabel: string
+  disabled: boolean
+  ariaLabel?: string
+  onChange: (id: ModelTextureId | undefined) => void
+}) {
+  return <div className="mm-model-texture">
+    <SelectRow label="Base color texture" ariaLabel={ariaLabel} value={value ?? ''} disabled={disabled} menuClassName="mm-model-texture-menu"
+      options={[{ value: '', label: defaultLabel }, ...textureOptions]}
+      onChange={id => onChange(isModelTextureId(id) ? id : undefined)} />
+  </div>
+}
+
 function BuiltinModelEditPanel() {
-  const { edit, exporting, saving, error, editBuiltin } = useModelEditorStore(useShallow(s => ({
+  const { edit, exporting, saving, error, textureLoading, textureError, editBuiltin, editBuiltinTexture } = useModelEditorStore(useShallow(s => ({
     edit: s.builtinEdit, exporting: s.builtinExporting, saving: s.status === 'saving', error: s.error, editBuiltin: s.editBuiltin,
+    textureLoading: s.builtinTextureLoading, textureError: s.builtinTextureError, editBuiltinTexture: s.editBuiltinTexture,
   })))
   const [materialIndex, setMaterialIndex] = useState(0)
   if (!edit) return error
@@ -62,7 +84,8 @@ function BuiltinModelEditPanel() {
 
   const { scale, rotation, materials, twoSided } = edit.values, material = materials[materialIndex]
   const sides = edit.twoSidedAvailable
-  const disabled = exporting || saving
+  const disabled = exporting || saving || textureLoading
+  const originalTexture = edit.originalTextureLabels[materialIndex]
   const changeMaterial = (patch: Partial<BuiltinMaterialValues>) => editBuiltin({
     materials: materials.map((value, index) => index === materialIndex ? { ...value, ...patch } : value),
   })
@@ -84,6 +107,10 @@ function BuiltinModelEditPanel() {
       <SelectRow label="Material" value={String(materialIndex)} disabled={disabled} options={materials.map((value, index) => ({
         value: String(index), label: value.name,
       }))} onChange={value => setMaterialIndex(Number(value))} />
+      <ModelTextureRow value={material.textureId} defaultLabel={originalTexture ? `Original · ${originalTexture}` : 'Original'} disabled={disabled}
+        onChange={id => { void editBuiltinTexture(materialIndex, id) }} />
+      {textureLoading && <span className="rv-ctrl-description" role="status">Loading texture…</span>}
+      {textureError && <NoticeCard tone="error" role="alert" title="Texture unavailable">{textureError}</NoticeCard>}
       <PaletteColorRow label="Base color" value={material.color} disabled={disabled} onChange={color => changeMaterial({ color })} />
       <SliderRow label="Metalness" value={material.metalness} disabled={disabled} onChange={metalness => changeMaterial({ metalness })} />
       <SliderRow label="Roughness" value={material.roughness} disabled={disabled} onChange={roughness => changeMaterial({ roughness })} />
@@ -154,6 +181,8 @@ function EditableModelInspector({ onSelectSource }: { onSelectSource?: () => voi
     return <Collapsible label={region === 'front' ? 'Front / Caps' : 'Sides'} defaultOpen>
       <SelectRow label="Material preset" value={preset} disabled={locked} options={[{ value: 'custom', label: 'Custom', disabled: true }, ...Object.keys(MODEL_MATERIAL_PRESETS).map(name => ({ value: name, label: name }))]}
         onChange={name => { const picked = MODEL_MATERIAL_PRESETS[name as keyof typeof MODEL_MATERIAL_PRESETS]; if (picked) update({ ...picked, emissiveIntensity: 1, clearcoat: 0, clearcoatRoughness: 0.1 }) }} />
+      <ModelTextureRow value={value.textureId} defaultLabel="None" disabled={locked}
+        ariaLabel={region === 'front' ? 'Front / Caps base color texture' : 'Sides base color texture'} onChange={textureId => update({ textureId })} />
       <div className="rv-palette-color-grid">
         <PaletteColorRow label="Color" value={value.color} disabled={locked} onChange={color => update({ color })} />
         <PaletteColorRow label="Emissive" value={value.emissive} disabled={locked} onChange={emissive => update({ emissive })} />
@@ -190,7 +219,7 @@ function EditableModelInspector({ onSelectSource }: { onSelectSource?: () => voi
       </>}
       {tab === 'edit' && imported && <>
         <BuiltinModelEditPanel key={s.sessionKey} />
-        <p>Edits are baked into a new GLB. <strong>Save New Version</strong> keeps the earlier version as it was, and <strong>Save As New Model</strong> makes a separate model. Textures are kept; the file is re-encoded on export.</p>
+        <p>Edits and selected textures are embedded in a new GLB. <strong>Save New Version</strong> keeps the earlier version, and <strong>Save As New Model</strong> makes a separate model.</p>
       </>}
       {tab === 'edit' && recipe && <>
         <Collapsible label="Source Preparation" icon={<AppIcon kind="image" size={14} />}>
@@ -244,7 +273,7 @@ function EditableModelInspector({ onSelectSource }: { onSelectSource?: () => voi
       </>}
       {tab === 'output' && <Collapsible label="Model Output" icon={<AppIcon kind="save" size={14} />}>
         <p>{s.activeVersion ? `Viewing version ${s.activeVersion}` : 'Unsaved model'} · {s.artifact?.glb.size.toLocaleString() ?? s.versions.find(v => v.version === s.activeVersion)?.geometryStats.glbBytes?.toLocaleString() ?? '—'} GLB bytes</p>
-        {!!s.versions.length && <SelectRow label="Model version" value={String(s.activeVersion)} disabled={busy} options={s.versions.map(v => ({ value: String(v.version), label: `Version ${v.version}` }))} onChange={version => loadVersion(Number(version))} />}
+        {!!s.versions.length && <SelectRow label="Model version" value={String(s.activeVersion)} disabled={busy || s.builtinTextureLoading} options={s.versions.map(v => ({ value: String(v.version), label: `Version ${v.version}` }))} onChange={version => loadVersion(Number(version))} />}
         {s.versions.length >= 50 && <IconChipButton onClick={() => { void s.moreVersions() }}>Load older versions</IconChipButton>}
       </Collapsible>}
       {(s.status === 'loading-source' || s.status === 'loading-model' || s.status === 'generating' || s.generationPending || busy) && <div role="status">{s.progress ?? (s.generationPending ? 'Updating 3D geometry…' : 'Loading model source…')} <IconChipButton disabled={s.status === 'deleting'} onClick={s.cancel}>Cancel operation</IconChipButton></div>}

@@ -1,0 +1,547 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DRMVYZ Track Timeline Export</title>
+<style>
+:root{color-scheme:dark;--bg:#101619;--panel:#171f23;--ink:#e8f2f4;--muted:#abc0c7;--line:#33434b;--aqua:#64d7e4;--gold:#f1bc75}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 system-ui,sans-serif}
+main{width:min(1360px,100%);margin:auto;padding:clamp(18px,4vw,54px)}h1{font-size:clamp(25px,4vw,43px);line-height:1.1;margin:.2em 0 .45em;overflow-wrap:anywhere}h2{font-size:20px;margin:0 0 .7rem}h3{font-size:15px;margin:.4rem 0}.eyebrow{color:var(--aqua);text-transform:uppercase;letter-spacing:.13em;font-weight:700;font-size:12px}
+.hero{display:flex;justify-content:space-between;align-items:flex-start;gap:1.1rem;flex-wrap:wrap}.status{color:var(--muted);margin:0 0 1rem}
+.card{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:clamp(12px,2vw,24px);margin:0 0 18px}.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:12px;margin:0 0 17px}.stats div{background:#202b31;border-radius:8px;padding:11px 13px}.stats dt{color:var(--muted);font-size:12px}.stats dd{font-size:18px;font-weight:650;margin:0;font-variant-numeric:tabular-nums}
+a{color:var(--aqua)}button,select,input,.download{font:inherit;color:var(--ink);background:#233039;border:1px solid #49616b;border-radius:6px;padding:.38rem .6rem}button,.download,select,summary{cursor:pointer}.download{text-decoration:none;display:inline-block;font-weight:650}button:hover,.download:hover{border-color:var(--aqua)}button:focus-visible,select:focus-visible,input:focus-visible,a:focus-visible,summary:focus-visible,canvas:focus-visible{outline:2px solid var(--aqua);outline-offset:2px}
+.controls{display:flex;gap:8px 13px;flex-wrap:wrap;align-items:center;margin:9px 0}.controls label{display:inline-flex;gap:.4rem;align-items:center}.controls input[type=range]{width:min(220px,55vw);padding:0}.clock{font:13px ui-monospace,monospace;color:var(--aqua);margin-left:auto}.chart{display:block;width:100%;height:337px;border-radius:8px;touch-action:pan-y}.curve{display:block;width:100%;height:115px;border-radius:8px}.legend{color:var(--muted);font-size:12px;margin:.55em 0}.legend span{display:inline-block;margin-right:14px}.dot{display:inline-block;width:.62em;height:.62em;border-radius:50%;margin-right:6px}
+.readout{font:12px/1.55 ui-monospace,monospace;color:#dff2f5;min-height:2em;padding:7px 9px;background:#10171a;border-radius:5px;overflow-wrap:anywhere}.split{display:grid;grid-template-columns:1fr 1fr;gap:18px}.tablewrap{overflow:auto;max-height:425px;border:1px solid var(--line);border-radius:7px}table{border-collapse:collapse;width:100%;font-size:13px;text-align:left;font-variant-numeric:tabular-nums}th,td{padding:7px 9px;border-bottom:1px solid #324148;vertical-align:top;text-align:left}th{background:#283740;position:sticky;top:0;color:#dcecef;z-index:1;white-space:nowrap}td:first-child{white-space:nowrap}td button{font:inherit;padding:0;border:0;color:var(--aqua);background:transparent;text-decoration:underline}summary{font-weight:650}details{margin:.8rem 0}pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:430px;overflow:auto;background:#10171a;padding:10px;border-radius:6px;font-size:12px}.muted{color:var(--muted)}.notice{border-left:3px solid var(--gold);padding-left:.85rem;color:#f6d7a9}footer{font-size:12px;color:var(--muted)}
+.timeline-board{--lane-line:#2d4049;background:#10171a;box-shadow:0 0 0 1px var(--lane-line);border-radius:8px;overflow:hidden}
+main{--time-gutter:116px;--time-tail:15px}
+.timeline-board .chart{height:122px;border-radius:0}
+.timeline-lane{display:grid;grid-template-columns:var(--time-gutter) minmax(0,1fr) var(--time-tail);min-height:33px;border-top:1px solid var(--lane-line)}
+.lane-name{padding:5px 8px;font-size:11px;line-height:1.2;font-weight:600;color:var(--muted);align-self:center}
+.lane-plot{position:relative;min-width:0;background-image:linear-gradient(to right,var(--lane-line) 1px,transparent 1px);background-size:var(--tick-spacing) 100%;box-shadow:inset -1px 0 var(--lane-line)}
+.lane-plot::after{content:'';position:absolute;inset-block:0;left:var(--lane-cursor,-4px);width:1px;background:#dff7ffb0;pointer-events:none;z-index:2}
+.lane-beats{display:block;width:100%;height:32px;cursor:crosshair}
+.lane-range,.lane-marker{position:absolute;inset-inline-start:var(--at);--marker-color:var(--aqua)}
+.timeline-board .lane-range,.timeline-board .lane-point{font:600 11px/1.1 system-ui,sans-serif;color:#eef7fa;background:#1c2a30;border:1px solid #40565e;padding:3px 6px;height:22px;border-radius:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}
+.timeline-board .lane-range{top:5px;width:var(--wide);min-width:0;border:1px solid var(--marker-color);border-inline-start-width:3px;background:color-mix(in srgb,var(--marker-color) 20%,#142024);padding-inline:4px}
+.timeline-board .lane-range[data-narrow]{color:transparent;padding:0;border-inline-start-width:1px}
+.lane-marker{inset-block:0;width:0}
+.lane-marker::before{content:'';position:absolute;left:-1px;top:4px;bottom:4px;width:2px;border-radius:1px;background:var(--marker-color)}
+.timeline-board .lane-point{position:absolute;top:5px;left:3px;width:max-content;max-width:var(--wide);color:var(--marker-color)}
+.timeline-board .lane-point[data-edge]{left:-3px;transform:translateX(-100%)}
+.timeline-board .lane-point[data-compact]{width:13px;padding:0;text-align:center}
+.timeline-board .lane-point:hover,.timeline-board .lane-point:focus-visible,.timeline-board .lane-range:hover,.timeline-board .lane-range:focus-visible{border-color:#edf9fe;z-index:3}
+.timeline-board .lane-range:focus-visible,.timeline-board .lane-point:focus-visible{outline-offset:-2px}
+.lane-inspector{margin:.65rem 0 0;padding:.6rem .75rem;border:1px solid var(--lane-line,#33434b);border-radius:6px;background:#132025;font-size:13px}
+.lane-inspector ol{margin:.35rem 0 0;padding:0;list-style:none}.lane-inspector li{padding:5px 0;display:flex;gap:4px 10px;align-items:baseline;flex-wrap:wrap}.lane-inspector li+li{border-top:1px solid #30434a}.lane-inspector button{font:650 12px ui-monospace,monospace;padding:.2rem .35rem;color:var(--aqua)}
+.split[data-single]{grid-template-columns:1fr}
+@media(max-width:800px){.split{grid-template-columns:1fr}.clock{margin-left:0}main{--time-gutter:87px;--time-tail:9px}.lane-name{padding-inline:6px}}
+@media print{:root{color-scheme:light}body{background:#fff;color:#101619}main{padding:0}.card{break-inside:avoid;border-color:#a6b6bb}.card,.stats div{background:#fff}.controls,.download{display:none}.muted,.status,.legend,footer,.stats dt{color:#364b54}.settings{display:none}.chart,.curve{print-color-adjust:exact}.tablewrap{max-height:none;overflow:visible}}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <div class="hero"><div><div class="eyebrow">DRMVYZ track timeline export</div><h1 id="title"></h1></div><a class="download" id="download" download="track-timeline.json">Download exact JSON</a></div>
+  <p class="status" id="subtitle"></p>
+  <dl class="stats" id="stats"></dl>
+</header>
+
+<section class="card" aria-labelledby="timeline-heading">
+  <h2 id="timeline-heading">Full-track waveform and markers</h2>
+  <div class="controls" aria-label="Timeline zoom">
+    <button id="full" type="button">Full track</button><button id="in" type="button">Zoom in</button><button id="out" type="button">Zoom out</button>
+    <label for="pan">Pan <input id="pan" type="range" min="0" max="1000" value="0" disabled></label><output class="clock" id="range"></output>
+  </div>
+  <div class="timeline-board" id="timelineBoard">
+    <canvas id="wave" class="chart" tabindex="0" aria-label="Track waveform. Use left and right arrows to move the inspection cursor.">Use the marker table for exact timestamps.</canvas>
+    <div id="timelineLanes" aria-label="Marker and phrase lanes"></div>
+  </div>
+  <div class="legend" id="legend"></div>
+  <div class="readout" id="cursor">Hover over the waveform to inspect a bin. Select a label or a marker group to see its details.</div>
+  <section class="lane-inspector" id="laneInspector" aria-label="Selected marker details" hidden>
+    <strong id="laneSelection" aria-live="polite"></strong>
+    <ol id="laneSelectionItems"></ol>
+  </section>
+</section>
+
+<section class="card" aria-labelledby="curves-heading">
+  <h2 id="curves-heading">Analysis curves</h2>
+  <div class="controls"><label for="series">Signal <select id="series"></select></label><span class="muted" id="curveRange"></span></div>
+  <canvas id="curve" class="curve" aria-label="Selected analysis curve"></canvas>
+  <p class="legend">Curves and measurements share the waveform’s time range. Offline pitch, spectral curves, and waveform energies use the analyzer’s normalized units.</p>
+</section>
+
+<section class="card" aria-labelledby="markers-heading">
+  <h2 id="markers-heading">Marker index</h2>
+  <div class="controls">
+    <label for="source">Source <select id="source"><option value="">All sources</option></select></label>
+    <label for="type">Type <select id="type"><option value="">All marker types</option></select></label>
+    <label for="search">Search <input type="search" id="search" placeholder="Drop, Hot Cue, 01:38…"></label>
+    <output class="clock" id="markerCount"></output>
+  </div>
+  <div class="tablewrap">
+    <table><thead><tr><th>Time</th><th>Marker</th><th>Source</th><th>Type</th><th>Duration</th><th>Confidence</th><th>Value</th></tr></thead><tbody id="markers"></tbody></table>
+  </div>
+</section>
+
+<div class="split" id="sourcePanels">
+<section class="card" id="rekordboxPanel">
+  <h2>Rekordbox import</h2>
+  <p class="notice" id="rekordboxNote"></p>
+  <h3>Hot cues and loop regions</h3><div class="tablewrap"><table><thead><tr><th>Time</th><th>Name</th><th>Kind</th></tr></thead><tbody id="cues"></tbody></table></div>
+  <h3>Native PSSI phrases</h3><div class="tablewrap"><table><thead><tr><th>Start</th><th>End</th><th>Phrase</th><th>Beats</th></tr></thead><tbody id="pssi"></tbody></table></div>
+  <details><summary>Imported metadata and PSSI integrity</summary><pre id="rekordboxMeta"></pre></details>
+</section>
+<section class="card">
+  <h2>Analysis sources and warnings</h2>
+  <p id="gridNote"></p><ul id="warnings"></ul>
+  <details><summary>Grid confidence and analysis diagnostics</summary><pre id="diagnostics"></pre></details>
+  <details><summary>Playback frame captured at the export position</summary><pre id="snapshot"></pre></details>
+</section>
+</div>
+
+<section class="card">
+  <h2>Bar-by-bar measurements</h2>
+  <details><summary id="barsSummary">Open the complete bar table</summary>
+  <p class="legend">Chroma is shown in pitch-class order C, C♯, D, D♯, E, F, F♯, G, G♯, A, A♯, B.</p>
+  <div class="tablewrap"><table><thead><tr id="barHead"></tr></thead><tbody id="barRows"></tbody></table></div></details>
+</section>
+<footer id="footer"></footer>
+</main>
+
+<script type="application/json" id="capture">__DRMVYZ_TRACK_TIMELINE_DATA__</script>
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const dataText = $('capture').textContent;
+const data = JSON.parse(dataText);
+const { track, trackAnalysis: analysis, timeline, rekordbox, effectiveGrid: grid } = data;
+const duration = timeline.durationSec;
+const native = rekordbox.analysisSeed || {};
+const nativePhrases = rekordbox.pssiPhrases;
+const nativeGrid = native.beatGrid || [];
+const importedCues = rekordbox.cueMarkers;
+const importedRegions = rekordbox.cueRegions;
+const importSource = rekordbox.externalMetadata?.source ?? native.source ?? rekordbox.sourceAnalysis?.source;
+const rekordboxName = { rekordbox_usb: 'Rekordbox USB', rekordbox_xml: 'Rekordbox XML' }[importSource] || 'Rekordbox';
+const { trackMap } = data;
+const format = (seconds, decimals = true) => {
+  if (!Number.isFinite(seconds)) return '—';
+  const ms = Math.max(0, Math.round(seconds * 1000));
+  const m = String(Math.floor(ms / 60000)).padStart(2, '0');
+  const s = String(Math.floor(ms / 1000) % 60).padStart(2, '0');
+  return m + ':' + s + (decimals ? '.' + String(ms % 1000).padStart(3, '0') : '');
+};
+const num = (value, digits = 4) => Number.isFinite(value) ? String(+value.toFixed(digits)) : '—';
+const pretty = name => String(name ?? '—').replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[_-]/g, ' ').replace(/^./, letter => letter.toUpperCase());
+const count = value => value.toLocaleString('en-US');
+const write = (id, text) => { $(id).textContent = text; };
+const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
+const all = [...timeline.timelineEvents.map(event => ({ ...event, source: 'DRMVYZ timeline' }))];
+const add = (time, label, type, source, durationSec = null, confidence = null, value = null) => {
+  if (Number.isFinite(time)) all.push({ time, label, type, source, duration: durationSec, confidence, value });
+};
+nativeGrid.forEach((beat, index) => add(beat.timeSec, 'Rekordbox beat ' + (index + 1), beat.isDownbeat ? 'rekordbox_downbeat' : 'rekordbox_beat', rekordboxName + ' grid', null, beat.gridConfidence ?? beat.confidence, beat.bpm));
+nativePhrases.forEach(phrase => add(phrase.startTimeSec, phrase.sourceLabel || phrase.normalizedLabel, 'rekordbox_pssi_phrase', rekordboxName + ' phrases', phrase.endTimeSec - phrase.startTimeSec));
+importedCues.forEach(cue => add(cue.time, cue.label, cue.kind || 'cue', rekordboxName + ' cues', cue.endTime == null ? null : cue.endTime - cue.time));
+importedRegions.forEach(region => add(region.startTime, region.label, region.type, rekordboxName + ' cues', region.endTime - region.startTime));
+trackMap.manualCueMarkers.forEach(cue => add(cue.time, cue.label, cue.kind || 'cue', 'Track Map'));
+trackMap.presetAutomationCues.forEach(cue => add(cue.timeSec, cue.label || cue.id, 'preset_automation_cue', 'Track Map'));
+trackMap.pixGridActionCues.forEach(cue => add(cue.timeSec, cue.label || cue.id, 'pixgrid_action_cue', 'Track Map'));
+all.sort((a, b) => a.time - b.time || a.source.localeCompare(b.source) || a.type.localeCompare(b.type));
+
+const blob = URL.createObjectURL(new Blob([dataText], {type:'application/json'}));
+$('download').href = blob;
+write('title', track.title);
+document.title = track.title + ' | DRMVYZ Track Timeline';
+const captured = new Date(data.capturedAt).toLocaleString(undefined, {dateStyle:'medium',timeStyle:'short'});
+write('subtitle', [track.artist, track.filename, 'Captured ' + captured, 'Analysis ' + analysis.analysisVersion].filter(Boolean).join('  ·  '));
+const statPairs = [
+  ['Length', format(duration)], ['Tempo', grid.bpm > 0 ? num(grid.bpm) + ' BPM' : '—'],
+  ['Meter', analysis.timeSignature + '/4'], ['Analyzed key', timeline.meta.dominantKey || '—'],
+  ['Sample rate', count(track.sampleRate) + ' Hz'], ['Channels', track.channels ?? '—'],
+  ['Beats / bars', count(timeline.beats.length) + ' / ' + count(timeline.bars.length)],
+  ['Sections / phrases', count(timeline.sections.length) + ' / ' + count(timeline.phrases.length)],
+  ['Waveform bins', count(timeline.waveform.length)], ['Timeline events', count(timeline.timelineEvents.length)]
+];
+for (const [key,value] of statPairs) {
+  const unit = document.createElement('div'); const dt = document.createElement('dt'); const dd = document.createElement('dd');
+  dt.textContent = key; dd.textContent = value; unit.append(dt,dd); $('stats').append(unit);
+}
+const hasRekordbox = Boolean(track.isRekordbox || nativeGrid.length || nativePhrases.length || importedCues.length || importedRegions.length);
+$('rekordboxPanel').hidden = !hasRekordbox;
+$('sourcePanels').toggleAttribute('data-single', !hasRekordbox);
+write('rekordboxNote', rekordboxName + ' import contains ' + count(nativeGrid.length) + ' beats, ' + count(nativePhrases.length) + ' PSSI phrases, ' + count(importedCues.length) + ' cue markers, and ' + count(importedRegions.length) + ' regions. Its key tag is ' + (rekordbox.externalMetadata?.musicalKey || 'unavailable') + '.');
+const musicalGrid = analysis.musicalGrid;
+const gridLabel = grid.isOverride ? 'Manual BPM override' : grid.source ? pretty(grid.source) : 'Unavailable';
+const gridAuthority = musicalGrid ? (musicalGrid.authoritative ? 'Authoritative' : 'Fallback') : 'Unavailable';
+write('gridNote', [gridLabel + ' grid', 'Offset ' + (grid.beatGridOffsetSec == null ? '—' : num(grid.beatGridOffsetSec, 6) + ' s'), 'Authority ' + gridAuthority, 'BPM source ' + pretty(data.transport.bpmSource)].join(' · '));
+for (const warning of timeline.warnings) { const li = document.createElement('li'); li.textContent = warning; $('warnings').append(li); }
+const {sourcePath, ...rekordboxMetadata} = rekordbox.externalMetadata || {};
+write('rekordboxMeta', JSON.stringify({metadata:rekordboxMetadata, featureAvailability:native.featureAvailability, pssiIntegrity:native.rekordboxPssiIntegrity}, null, 2));
+write('diagnostics', JSON.stringify({musicalGrid, analysisSources:analysis.analysisSources, trackProvenance:analysis.trackProvenance, gridStale:data.transport.runtime.gridStale, analysisDiagnostics:analysis.analysisDiagnostics}, null, 2));
+const frame = data.playbackSnapshot;
+const frameFields = ['timeSec','frameId','capabilities','rhythm','bands','energy','section','harmonic','stems','lyrics','semantics'];
+write('snapshot', frame ? JSON.stringify(Object.fromEntries(frameFields.map(key => [key,frame[key]])), null, 2) : 'No matching live frame in the capture.');
+write('footer', 'Exported from the DRMVYZ Track Timeline Visualizer. The JSON contains the full waveform, analysis, and available import metadata.');
+
+const sectionColors = {intro:'#63d5a7',verse:'#57cbd9',build:'#dfbc63',predrop:'#f79f64',drop:'#ed6980',breakdown:'#ca84d4',bridge:'#79a6ff',outro:'#80dfc0',unknown:'#82929a'};
+const colors = { low:'#f0a061', mid:'#56d6e6', high:'#e58de0', semantic:'#ff8c9d', rekordbox:'#ffd479', boundary:'#ac9cf5' };
+const legend = [['Low','low'],['Mid','mid'],['High','high'],['Semantic events','semantic'],['Boundary candidates','boundary']];
+if (hasRekordbox) legend.push(['Rekordbox cues & phrases','rekordbox']);
+for (const [label,key] of legend) { const item = document.createElement('span'); const dot = document.createElement('i'); dot.className = 'dot'; dot.style.background=colors[key]; item.append(dot,label); $('legend').append(item); }
+
+const confidence = value => Number.isFinite(value) ? 'Confidence ' + num(value) : '';
+const sectionChange = event => event.type === 'section_entry' || event.type === 'section_exit';
+const beatItems = (beats, source) => beats.map((beat, index) => ({
+  time: beat.time ?? beat.timeSec, label: (beat.isDownbeat ? 'Downbeat' : 'Beat') + ' ' + (index + 1),
+  downbeat: beat.isDownbeat, detail: [source, Number.isFinite(beat.barIndex) ? 'Bar ' + (beat.barIndex + 1) : '',
+    Number.isFinite(beat.bpm) ? num(beat.bpm) + ' BPM' : '', confidence(beat.gridConfidence ?? beat.confidence)],
+}));
+const semanticItems = events => events.map(event => ({
+  time: event.timeSec, label: event.label || pretty(event.type),
+  detail: [event.durationSec > 0 ? num(event.durationSec, 3) + ' s duration' : '',
+    event.source ? pretty(event.source) : '', confidence(event.confidence), ...(event.supportingSignals ?? [])],
+}));
+const sectionItems = sections => sections.map(section => ({
+  time:section.startSec, end:section.endSec, label:section.label || pretty(section.type),
+  color:sectionColors[String(section.type ?? '').replace(/[^a-z]/g,'')] || sectionColors.unknown,
+  detail:[pretty(section.type), pretty(section.source || 'analysis'), 'Intensity ' + num(section.intensity), confidence(section.analysisConfidence ?? section.confidence)],
+}));
+const trackMapCues = [
+  ...trackMap.manualCueMarkers.map(cue => ({time:cue.time, end:cue.endTime, label:cue.label, detail:[pretty(cue.kind || 'cue')]})),
+  ...trackMap.presetAutomationCues.map(cue => ({time:cue.timeSec, label:cue.label || cue.id, detail:['Preset cue', cue.enabled ? 'Enabled' : 'Disabled']})),
+  ...trackMap.pixGridActionCues.map(cue => ({time:cue.timeSec, label:cue.label || cue.id, detail:['PixGrid action', pretty(cue.action?.type), cue.enabled ? 'Enabled' : 'Disabled']})),
+];
+const lanes = [
+  {name:'DRMVYZ beats', kind:'beats', items:beatItems(timeline.beats, 'Effective grid'), color:'#68daca'},
+  {name:'DRMVYZ sections', kind:'ranges', items:sectionItems(analysis.sections)},
+  {name:'Playback sections', kind:'ranges', items:trackMap.manualSections.length || trackMap.suppressedSectionIds.length ? sectionItems(trackMap.resolvedSections) : []},
+  {name:'DRMVYZ phrases', kind:'points', color:'#7be1cb', items:analysis.phrases.map(phrase => ({
+    time:phrase.timeSec, label:(phrase.lengthBars ?? phrase.phraseLength) + ' bars',
+    detail:[pretty(phrase.source), Number.isFinite(phrase.barIndex) ? 'Bar ' + (phrase.barIndex + 1) : '',
+      confidence(phrase.confidence), phrase.reason ?? '', ...(phrase.supportingSignals ?? [])],
+  }))},
+  {name:'Musical events', kind:'points', color:colors.semantic, items:semanticItems(analysis.semanticMoments.filter(event => !sectionChange(event)))},
+  {name:'Section changes', kind:'points', color:'#91afbb', items:semanticItems(analysis.semanticMoments.filter(sectionChange))},
+  {name:'Boundaries', kind:'points', color:colors.boundary, items:timeline.structuralBoundaries.map(event => ({
+    time:event.time, label:pretty(event.type), shortLabel:event.type === 'selected_boundary' ? 'Selected' : '',
+    color:event.type === 'selected_boundary' ? '#8be7fa' : colors.boundary,
+    detail:[event.label, confidence(event.confidence), Number.isFinite(event.value) ?
+      (event.type === 'ranked_boundary_alternative' ? 'Rank ' : 'Score ') + num(event.value) : ''],
+  }))},
+  {name:'Track Map cues', kind:'points', color:'#91c5e1', items:trackMapCues},
+  {name:'Rekordbox beats', kind:'beats', color:colors.rekordbox, items:beatItems(nativeGrid, rekordboxName + ' grid')},
+  {name:'Rekordbox cues', kind:'points', color:colors.rekordbox, items:importedCues.map(cue => ({
+    time:cue.time, end:cue.endTime, label:cue.label, detail:[pretty(cue.kind || 'cue'), rekordboxName],
+  }))},
+  {name:'Rekordbox regions', kind:'ranges', color:colors.rekordbox, items:importedRegions.map(region => ({
+    time:region.startTime, end:region.endTime, label:region.label, detail:[pretty(region.type), rekordboxName],
+  }))},
+  {name:'Rekordbox phrases', kind:'ranges', color:colors.rekordbox, items:nativePhrases.map(phrase => ({
+    time:phrase.startTimeSec, end:phrase.endTimeSec, label:phrase.sourceLabel || phrase.normalizedLabel,
+    detail:['PSSI', 'Beats ' + phrase.startBeat + '–' + phrase.endBeat, pretty(phrase.mood),
+      Number.isFinite(phrase.fillStartTimeSec) ? 'Fill at ' + format(phrase.fillStartTimeSec) : ''],
+  }))},
+].map(lane => ({ ...lane, items: lane.items.filter(item => Number.isFinite(item.time)
+  && (lane.kind !== 'ranges' || (Number.isFinite(item.end) && item.end > item.time))) }))
+  .filter(lane => lane.items.length > 0);
+
+function addOption(select, value, title) {
+  const option = document.createElement('option'); option.value = value; option.textContent = title; select.append(option);
+}
+for (const source of [...new Set(all.map(event => event.source))].sort()) addOption($('source'), source, source);
+for (const type of [...new Set(all.map(event => event.type))].sort()) addOption($('type'), type, pretty(type));
+const series = {...timeline.curves};
+for (const key of ['positive','negative','rms','low','mid','high']) series['waveform.' + key] = timeline.waveform.map(bin => ({time:bin.center,value:bin[key]}));
+for (const name of Object.keys(series)) {
+  const [group,metric] = name.split('.');
+  addOption($('series'), name, pretty(group) + ' · ' + pretty(metric));
+}
+$('series').value = series['energyCurves.shortTerm'] ? 'energyCurves.shortTerm' : 'waveform.rms';
+
+let start = 0, end = duration, cursor = null;
+function setView(left, span) {
+  span = clamp(span, Math.min(2, duration), duration);
+  start = clamp(left, 0, duration - span); end = start + span;
+  $('pan').disabled = span >= duration - .00001;
+  $('pan').value = $('pan').disabled ? 0 : Math.round(start / (duration - span) * 1000);
+  render();
+}
+function zoom(factor) {
+  const center = cursor !== null && cursor >= start && cursor <= end ? cursor : (start + end) / 2;
+  const newSpan = clamp((end - start) * factor, Math.min(2, duration), duration);
+  setView(center - newSpan / 2, newSpan);
+}
+$('full').onclick = () => setView(0,duration);
+$('in').onclick = () => zoom(.5);
+$('out').onclick = () => zoom(2);
+$('pan').oninput = event => setView(+event.target.value / 1000 * (duration - (end - start)), end - start);
+$('series').onchange = drawCurve;
+function focusTime(time) {
+  const span = Math.min(end-start, 22);
+  cursor = clamp(time, 0, duration);
+  $('laneInspector').hidden = true;
+  setView(cursor - span/2, span);
+  renderCursor(cursor);
+  $('wave').scrollIntoView({block:'nearest'});
+}
+function setRow(tbody, values, startTime) {
+  const row = document.createElement('tr');
+  values.forEach((value,index) => {
+    const cell = document.createElement('td');
+    if (index === 0 && Number.isFinite(startTime)) {
+      const action = document.createElement('button'); action.type = 'button'; action.textContent = value;
+      action.onclick = () => focusTime(startTime); cell.append(action);
+    } else cell.textContent = value ?? '—';
+    row.append(cell);
+  });
+  tbody.append(row);
+}
+function markerRows() {
+  const search = $('search').value.trim().toLowerCase();
+  const source = $('source').value;
+  const type = $('type').value;
+  const rows = all.filter(event => (
+    (!source || event.source === source) && (!type || event.type === type)
+    && (!search || [event.label, format(event.time), event.source, pretty(event.type)].join(' ').toLowerCase().includes(search))
+  ));
+  const fragment = document.createDocumentFragment();
+  rows.forEach(event => setRow(fragment, [
+    format(event.time), event.label, event.source, pretty(event.type),
+    event.duration > 0 ? num(event.duration,6) + ' s' : '—', num(event.confidence), num(event.value)
+  ], event.time));
+  $('markers').replaceChildren(fragment);
+  write('markerCount', count(rows.length) + ' / ' + count(all.length) + ' records');
+}
+$('source').onchange = $('type').onchange = $('search').oninput = markerRows;
+markerRows();
+importedCues.forEach(cue => setRow($('cues'),[format(cue.time),cue.label,pretty(cue.kind)],cue.time));
+importedRegions.forEach(region => setRow($('cues'),[format(region.startTime),region.label,pretty(region.type)],region.startTime));
+nativePhrases.forEach(phrase => setRow($('pssi'),[format(phrase.startTimeSec),format(phrase.endTimeSec),phrase.sourceLabel || phrase.normalizedLabel,phrase.startBeat + '–' + phrase.endBeat],phrase.startTimeSec));
+
+const barFields = Object.keys(timeline.curves).filter(key => key.startsWith('barFeatures.')).map(key => key.split('.')[1]);
+for (const heading of ['Start','End','Bar','Grid confidence',...barFields.map(pretty),'Chroma']) {
+  const th = document.createElement('th'); th.scope = 'col'; th.textContent = heading; $('barHead').append(th);
+}
+timeline.bars.forEach(bar => setRow($('barRows'),[
+  format(bar.start),format(bar.end),bar.barNumber,num(bar.gridConfidence),...barFields.map(key => num(bar[key])),
+  bar.chromaSummary?.length ? bar.chromaSummary.map(value => num(value,3)).join(' · ') : '—'
+],bar.start));
+write('barsSummary', 'Open all ' + count(timeline.bars.length) + ' bars and ' + barFields.length + ' measurements');
+
+let leftMargin = 116, rightMargin = 15;
+const ratioAt = time => (time - start) / (end - start);
+const percentAt = time => ratioAt(time) * 100 + '%';
+const tickDivisions = width => width < 500 ? 4 : 8;
+function prepare(canvas, background = true) {
+  const width = Math.max(1, canvas.clientWidth);
+  const height = Math.max(1, canvas.clientHeight);
+  const scale = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width = width * scale; canvas.height = height * scale;
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(scale,0,0,scale,0,0);
+  if (background) { ctx.fillStyle = '#10171a'; ctx.fillRect(0,0,width,height); }
+  return {ctx,width,height, inner:Math.max(1,width-leftMargin-rightMargin)};
+}
+function canvasX(time, width) { return leftMargin + ratioAt(time) * width; }
+function visible(time) { return time >= start && time <= end; }
+function drawTimeline() {
+  const {ctx,width,height,inner} = prepare($('wave'));
+  const x = time => canvasX(time,inner);
+  const timeAt = pixel => start + pixel / inner * (end - start);
+  ctx.strokeStyle='#26383f'; ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(0,26.5);ctx.lineTo(width,26.5);ctx.stroke();
+  ctx.font='11px system-ui'; ctx.fillStyle='#b5c9ce';
+  ctx.fillText('Waveform',8,70);
+  ctx.save(); ctx.beginPath(); ctx.rect(leftMargin,0,inner,height); ctx.clip();
+  const intervals = tickDivisions(inner);
+  ctx.font='11px ui-monospace,monospace';
+  for (let i=0;i<=intervals;i++) {
+    const time=start+(end-start)*i/intervals;
+    const xx=x(time);
+    ctx.strokeStyle='#283940'; ctx.beginPath(); ctx.moveTo(xx,.5); ctx.lineTo(xx,height); ctx.stroke();
+    ctx.fillStyle='#b5c9ce'; ctx.textAlign=i===intervals?'right':i===0?'left':'center'; ctx.fillText(format(time,end-start<22),xx,18);
+  }
+  ctx.textAlign='left';
+  const bins = timeline.waveform;
+  const offset = duration / bins.length;
+  const center = 74;
+  for(let px=0;px<inner;px++) {
+    const first = clamp(Math.floor(timeAt(px)/offset),0,bins.length-1);
+    const last = clamp(Math.max(first+1,Math.ceil(timeAt(px+1)/offset)),1,bins.length);
+    let pos=0,neg=0,sum=0,low=0,mid=0,high=0;
+    for(let i=first;i<last;i++) { const bin=bins[i]; pos=Math.max(pos,bin.positive); neg=Math.max(neg,bin.negative); sum+=bin.rms; low+=bin.low; mid+=bin.mid; high+=bin.high; }
+    const pxX=leftMargin+px+.5;
+    const band=low>=mid && low>=high?'low':mid>=high?'mid':'high';
+    ctx.strokeStyle=colors[band]; ctx.beginPath(); ctx.moveTo(pxX,center-pos*43); ctx.lineTo(pxX,center+Math.max(.7,neg*43)); ctx.stroke();
+    const rms=sum/(last-first);
+    if(rms>.03) { ctx.strokeStyle='rgba(244,249,252,.31)'; ctx.beginPath(); ctx.moveTo(pxX,center-rms*35); ctx.lineTo(pxX,center+rms*35); ctx.stroke(); }
+  }
+  if (cursor !== null && visible(cursor)) {
+    ctx.strokeStyle='#eef7f9';ctx.beginPath();ctx.moveTo(x(cursor),0);ctx.lineTo(x(cursor),height);ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function itemTime(item) {
+  return format(item.time) + (Number.isFinite(item.end) && item.end > item.time ? ' → ' + format(item.end) : '');
+}
+function markerTitle(item) { return item.label + ' · ' + itemTime(item); }
+function selectTime(time) {
+  cursor = clamp(time,start,end);
+  $('timelineBoard').style.setProperty('--lane-cursor',percentAt(cursor));
+  drawTimeline();drawCurve();renderCursor(cursor);
+}
+function inspectMarkers(lane, items) {
+  const list = $('laneSelectionItems');
+  write('laneSelection',lane.name + (items.length > 1 ? ' · ' + items.length + ' markers' : ''));
+  list.replaceChildren(...items.map(item => {
+    const row = document.createElement('li');
+    const time = document.createElement('button'); time.type='button'; time.textContent=itemTime(item); time.onclick=()=>selectTime(item.time);
+    const title = document.createElement('strong'); title.textContent=item.label;
+    const detail = document.createElement('span'); detail.className='muted'; detail.textContent=item.detail.filter(Boolean).join(' · ');
+    row.append(time,title,detail); return row;
+  }));
+  $('laneInspector').hidden=false;
+  selectTime(items[0].time);
+}
+function laneButton(lane, items, label, styleName) {
+  const button = document.createElement('button');
+  button.type='button'; button.className=styleName;
+  button.textContent=label;
+  button.title=items.length === 1 ? markerTitle(items[0]) : items.length + ' markers · ' + format(items[0].time);
+  button.setAttribute('aria-label',button.title);
+  button.onclick=()=>inspectMarkers(lane,items);
+  return button;
+}
+function drawBeatLane(canvas, lane) {
+  const {ctx,width,height}=prepare(canvas,false);
+  const items=lane.items.filter(item=>visible(item.time));
+  ctx.strokeStyle=lane.color;
+  items.forEach(item=>{
+    const x=ratioAt(item.time)*width;
+    ctx.globalAlpha=item.downbeat ? .92 : .42;
+    ctx.lineWidth=item.downbeat?1.5:1;
+    ctx.beginPath();ctx.moveTo(x,item.downbeat?6:16);ctx.lineTo(x,height-5);ctx.stroke();
+  });
+  if (!items.length) return;
+  canvas.tabIndex=0;
+  canvas.setAttribute('aria-label',lane.name+' in view. Use left and right arrows to inspect beats.');
+  const nearest = time => items.reduce((best,item,index)=>Math.abs(item.time-time)<Math.abs(items[best].time-time)?index:best,0);
+  canvas.onclick=event=>{
+    const {left,width}=canvas.getBoundingClientRect();
+    const time=start+clamp((event.clientX-left)/width,0,1)*(end-start);
+    inspectMarkers(lane,[items[nearest(time)]]);
+  };
+  canvas.onkeydown=event=>{
+    if (!['ArrowLeft','ArrowRight'].includes(event.key)) return;
+    event.preventDefault();
+    const index=cursor===null||!visible(cursor)?0:clamp(nearest(cursor)+(event.key==='ArrowLeft'?-1:1),0,items.length-1);
+    inspectMarkers(lane,[items[index]]);
+  };
+}
+function renderLanes(inner) {
+  const mount = $('timelineLanes');
+  const board = $('timelineBoard');
+  board.style.setProperty('--tick-spacing',100/tickDivisions(inner)+'%');
+  board.style.setProperty('--lane-cursor',cursor!==null&&visible(cursor)?percentAt(cursor):'-4px');
+  const beatCanvases=[];
+  mount.replaceChildren(...lanes.map(lane=>{
+    const row = document.createElement('div'); row.className='timeline-lane';
+    const title = document.createElement('span'); title.className='lane-name';title.textContent=lane.name;
+    const plot = document.createElement('div'); plot.className='lane-plot'; row.append(title,plot);
+    if (lane.kind==='beats') {
+      const canvas = document.createElement('canvas'); canvas.className='lane-beats';
+      plot.append(canvas);beatCanvases.push([canvas,lane]);
+      return row;
+    }
+    if (lane.kind==='ranges') {
+      for (const item of lane.items) {
+        if (item.end<=start||item.time>=end) continue;
+        const from=Math.max(start,item.time),to=Math.min(end,item.end);
+        const width=(ratioAt(to)-ratioAt(from))*100;
+        const button=laneButton(lane,[item],item.label,'lane-range');
+        button.style.setProperty('--at',percentAt(from));
+        button.style.setProperty('--wide',width+'%');
+        button.style.setProperty('--marker-color',item.color||lane.color);
+        button.toggleAttribute('data-narrow',width*inner/100<12);
+        plot.append(button);
+      }
+      return row;
+    }
+    // Keep each point at its track time. Where pins would overlap, expose the exact records together.
+    const groups=[];
+    for (const item of lane.items.filter(item=>visible(item.time)).sort((a,b)=>a.time-b.time)) {
+      const x=ratioAt(item.time)*inner;
+      const previous=groups.at(-1);
+      if (previous && x-previous.x<18) previous.items.push(item);
+      else groups.push({x,items:[item]});
+    }
+    groups.forEach(({x,items},index)=>{
+      const first=items[0];
+      const pin=document.createElement('span');pin.className='lane-marker';
+      pin.style.setProperty('--at',percentAt(first.time));
+      pin.style.setProperty('--marker-color',first.color||lane.color);
+      const room=(groups[index+1]?.x??inner)-x;
+      const edge=inner-x<18;
+      const width=edge?Math.min(120,x-5):clamp(room-5,13,146);
+      const text=items.length>1?String(items.length):(first.shortLabel??first.label);
+      const compact=width<37||!text;
+      const button=laneButton(lane,items,compact&&items.length===1?'•':text,'lane-point');
+      button.toggleAttribute('data-edge',edge);
+      button.toggleAttribute('data-compact',compact);
+      button.style.setProperty('--wide',width+'px');
+      pin.append(button); plot.append(pin);
+    });
+    return row;
+  }));
+  beatCanvases.forEach(([canvas,lane])=>drawBeatLane(canvas,lane));
+}
+
+function drawCurve() {
+  const {ctx,height,inner} = prepare($('curve'));
+  const points = series[$('series').value];
+  const values = points.filter(point => visible(point.time));
+  if (!values.length) {write('curveRange','No points in range');return;}
+  let lo = Infinity, hi = -Infinity;
+  for (const point of values) { lo=Math.min(lo,point.value); hi=Math.max(hi,point.value); }
+  const spread=hi-lo || 1;
+  write('curveRange', count(values.length) + ' points · Visible min ' + num(lo) + ' · max ' + num(hi));
+  ctx.fillStyle='#b5c9ce';ctx.font='11px ui-monospace,monospace';ctx.fillText(num(hi),10,19);ctx.fillText(num(lo),10,height-12);
+  ctx.strokeStyle='#5cd9df';ctx.lineWidth=1.5;ctx.beginPath();
+  values.forEach((point,i) => {
+    const x=canvasX(point.time,inner),y=11+(1-(point.value-lo)/spread)*(height-23);
+    if(i)ctx.lineTo(x,y);else ctx.moveTo(x,y);
+  });ctx.stroke();
+  if(cursor!==null && visible(cursor)){const x=canvasX(cursor,inner);ctx.strokeStyle='#eaf5f6';ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,height);ctx.stroke();}
+}
+function render() {
+  const style=getComputedStyle($('wave'));
+  leftMargin=parseFloat(style.getPropertyValue('--time-gutter'));
+  rightMargin=parseFloat(style.getPropertyValue('--time-tail'));
+  write('range',format(start)+' → '+format(end));
+  drawTimeline();drawCurve();renderLanes(Math.max(1,$('wave').clientWidth-leftMargin-rightMargin));
+}
+function renderCursor(time) {
+  const bin=timeline.waveform[clamp(Math.floor(time/duration*timeline.waveform.length),0,timeline.waveform.length-1)];
+  const shown=['positive','negative','rms','low','mid','high'].map(key=>pretty(key)+' '+num(bin[key])).join('  ·  ');
+  write('cursor',format(time)+' · Bin '+(bin.index+1)+' ('+format(bin.start)+'–'+format(bin.end)+')  ·  '+shown);
+}
+function pointerTime(event) {
+  const rect=$('wave').getBoundingClientRect();
+  return start+clamp((event.clientX-rect.left-leftMargin)/(rect.width-leftMargin-rightMargin),0,1)*(end-start);
+}
+$('wave').onpointermove=event=>renderCursor(pointerTime(event));
+$('wave').onclick=event=>selectTime(pointerTime(event));
+$('wave').onkeydown=event=>{
+  if(!['ArrowLeft','ArrowRight'].includes(event.key))return;
+  event.preventDefault();
+  selectTime((cursor??start)+(event.key==='ArrowLeft'?-1:1)*(end-start)/100);
+};
+new ResizeObserver(render).observe($('wave'));
+render();
+</script>
+</body>
+</html>

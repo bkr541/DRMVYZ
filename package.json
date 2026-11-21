@@ -110,6 +110,7 @@
     "@supabase/supabase-js": "^2.106.0",
     "earcut": "^3.2.3",
     "electron-log": "^5.4.4",
+    "fflate": "^0.8.3",
     "konva": "^9.3.22",
     "meyda": "^5.6.3",
     "onnxruntime-web": "^1.26.0",

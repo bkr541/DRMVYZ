@@ -14,6 +14,7 @@ import {
 import type { TrackIntelligenceAnalysis } from '../../../../features/musicIntelligence/types'
 import type { RgbWaveformAnalysis } from '../../../../features/waveform/rgbWaveformTypes'
 import { useSharedAudio } from '../../../../context/AudioEngineContext'
+import type { ReactTrackSection } from '../ReactTypes'
 import {
   drawTrackTimelineCanvas,
   formatTime,
@@ -30,7 +31,7 @@ import {
   type TrackTimelineModel,
   type TrackTimelinePoint,
 } from './trackTimelineModel'
-import { NotificationDrawer, NotificationBellIcon } from '../../shared/NotificationDrawer'
+import { NotificationDrawer, NotificationBellIcon, type NotificationCard } from '../../shared/NotificationDrawer'
 import { MusicIntelligenceDiagnosticsPanel } from '../../modulation/MusicIntelligenceDiagnosticsPanel'
 import {
   clampTrackTimelinePlayheadTime,
@@ -47,11 +48,13 @@ import {
   type TrackTimelineViewport,
   type TrackTimelineZoomPreset,
 } from './trackTimelineViewport'
+import { captureTrackTimelineExport } from './trackTimelineExportData'
 import './trackTimeline.css'
 
 interface TrackTimelineVisualizerProps {
   analysis: TrackIntelligenceAnalysis
   rgbWaveform: RgbWaveformAnalysis
+  resolvedSections: readonly ReactTrackSection[]
   filename: string
   trackTitle?: string | null
   artistName?: string | null
@@ -741,7 +744,7 @@ function zoomPresetLabel(preset: TrackTimelineZoomPreset): string {
 }
 
 export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
-  const { analysis, rgbWaveform, filename, channels, trackTitle, artistName } = props
+  const { analysis, rgbWaveform, resolvedSections, filename, channels, trackTitle, artistName } = props
   const appShellRef = useRef<HTMLDivElement>(null)
   const overviewRef = useRef<HTMLDivElement>(null)
   const playheadTimeRef = useRef<HTMLSpanElement>(null)
@@ -763,6 +766,8 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
   const minimumViewportDuration = Math.min(model.durationSec || 1, Math.max(1, barDuration * 4))
   const [activeZoom, setActiveZoom] = useState<TrackTimelineZoomPreset | 'custom'>(32)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
+  const [exporting, setExporting] = useState(false)
+  const [exportError, setExportError] = useState<string | null>(null)
   const [viewport, setViewport] = useState<TrackTimelineViewport>(() => createTrackTimelineViewport(
     model.durationSec,
     model.bars,
@@ -839,7 +844,8 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
 
   // The notification-drawer feed: the Analysis Status summary followed by each
   // distinct analysis warning, shown in the shared NotificationDrawer.
-  const notificationCards: Array<{ id: string; tone: 'warning' | 'success'; title: string; body: string }> = [
+  const notificationCards: NotificationCard[] = [
+    ...(exportError ? [{ id: 'timeline-export', tone: 'error' as const, title: 'Timeline export failed', body: exportError, role: 'alert' as const }] : []),
     {
       id: 'analysis-status',
       tone: analysisHasWarning ? 'warning' : 'success',
@@ -871,6 +877,22 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
   const openNotifications = useCallback(() => setNotificationsOpen(true), [])
   const closeNotifications = useCallback(() => setNotificationsOpen(false), [])
 
+  async function exportTimeline(ownerDocument: Document) {
+    if (exporting) return
+    setExporting(true)
+    setExportError(null)
+    try {
+      const snapshot = captureTrackTimelineExport({ engine: engineRef.current, analysis, rgbWaveform, model, resolvedSections })
+      const { downloadTrackTimelineExport } = await import('./trackTimelineExport')
+      if (ownerDocument.defaultView && !ownerDocument.defaultView.closed) downloadTrackTimelineExport(snapshot, ownerDocument)
+    } catch (error) {
+      setExportError(error instanceof Error ? error.message : 'The ZIP could not be created.')
+      setNotificationsOpen(true)
+    } finally {
+      setExporting(false)
+    }
+  }
+
   return (
     <div
       ref={appShellRef}
@@ -892,6 +914,17 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
         <div className="ttv-view-header-actions">
           <button
             type="button"
+            className="ttv-icon-btn"
+            onClick={event => { void exportTimeline(event.currentTarget.ownerDocument) }}
+            disabled={exporting}
+            aria-busy={exporting}
+            aria-label="Export track timeline"
+            title={exporting ? 'Preparing track timeline ZIP…' : 'Export track timeline (ZIP)'}
+          >
+            <AppIcon kind="download" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
             className="ttv-icon-btn ttv-notifications-trigger"
             onClick={openNotifications}
             aria-haspopup="dialog"
@@ -900,7 +933,7 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
             title="Notifications"
           >
             <NotificationBellIcon />
-            {analysisHasWarning && <span className="ttv-notifications-dot" aria-hidden="true" />}
+            {(analysisHasWarning || exportError) && <span className="ttv-notifications-dot" aria-hidden="true" />}
           </button>
         </div>
       </header>

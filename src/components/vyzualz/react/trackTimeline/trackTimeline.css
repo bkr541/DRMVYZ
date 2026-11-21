@@ -85,9 +85,14 @@
   cursor: pointer;
 }
 
-.ttv-icon-btn:hover {
+.ttv-icon-btn:not(:disabled):hover {
   color: var(--color-text-strong, rgba(245, 248, 250, 0.94));
   background: rgba(255, 255, 255, 0.035);
+}
+
+.ttv-icon-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
 }
 
 .ttv-icon-btn svg {
@@ -939,9 +944,7 @@ summary.ttv-icon-btn::-webkit-details-marker {
   }
 }
 
-/* ── Notifications bell ────────────────────────────────────────────────────
-   The bell trigger sits left of the Analysis Settings icon. The drawer it opens is the shared NotificationDrawer
-   (src/components/vyzualz/shared/NotificationDrawer.tsx), which every page header's bell opens too. */
+/* ── Notifications bell ──────────────────────────────────────────────────── */
 
 .ttv-notifications-trigger {
   position: relative;

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { TrackIntelligenceAnalysis } from '../../../../features/musicIntelligence/types'
 import type { RgbWaveformAnalysis } from '../../../../features/waveform/rgbWaveformTypes'
+import type { ReactTrackSection } from '../ReactTypes'
 import { TrackTimelineVisualizer } from './TrackTimelineVisualizer'
 
 const POPUP_NAME = 'drmvyz-track-timeline'
@@ -24,6 +25,7 @@ export function TrackTimelineModal({
   onClose,
   analysis,
   rgbWaveform,
+  resolvedSections,
   filename,
   trackTitle,
   artistName,
@@ -32,6 +34,7 @@ export function TrackTimelineModal({
   onClose: () => void
   analysis: TrackIntelligenceAnalysis
   rgbWaveform: RgbWaveformAnalysis
+  resolvedSections: readonly ReactTrackSection[]
   filename: string
   trackTitle?: string | null
   artistName?: string | null
@@ -87,6 +90,7 @@ export function TrackTimelineModal({
     <TrackTimelineVisualizer
       analysis={analysis}
       rgbWaveform={rgbWaveform}
+      resolvedSections={resolvedSections}
       filename={filename}
       trackTitle={trackTitle}
       artistName={artistName}
