@@ -75,6 +75,12 @@
   --type-group-heading: var(--type-window-heading);
   --type-window-heading-tracking: 0.15em;
   --type-nested-group-heading: 800 11px/1 var(--font-ui, 'Space Grotesk', sans-serif);
+  --type-dock-family: var(--az-font, var(--font-ui, 'Space Grotesk', 'Helvetica Neue', system-ui, sans-serif));
+  --type-dock-track-title: 800 12.5px/1.12 var(--type-dock-family);
+  --type-dock-track-detail: 400 9.5px/normal var(--type-dock-family);
+  --type-dock-meter-label: 700 9.5px/1 var(--type-dock-family);
+  --type-dock-bpm: 800 18px/1 var(--type-dock-family);
+  --type-dock-source: 800 12px/1 var(--type-dock-family);
 }
 
 /* Notice titles keep one size across inline cards, drawers and design variants. */

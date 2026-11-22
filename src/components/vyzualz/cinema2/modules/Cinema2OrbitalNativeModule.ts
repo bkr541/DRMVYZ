@@ -2,13 +2,15 @@ import { cinema2StableId, type Cinema2ModuleTypeId } from '../contracts/Cinema2N
 import type { Cinema2ModuleParameterReadFacet, Cinema2ModuleTypeDefinition } from './Cinema2ModuleContracts'
 import { createCinema2SayItNativeModuleDefinition } from './Cinema2SayItNativeModule'
 import { Cinema2OrbitalBridge, type OrbitalDrawSettings } from './orbital/Cinema2OrbitalBridge'
-import { orbitalControllerPattern } from './orbital/Cinema2OrbitalMotion'
+import { orbitalControllerPattern, orbitalPosition } from './orbital/Cinema2OrbitalMotion'
 
 export const CINEMA2_ORBITAL_MODULE_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('orbital-native')
 const SPHERE_ASSET_ID = 'cinema2-orbital-gyroscope'
+/** The inner core shown through the lattice. Optional: ORBITAL runs without it if it cannot load. */
+const CORE_ASSET_ID = 'cinema2-orbital-core'
 const defaults: Readonly<OrbitalDrawSettings> = Object.freeze({
-  amount: .7, ringTravel: 1, period: 8, size: 1, depth: 1, planet: .8, debris: .55,
-  material: 'artifact', bass: 0, mids: 0, highs: 0, beat: 0,
+  amount: .7, ringTravel: 1, period: 16, size: 1, depth: 1, planet: .8, debris: .55,
+  material: 'artifact', position: 'stacked', orbit: 1, bass: 0, mids: 0, highs: 0, beat: 0,
 })
 type GlyphModuleOptions = NonNullable<Parameters<typeof createCinema2SayItNativeModuleDefinition>[0]>
 
@@ -20,6 +22,7 @@ function orbitalParameters(parameters: Cinema2ModuleParameterReadFacet): Cinema2
       const value = parameters.get(name)
       if (name === 'pattern') return orbitalControllerPattern(value)
       if (name === 'materialStyle') return 'chrome'
+      if (name === 'alignment') return 'center' // Lines are centred; Position decides how two lines sit on the orbit.
       if (name === 'line1Text' && !(typeof value === 'string' && value.trim())) {
         const secondLine = parameters.get('line2Text')
         if (parameters.get('lineMode') === 'one' || !(typeof secondLine === 'string' && secondLine.trim())) return 'ORBITAL'
@@ -40,10 +43,11 @@ export function createCinema2OrbitalNativeModuleDefinition(options: Pick<GlyphMo
         ...options,
         displayName: 'ORBITAL',
         companionAssetId: SPHERE_ASSET_ID,
+        optionalAssetIds: [CORE_ASSET_ID],
         createBridge: options.createBridge ?? ((gl, library, glyphs, companion) => {
           if (!companion) throw new Error('The ORBITAL metal sphere asset is missing.')
           return new Cinema2OrbitalBridge(gl, library, glyphs, companion.asset, companion.scene,
-            () => settings, index => context.randomness.sample('orbital-environment', index))
+            () => settings, index => context.randomness.sample('orbital-environment', index), companion.extras.get(CORE_ASSET_ID))
         }),
       }).create({ ...context, parameters: orbitalParameters(context.parameters) })
 
@@ -63,6 +67,8 @@ export function createCinema2OrbitalNativeModuleDefinition(options: Pick<GlyphMo
             const paused = frame.transport?.paused || frame.transport?.animationActive === false
             settings = {
               amount: read('motionAmount', defaults.amount) * gain,
+              orbit: read('motionAmount', defaults.amount) > 0 ? gain : 0,
+              position: parameters.get('lineMode') === 'one' ? 'stacked' : orbitalPosition(parameters.get('position')),
               ringTravel: read('ring-travel', defaults.ringTravel, 0, 1.4),
               period: read('cycleSeconds', defaults.period, 2, 20),
               size: read('gyroscope-size', defaults.size, .55, 1.35),

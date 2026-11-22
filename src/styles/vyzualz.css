@@ -3105,9 +3105,16 @@ input[type='range'].vz-slider::-webkit-slider-thumb {
   min-width: 48px;
 }
 
-.vz-dock-addtrack-btn {
+.vz-dock-track-load-tools {
   grid-column: 1 / -1;
   grid-row: 2;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.vz-dock-addtrack-btn {
   width: 100%;
   height: 32px;
   display: flex;
@@ -3190,7 +3197,7 @@ input[type='range'].vz-slider::-webkit-slider-thumb {
 }
 .vz-dock-cue-overlay > * { pointer-events: all; }
 
-/* RIGHT: BPM + Rekordbox menu above, three equal action buttons below */
+/* RIGHT: BPM and source above the action buttons */
 .vz-dock-right {
   display: flex;
   flex-direction: column;
@@ -3268,12 +3275,12 @@ input[type='range'].vz-slider::-webkit-slider-thumb {
 .vz-dock-right-btns {
   flex: 0 0 34px;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
   min-width: 0;
 }
 
-/* Normalise all three action buttons to fill their cell. */
+/* Action buttons fill their cells. */
 .vz-dock-right-btns > button {
   height: 100%;
   width: 100%;
@@ -3412,7 +3419,7 @@ input[type='range'].vz-slider::-webkit-slider-thumb {
    where the current BPM sits in its 40–300 range. */
 .vz-dock-bpm-track-bar {
   position: relative;
-  width: 100%;
+  width: calc(100% - 48px);
   height: 5px;
   margin-top: 4px;
   border-radius: 999px;
@@ -3561,46 +3568,42 @@ input[type='range'].vz-slider::-webkit-slider-thumb {
   line-height: 1.4;
 }
 
-/* TAP button — same cell geometry as CUE / SYNC */
-.vz-dock-tap-btn {
-  display: flex;
+/* Compact keys for track loading and the BPM readout. */
+.vz-dock-tap-btn,
+.vz-dock-playlist-trigger {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  width: 100%;
-  height: 100%;
-  min-width: 0;
-  padding: 0 10px;
-  background: rgba(74, 199, 219, 0.055);
-  border: 1px solid rgba(74, 199, 219, 0.42);
-  border-radius: 4px;
-  color: rgba(102, 226, 244, 0.94);
-  font-family: var(--az-font);
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  box-sizing: border-box;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  background: var(--dock-fill, rgba(255, 255, 255, 0.045));
+  border: 1px solid var(--dock-line, rgba(154, 178, 188, 0.18));
+  border-radius: var(--radius-group);
+  color: var(--dock-ink-dim, rgba(196, 207, 211, 0.58));
   cursor: pointer;
   flex-shrink: 0;
-  transition: all 0.12s;
+  transition: border-color 120ms ease, color 120ms ease, background 120ms ease;
 }
-.vz-dock-tap-btn:hover:not(:disabled) {
-  background: rgba(74,199,219,0.12);
-  border-color: rgba(104, 222, 240, 0.82);
-  color: var(--az-cyan);
-  box-shadow: 0 0 12px rgba(74,199,219,0.18);
+
+.vz-dock-tap-btn {
+  align-self: center;
+  width: 24px;
+  height: 24px;
 }
-.vz-dock-tap-btn:active:not(:disabled) {
-  background: rgba(74,199,219,0.22);
-  box-shadow: 0 0 8px rgba(74,199,219,0.24);
+.vz-dock-tap-btn:hover:not(:disabled),
+.vz-dock-playlist-trigger:hover,
+.vz-dock-playlist-trigger[aria-expanded='true'] {
+  border-color: rgba(74, 199, 219, 0.55);
+  background: rgba(74, 199, 219, 0.14);
+  color: var(--dock-cyan-bright, var(--az-cyan));
 }
 .vz-dock-tap-btn:disabled {
   opacity: 0.34;
   cursor: default;
-  box-shadow: none;
 }
 
-.vz-dock-right-btns > .vz-dock-tap-btn,
 .vz-dock-right-btns > .vz-dock-cue-btn,
 .vz-dock-right-btns > .vz-dock-sync-master-btn {
   width: 100%;

@@ -29,6 +29,14 @@ export function LayoutLabModal({ onClose }: { onClose: () => void }) {
     popup.document.body.style.height = '100vh'
     popup.document.body.style.overflow = 'hidden'
 
+    const typography = getComputedStyle(document.documentElement)
+    for (const token of ['--font-ui', '--font-mono', '--az-font', '--az-font-data']) {
+      const value = typography.getPropertyValue(token)
+      if (value) popup.document.documentElement.style.setProperty(token, value)
+    }
+    const fontStylesheet = document.querySelector('link[rel="stylesheet"][href*="fonts.googleapis.com/css2"]')
+    if (fontStylesheet) popup.document.head.appendChild(popup.document.importNode(fontStylesheet, true))
+
     const root = popup.document.createElement('div')
     root.style.height = '100%'
     popup.document.body.appendChild(root)

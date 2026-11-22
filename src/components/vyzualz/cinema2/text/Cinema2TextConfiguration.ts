@@ -14,7 +14,7 @@ const EXTRUDED_TEXT = {
 } as const
 
 export const CINEMA2_TEXT_FIELDS = {
-  'drmvyz.cinema2.orbital': ['orbital-line-mode', 'orbital-text', 'orbital-line-2-text', 'orbital-alignment', 'orbital-tracking', 'orbital-line-spacing', 'orbital-glyph-scale', 'orbital-material-style', 'orbital-roughness', 'orbital-letter-depth', 'orbital-led-outline', 'orbital-background', 'orbital-chrome', 'orbital-outline-color', 'orbital-gyroscope-size', 'orbital-planet', 'orbital-debris'],
+  'drmvyz.cinema2.orbital': ['orbital-line-mode', 'orbital-text', 'orbital-line-2-text', 'orbital-position', 'orbital-tracking', 'orbital-line-spacing', 'orbital-glyph-scale', 'orbital-material-style', 'orbital-roughness', 'orbital-letter-depth', 'orbital-led-outline', 'orbital-background', 'orbital-chrome', 'orbital-outline-color', 'orbital-gyroscope-size', 'orbital-planet', 'orbital-debris'],
   'drmvyz.cinema2.submerge': ['submerge-line-mode', 'submerge-text', 'submerge-line-2-text', 'submerge-alignment', 'submerge-tracking', 'submerge-line-spacing', 'submerge-glyph-scale', 'submerge-material-style', 'submerge-roughness', 'submerge-letter-depth', 'submerge-led-outline', 'submerge-background', 'submerge-chrome', 'submerge-outline-color', 'submerge-architecture', 'submerge-waves', 'submerge-sunlight', 'submerge-sun-color', 'submerge-foam-color', 'submerge-caustics', 'submerge-haze', 'submerge-particles', 'submerge-bubbles'],
   'drmvyz.cinema2.say-it': ['say-it-line-mode', 'say-it-text', 'say-it-line-2-text', 'say-it-alignment', 'say-it-tracking', 'say-it-line-spacing', 'say-it-glyph-scale', 'say-it-material-style', 'say-it-led-outline', 'say-it-background', 'say-it-chrome', 'say-it-outline-color'],
   'drmvyz.cinema2.crate-paradox-weave': ['parallax-cipher-line-mode', 'parallax-cipher-text', 'parallax-cipher-line-two-text'],
@@ -22,6 +22,9 @@ export const CINEMA2_TEXT_FIELDS = {
   'drmvyz.cinema2.nightshift': ['nightshift-enable-signs', 'nightshift-sign-text', 'nightshift-sign-text-left', 'nightshift-sign-text-front', 'nightshift-sign-text-right', 'nightshift-sign-size', 'nightshift-sign-color'],
 } as const
 export type Cinema2TextPresetId = keyof typeof CINEMA2_TEXT_FIELDS
+/** Fields a preset has since retired, and fields it has since gained, so a text scene saved earlier still applies: the retired value is ignored and a new field takes its default. */
+const RETIRED_TEXT_FIELDS: Partial<Record<Cinema2TextPresetId, readonly string[]>> = { 'drmvyz.cinema2.orbital': ['orbital-alignment'] }
+const ADDED_TEXT_FIELDS: Partial<Record<Cinema2TextPresetId, readonly string[]>> = { 'drmvyz.cinema2.orbital': ['orbital-position'] }
 export type TextParameters = Record<string, Cinema2JsonValue>
 export interface Cinema2SavedText {
   id: string
@@ -53,9 +56,10 @@ export function textParameters(presetId: Cinema2TextPresetId, state: Cinema2Para
 }
 export function validateTextParameters(presetId: Cinema2TextPresetId, input: unknown): TextParameters {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Invalid text scene.')
-  const parameters = input as TextParameters
+  const retired = RETIRED_TEXT_FIELDS[presetId] ?? [], added = ADDED_TEXT_FIELDS[presetId] ?? []
+  const parameters = Object.fromEntries(Object.entries(input as TextParameters).filter(([id]) => !retired.includes(id))) as TextParameters
   const fields: readonly string[] = CINEMA2_TEXT_FIELDS[presetId]
-  if (Object.keys(parameters).length !== fields.length || Object.keys(parameters).some(id => !fields.includes(id))) throw new Error('The text scene fields do not match this preset.')
+  if (Object.keys(parameters).some(id => !fields.includes(id)) || fields.some(id => !added.includes(id) && !Object.hasOwn(parameters, id))) throw new Error('The text scene fields do not match this preset.')
   const draft = createTextDraft(presetId)
   const result = draft.setPersistentValues(parameters)
   if (!result.ok) throw new Error(result.diagnostics[0]?.message ?? 'Invalid text settings.')

@@ -6959,12 +6959,11 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 .rv-shell > .vz-transport-dock .vz-dock-track-title {
-  font-size: 12.5px;
-  line-height: 1.12;
+  font: var(--type-dock-track-title, 800 12.5px/1.12 var(--az-font, sans-serif));
 }
 
 .rv-shell > .vz-transport-dock .vz-dock-track-artist {
-  font-size: 9.5px;
+  font: var(--type-dock-track-detail, 400 9.5px/normal var(--az-font, sans-serif));
 }
 
 /* The play button takes the track cover's place: the 60px first column of the left card. */
@@ -7028,15 +7027,17 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   font-size: 8.5px;
 }
 
-/* Add / Replace Track: with the cover gone it is a small icon-only key in the left card's top-right corner (its label stays
-   readable to assistive tech), so the deck keeps two rows expanded and one collapsed. Placeholder styling, to be restyled. */
-.rv-shell > .vz-transport-dock .vz-dock-addtrack-btn {
+/* Track loading keys sit on the right edge of the compact left card. */
+.rv-shell > .vz-transport-dock .vz-dock-track-load-tools {
   position: absolute;
   z-index: 2;
   top: 8px;
   right: 10px;
   grid-column: auto;
   grid-row: auto;
+}
+
+.rv-shell > .vz-transport-dock .vz-dock-addtrack-btn {
   width: 26px;
   height: 26px;
   padding: 0;
@@ -7061,13 +7062,13 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   padding-right: 30px;
 }
 
-.rv-shell > .vz-transport-dock--collapsed .vz-dock-addtrack-btn {
+.rv-shell > .vz-transport-dock--collapsed .vz-dock-track-load-tools {
   top: 50%;
   transform: translateY(-50%);
 }
 
 .rv-shell > .vz-transport-dock--collapsed .vz-dock-left-body {
-  padding-right: 34px;
+  padding-right: 66px;
 }
 
 /* The waveform owns the center column. Zoom controls overlay its right edge so
@@ -7105,17 +7106,10 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   backdrop-filter: blur(4px);
 }
 
-/* Expanded right wing: three columns × two rows, all six items (BPM,
-   Rekordbox, TAP, CUE, SYNC, blank) placed directly on this one grid —
-   .vz-dock-right-main and .vz-dock-right-btns are both `display: contents`
-   below so they don't introduce their own boxes/row tracks. Row 1 is BPM /
-   TAP / SYNC, so BPM's grid cell shares TAP/SYNC's exact top/bottom row
-   lines (flush with them) instead of spanning the card's full height the
-   way it used to. Row 2 is Rekordbox / CUE / blank. */
+/* In the expanded right card the BPM group and action keys share a grid. */
 .rv-shell > .vz-transport-dock .vz-dock-right {
   position: relative;
   display: grid;
-  /* BPM takes the width; TAP / CUE and SYNC / SOURCE are icon-only keys in two fixed narrow columns. */
   grid-template-columns: minmax(0, 1fr) 44px 44px;
   grid-template-rows: repeat(2, minmax(0, 1fr));
   align-items: stretch;
@@ -7159,13 +7153,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   margin: 0;
 }
 
-/* Row 1's height only gives the BPM group ~TAP/SYNC's height to work with —
-   matches Layout Lab / Template's "06 · BPM Group" concept: label + value
-   on one line (.vz-dock-bpm-track-top), a drag-to-scrub fill bar
-   (.vz-dock-bpm-track-bar) directly under it instead of discrete up/down
-   chevrons. The secondary "analyzed X.XX" comparison line has no room left
-   and is dropped; the value's own title tooltip still surfaces that detail
-   on hover. */
+/* The BPM readout and Tap share a row above the scrub bar. */
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-bpm-block {
   width: 100%;
   min-width: 0;
@@ -7215,55 +7203,6 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   font-size: 8px;
 }
 
-.rv-shell > .vz-transport-dock .vz-dock-tap-btn {
-  height: 100%;
-  min-width: 0;
-  border-width: 1px;
-  border-radius: 6px;
-  font-size: 9.5px;
-  letter-spacing: 0.13em;
-}
-
-/* CUE and SYNC share TAP's 12px-narrower treatment, scoped to React's
-   transport dock only — the shared base rule in vyzualz.css (used by the
-   main Vyzualz view and Show Manager's dock) stays untouched. TAP sits
-   directly above CUE in the same column; SYNC sits above a blank
-   placeholder in the next column, so both columns keep the same two-row
-   rhythm. Not collapsed: BPM takes column 1 flush with TAP/SYNC's row 1,
-   so TAP/CUE move to column 2 and SYNC/blank to column 3. Collapsed: BPM
-   isn't in this grid at all, so TAP/CUE stay in column 1 and SYNC/blank in
-   column 2, same as before. */
-.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-tap-btn,
-.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-cue-btn {
-  grid-column: 2;
-}
-
-.rv-shell > .vz-transport-dock--collapsed .vz-dock-tap-btn,
-.rv-shell > .vz-transport-dock--collapsed .vz-dock-cue-btn {
-  grid-column: 1;
-}
-
-.rv-shell > .vz-transport-dock .vz-dock-tap-btn {
-  grid-row: 1;
-}
-
-/* TAP/CUE sit in column 2, SYNC/blank in column 3 — each pair used to be
-   centered with a symmetric 6px inset on both sides (width: calc(100% -
-   12px)), so the visible gap between TAP↔SYNC and CUE↔blank was the grid's
-   own 10px column-gap PLUS 6px+6px of button inset, 22px total. Keeping
-   only the outer insets (TAP/CUE's left, facing BPM; SYNC/blank's right,
-   facing the card edge — the latter still matched to CUE's own height
-   shave below so the block's bottom-right corner stays even) and dropping
-   the inner ones tightens that to just the column-gap. Not collapsed
-   only — collapsed's own rules already set these buttons to a plain full
-   width with no inset. */
-.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-tap-btn,
-.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-cue-btn {
-  width: calc(100% - 6px);
-  margin-left: 6px;
-  margin-right: 0;
-}
-
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-sync-master-btn,
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-blank-btn {
   width: 100%;
@@ -7272,7 +7211,6 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 .rv-shell > .vz-transport-dock .vz-dock-cue-btn {
   grid-row: 2;
-  /* Overrides the base rule's fixed 32px so CUE fills its row like TAP does. */
   height: 100%;
 }
 
@@ -7306,17 +7244,12 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   font-size: 9.5px;
 }
 
-/* Expanded right card, left to right: BPM | a column of two blank placeholder keys | the working 2x2 keys (TAP / CUE, SYNC / SOURCE).
-   BPM keeps column 1 and row 1 exactly as before; its column holds at least 100px and the key columns give way first (they narrow
-   from 38px to 26px) so a narrow window never squeezes the BPM readout. */
+/* The expanded keys occupy the columns to the right of the BPM group. */
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-right {
   grid-template-columns: minmax(100px, 1fr) repeat(3, minmax(26px, 38px));
   column-gap: 8px;
 }
 
-/* Working keys: TAP / CUE in column 3, SYNC / SOURCE in column 4, filling their columns (the old inset margins belonged to the
-   previous column layout). */
-.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-tap-btn,
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-cue-btn {
   grid-column: 3;
   width: 100%;
@@ -7329,15 +7262,12 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   margin: 0;
 }
 
-/* Placeholders: one column (two keys) in column 2, spanning both rows, directly left of the working keys. Every key in the 3x2 block
-   is the same size: both rows fill their grid track, and the tracks are equal. */
+/* The reserved key sits in the bottom row beside Cue. */
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-blank-group {
   grid-column: 2;
-  grid-row: 1 / 3;
+  grid-row: 2;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: repeat(2, minmax(0, 1fr));
-  row-gap: 10px;
   min-width: 0;
   height: 100%;
 }
@@ -7349,14 +7279,6 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   margin: 0;
 }
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-blank-group > .vz-dock-track-timeline-btn {
-  grid-column: auto;
-  grid-row: auto;
-  width: 100%;
-  height: 100%;
-  min-width: 0;
-  margin: 0;
-}
-.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-blank-group > .vz-dock-playlist-trigger {
   grid-column: auto;
   grid-row: auto;
   width: 100%;
@@ -7440,7 +7362,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-shell > .vz-transport-dock--collapsed .vz-dock-volume-row {
   display: flex;
   flex: 1 1 auto;
-  min-width: 58px;
+  min-width: 0;
   gap: 6px;
 }
 
@@ -7487,25 +7409,15 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   font-size: 17px;
 }
 
-.rv-shell > .vz-transport-dock--collapsed .vz-dock-tap-btn {
-  width: 100%;
-  height: 100%;
-  padding: 0;
-  border-radius: 6px;
-}
-
 .rv-shell > .vz-transport-dock--collapsed .vz-dock-right-btns {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  flex: 0 0 108px;
-  width: 108px;
+  grid-template-columns: repeat(2, 34px);
+  flex: 0 0 auto;
   height: 34px;
   gap: 5px;
 }
 
-/* Collapsed, TAP / CUE / SYNC sit in one row of three. The expanded layout places each of them on its own row and column of the
-   wider grid (CUE on row 2, SYNC in column 2 or 5); without this reset those placements squeeze the keys into a 34px-tall box. */
-.rv-shell > .vz-transport-dock--collapsed .vz-dock-tap-btn,
+/* Cue and Sync share one row in the compact dock. */
 .rv-shell > .vz-transport-dock--collapsed .vz-dock-cue-btn,
 .rv-shell > .vz-transport-dock--collapsed .vz-dock-sync-master-btn {
   grid-column: auto;
@@ -21853,6 +21765,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 .rv-shell > .vz-transport-dock .vz-dock-volume-row .az-dock-vol-slider {
+  min-width: 0;
   background: linear-gradient(to right,
     var(--az-cyan) 0%,
     var(--az-cyan) var(--pct, 50%),
@@ -21888,12 +21801,6 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-shell > .vz-transport-dock .vz-dock-blank-btn {
   background: rgba(255, 255, 255, 0.025);
   border-color: rgba(255, 255, 255, 0.08);
-}
-
-.rv-shell > .vz-transport-dock .vz-dock-tap-btn {
-  background: rgb(31, 48, 55);
-  border-color: rgba(74, 199, 219, 0.5);
-  color: rgba(112, 228, 245, 0.96);
 }
 
 /* The empty placeholder and the Source trigger have traded cells: the placeholder keeps the second row's rhythm under BPM, where the trigger
@@ -22444,7 +22351,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 /* Left card */
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-left {
-  grid-template-columns: 36px 112px minmax(0, 1fr);
+  grid-template-columns: max-content 112px minmax(0, 1fr);
   grid-template-rows: auto 36px;
   align-content: center;
   column-gap: 12px;
@@ -22481,15 +22388,11 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   border-color: var(--dock-line);
 }
 
-.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-addtrack-btn {
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-track-load-tools {
   position: static;
   grid-column: 1;
   grid-row: 2;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   align-self: center;
-  box-sizing: border-box;
   transform: none;
 }
 
@@ -22501,6 +22404,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-addtrack-btn,
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-playlist-trigger,
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-play-slot .az-play-btn {
   width: 36px;
   height: 36px;
@@ -22597,21 +22501,22 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-bpm-track-top {
+  /* Let the value, Tap and optional reset use the space above the reserved key. */
+  min-width: 150px;
   align-items: baseline;
   gap: 8px;
 }
 
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-bpm-block-label {
   color: var(--dock-ink-dim);
-  font-size: 9.5px;
-  font-weight: 700;
+  font: var(--type-dock-meter-label, 700 9.5px/1 var(--az-font, sans-serif));
   letter-spacing: 0.12em;
 }
 
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-bpm-block-val:not(.vz-dock-bpm-analyzing):not(.vz-dock-bpm-failed):not(.vz-dock-bpm-none[title]) {
   color: var(--dock-cyan-bright);
-  font-size: 18px;
-  font-weight: 800;
+  font: var(--type-dock-bpm, 800 18px/1 var(--az-font, sans-serif));
+  font-variant-numeric: tabular-nums;
 }
 
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-bpm-reset-btn {
@@ -22679,10 +22584,8 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-source-inline-label {
   color: var(--dock-ink-dim);
-  font-size: 9.5px;
-  font-weight: 700;
+  font: var(--type-dock-meter-label, 700 9.5px/1 var(--az-font, sans-serif));
   letter-spacing: 0.12em;
-  line-height: 1;
   text-transform: uppercase;
 }
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-source-inline-value {
@@ -22696,7 +22599,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   min-width: 0;
   overflow: hidden;
   color: rgba(232, 244, 248, 0.9);
-  font: 800 12px/1 var(--az-font, sans-serif);
+  font: var(--type-dock-source, 800 12px/1 var(--az-font, sans-serif));
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -22755,12 +22658,10 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   display: none;
 }
 
-/* Keys: Tap / Cue in column 3, Sync / Source in column 4, all one slate treatment. */
-.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-tap-btn,
+/* Slate keys beside the BPM group. */
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-cue-btn,
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-sync-master-btn,
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-source-trigger,
-.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-playlist-trigger,
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-track-timeline-btn {
   position: relative;
   box-sizing: border-box;
@@ -22779,20 +22680,9 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   transition: border-color 120ms ease, color 120ms ease, background 120ms ease, box-shadow 120ms ease;
 }
 
-.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-tap-btn,
-.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-cue-btn {
-  grid-row: auto;
-}
-
-.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-tap-btn { grid-row: 1; }
-.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-cue-btn { grid-row: 2; }
-.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-sync-master-btn { grid-row: 1; }
-
-.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-tap-btn:hover:not(:disabled),
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-cue-btn:hover:not(:disabled),
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-sync-master-btn:hover:not(:disabled),
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-source-trigger:hover,
-.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-playlist-trigger:hover,
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-track-timeline-btn:hover:not(:disabled) {
   border-color: rgba(74, 199, 219, 0.55);
   background: rgba(74, 199, 219, 0.1);
@@ -22816,8 +22706,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-sync-master-btn--on,
-.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-source-trigger[aria-expanded='true'],
-.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-playlist-trigger[aria-expanded='true'] {
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-source-trigger[aria-expanded='true'] {
   border-color: rgba(74, 199, 219, 0.55);
   background: rgba(74, 199, 219, 0.14);
   color: var(--dock-cyan-bright);
@@ -22832,12 +22721,6 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   border-radius: 50%;
   background: var(--dock-cyan-bright);
   box-shadow: 0 0 6px rgba(103, 247, 255, 0.8);
-}
-
-/* Reserved slots: a dashed outline, two rows on the same 32px / 6px grid as the keys. */
-.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-blank-group {
-  grid-template-rows: repeat(2, 32px);
-  row-gap: 6px;
 }
 
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-blank-btn {

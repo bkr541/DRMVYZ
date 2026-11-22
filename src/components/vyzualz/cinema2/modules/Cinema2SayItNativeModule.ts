@@ -102,6 +102,8 @@ interface Cinema2SayItBridgeRuntime {
 interface Cinema2TypographyCompanion {
   asset: Cinema2ThreeLoadedAsset
   scene: Cinema2ThreeLoadedAsset['scene']
+  /** Optional extra assets, by id, that loaded; one that fails to load is left out and the preset runs without it. */
+  extras: ReadonlyMap<string, { asset: Cinema2ThreeLoadedAsset; scene: Cinema2ThreeLoadedAsset['scene'] }>
 }
 
 interface Cinema2SayItAssetCache {
@@ -118,6 +120,8 @@ const defaultAssetCache = new Cinema2ThreeAssetCache(cinema2ThreeAssetRegistry)
 export function createCinema2SayItNativeModuleDefinition(options: {
   displayName?: string
   companionAssetId?: string
+  /** Further assets the preset can run without: each is loaded if it can be, and released with the others. */
+  optionalAssetIds?: readonly string[]
   assets?: Cinema2SayItAssetCache
   loadLibrary?: () => Promise<Cinema2ThreeLibrary>
   createBridge?: (gl: WebGL2RenderingContext, library: Cinema2ThreeLibrary, asset: Readonly<Cinema2ThreeLoadedAsset>, companion?: Readonly<Cinema2TypographyCompanion>) => Cinema2SayItBridgeRuntime
@@ -141,6 +145,7 @@ export function createCinema2SayItNativeModuleDefinition(options: {
       let library: Cinema2ThreeLibrary | null = null
       let asset: Cinema2ThreeLoadedAsset | null = null
       let companionAsset: Cinema2ThreeLoadedAsset | null = null
+      const optionalAssets: Cinema2ThreeLoadedAsset[] = []
       let companion: Cinema2TypographyCompanion | undefined
       let reportedBytes = -1
       let renderedGlyphCount = 0
@@ -200,6 +205,7 @@ export function createCinema2SayItNativeModuleDefinition(options: {
       const releaseAsset = () => {
         if (asset) assets.release(asset)
         if (companionAsset) assets.release(companionAsset)
+        for (const optional of optionalAssets.splice(0)) assets.release(optional)
         asset = null
         companionAsset = null
         companion = undefined
@@ -222,7 +228,18 @@ export function createCinema2SayItNativeModuleDefinition(options: {
               companionAsset = model
               const scene = await cloneCinema2AssetScene(model.scene)
               if (disposed) return
-              companion = { asset: model, scene }
+              const extras = new Map<string, { asset: Cinema2ThreeLoadedAsset; scene: Cinema2ThreeLoadedAsset['scene'] }>()
+              for (const id of options.optionalAssetIds ?? []) {
+                try {
+                  const extra = await assets.acquire(library, id, quality)
+                  if (disposed) { assets.release(extra); return }
+                  optionalAssets.push(extra)
+                  const extraScene = await cloneCinema2AssetScene(extra.scene)
+                  if (disposed) return
+                  extras.set(id, { asset: extra, scene: extraScene })
+                } catch { /* Optional: the preset runs without it. */ }
+              }
+              companion = { asset: model, scene, extras }
             }
             assetDecodeMs = elapsedMilliseconds(assetStartedAt, now())
             state = 'building'

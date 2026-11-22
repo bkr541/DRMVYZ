@@ -1061,21 +1061,38 @@ export function VyzualzAudioDock({
           </div>
         </div>
 
-        <label
-          className="vz-dock-addtrack-btn"
-          htmlFor={trackSourceLocked ? undefined : fileInputId}
-          aria-disabled={trackSourceLocked}
-          aria-label={trackLoadActionLabel}
-          title={trackSourceLocked ? trackSourceLockTitle : hasTrack && playlistLoadMode === 'append' ? 'Append audio to playlist' : hasTrack ? `Replace: ${title}` : 'Add Track'}
-          onClick={event => {
-            if (!trackSourceLocked) return
-            event.preventDefault()
-            if (sourceSelectionLocked) requestAudioSourceMutation()
-          }}
-        >
-          <AppIcon kind="plus" size="18" />
-          <span>{trackLoadActionLabel}</span>
-        </label>
+        <div className="vz-dock-track-load-tools">
+          <label
+            className="vz-dock-addtrack-btn"
+            htmlFor={trackSourceLocked ? undefined : fileInputId}
+            aria-disabled={trackSourceLocked}
+            aria-label={trackLoadActionLabel}
+            title={trackSourceLocked ? trackSourceLockTitle : hasTrack && playlistLoadMode === 'append' ? 'Append audio to playlist' : hasTrack ? `Replace: ${title}` : 'Add Track'}
+            onClick={event => {
+              if (!trackSourceLocked) return
+              event.preventDefault()
+              if (sourceSelectionLocked) requestAudioSourceMutation()
+            }}
+          >
+            <AppIcon kind="plus" size="18" />
+            <span>{trackLoadActionLabel}</span>
+          </label>
+          <button
+            ref={playlistTriggerRef}
+            type="button"
+            className="vz-dock-playlist-trigger"
+            title="Playlist"
+            aria-label="Playlist"
+            aria-haspopup="dialog"
+            aria-expanded={playlistPopoverOpen}
+            onClick={() => {
+              setAudioSourcePopoverOpen(false)
+              setPlaylistPopoverOpen(value => !value)
+            }}
+          >
+            <AppIcon kind="playlist" size="16" />
+          </button>
+        </div>
 
       </div>
       </div>
@@ -1169,6 +1186,16 @@ export function VyzualzAudioDock({
             {bpmState.kind === 'none' && (
               <span className="vz-dock-bpm-block-val vz-dock-bpm-none">--</span>
             )}
+            <button
+              type="button"
+              className="vz-dock-tap-btn"
+              onClick={handleTap}
+              disabled={engine.source !== 'file' || !track}
+              title={engine.source === 'file' && track ? 'Tap tempo' : 'Tap tempo (requires a file track)'}
+              aria-label="Tap tempo"
+            >
+              <AppIcon kind="tap" className="vz-dock-action-icon" size="16" />
+            </button>
 
             {hasOverride && (
               <button
@@ -1349,15 +1376,6 @@ export function VyzualzAudioDock({
 
         <div className="vz-dock-right-btns">
           <button
-            className="vz-dock-tap-btn"
-            onClick={handleTap}
-            disabled={engine.source !== 'file' || !track}
-            title={engine.source === 'file' && track ? 'Tap tempo' : 'Tap tempo (requires a file track)'}
-            aria-label="Tap tempo"
-          >
-            <AppIcon kind="tap" className="vz-dock-action-icon" size="16" />
-          </button>
-          <button
             className="vz-dock-cue-btn"
             onClick={handleCue}
             title={liveInputSelected ? trackSourceLockTitle : engine.isPlaying ? 'Set cue point here' : `Jump to cue (${fmtPlayTime(cuePoint)})`}
@@ -1376,23 +1394,8 @@ export function VyzualzAudioDock({
             {bpmSync && <span className="vz-dock-sync-dot" />}
             <AppIcon kind="sync" className="vz-dock-action-icon" size="16" />
           </button>
-          {/* Playlist uses the upper reserved key; React uses the lower slot for Track Timeline. */}
+          {/* React uses the lower slot for Track Timeline. */}
           <div className="vz-dock-blank-group">
-            <button
-              ref={playlistTriggerRef}
-              type="button"
-              className="vz-dock-playlist-trigger"
-              title="Playlist"
-              aria-label="Playlist"
-              aria-haspopup="dialog"
-              aria-expanded={playlistPopoverOpen}
-              onClick={() => {
-                setAudioSourcePopoverOpen(false)
-                setPlaylistPopoverOpen(value => !value)
-              }}
-            >
-              <AppIcon kind="playlist" size="16" />
-            </button>
             {lowerReservedAction ?? <div className="vz-dock-blank-btn" />}
           </div>
           <InfoPopover
@@ -1408,7 +1411,7 @@ export function VyzualzAudioDock({
             )}
             className="vz-dock-source-popover vz-dock-playlist-popover"
             placement="above"
-            align="end"
+            align="start"
             width={360}
             maxHeight={480}
           >

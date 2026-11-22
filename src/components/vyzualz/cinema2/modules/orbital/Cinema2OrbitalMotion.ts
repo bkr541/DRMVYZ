@@ -1,5 +1,6 @@
 import type { Cinema2SayItGlyphPose } from '../sayIt/Cinema2SayItMotion'
 import { CINEMA2_SAY_IT_PATTERN_IDS, type Cinema2SayItPatternId } from '../sayIt/Cinema2SayItPatternController'
+import { CINEMA2_SAY_IT_MAX_CHARACTERS_PER_LINE } from '../sayIt/Cinema2SayItTextLayout'
 
 export const CINEMA2_ORBITAL_PATTERNS = [
   { value: 'gyroscopic-drift', label: 'Gyroscopic Drift' },
@@ -108,5 +109,51 @@ export function resolveOrbitalGlyphs(poses: readonly Readonly<Cinema2SayItGlyphP
       case 'eclipse-rise': dy = (.5 + .5 * wave) * (.13 + input.highs * .06); dz = -wave * .10; pitch = -wave * .10; break
     }
     return { ...glyph, position: [x + dx * drive, y + dy * drive, z + dz * drive], rotation: [pitch * drive, yaw * drive, 0] }
+  })
+}
+
+/** How two lines sit on the orbit: Stacked keeps them one above the other (the layout as authored); Linear puts both on one row, opposite each other. */
+export const CINEMA2_ORBITAL_POSITIONS = [
+  { value: 'stacked', label: 'Stacked' },
+  { value: 'linear', label: 'Linear' },
+] as const
+export type OrbitalPosition = typeof CINEMA2_ORBITAL_POSITIONS[number]['value']
+export const orbitalPosition = (value: unknown): OrbitalPosition => value === 'linear' ? 'linear' : 'stacked'
+
+/** The line a glyph belongs to. The text layout numbers characters twelve to a line (`glyph-<line * 12 + index>`). */
+export function orbitalGlyphLine(id: string): number {
+  const number = Number(/(\d+)$/.exec(id)?.[1])
+  return Number.isFinite(number) ? Math.floor(number / CINEMA2_SAY_IT_MAX_CHARACTERS_PER_LINE) : 0
+}
+
+export interface OrbitalRingInput {
+  /** Radius of the ring the lettering travels on, measured from the sphere's centre. */
+  radius: number
+  /** How far the lettering has travelled round the ring, in radians. 0 puts the first line facing the camera. */
+  angle: number
+  position: OrbitalPosition
+}
+
+/**
+ * Wraps the laid-out lettering onto a horizontal ring about the sphere's centre, so it orbits the sphere. Positions are relative to that centre and each
+ * letter faces outward from the ring. Stacked keeps both lines on the same arc, one above the other. Linear gives each line its own arc on one row, the
+ * second line half a turn from the first, so one is in front of the sphere while the other is behind it.
+ */
+export function resolveOrbitalRing(glyphs: readonly Readonly<Cinema2SayItGlyphPose>[], input: Readonly<OrbitalRingInput>): readonly Readonly<Cinema2SayItGlyphPose>[] {
+  const lines = new Map<number, { minX: number; maxX: number; minY: number; maxY: number }>()
+  for (const glyph of glyphs) {
+    const line = orbitalGlyphLine(glyph.id), [x, y] = glyph.position, extent = lines.get(line)
+    if (extent) { extent.minX = Math.min(extent.minX, x); extent.maxX = Math.max(extent.maxX, x); extent.minY = Math.min(extent.minY, y); extent.maxY = Math.max(extent.maxY, y) }
+    else lines.set(line, { minX: x, maxX: x, minY: y, maxY: y })
+  }
+  const linear = input.position === 'linear' && lines.size > 1
+  return glyphs.map(glyph => {
+    const line = orbitalGlyphLine(glyph.id), extent = lines.get(line)!
+    let [x, y] = glyph.position
+    const z = glyph.position[2]
+    let phase = 0
+    if (linear) { x -= (extent.minX + extent.maxX) / 2; y -= (extent.minY + extent.maxY) / 2; phase = line % 2 === 0 ? 0 : Math.PI }
+    const angle = x / input.radius + input.angle + phase, reach = input.radius + z
+    return { ...glyph, position: [Math.sin(angle) * reach, y, Math.cos(angle) * reach] as const, rotation: [glyph.rotation[0], glyph.rotation[1] + angle, glyph.rotation[2]] as const }
   })
 }

@@ -562,6 +562,25 @@ export const CINEMA2_ASSET_RECORDS = [
     }
   },
   {
+    "id": "cinema2-orbital-core",
+    "kind": "model",
+    "compression": "meshopt",
+    "license": "CC-BY-4.0",
+    "attribution": "Sphere by Cyril43 (https://sketchfab.com/Cyril43), CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Source: https://sketchfab.com/3d-models/sphere-6d478ca4f15d4e4badcff5f5e491338e. Supplied as texture1.glb; the loose red emissive part removed, material made opaque, tangents dropped, geometry Meshopt-compressed and maps encoded as WebP for STAGELESS; the textured shells, emissive map and animation retained; used as the inner core of ORBITAL.",
+    "files": {
+      "high": {
+        "url": "/cinema2/models/orbital-core.glb",
+        "bytes": 1337072,
+        "triangles": 25794
+      }
+    },
+    "gpuBytes": {
+      "high": 23223180,
+      "medium": 23223180,
+      "low": 23223180
+    }
+  },
+  {
     "id": "cinema2-orbital-gyroscope",
     "kind": "model",
     "compression": "none",

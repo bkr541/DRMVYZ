@@ -1,6 +1,6 @@
 # Layout Lab tab workspace
 
-Layout Lab opens from the application launcher into a separate 1600×1000 window. Its outer canvas has 48px top/bottom padding and 128px left/right padding. The seven underline tabs contain design studies with local interaction state. The popup injects shared controls, tab spacing, typography and the styles each study uses.
+Layout Lab opens from the application launcher into a separate 1600×1000 window. Its outer canvas has 48px top/bottom padding and 128px left/right padding. Its underline tabs contain design studies with local interaction state. The popup injects shared controls, tab spacing, typography and the styles each study uses.
 
 Click a tab to select it. Click the selected tab again, double-click a tab, or press F2 to rename it. Enter or leaving the input saves; Escape cancels the edit without closing the popup. Blank names are discarded, and names are limited to 80 characters. Arrow keys, Home and End select tabs.
 
@@ -14,16 +14,23 @@ The former Preset Cards slot (`layout-lab-tab-02`) was retired when Matte Frame 
 | --- | --- | --- |
 | Tab 1 | `layout-lab-tab-01` | `layout-lab-tab-01-panel` |
 | Engine dropdown | `layout-lab-tab-03` | `layout-lab-tab-03-panel` |
-| Nav bar icons | `layout-lab-tab-04` | `layout-lab-tab-04-panel` |
 | Tab 6 | `layout-lab-tab-06` | `layout-lab-tab-06-panel` |
-| Tab 7 | `layout-lab-tab-07` | `layout-lab-tab-07-panel` |
+| Brand Kit | `layout-lab-tab-07` | `layout-lab-tab-07-panel` |
 | AUTH | `layout-lab-tab-08` | `layout-lab-tab-08-panel` |
 | Record Listing | `layout-lab-tab-09` | `layout-lab-tab-09-panel` |
-| PixGrid Deck | `layout-lab-tab-10` | `layout-lab-tab-10-panel` |
+| UI Preview | `layout-lab-tab-12` | `layout-lab-tab-12-panel` |
+| Mobile | `layout-lab-tab-13` | `layout-lab-tab-13-panel` |
+| Audio Dock | `layout-lab-tab-14` | `layout-lab-tab-14-panel` |
 
 Renaming changes only `name`. Future elements must be associated with these permanent IDs, never a label or a slug derived from a label. Tab wrappers and panels expose `data-layout-lab-tab-id`; each tab's `aria-controls` points to its panel. Panels remain mounted while switching tabs. To locate a renamed study in a later session, read its current label and permanent ID from the DOM or the stored mapping above. This storage schema saves tab metadata, not study data.
 
 The `layoutLab/` directory contains the tab metadata, study components, styles and tests. Other `layout-lab-*.md` documents describe archived studies.
+
+## Audio Dock studies
+
+Slate Rail, Inset Deck, Meter Panel, Split Console, and Signal Glass share one arrangement. The playlist sits beside playback and Add Track to the left of the waveform. Tap Tempo sits inside the BPM readout on the right. Track Input, Live Input, and Demo Signal use the same readout format within each study, with distinct tints and a separate Audio Source button. Each row has an independent sample queue, simulated transport, cue, and tempo controls.
+
+The compact rows use the production dock's typography roles and place volume beside the transport keys. The Rekordbox logo and status sit beside the right-hand tools. The sample queue shows cues and sections, cues only, and no imported data. Layout Lab carries the opener's UI font settings into its popup.
 
 Validation: five focused tab/popup tests, TypeScript and focused ESLint passed. The actual popup browser check verified seven equally sized tabs with shared 11px/700 typography, rename/cancel, focus restoration, saved names and selection after reopening, and permanent panel references. Its screenshot is under ignored `artifacts/layout-lab-tabs/`. No production build was run for this local workspace change.
 

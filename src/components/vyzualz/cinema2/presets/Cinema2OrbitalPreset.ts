@@ -8,7 +8,7 @@ import {
 } from '../contracts/Cinema2NativePresetManifest'
 import { CINEMA2_SAY_IT_AUTHORED_PRESET_MANIFEST } from './Cinema2SayItPreset'
 import { CINEMA2_ORBITAL_MODULE_TYPE_ID } from '../modules/Cinema2OrbitalNativeModule'
-import { CINEMA2_ORBITAL_PATTERNS } from '../modules/orbital/Cinema2OrbitalMotion'
+import { CINEMA2_ORBITAL_PATTERNS, CINEMA2_ORBITAL_POSITIONS } from '../modules/orbital/Cinema2OrbitalMotion'
 
 export const CINEMA2_ORBITAL_PRESET_ID = cinema2NamespacedId<Cinema2PresetId>('drmvyz.cinema2.orbital')
 const id = (name: string) => cinema2StableId<Cinema2ParameterId>(`orbital-${name}`)
@@ -17,29 +17,29 @@ const id = (name: string) => cinema2StableId<Cinema2ParameterId>(`orbital-${name
 // Remap authored IDs so ORBITAL owns its own saved settings, scene and effects.
 const template = JSON.parse(JSON.stringify(CINEMA2_SAY_IT_AUTHORED_PRESET_MANIFEST)
   .replaceAll('say-it', 'orbital').replaceAll('SAY IT', 'ORBITAL')) as Cinema2NativePresetManifest
-const removed = new Set(['motion-program', 'motion-direction', 'glyph-delay', 'axis-x', 'axis-y', 'axis-z', 'random-seed', 'spread'].map(id))
+const removed = new Set(['motion-program', 'motion-direction', 'glyph-delay', 'axis-x', 'axis-y', 'axis-z', 'random-seed', 'spread', 'alignment'].map(id))
 const changes: Record<string, Partial<Cinema2ParameterManifest>> = {
   text: { defaultValue: 'ORBITAL' },
   'glyph-scale': { defaultValue: .80 },
   motion: { defaultValue: .7, description: 'Strength of movement across the letters, sphere and debris.' },
   'motion-safety': { description: 'Reduced limits geometry movement. Lock Off holds the lettering and orbital assembly in place.' },
-  'cycle-seconds': { label: 'Orbit Period', defaultValue: 8, description: 'Time in seconds for one orbital cycle at 120 BPM. BPM Sync follows the detected tempo.' },
+  'cycle-seconds': { label: 'Orbit Period', defaultValue: 16, description: 'Time in seconds for the lettering to travel once round the sphere, and for one cycle of the sphere\u2019s movement, at 120 BPM. BPM Sync follows the detected tempo.' },
   'material-style': { defaultValue: 'artifact', description: 'Use the supplied sphere material or a clean silver finish.', options: [
     { value: 'artifact', label: 'Sphere Material' }, { value: 'polished', label: 'Polished Silver' }, { value: 'amethyst', label: 'Brushed Silver' },
   ] },
-  roughness: { defaultValue: .54 },
-  'environment-reflection': { defaultValue: .85 },
+  roughness: { defaultValue: .32 },
+  'environment-reflection': { defaultValue: 1.6 },
   'led-outline': { exposure: 'hidden', label: 'Inlay Glow', defaultValue: true, description: 'Show violet light around the metal letter contours.' },
-  'highlight-sweep': { defaultValue: .2 },
+  'highlight-sweep': { defaultValue: .45 },
   'camera-motion': { defaultValue: .3 },
   trails: { defaultValue: 0 },
   focus: { defaultValue: 0 },
-  bloom: { defaultValue: .4 },
+  bloom: { defaultValue: .6 },
   finish: { defaultValue: .42 },
   pattern: { defaultValue: 'gyroscopic-drift', options: CINEMA2_ORBITAL_PATTERNS, description: 'Choose the geometric choreography for the lettering and orbital assembly.' },
   trigger: { description: 'The standard musical event that advances the geometric pattern while Pattern Change is enabled.' },
   background: { label: 'Space Tint', defaultValue: [.008, .012, .018, 1], description: 'Background color of the orbital scene.' },
-  chrome: { label: 'Letter Tint', defaultValue: [1, 1, 1, 1], description: 'Tint mixed with the sphere texture or the selected solid finish.' },
+  chrome: { label: 'Letter Tint', defaultValue: [.42, .44, .5, 1], description: 'Tint mixed with the sphere texture or the selected solid finish. The default is a dark gunmetal that lets the weathered texture and the highlights read.' },
   'outline-color': { exposure: 'hidden', label: 'Inlay Color', defaultValue: [.49, .23, .98, 1], description: 'Accent color of the letter contours and the orbital lights.' },
 }
 function control(name: string, label: string, defaultValue: number, min: number, max: number, order: number, description: string): Cinema2ParameterManifest {
@@ -54,9 +54,17 @@ const orbitalParameters = [
   { ...control('planet', 'Legacy Planet', 0, 0, 1, 33, 'Retained only for saved scene compatibility; the old planet is removed.'), exposure: 'hidden' as const },
   control('debris', 'Orbital Debris', .55, 0, 1, 34, 'Density of the drifting debris field.'),
 ]
+// Position replaces the template's Alignment. It sits where Alignment did, and like Line 2 it is offered only while two lines are allowed.
+const positionParameter: Cinema2ParameterManifest = Object.freeze({
+  ...template.parameters!.find(parameter => parameter.id === id('alignment'))!,
+  id: id('position'), label: 'Position', defaultValue: 'stacked', options: CINEMA2_ORBITAL_POSITIONS,
+  description: 'Stacked keeps the two lines one above the other. Linear puts them on one row, opposite each other: one in front of the sphere and one behind it.',
+  visibleWhen: Object.freeze([Object.freeze({ kind: 'parameter-equals' as const, parameterId: id('line-mode'), value: 'two' })]),
+})
 const sourceModule = template.modules![0]!
 const parameterBindings = Object.fromEntries(Object.entries(sourceModule.parameterBindings ?? {}).filter(([, ref]) => !removed.has(ref.$ref)))
 for (const parameter of orbitalParameters) parameterBindings[parameter.id.slice('orbital-'.length)] = cinema2Ref(parameter.id)
+parameterBindings.position = cinema2Ref(positionParameter.id)
 
 const routes = [
   ['bass', 'audio.bands.bass', 100], ['mids', 'audio.bands.mid', 160], ['highs', 'audio.bands.high', 90],
@@ -74,12 +82,12 @@ const parameters = template.parameters!.filter(parameter => !removed.has(paramet
 
 const CINEMA2_ORBITAL_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze<Cinema2NativePresetManifest>({
   ...template,
-  id: CINEMA2_ORBITAL_PRESET_ID, revision: 1,
+  id: CINEMA2_ORBITAL_PRESET_ID, revision: 2,
   metadata: { ...template.metadata, name: 'ORBITAL', description: 'Metal lettering gently wrapped around the supplied textured sphere, sharing its physical surface finish in a dark neutral space.', tags: ['3d', 'typography', 'space', 'sphere'] },
   capabilities: [...template.capabilities!, { id: 'audio.bands', requirement: 'optional', purpose: 'Bass drives ring expansion, mids articulate the rig, and highs animate debris and docking lights.' }],
-  parameters: [...parameters, ...orbitalParameters],
+  parameters: [...parameters, positionParameter, ...orbitalParameters],
   modules: [{ ...sourceModule, typeId: CINEMA2_ORBITAL_MODULE_TYPE_ID, parameterBindings, parameters: {
-    ...sourceModule.parameters, line1Text: 'ORBITAL', materialStyle: 'artifact', pattern: 'gyroscopic-drift', bass: 0, mids: 0, highs: 0,
+    ...sourceModule.parameters, line1Text: 'ORBITAL', position: 'stacked', materialStyle: 'artifact', pattern: 'gyroscopic-drift', bass: 0, mids: 0, highs: 0,
     ...Object.fromEntries(orbitalParameters.map(parameter => [parameter.id.slice('orbital-'.length), parameter.defaultValue])),
   } }],
   choreography: { ...template.choreography, rules: [...template.choreography!.rules, ...geometryRules] },

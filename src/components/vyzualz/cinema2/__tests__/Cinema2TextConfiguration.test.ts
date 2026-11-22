@@ -52,6 +52,23 @@ describe('Cinema 2.0 saved text configuration', () => {
     expect(textContentError(nightshift.presetId, { ...nightshift.parameters, 'nightshift-sign-text': 'A'.repeat(65) })).toContain('64 characters')
   })
 
+  it('still applies an ORBITAL text scene saved before Position replaced Alignment', () => {
+    const current = textFixture('drmvyz.cinema2.orbital')
+    expect(Object.keys(current.parameters)).toContain('orbital-position')
+    expect(Object.keys(current.parameters)).not.toContain('orbital-alignment')
+    // An earlier scene: Alignment (since retired) and no Position.
+    const { 'orbital-position': _position, ...rest } = current.parameters
+    const legacy = { ...rest, 'orbital-alignment': 'left' }
+    const result = validateTextParameters('drmvyz.cinema2.orbital', legacy)
+    expect(result).toEqual(validateTextParameters('drmvyz.cinema2.orbital', current.parameters))
+    expect(result['orbital-position']).toBe('stacked')
+    expect(Object.keys(result)).not.toContain('orbital-alignment')
+    expect(() => validateTextParameters('drmvyz.cinema2.orbital', { ...legacy, 'orbital-motion': 0 })).toThrow('fields do not match')
+    // Only the new Position may be missing; a scene lacking a field it always had is still rejected.
+    const { 'orbital-text': _text, ...missing } = rest
+    expect(() => validateTextParameters('drmvyz.cinema2.orbital', missing)).toThrow('fields do not match')
+  })
+
   it('rejects recall into another preset', () => {
     expect(() => applySavedText({ getCompiledPresetPlan: () => ({ presetId: 'drmvyz.cinema2.nightshift' }) } as Cinema2Runtime, textFixture())).toThrow('matching')
   })

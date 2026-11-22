@@ -409,6 +409,8 @@ describe('Show Manager Audio Dock source lock integration', () => {
     await renderView('react')
 
     const trigger = container?.querySelector<HTMLButtonElement>('[aria-label="Playlist"]')
+    expect(trigger?.closest('.vz-dock-left')).not.toBeNull()
+    expect(trigger?.previousElementSibling).toBe(container?.querySelector('.vz-dock-addtrack-btn'))
     await act(async () => trigger?.click())
 
     const popover = container?.querySelector<HTMLElement>('[role="dialog"][aria-label="Playlist"]')
@@ -539,6 +541,10 @@ describe('Show Manager Audio Dock source lock integration', () => {
 
   it('reserves the loaded BPM scrub-bar space when no track is loaded', async () => {
     await renderView('react')
+
+    const tap = container?.querySelector<HTMLButtonElement>('.vz-dock-bpm-track-top [aria-label="Tap tempo"]')
+    expect(tap?.previousElementSibling).toBe(container?.querySelector('.vz-dock-bpm-block-val'))
+    expect(tap?.disabled).toBe(true)
 
     const placeholder = container?.querySelector('.vz-dock-bpm-track-bar--placeholder')
     expect(placeholder).not.toBeNull()

@@ -158,6 +158,7 @@ The audio dock is mounted outside the grid:
 - `src/components/vyzualz/shared/VyzualzAudioDock.tsx`
 
 This keeps transport, waveform, cue, BPM, Rekordbox, and track controls shared across engines.
+Playlist sits immediately after Add Track on the left. Tap Tempo sits beside the BPM value, above the BPM slider in the expanded dock.
 
 ## Selectable engine registry
 

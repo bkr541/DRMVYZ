@@ -31,7 +31,6 @@ export function RecordListingStudies() {
     const computed = getComputedStyle(source)
     return Object.fromEntries(Array.from(computed).filter(name => name.startsWith('--')).map(name => [name, computed.getPropertyValue(name)])) as CSSProperties
   })
-  const fontStylesheet = document.querySelector<HTMLLinkElement>('link[rel="stylesheet"][href*="fonts.googleapis.com/css2"]')?.href
   const [views, setViews] = useState<Record<string, LibraryView>>({ presets: 'list', audio: 'list', models: 'grid' })
   const [selected, setSelected] = useState({ presets: LIBRARY_PRESETS[0].id, audio: TRACKS[0].id, models: MODELS[0].id })
   const [favorites, setFavorites] = useState<Set<string>>(() => new Set())
@@ -43,7 +42,6 @@ export function RecordListingStudies() {
     <LibraryViewToggle view={views[id]} onChange={view => setViews(current => ({ ...current, [id]: view }))} />
   </header>
   return <div className="ll-records-compare">
-    {fontStylesheet && <link rel="stylesheet" href={fontStylesheet} />}
     <style>{productionStyles + styles + padStyles + indexStyles}</style>
     <div className="ll-records-lane">
     <p className="ll-records-lane-label">Current production</p>

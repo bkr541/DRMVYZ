@@ -5,7 +5,10 @@ import { CINEMA2_ORBITAL_PRESET_ID, CINEMA2_ORBITAL_PRESET_MANIFEST } from '../p
 import { CINEMA2_AFTERHOURS_TRIGGER_OPTIONS } from '../presets/Cinema2AfterhoursPreset'
 import { CINEMA2_ORBITAL_MODULE_TYPE_ID, createCinema2OrbitalNativeModuleDefinition } from '../modules/Cinema2OrbitalNativeModule'
 import { cinema2NativeModuleRegistry } from '../modules/Cinema2ModuleRegistry'
-import { CINEMA2_ORBITAL_PATTERNS, orbitalPattern, resolveOrbitalGlyphs, resolveOrbitalPose, type OrbitalMotionInput } from '../modules/orbital/Cinema2OrbitalMotion'
+import { CINEMA2_ORBITAL_PATTERNS, CINEMA2_ORBITAL_POSITIONS, orbitalGlyphLine, orbitalPattern, orbitalPosition, resolveOrbitalGlyphs, resolveOrbitalPose, resolveOrbitalRing, type OrbitalMotionInput } from '../modules/orbital/Cinema2OrbitalMotion'
+import { compileCinema2NativePreset } from '../presets/Cinema2PresetCompiler'
+import { Cinema2ParameterState } from '../parameters/Cinema2ParameterState'
+import { createCinema2DesignParentGroupModel } from '../parameters/Cinema2InspectorModel'
 import type { Cinema2ModuleCreateContext } from '../modules/Cinema2ModuleContracts'
 import type { Cinema2SayItModuleInspection } from '../modules/Cinema2SayItNativeModule'
 import type { Cinema2AudioIntelligenceFrame } from '../audio/Cinema2AudioIntelligenceBridge'
@@ -94,5 +97,78 @@ describe('Cinema 2.0 ORBITAL', () => {
     expect(release).toHaveBeenCalledExactlyOnceWith(glyphAsset)
     instance.lifecycle.dispose()
     expect(release).toHaveBeenCalledTimes(1)
+  })
+
+  it('offers Position (Stacked or Linear) in place of Alignment, and only while two lines are selected', () => {
+    expect(manifest.parameters!.some(parameter => parameter.id === 'orbital-alignment')).toBe(false)
+    expect(manifest.parameters!.find(parameter => parameter.id === 'orbital-position')).toMatchObject({
+      label: 'Position', type: 'enum', defaultValue: 'stacked', options: CINEMA2_ORBITAL_POSITIONS, designParentGroup: 'design',
+      visibleWhen: [{ kind: 'parameter-equals', parameterId: 'orbital-line-mode', value: 'two' }],
+    })
+    expect(CINEMA2_ORBITAL_POSITIONS.map(option => option.label)).toEqual(['Stacked', 'Linear'])
+    const compiled = compileCinema2NativePreset(manifest)
+    if (!compiled.ok) throw new Error(JSON.stringify(compiled.diagnostics))
+    const state = new Cinema2ParameterState(compiled.plan.parameters)
+    const position = () => createCinema2DesignParentGroupModel(compiled.plan, state.getSnapshot())
+      .flatMap(parent => [...parent.controls, ...parent.groups.flatMap(group => group.controls)]).find(control => control.definition.id === 'orbital-position')
+    expect(state.setPersistentValue('orbital-line-mode' as never, 'two').ok).toBe(true)
+    expect(position()).toBeDefined()
+    expect(state.setPersistentValue('orbital-line-mode' as never, 'one').ok).toBe(true)
+    expect(position()).toBeUndefined()
+    expect(orbitalPosition('linear')).toBe('linear')
+    expect(orbitalPosition('center')).toBe('stacked')
+  })
+
+  describe('orbit', () => {
+    const word = (line: number, count: number, y: number): Cinema2SayItGlyphPose[] => Array.from({ length: count }, (_, index) => ({
+      id: `glyph-${line * 12 + index}`, character: 'A', mesh: 'glyph-A', position: [(index - (count - 1) / 2) * .8, y, 0], rotation: [0, 0, 0], scale: 1,
+    }))
+    const two = [...word(0, 4, .5), ...word(1, 5, -.5)]
+    const radius = 5
+    const centerOf = (poses: readonly Cinema2SayItGlyphPose[], line: number) => {
+      const own = poses.filter(pose => orbitalGlyphLine(pose.id) === line)
+      return own.reduce((sum, pose) => [sum[0] + pose.position[0] / own.length, sum[1] + pose.position[1] / own.length, sum[2] + pose.position[2] / own.length], [0, 0, 0])
+    }
+
+    it('reads the line from the glyph id, twelve characters to a line', () => {
+      expect([orbitalGlyphLine('glyph-0'), orbitalGlyphLine('glyph-11'), orbitalGlyphLine('glyph-12'), orbitalGlyphLine('glyph-23'), orbitalGlyphLine('nonsense')]).toEqual([0, 0, 1, 1, 0])
+    })
+
+    it('puts every letter on the ring, facing outward, and travels it as the angle grows', () => {
+      for (const angle of [0, 1.1, 3.4]) for (const position of ['stacked', 'linear'] as const) {
+        for (const [index, glyph] of resolveOrbitalRing(two, { radius, angle, position }).entries()) {
+          expect(Math.hypot(glyph.position[0], glyph.position[2])).toBeCloseTo(radius, 6)
+          expect(glyph.rotation[1]).toBeCloseTo(two[index]!.position[0] / radius + angle + (position === 'linear' && orbitalGlyphLine(glyph.id) === 1 ? Math.PI : 0), 6)
+        }
+      }
+      const start = centerOf(resolveOrbitalRing(two, { radius, angle: 0, position: 'stacked' }), 0), later = centerOf(resolveOrbitalRing(two, { radius, angle: Math.PI / 2, position: 'stacked' }), 0)
+      expect(start[0]).toBeCloseTo(0, 6); expect(start[2]).toBeGreaterThan(radius * .9)
+      expect(later[0]).toBeGreaterThan(radius * .9)
+    })
+
+    it('Stacked is the layout as authored: two lines on one arc, one above the other', () => {
+      const ring = resolveOrbitalRing(two, { radius, angle: 0, position: 'stacked' })
+      expect(centerOf(ring, 0)[1]).toBeCloseTo(.5, 6)
+      expect(centerOf(ring, 1)[1]).toBeCloseTo(-.5, 6)
+      expect(Math.sign(centerOf(ring, 0)[2])).toBe(Math.sign(centerOf(ring, 1)[2]))
+      expect(Math.abs(centerOf(ring, 0)[0])).toBeLessThan(.05)
+      expect(Math.abs(centerOf(ring, 1)[0])).toBeLessThan(.05)
+    })
+
+    it('Linear puts both lines on one row, opposite each other: one in front, one behind', () => {
+      const ring = resolveOrbitalRing(two, { radius, angle: 0, position: 'linear' })
+      expect(centerOf(ring, 0)[1]).toBeCloseTo(centerOf(ring, 1)[1], 6)
+      expect(centerOf(ring, 0)[2]).toBeGreaterThan(radius * .9)
+      expect(centerOf(ring, 1)[2]).toBeLessThan(-radius * .9)
+      // A turn of half the ring swaps them.
+      const half = resolveOrbitalRing(two, { radius, angle: Math.PI, position: 'linear' })
+      expect(centerOf(half, 0)[2]).toBeLessThan(-radius * .9)
+      expect(centerOf(half, 1)[2]).toBeGreaterThan(radius * .9)
+    })
+
+    it('treats one line the same in either position', () => {
+      const one = word(0, 6, 0)
+      expect(resolveOrbitalRing(one, { radius, angle: .7, position: 'linear' })).toEqual(resolveOrbitalRing(one, { radius, angle: .7, position: 'stacked' }))
+    })
   })
 })

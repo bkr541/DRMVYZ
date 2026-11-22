@@ -81,8 +81,8 @@ describe('persistent Layout Lab tabs', () => {
 
   it('keeps content identity through renaming, switching tabs and reopening', async () => {
     await render()
-    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(8)
-    expect(host.querySelectorAll('[role="tabpanel"]')).toHaveLength(8)
+    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(9)
+    expect(host.querySelectorAll('[role="tabpanel"]')).toHaveLength(9)
     const panel = host.querySelector<HTMLElement>('#layout-lab-tab-01-panel')!
     const studies = panel.querySelector('.ll-pad-studies')
     const rows = [...panel.querySelectorAll('[data-pad-study]')]
@@ -125,11 +125,11 @@ describe('persistent Layout Lab tabs', () => {
     await key('Enter')
     expect(tab(1).textContent).toBe('Tab 1')
     await act(async () => tab(1).dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true })))
-    expect(tab(13).getAttribute('aria-selected')).toBe('true')
-    await act(async () => tab(13).dispatchEvent(new KeyboardEvent('keydown', { key: 'F2', bubbles: true })))
+    expect(tab(14).getAttribute('aria-selected')).toBe('true')
+    await act(async () => tab(14).dispatchEvent(new KeyboardEvent('keydown', { key: 'F2', bubbles: true })))
     await type('Geometry')
     await act(async () => input().blur())
-    expect(tab(13).textContent).toBe('Geometry')
+    expect(tab(14).textContent).toBe('Geometry')
   })
 
   it('adds the UI Preview tab, with its own permanent id and one window frame', async () => {
@@ -138,15 +138,57 @@ describe('persistent Layout Lab tabs', () => {
     expect(host.querySelectorAll('#layout-lab-tab-12-panel iframe.ll-ui-preview-frame')).toHaveLength(1)
   })
 
-  it('adds the Mobile tab last, with three layout studies of a DJ set and a party', async () => {
+  it('keeps the Mobile tab and its three layout studies of a DJ set and a party', async () => {
     await render()
     expect(tab(13).textContent).toBe('Mobile')
-    expect([...host.querySelectorAll('[role="tab"]')].map(item => item.textContent).at(-1)).toBe('Mobile')
     const panel = host.querySelector('#layout-lab-tab-13-panel')!
     expect([...panel.querySelectorAll('[data-mobile-study]')].map(study => (study as HTMLElement).dataset.mobileStudy)).toEqual(['a', 'b', 'c'])
     // The controller-mode studies come first: pairing, connected and connection lost, then the Design tab and the laptop side.
     expect([...panel.querySelectorAll('[data-mobile-controller]')].map(study => (study as HTMLElement).dataset.mobileController)).toEqual(['flow', 'design'])
     expect(panel.querySelectorAll('iframe.ll-mobile-frame')).toHaveLength(5)
+  })
+
+  it('adds five Audio Dock rows with local playlist, BPM and source previews', async () => {
+    await render()
+    expect(tab(14).textContent).toBe('Audio Dock')
+    await act(async () => tab(14).click())
+    const rows = [...host.querySelectorAll('#layout-lab-tab-14-panel [data-audio-dock-study]')]
+    expect(rows).toHaveLength(5)
+    expect(new Set(rows.map(row => row.getAttribute('data-audio-dock-study'))).size).toBe(5)
+    for (const row of rows) {
+      expect(row.querySelector('.ll-ad-left [aria-label="Playlist"]')).not.toBeNull()
+      expect(row.querySelector('.ll-ad-bpm [aria-label="Tap tempo"]')).not.toBeNull()
+      expect(row.querySelector('.ll-ad-source-value')?.textContent).toBe('Track Input')
+      expect(row.querySelector('.ll-ad-source-value button')).toBeNull()
+      const rekordbox = row.querySelector('[aria-label="Rekordbox status"]')!
+      expect(rekordbox.querySelector('img[alt="Rekordbox"]')).not.toBeNull()
+      expect(rekordbox.textContent).toBe('Cues · Sections')
+    }
+
+    const [first, second] = rows
+    const button = (label: string) => first.querySelector<HTMLButtonElement>(`[aria-label="${label}"]`)!
+    await act(async () => button('Add Track').click())
+    await act(async () => button('Playlist').click())
+    expect(document.querySelector('.ll-ad-popover')?.textContent).toContain('Night Signal')
+    await act(async () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })))
+
+    const clock = vi.spyOn(performance, 'now').mockReturnValue(1000)
+    await act(async () => button('Tap tempo').click())
+    clock.mockReturnValue(1500)
+    await act(async () => button('Tap tempo').click())
+    expect(first.querySelector('[aria-label="Preview BPM"]')?.textContent).toBe('120.00')
+    expect(second.querySelector('[aria-label="Preview BPM"]')?.textContent).toBe('126.00')
+    await act(async () => button('Next track').click())
+    expect(first.querySelector('[aria-label="Rekordbox status"]')?.textContent).toBe('Cues')
+    await act(async () => button('Next track').click())
+    expect(first.querySelector('[aria-label="Rekordbox status"]')?.textContent).toBe('No data')
+    await act(async () => button('Audio Source').click())
+    const live = [...document.querySelectorAll<HTMLButtonElement>('.ll-ad-popover button')].find(item => item.textContent === 'Live Input')!
+    await act(async () => live.click())
+    expect(first.querySelector('.ll-ad-source-value')?.getAttribute('data-source')).toBe('live')
+    expect(second.querySelector('.ll-ad-source-value')?.getAttribute('data-source')).toBe('track')
+    expect(first.querySelector('[aria-label="Rekordbox status"]')?.textContent).toBe('Inactive')
+    expect(button('Tap tempo').disabled).toBe(true)
   })
 
   it('has no Nav Bar Icons tab, and a saved selection of it falls back to the first tab', async () => {
@@ -164,7 +206,7 @@ describe('persistent Layout Lab tabs', () => {
     expect([...host.querySelectorAll('[role="tab"]')].map(item => item.textContent)).not.toContain('PixGrid Deck')
     expect(host.querySelector('#layout-lab-tab-10')).toBeNull()
     expect(host.querySelector('[aria-label="PixGrid Deck popover studies"]')).toBeNull()
-    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(8)
+    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(9)
     expect(tab(1).getAttribute('aria-selected')).toBe('true')
   })
 
@@ -190,7 +232,7 @@ describe('persistent Layout Lab tabs', () => {
     window.localStorage.setItem(LAYOUT_LAB_STORAGE_KEY, 'broken json')
     vi.spyOn(window.localStorage, 'setItem').mockImplementation(() => { throw new Error('Storage blocked') })
     await render()
-    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(8)
+    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(9)
     expect(host.querySelector('[role="status"]')?.textContent).toContain('could not be saved')
     await act(async () => tab(3).click())
     expect(tab(3).getAttribute('aria-selected')).toBe('true')

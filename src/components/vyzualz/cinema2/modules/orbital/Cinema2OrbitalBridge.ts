@@ -4,7 +4,7 @@ import { Cinema2SayItBridge, type Cinema2SayItDrawState } from '../sayIt/Cinema2
 import type { Cinema2SayItQualityProfile } from '../sayIt/Cinema2SayItQuality'
 import type { Cinema2ThreeLoadedAsset } from '../three/Cinema2ThreeAssetCache'
 import type { Cinema2ThreeLibrary } from '../three/Cinema2ThreeLibrary'
-import { orbitalPattern, resolveOrbitalGlyphs, resolveOrbitalPose, type OrbitalMotionInput } from './Cinema2OrbitalMotion'
+import { orbitalPattern, resolveOrbitalGlyphs, resolveOrbitalPose, resolveOrbitalRing, type OrbitalMotionInput, type OrbitalPosition } from './Cinema2OrbitalMotion'
 
 export interface OrbitalDrawSettings extends Omit<OrbitalMotionInput, 'phaseBeats'> {
   size: number
@@ -12,6 +12,10 @@ export interface OrbitalDrawSettings extends Omit<OrbitalMotionInput, 'phaseBeat
   planet: number
   debris: number
   material: 'artifact' | 'polished' | 'amethyst'
+  /** Stacked or Linear: how two lines sit on the orbit. */
+  position: OrbitalPosition
+  /** 0 holds the lettering in front of the sphere (Lock Off, or Motion at 0); 1 is the full orbit, less than 1 a slower one (Reduced Motion). */
+  orbit: number
 }
 
 type OrbitalExecution = Cinema2ModuleRenderExecutionContext & {
@@ -20,6 +24,12 @@ type OrbitalExecution = Cinema2ModuleRenderExecutionContext & {
 }
 
 const MAX_DEBRIS = 40
+/** The inner core's radius as a fraction of the lattice sphere's: it fills the space inside the middle band, around the innermost one, and shows through the gaps. */
+const CORE_RATIO = .74
+const CORE_METALNESS = .55
+const CORE_EMISSIVE = 3
+/** How far outside the sphere's surface the lettering travels. */
+const RING_CLEARANCE = 1.5
 
 /** Draws the supplied metal sphere; lettering shares its physical material and textures. */
 export class Cinema2OrbitalBridge extends Cinema2SayItBridge {
@@ -34,13 +44,19 @@ export class Cinema2OrbitalBridge extends Cinema2SayItBridge {
   private readonly ownedGeometries: Three.BufferGeometry[] = []
   private readonly ownedMaterials: Three.Material[] = []
   private readonly seeds: Float32Array
+  private readonly core: Three.Group | null = null
+  private readonly coreMixer: Three.AnimationMixer | null = null
+  private readonly coreNormalization: number = 1
   private disposedOrbital = false
+  private orbitAngle = 0
+  private lastBeats: number | null = null
 
   constructor(
     gl: WebGL2RenderingContext, library: Cinema2ThreeLibrary, glyphs: Readonly<Cinema2ThreeLoadedAsset>,
     private readonly rig: Readonly<Cinema2ThreeLoadedAsset>, instance: Three.Object3D,
     private readonly settings: () => Readonly<OrbitalDrawSettings>,
     sample: (index: number) => number,
+    private readonly coreAsset?: Readonly<{ asset: Readonly<Cinema2ThreeLoadedAsset>; scene: Three.Object3D }>,
   ) {
     let material: Three.MeshStandardMaterial | undefined
     instance.traverse(object => {
@@ -68,6 +84,31 @@ export class Cinema2OrbitalBridge extends Cinema2SayItBridge {
     this.instrument.add(centered)
     this.scene.add(this.instrument)
 
+    // The inner core (an optional second asset): centred like the lattice, scaled to a fraction of its radius, with its own animation.
+    if (coreAsset) {
+      coreAsset.scene.updateMatrixWorld(true)
+      const coreBounds = new THREE.Box3().setFromObject(coreAsset.scene, true)
+      this.coreNormalization = 2 / Math.max(.01, ...coreBounds.getSize(new THREE.Vector3()).toArray())
+      const coreCentered = new THREE.Group()
+      coreCentered.position.copy(coreBounds.getCenter(new THREE.Vector3())).negate()
+      coreCentered.add(coreAsset.scene)
+      this.core = new THREE.Group()
+      this.core.add(coreCentered)
+      this.scene.add(this.core)
+      this.coreMixer = new THREE.AnimationMixer(coreAsset.scene)
+      for (const clip of coreAsset.asset.animations) this.coreMixer.clipAction(clip).play()
+      // Deep inside the lattice the core is lit by little but what leaks through the gaps: less metal, so its panels keep their colour, and a stronger glow from its lamp.
+      coreAsset.scene.traverse(object => {
+        const mesh = object as Three.Mesh
+        for (const material of Array.isArray(mesh.material) ? mesh.material : mesh.isMesh ? [mesh.material] : []) {
+          const standard = material as Three.MeshStandardMaterial
+          if (!standard.isMeshStandardMaterial) continue
+          standard.metalness = Math.min(standard.metalness, CORE_METALNESS)
+          standard.emissiveIntensity = CORE_EMISSIVE
+        }
+      })
+    }
+
     const starGeometry = this.geometry(new THREE.BufferGeometry())
     const starPositions = new Float32Array(320 * 3)
     for (let index = 0; index < starPositions.length; index += 3) {
@@ -89,22 +130,30 @@ export class Cinema2OrbitalBridge extends Cinema2SayItBridge {
     const pattern = orbitalPattern(draw.pattern)
     const motion = { ...settings, phaseBeats: draw.patternPhaseBeats }
     const movement = resolveOrbitalPose(pattern, motion)
-    const sphereRadius = 3.2 * settings.size
-    const wrapRadius = Math.max(8, sphereRadius * 1.8)
-    const curved = resolveOrbitalGlyphs(draw.poses, pattern, motion).map(glyph => {
-      const angle = glyph.position[0] / wrapRadius
-      return { ...glyph, position: [Math.sin(angle)*wrapRadius, glyph.position[1], glyph.position[2] + wrapRadius*(Math.cos(angle)-1)] as const,
-        rotation: [glyph.rotation[0], glyph.rotation[1]+angle, glyph.rotation[2]] as const }
-    })
+    const radius = 3.2 * settings.size * (1 + movement.expansion)
+    // The lettering orbits the sphere. The angle is accumulated from the beats that have passed, so changing the Orbit Period (Auto Performance does)
+    // changes the speed smoothly instead of jumping the lettering round the ring; a pause, a seek back or a long jump adds nothing.
+    const beats = draw.absoluteBeat ?? draw.patternPhaseBeats
+    const passed = this.lastBeats == null ? 0 : beats - this.lastBeats
+    this.lastBeats = beats
+    if (passed > 0 && passed < 4) this.orbitAngle += passed * Math.PI / settings.period * settings.orbit
+    const center = { y: .34 + movement.lift, z: -2.2 - radius }
+    const ring = resolveOrbitalRing(resolveOrbitalGlyphs(draw.poses, pattern, motion), { radius: radius + RING_CLEARANCE, angle: settings.orbit > 0 ? this.orbitAngle : 0, position: settings.position })
+    const curved = ring.map(glyph => ({ ...glyph, position: [glyph.position[0], glyph.position[1] + center.y, glyph.position[2] + center.z] as const }))
     super.applyState(exec, {
       ...draw, pattern: 'solid', ledOutlineEnabled: false, ledMusicIntensity: 0,
       poses: curved,
     }, profile)
 
-    const radius = 3.2 * settings.size * (1 + movement.expansion)
-    this.instrument.position.set(0, .34 + movement.lift, -2.2 - radius)
+    this.instrument.position.set(0, center.y, center.z)
     this.instrument.rotation.set(.13 + movement.tilt[0], 1.26 + movement.tilt[1], -.13 + movement.tilt[2])
     this.instrument.scale.setScalar(radius * this.normalization)
+    if (this.core && this.coreMixer) {
+      this.core.position.copy(this.instrument.position)
+      this.core.rotation.copy(this.instrument.rotation)
+      this.core.scale.setScalar(radius * CORE_RATIO * this.coreNormalization)
+      this.coreMixer.setTime((draw.absoluteBeat ?? draw.patternPhaseBeats) * .08 * settings.amount * settings.ringTravel)
+    }
     this.mixer.setTime((draw.absoluteBeat ?? draw.patternPhaseBeats) * .12 * settings.amount * settings.ringTravel)
     this.scene.environmentIntensity *= .25
     this.stars.geometry.setDrawRange(0, profile.quality === 'low' ? 180 : 320)
@@ -202,13 +251,15 @@ export class Cinema2OrbitalBridge extends Cinema2SayItBridge {
       for (const attribute of Object.values(geometry.attributes)) geometryBytes += (attribute as Three.BufferAttribute).array.byteLength
       geometryBytes += geometry.index?.array.byteLength ?? 0
     }
-    return Math.round(parentBytes + this.rig.gpuBytes - duplicateBytes + geometryBytes + MAX_DEBRIS * 64)
+    return Math.round(parentBytes + this.rig.gpuBytes + (this.coreAsset?.asset.gpuBytes ?? 0) - duplicateBytes + geometryBytes + MAX_DEBRIS * 64)
   }
 
   override dispose(): void {
     if (this.disposedOrbital) return
     this.disposedOrbital = true
     this.scene.remove(this.instrument, this.stars, this.debris)
+    if (this.core) this.scene.remove(this.core)
+    if (this.coreMixer) { this.coreMixer.stopAllAction(); this.coreMixer.uncacheRoot(this.coreMixer.getRoot()) }
     this.debris.dispose()
     this.mixer.stopAllAction()
     this.mixer.uncacheRoot(this.mixer.getRoot())

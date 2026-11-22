@@ -3,13 +3,40 @@
 ORBITAL now uses the supplied `metal_sphere.glb` (Abstract sphere by deecube1).
 The old gyroscope, docking markers and violet planet have been removed. Stars
 and a small neutral debris field remain. One or two lines of extruded lettering
-follow a shallow cylindrical arc across the sphere's front; individual glyphs
-turn with that curve while retaining their musical movement.
+orbit the sphere on a horizontal ring just outside its surface, each letter
+facing outward, so the text travels in front of the sphere, round its side and
+behind it. **Orbit Period** is the time for one trip round the ring (default 16
+seconds at 120 BPM; BPM Sync follows the detected tempo). The angle is
+accumulated from the beats that pass, so Auto Performance changing the period
+changes the speed smoothly. Pause freezes it; Lock Off, Motion at 0 and Reduced
+Motion hold it in front, stop it or slow it.
+
+**Design → Layout → Position** replaces Alignment and has two options, offered only
+while **Line Mode** is Two Lines. **Stacked** keeps the two lines one above the
+other, as authored, on the same arc. **Linear** puts both lines on one row,
+opposite each other on the ring: one in front of the sphere while the other is
+behind it, swapping as they orbit. One Line has no Position control. Glyph
+metrics and the shared text layout are unchanged; each glyph's line is read
+from its id (`glyph-<line * 12 + index>`).
+
+Inside the lattice sits an **inner core**: the supplied `texture1.glb` ("Sphere" by
+Cyril43, CC BY 4.0; asset `cinema2-orbital-core`). It shows through the gaps of the
+bands, scales with Sphere Size, tilts with the lattice and plays its own animation
+on the shared musical time. Its loose solid-red emissive part is removed, its
+material made opaque and its metalness lowered so the engraved panels keep their
+colour. It is optional: if it cannot load, ORBITAL runs without it. Prepare it with
+`node scripts/cinema2-assets/prepare-orbital-core.mjs /path/to/texture1.glb`, then
+`npm run assets:build`. The derived GLB is about 1.3 MB (Meshopt geometry, WebP
+quality 85 maps), which leaves the catalog at 159.6 of 160.0 MB.
 
 The default **Sphere Material** finish clones the imported physical material,
 including its color, normal, roughness, metalness and specular maps. Glyph UVs
-are reprojected across those same textures. Letter Tint and Roughness remain
-editable; their new authored defaults preserve the sphere's imported appearance.
+are reprojected across those same textures. The authored finish is a dark gunmetal
+(Letter Tint, low Roughness, strong reflections, a defined highlight sweep and a
+soft bloom) so the weathered texture and the highlights read as cinematic metal,
+not a flat grey. Letter Tint and Roughness remain editable.
+`/Users/kodyrobinson/Downloads/texture2.glb` is byte-for-byte the same file as
+`metal_sphere.glb` (same SHA-256), so the lettering already uses that texture.
 Polished Silver and Brushed Silver are available as manual alternatives. Lighting
 is neutral and restrained to preserve metallic detail. The old purple outline
 is removed from rendering.
@@ -22,6 +49,8 @@ Motion Safety and Lock Off retain their existing authority. No new clock,
 analyzer, renderer or canvas is introduced.
 
 Source/Pool still use the shared Text Scenes library and existing migration 0046.
+Text scenes saved before Position replaced Alignment still apply: the retired
+Alignment value is ignored and Position takes its default (Stacked).
 No additional migration is required. Legacy parameter IDs (`gyroscope-size`,
 `ring-travel`, `planet`, material enum values) are retained for saved-scene
 compatibility. Removed planet/outline settings are hidden and cannot restore the

@@ -1,0 +1,18 @@
+{
+  "id": "cinema2-orbital-core",
+  "kind": "model",
+  "compression": "meshopt",
+  "license": "CC-BY-4.0",
+  "attribution": "Sphere by Cyril43 (https://sketchfab.com/Cyril43), CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Source: https://sketchfab.com/3d-models/sphere-6d478ca4f15d4e4badcff5f5e491338e. Supplied as texture1.glb; the loose red emissive part removed, material made opaque, tangents dropped, geometry Meshopt-compressed and maps encoded as WebP for STAGELESS; the textured shells, emissive map and animation retained; used as the inner core of ORBITAL.",
+  "origin": "User-supplied texture1.glb; one solid-red emissive part removed, alpha blending replaced by opaque, tangents dropped, geometry Meshopt-compressed, maps capped at 1024px and encoded as WebP quality 85.",
+  "sourceSha256": "8aab467710edb3507f4e9db1212ca74630c255a9d8f9f70e23f64a3c0c54ab82",
+  "embeddedAsset": {
+    "author": "Cyril43 (https://sketchfab.com/Cyril43)",
+    "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+    "source": "https://sketchfab.com/3d-models/sphere-6d478ca4f15d4e4badcff5f5e491338e",
+    "title": "Sphere"
+  },
+  "files": {
+    "high": "public/cinema2/models/orbital-core.glb"
+  }
+}

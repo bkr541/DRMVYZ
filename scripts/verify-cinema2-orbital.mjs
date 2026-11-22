@@ -45,10 +45,12 @@ try {
     changes.push({ name, meanPixelChange: delta })
   }
   const assetResponse = page.waitForResponse(response => response.url().endsWith('/orbital-metal-sphere.glb'))
+  const coreResponse = page.waitForResponse(response => response.url().endsWith('/orbital-core.glb'))
   await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/src/test/browser/cinema2-submerge-production.html?preset=orbital`)
   await page.waitForFunction(() => window.__orbital)
   const ready = await api('prepare')
   assert((await assetResponse).ok(), 'The supplied metal sphere must load through the native asset registry')
+  assert((await coreResponse).ok(), 'The inner core must load through the native asset registry')
   assert(ready.modules.estimatedGpuBytes > 0)
   await api('setParameters', { 'camera-motion': 0, 'auto-performance': false })
   const baseline = await pixels('orbital')
@@ -70,6 +72,16 @@ try {
     for (const [previous, image] of signatures) changed(`${previous} / ${pattern}`, image, rendered)
     signatures.push([pattern, rendered])
   }
+  // The lettering orbits the sphere, and with two lines Position decides how they sit on that orbit.
+  await api('setParameters', { pattern: 'gyroscopic-drift', 'line-mode': 'two', text: 'DEEP', 'line-2-text': 'SPACE', position: 'stacked' })
+  const stacked = await pixels('position-stacked')
+  await api('advanceBy', 4)
+  changed('the text orbits the sphere', stacked, await pixels('orbit-travel'))
+  await api('setParameters', { position: 'linear' })
+  const linear = await pixels('position-linear')
+  await api('advanceBy', .1)
+  await api('setParameters', { position: 'stacked' })
+  changed('Position: stacked versus linear', await pixels(), linear)
   await api('setParameters', { pattern: 'apsis-pulse', 'auto-performance': true })
   const authored = (await api('status')).authored
   const quiet = await pixels()

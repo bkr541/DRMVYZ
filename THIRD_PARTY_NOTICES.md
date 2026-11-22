@@ -52,6 +52,18 @@ STAGELESS converts the specular/glossiness material to metal/rough PBR, caps map
 Original meshes and animation are retained. The source hash and generated
 attribution are recorded in the Cinema asset catalog.
 
+## ORBITAL inner core
+
+Sphere by Cyril43, supplied as `texture1.glb`.
+Embedded source: https://sketchfab.com/3d-models/sphere-6d478ca4f15d4e4badcff5f5e491338e
+Author: https://sketchfab.com/Cyril43
+License: CC BY 4.0, https://creativecommons.org/licenses/by/4.0/
+STAGELESS removes the one loose solid-red emissive part, makes the material opaque,
+drops the tangents, Meshopt-compresses the geometry and encodes the maps as WebP
+quality 85. The textured shells, their emissive map and their animation are retained;
+the model is shown inside the ORBITAL lattice sphere. The source hash and generated
+attribution are recorded in the Cinema asset catalog.
+
 ## Space Boi
 
 "space boi" by silvercrow101, supplied as `space_boi.glb`.
