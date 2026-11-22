@@ -107,12 +107,19 @@ export function PresetsTab() {
     {status === 'loading' && <p className="adm-empty" role="status">Loading the catalog…</p>}
   </>
 
-  if (status === 'ready' && section === 'presets') return <PresetCatalogPane presets={presets} packs={packs} section={sections} {...handlers} />
+  if (status !== 'ready') {
+    return (
+      <WorkspaceSurface className="adm-surface adm-presets">
+        {sections}
+        {notices}
+      </WorkspaceSurface>
+    )
+  }
+  // Both tabs are the same three windows. Both stay mounted and the one not showing is hidden, so switching tabs never loses unsaved edits on the other.
   return (
-    <WorkspaceSurface className="adm-surface adm-presets">
-      {sections}
-      {notices}
-      {status === 'ready' && <PackPane presets={presets} packs={packs} members={members} {...packHandlers} />}
-    </WorkspaceSurface>
+    <>
+      <div className="adm-pane" hidden={section !== 'presets'}><PresetCatalogPane presets={presets} packs={packs} section={sections} active={section === 'presets'} {...handlers} /></div>
+      <div className="adm-pane" hidden={section !== 'packs'}><PackPane presets={presets} packs={packs} members={members} section={sections} active={section === 'packs'} {...packHandlers} /></div>
+    </>
   )
 }

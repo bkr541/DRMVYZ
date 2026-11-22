@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { PresetManagerRecord } from '../../../components/vyzualz/presetManager/presetManagerCatalog'
 import type { PresetMetadataRow } from '../../presetCatalog/presetMetadata'
 import {
-  ALL, NO_PACK, buildAdminPresets, currentEdit, editFromPreset, filterAdminPresets, groupByEngine, groupByPack, isEditChanged, parseTags, rowFromEdit, rowWithStatus, sharedStatus, sortAdminPresets, statusCounts, validateEdit,
+  ALL, NO_PACK, STATUS_DESCRIPTIONS, STATUS_LABELS, STATUS_ORDER, buildAdminPresets, currentEdit, editFromPreset, filterAdminPresets, groupByEngine, groupByPack, isEditChanged, parseTags, rowFromEdit, rowWithStatus, sharedStatus, sortAdminPresets, statusCounts, validateEdit,
   type CatalogPack, type PackMember, type PresetFilter,
 } from './presetAdmin'
 
@@ -80,8 +80,8 @@ describe('admin preset catalog', () => {
   })
 
   it('counts presets by status for the filter chips', () => {
-    expect(statusCounts(presets)).toEqual({ all: 3, unset: 2, draft: 1, published: 0, archived: 0 })
-    expect(statusCounts([])).toEqual({ all: 0, unset: 0, draft: 0, published: 0, archived: 0 })
+    expect(statusCounts(presets)).toEqual({ all: 3, unset: 2, designing: 0, draft: 1, published: 0, archived: 0 })
+    expect(statusCounts([])).toEqual({ all: 0, unset: 0, designing: 0, draft: 0, published: 0, archived: 0 })
   })
 
   it('tells a changed draft from an unchanged one, ignoring spacing', () => {
@@ -112,5 +112,17 @@ describe('admin preset catalog', () => {
     expect(sharedStatus([presets[0]!, presets[2]!])).toBe('unset')
     expect(sharedStatus([presets[1]!])).toBe('draft')
     expect(sharedStatus([presets[0]!, presets[1]!])).toBe('mixed')
+  })
+
+  it('has Designing among the statuses, with a one-sentence meaning for every status, in the order they are offered', () => {
+    expect(STATUS_ORDER).toEqual(['', 'designing', 'draft', 'published', 'archived'])
+    expect(STATUS_LABELS.designing).toBe('Designing')
+    for (const value of STATUS_ORDER) {
+      const sentence = STATUS_DESCRIPTIONS[value || 'unset']
+      expect(sentence.endsWith('.')).toBe(true); expect(sentence.split('. ')).toHaveLength(1); expect(sentence.length).toBeLessThan(90)
+    }
+    const designing = buildAdminPresets(RECORDS, [row('cinema2', 'a', { publication_status: 'designing' })], MEMBERS)
+    expect(designing[1]).toMatchObject({ status: 'designing' })
+    expect(statusCounts(designing).designing).toBe(1)
   })
 })

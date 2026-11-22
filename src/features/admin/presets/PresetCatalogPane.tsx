@@ -15,12 +15,15 @@ import { AdminPresetRow, AdminPresetTile, type ShownPreset } from './PresetCatal
 import { InspectorNotice, PresetCatalogInspector } from './PresetCatalogInspector'
 import { PresetCatalogStage } from './PresetCatalogStage'
 import {
-  ALL, NO_PACK, STATUS_LABELS, currentEdit, filterAdminPresets, isEditChanged, parseTags, rowFromEdit, rowWithStatus, sortAdminPresets, statusCounts, validateEdit,
+  ALL, NO_PACK, STATUS_LABELS, STATUS_ORDER, currentEdit, filterAdminPresets, isEditChanged, parseTags, rowFromEdit, rowWithStatus, sortAdminPresets, statusCounts, validateEdit,
   type AdminPreset, type CatalogPack, type PresetEdit, type PresetFilter, type PresetSortKey, type PublicationStatus,
 } from './presetAdmin'
 
 const SORTS: { value: PresetSortKey; label: string }[] = [{ value: 'name', label: 'Sort: Name' }, { value: 'engine', label: 'Sort: Engine' }, { value: 'category', label: 'Sort: Category' }, { value: 'order', label: 'Sort: Display order' }]
-const STATUS_CHIPS: readonly { value: string; label: string }[] = [{ value: ALL, label: 'All' }, { value: 'published', label: 'Published' }, { value: 'draft', label: 'Draft' }, { value: 'unset', label: 'Not set' }, { value: 'archived', label: 'Archived' }]
+/** The status chips, in the order the status dropdown offers them. */
+const STATUS_CHIPS: readonly { value: string; label: string }[] = [{ value: ALL, label: 'All' }, ...STATUS_ORDER.map(value => ({ value: value || 'unset', label: STATUS_LABELS[value || 'unset'] }))]
+/** What the toast says after a status is saved, and the label on the confirm button for a change to several presets. */
+const STATUS_DONE: Readonly<Record<PublicationStatus, string>> = { designing: 'set to designing', draft: 'set to draft', published: 'published', archived: 'archived' }
 
 export interface SaveManyResult { saved: number; error?: string }
 
@@ -29,6 +32,8 @@ interface Props {
   packs: readonly CatalogPack[]
   /** The Presets | Packs tabs, which sit at the top of the library window. */
   section: ReactNode
+  /** False while the Packs tab is showing: the pane stays mounted so its unsaved edits are kept, but it takes nothing from the header. */
+  active?: boolean
   onSave: (preset: AdminPreset, row: PresetMetadataRow | null) => Promise<void>
   /** Saves several presets one after another and says how many were saved before any failure. */
   onSaveMany: (changes: readonly { preset: AdminPreset; row: PresetMetadataRow | null }[]) => Promise<SaveManyResult>
@@ -46,7 +51,7 @@ const errorText = (reason: unknown) => (reason instanceof Error ? reason.message
  * and how users will see it; the inspector (right) edits it. Edits are kept as drafts per preset until saved, so the admin can move around and push
  * everything at once from the header.
  */
-export function PresetCatalogPane({ presets, packs, section, onSave, onSaveMany, onAddToPack, onRemoveFromPack }: Props) {
+export function PresetCatalogPane({ presets, packs, section, active = true, onSave, onSaveMany, onAddToPack, onRemoveFromPack }: Props) {
   const [filter, setFilter] = useState<PresetFilter>({ query: '', engine: ALL, category: ALL, packId: ALL, status: ALL })
   const [sort, setSort] = useState<PresetSortKey>('name')
   const [view, setView] = useState<LibraryView>('grid')
@@ -106,12 +111,6 @@ export function PresetCatalogPane({ presets, packs, section, onSave, onSaveMany,
   /** What a header or bulk action applies to: the checked presets, else the one that is open. */
   const targets = checkedPresets.length > 0 ? checkedPresets : selected ? [selected] : []
 
-  const saveSelected = () => run(async () => {
-    if (!selected || !edit) return
-    await onSave(selected, rowFromEdit(selected.record, edit))
-    dropDrafts([selected.record.id])
-    say('Saved. Name, description, category, tags and order show in the app now.')
-  })
   const saveAll = () => run(async () => {
     const ready = changedPresets.filter(preset => Object.keys(validateEdit(currentEdit(preset, drafts))).length === 0)
     const skipped = changedPresets.length - ready.length
@@ -120,7 +119,7 @@ export function PresetCatalogPane({ presets, packs, section, onSave, onSaveMany,
     if (result.error) throw new Error(`Saved ${result.saved} of ${ready.length}. ${result.error}`)
     say(`Saved ${result.saved} preset${result.saved === 1 ? '' : 's'}.${skipped > 0 ? ` ${skipped} still need a fix before they can be saved.` : ''}`)
   })
-  const discardSelected = () => { if (selected) { dropDrafts([selected.record.id]); say(null) } }
+  const resetSelectedToShipped = () => void run(async () => { if (!selected) return; await onSave(selected, null); dropDrafts([selected.record.id]); say('Back to what the app ships.') })
   const discardAll = () => { setDrafts({}); say(null) }
 
   const applyStatus = (list: readonly AdminPreset[], status: PublicationStatus) => run(async () => {
@@ -131,7 +130,7 @@ export function PresetCatalogPane({ presets, packs, section, onSave, onSaveMany,
     dropDrafts(list.slice(0, result.saved).map(preset => preset.record.id))
     setChecked(current => { const next = new Set(current); for (const preset of list.slice(0, result.saved)) next.delete(preset.record.id); return next })
     if (result.error) throw new Error(`${STATUS_LABELS[status]}: ${result.saved} of ${list.length} saved. ${result.error}`)
-    say(`${subject} ${status === 'published' ? 'published' : status === 'archived' ? 'archived' : 'set to draft'}.`)
+    say(`${subject} ${STATUS_DONE[status]}.`)
   })
   /** Archiving, and any change to several presets at once, asks first; publishing one preset does not. */
   const requestStatus = (list: readonly AdminPreset[], status: PublicationStatus) => {
@@ -161,11 +160,12 @@ export function PresetCatalogPane({ presets, packs, section, onSave, onSaveMany,
 
   return (
     <section className="pmv-workspace adm-pc" aria-label="Preset catalog" onKeyDown={onRootKeyDown}>
-      <AdminHeaderActions>
+      {active && <AdminHeaderActions>
         <HeaderIconKey label={`Save changes${changedPresets.length > 0 ? ` (${changedPresets.length})` : ''}`} icon={<HeaderActionIcon action="save" />} disabled={busy || changedPresets.length === 0} onClick={() => void saveAll()} />
         <HeaderIconKey label={publishCount > 1 ? `Publish ${publishCount} presets` : 'Publish preset'} icon={<AppIcon kind="upload" size={16} color="currentColor" aria-hidden="true" />} disabled={busy || publishCount === 0} onClick={() => requestStatus(targets, 'published')} />
+        <HeaderIconKey label="Reset to shipped" title="Remove every saved change to the open preset and show what the app ships" icon={<HeaderActionIcon action="restore" />} disabled={busy || !selected?.row} onClick={resetSelectedToShipped} />
         <HeaderIconKey label="Discard unsaved changes" icon={<HeaderActionIcon action="reset" />} danger disabled={busy || changedPresets.length === 0} onClick={discardAll} />
-      </AdminHeaderActions>
+      </AdminHeaderActions>}
       <div className="vz-content pmv-content adm-pc-content" data-left-collapsed={leftCollapsed ? 'true' : 'false'} data-right-collapsed={rightCollapsed ? 'true' : 'false'}>
         <WorkspaceRail side="left" label="Preset Catalog" collapsed={leftCollapsed} onToggleCollapsed={() => setLeftCollapsed(value => !value)} className="rw-frame--left fw-surface">
           <RailWindowHeader side="left" icon={<AppIcon kind="layers" size={15} color="currentColor" aria-hidden="true" />} label="Preset Catalog" />
@@ -204,6 +204,7 @@ export function PresetCatalogPane({ presets, packs, section, onSave, onSaveMany,
               <div className="adm-bulk" role="region" aria-label="Bulk actions">
                 <span className="adm-bulk-count"><strong>{checkedPresets.length}</strong> selected <button type="button" className="adm-link" onClick={() => setChecked(new Set())}>Clear</button></span>
                 <IconChipButton tone="primary" disabled={busy} onClick={() => requestStatus(checkedPresets, 'published')}>Publish</IconChipButton>
+                <IconChipButton disabled={busy} onClick={() => requestStatus(checkedPresets, 'designing')}>Designing</IconChipButton>
                 <IconChipButton disabled={busy} onClick={() => requestStatus(checkedPresets, 'draft')}>Draft</IconChipButton>
                 <IconChipButton disabled={busy} onClick={() => requestStatus(checkedPresets, 'archived')}>Archive</IconChipButton>
               </div>
@@ -219,8 +220,7 @@ export function PresetCatalogPane({ presets, packs, section, onSave, onSaveMany,
             <>
               <PresetCatalogInspector
                 key={selected.record.id} preset={selected} edit={edit} problems={problems} changed={changedIds.has(selected.record.id)} busy={busy} packs={packs}
-                onPatch={patchEdit} onPublish={() => requestStatus([selected], 'published')} onSave={() => void saveSelected()} onDiscard={discardSelected}
-                onResetToShipped={() => void run(async () => { await onSave(selected, null); dropDrafts([selected.record.id]); say('Back to what the app ships.') })}
+                onPatch={patchEdit} onPublish={() => requestStatus([selected], 'published')}
                 onAddToPack={packId => void run(() => onAddToPack(selected, packId))} onRemoveFromPack={packId => void run(() => onRemoveFromPack(selected, packId))}
               />
               <div className="adm-inspector-notice"><InspectorNotice notice={notice} saved={saved} /></div>
@@ -232,9 +232,9 @@ export function PresetCatalogPane({ presets, packs, section, onSave, onSaveMany,
       </div>
       {confirm && (
         <ConfirmDialog
-          title={confirm.status === 'archived' ? `Archive ${confirm.targets.length === 1 ? shownFor(confirm.targets[0]!).name : `${confirm.targets.length} presets`}?` : `${confirm.status === 'published' ? 'Publish' : 'Set to draft'} ${confirm.targets.length} presets?`}
+          title={confirm.status === 'archived' ? `Archive ${confirm.targets.length === 1 ? shownFor(confirm.targets[0]!).name : `${confirm.targets.length} presets`}?` : confirm.status === 'published' ? `Publish ${confirm.targets.length} presets?` : `Set ${confirm.targets.length} presets to ${STATUS_LABELS[confirm.status].toLowerCase()}?`}
           message={confirm.status === 'archived' ? 'Archived presets are marked as retired for the store. Their saved name, description, category, tags and order stay as they are.' : `This saves the status of ${confirm.targets.length} presets, together with any unsaved changes to them.`}
-          confirmLabel={confirm.status === 'archived' ? 'Archive' : confirm.status === 'published' ? 'Publish' : 'Set to Draft'} danger={confirm.status === 'archived'} confirmTone={confirm.status === 'archived' ? 'default' : 'primary'} iconTone="neutral"
+          confirmLabel={confirm.status === 'archived' ? 'Archive' : confirm.status === 'published' ? 'Publish' : `Set to ${STATUS_LABELS[confirm.status]}`} danger={confirm.status === 'archived'} confirmTone={confirm.status === 'archived' ? 'default' : 'primary'} iconTone="neutral"
           busy={busy} onCancel={() => setConfirm(null)} onConfirm={() => { const pending = confirm; setConfirm(null); void applyStatus(pending.targets, pending.status) }}
         />
       )}

@@ -157,7 +157,7 @@ export function NumberInputRow({
 
 // ── Select row ────────────────────────────────────────────────────────────────
 
-export interface SelectOption { value: string; label: string; disabled?: boolean; style?: CSSProperties }
+export interface SelectOption { value: string; label: string; disabled?: boolean; style?: CSSProperties; /** One sentence shown under the label in the open menu when `showOptionDescriptions` is on. */ description?: string }
 
 export interface SelectRowProps {
   label: string
@@ -168,6 +168,8 @@ export interface SelectRowProps {
   id?: string
   description?: string
   placeholder?: string
+  /** Show each option's `description` under its label in the open menu. */
+  showOptionDescriptions?: boolean
   labelHidden?: boolean
   /** Accessible name for the dropdown when it must differ from the visible
    *  label text (e.g. a short visible "Effect" label but a descriptive
@@ -184,7 +186,7 @@ export interface SelectRowProps {
   placement?: DropdownPlacement
 }
 
-export function SelectRow({ label, value, onChange, options, disabled, id, description, placeholder, labelHidden = false, ariaLabel, menuClassName, menuSearch, menuSearchPlaceholder, menuBoundarySelector, placement }: SelectRowProps) {
+export function SelectRow({ label, value, onChange, options, disabled, id, description, placeholder, showOptionDescriptions = false, labelHidden = false, ariaLabel, menuClassName, menuSearch, menuSearchPlaceholder, menuBoundarySelector, placement }: SelectRowProps) {
   const generatedId = useId()
   const inputId = id ?? generatedId
   return (
@@ -204,7 +206,7 @@ export function SelectRow({ label, value, onChange, options, disabled, id, descr
         ariaDescribedBy={description ? `${inputId}-description` : undefined}
         menuLabel={label}
         size="compact"
-        showDescriptions={false}
+        showDescriptions={showOptionDescriptions}
         className="rv-ctrl-dropdown"
         menuClassName={menuClassName}
         menuSearch={menuSearch}

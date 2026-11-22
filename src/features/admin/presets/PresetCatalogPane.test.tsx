@@ -99,7 +99,7 @@ describe('Preset Catalog: library', () => {
     expect(q('[data-preset-id="cinema2:alpha"]')!.getAttribute('data-status')).toBe('published')
     expect(q('[data-preset-id="cinema2:bravo"]')!.getAttribute('data-status')).toBe('draft')
     expect(q('[data-preset-id="cinema2:charlie"]')!.getAttribute('data-status')).toBe('unset')
-    expect(qa('.adm-status-chip').map(entry => entry.textContent)).toEqual(['All4', 'Published1', 'Draft1', 'Not set2', 'Archived0'])
+    expect(qa('.adm-status-chip').map(entry => entry.textContent)).toEqual(['All4', 'Not set2', 'Designing0', 'Draft1', 'Published1', 'Archived0'])
     expect(q('.adm-count')!.textContent).toBe('4 of 4 presets')
   })
 
@@ -114,7 +114,7 @@ describe('Preset Catalog: library', () => {
     await type(q<HTMLInputElement>('.vz-md-search-input')!, 'cha')
     expect(names()).toEqual(['charlie'])
     // With a search active, the chips count only what matches it.
-    expect(qa('.adm-status-chip').map(entry => entry.textContent)).toEqual(['All1', 'Published0', 'Draft0', 'Not set1', 'Archived0'])
+    expect(qa('.adm-status-chip').map(entry => entry.textContent)).toEqual(['All1', 'Not set1', 'Designing0', 'Draft0', 'Published0', 'Archived0'])
     await type(q<HTMLInputElement>('.vz-md-search-input')!, 'zzz')
     expect(q('.pmv-empty')!.textContent).toBe('No presets match.')
   })
@@ -154,19 +154,19 @@ describe('Preset Catalog: preview and inspector', () => {
   it('keeps an edit as a draft, marks the card Modified, and keeps the draft when moving to another preset and back', async () => {
     await type(field('Name'), 'Alpha Two')
     expect(q('[data-preset-id="cinema2:alpha"]')!.textContent).toContain('Modified')
-    expect(q('.adm-dirty')!.textContent).toBe('Unsaved changes')
     await click(byLabel('Select Bravo'))
     expect(field('Name').value).toBe('Bravo')
-    expect(q('.adm-dirty')!.textContent).not.toBe('Unsaved changes')
+    expect(q('[data-preset-id="cinema2:bravo"]')!.textContent).not.toContain('Modified')
     await click(byLabel('Select Alpha Two'))
     expect(field('Name').value).toBe('Alpha Two')
   })
 
   it('discards a draft, and an edit back to the stored value is no longer a change', async () => {
-    await type(field('Name'), 'Alpha Two'); expect(q('.adm-dirty')!.textContent).toBe('Unsaved changes')
-    await type(field('Name'), 'Alpha'); expect(q('.adm-dirty')!.textContent).not.toBe('Unsaved changes')
+    const modified = () => q('[data-preset-id="cinema2:alpha"]')!.textContent!.includes('Modified')
+    await type(field('Name'), 'Alpha Two'); expect(modified()).toBe(true)
+    await type(field('Name'), 'Alpha'); expect(modified()).toBe(false)
     await type(field('Name'), 'Other')
-    await click(qa('button').find(button => button.textContent === 'Discard')!)
+    await click(headerKey(/Discard/))
     expect(field('Name').value).toBe('Alpha')
   })
 
@@ -174,25 +174,41 @@ describe('Preset Catalog: preview and inspector', () => {
     const add = q<HTMLInputElement>('input[aria-label="Add a tag"]')!
     await type(add, 'neon')
     await act(async () => { add.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })) })
-    expect(qa('.adm-tags .adm-chip span').map(entry => entry.textContent)).toEqual(['one', 'neon'])
+    expect(qa('.adm-tags .dv-tag-pill-label').map(entry => entry.textContent)).toEqual(['one', 'neon'])
     await click(byLabel('Remove tag one'))
-    expect(qa('.adm-tags .adm-chip span').map(entry => entry.textContent)).toEqual(['neon'])
+    expect(qa('.adm-tags .dv-tag-pill-label').map(entry => entry.textContent)).toEqual(['neon'])
     expect(q('[data-preset-id="cinema2:alpha"]')!.textContent).toContain('Modified')
   })
 
   it('will not save a preset with no name, and says why', async () => {
     await type(field('Name'), '   ')
     expect(q('.adm-field-error')!.textContent).toBe('A preset needs a name.')
-    expect(qa<HTMLButtonElement>('button').find(button => button.textContent === 'Save')!.disabled).toBe(true)
     expect(qa<HTMLButtonElement>('.adm-publish button')[0]!.disabled).toBe(true)
   })
 
-  it('saves the selected preset from the inspector, and the draft goes away', async () => {
+  it('has no Save, Discard or Reset buttons in the inspector: they are icons in the page header', async () => {
     await type(field('Name'), 'Alpha Two')
-    await click(qa('button').find(button => button.textContent === 'Save')!)
-    expect(calls.save).toEqual([['cinema2:alpha', expect.objectContaining({ name: 'Alpha Two', publication_status: 'published' })]])
+    const inspector = q('.pmv-inspector')!
+    expect([...inspector.querySelectorAll('button')].map(button => button.textContent).filter(text => /^(Save|Discard|Reset to Shipped)$/.test(text ?? ''))).toEqual([])
+    expect(inspector.querySelector('.adm-form-actions')).toBeNull()
+    for (const button of qa<HTMLButtonElement>('[data-testid="header-actions"] button')) { expect(button.textContent).toBe(''); expect(button.querySelector('svg')).not.toBeNull() }
+  })
+
+  it('saves from the header, and the draft goes away', async () => {
+    await type(field('Name'), 'Alpha Two')
+    await click(headerKey(/Save changes/))
+    expect(calls.saveMany[0]!.map(change => [change.preset.record.sourceId, change.row?.name, change.row?.publication_status])).toEqual([['alpha', 'Alpha Two', 'published']])
     expect(q('[data-preset-id="cinema2:alpha"]')!.textContent).not.toContain('Modified')
-    expect(q('.adm-inspector-notice')!.textContent).toContain('show in the app now')
+    expect(q('.adm-inspector-notice')!.textContent).toContain('Saved 1 preset.')
+  })
+
+  it('resets the open preset to what the app ships from the header, and only when it has a saved change', async () => {
+    expect(headerKey(/Reset to shipped/).disabled).toBe(false)
+    await click(headerKey(/Reset to shipped/))
+    expect(calls.save).toEqual([['cinema2:alpha', null]])
+    expect(q('.adm-inspector-notice')!.textContent).toContain('Back to what the app ships.')
+    await click(byLabel('Select Charlie'))
+    expect(headerKey(/Reset to shipped/).disabled).toBe(true)
   })
 })
 
@@ -208,11 +224,38 @@ describe('Preset Catalog: publishing', () => {
     expect(q('.adm-inspector-notice')!.textContent).toContain('Charlie Prime published')
   })
 
-  it('sets a status by the segmented control without saving it until Save', async () => {
-    await click(qa('.adm-segmented button').find(button => button.textContent === 'Archived')!)
+  it('sets the status from a dropdown whose options each say in one sentence what they mean, with Designing among them, and saves it only when Save is pressed', async () => {
+    const trigger = qa('.rv-ctrl-row').find(entry => entry.querySelector('label')?.textContent === 'Status')!.querySelector<HTMLButtonElement>('button[role="combobox"]')!
+    expect(trigger.textContent).toContain('Published')
+    expect(q('.adm-segmented')).toBeNull()
+    await click(trigger)
+    const options = [...document.body.querySelectorAll('[role="listbox"] [role="option"]')]
+    expect(options.map(option => option.querySelector('.drm-dropdown__option-label')?.textContent)).toEqual(['Not set', 'Designing', 'Draft', 'Published', 'Archived'])
+    const sentences = options.map(option => option.querySelector('.drm-dropdown__option-description')?.textContent ?? '')
+    for (const sentence of sentences) { expect(sentence.length).toBeGreaterThan(10); expect(sentence.endsWith('.')).toBe(true); expect(sentence.split('. ').length).toBe(1) }
+    expect(sentences[1]).toBe('Still being designed and not ready for anyone to review.')
+    await click(options[1]!)
     expect(calls.saveMany).toHaveLength(0)
     expect(q('[data-preset-id="cinema2:alpha"]')!.getAttribute('data-status')).toBe('published')
-    expect(q('.adm-dirty')!.textContent).toBe('Unsaved changes')
+    expect(q('[data-preset-id="cinema2:alpha"]')!.textContent).toContain('Modified')
+    await click(headerKey(/Save changes/))
+    expect(calls.saveMany[0]!.map(change => change.row?.publication_status)).toEqual(['designing'])
+    expect(q('[data-preset-id="cinema2:alpha"]')!.getAttribute('data-status')).toBe('designing')
+    expect(q('[data-preset-id="cinema2:alpha"] .rv-preset-poster-chip')!.textContent).toBe('Designing')
+  })
+
+  it('no longer shows the note about when edits appear in the app', () => {
+    expect(q('.pmv-inspector')!.textContent).not.toContain('show in the app as soon as they are saved')
+    expect(q('.pmv-inspector')!.textContent).not.toContain('recorded for the store')
+  })
+
+  it('sets several presets to Designing from the bulk bar, after a confirmation', async () => {
+    await click(byLabel('Select Charlie for bulk actions')); await click(byLabel('Select Delta for bulk actions'))
+    await click(qa('.adm-bulk button').find(button => button.textContent === 'Designing')!)
+    expect(document.body.textContent).toContain('Set 2 presets to designing?')
+    await click([...document.querySelectorAll('button')].find(button => button.textContent === 'Set to Designing') ?? null)
+    expect(calls.saveMany[0]!.map(change => [change.preset.record.sourceId, change.row?.publication_status])).toEqual([['charlie', 'designing'], ['delta', 'designing']])
+    expect(q('.adm-inspector-notice')!.textContent).toContain('2 presets set to designing.')
   })
 
   it('asks before archiving, saves nothing if it is cancelled, and archives once it is confirmed', async () => {
@@ -254,8 +297,8 @@ describe('Preset Catalog: publishing', () => {
 })
 
 describe('Preset Catalog: header actions and saving everything', () => {
-  it('puts Save, Publish and Discard in the page header, Save and Discard enabled only while there are unsaved changes', async () => {
-    expect(qa('[data-testid="header-actions"] button').map(button => button.getAttribute('aria-label'))).toEqual(['Save changes', 'Publish preset', 'Discard unsaved changes'])
+  it('puts Save, Publish, Reset to shipped and Discard in the page header as icons, Save and Discard enabled only while there are unsaved changes', async () => {
+    expect(qa('[data-testid="header-actions"] button').map(button => button.getAttribute('aria-label'))).toEqual(['Save changes', 'Publish preset', 'Reset to shipped', 'Discard unsaved changes'])
     expect(headerKey(/Save changes/).disabled).toBe(true)
     expect(headerKey(/Discard/).disabled).toBe(true)
     await type(field('Name'), 'Alpha Two')

@@ -2,7 +2,7 @@ import { AppIcon } from '../../shared/icons/AppIcon'
 import { DreamVizTextInput } from '../react/controls/DreamVizTextInput'
 import { IconChipButton } from '../react/controls/IconChipButton'
 import { ConfirmDialog } from '../react/controls/ConfirmDialog'
-import { Badge } from '../react/controls/Badge'
+import { TagPill } from '../react/controls/TagPill'
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent, type MutableRefObject, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { loadSavedTrackIntoEngine, SavedTrackLoadCancelledError } from '../../../audio/savedTrackLoader'
 import { setShowManagerLinkedAudioTrackId } from '../../../audio/audioSourcePolicy'
@@ -736,10 +736,9 @@ function NewShowDialog({ copySource = null, onClose }: NewShowDialogProps) {
           {tags.length > 0 && (
             <div className="sm-new-show-tags" aria-label="Show tags">
               {tags.map(tag => (
-                <Badge
+                <TagPill
                   key={tag}
                   label={tag}
-                  tone="#4ac7db"
                   onRemove={() => setTags(current => current.filter(value => value !== tag))}
                   removeLabel="Remove tag"
                 />

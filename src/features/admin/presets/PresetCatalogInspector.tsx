@@ -4,14 +4,16 @@ import { RailTabs } from '../../../components/vyzualz/layout/RailTabs'
 import { DreamVizTextInput } from '../../../components/vyzualz/react/controls/DreamVizTextInput'
 import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
 import { NoticeCard } from '../../../components/vyzualz/react/controls/NoticeCard'
+import { TagPill } from '../../../components/vyzualz/react/controls/TagPill'
 import { Collapsible, SelectRow, TextAreaRow, TextInputRow } from '../../../components/vyzualz/react/ReactControlRows'
-import { parseTags, STATUS_LABELS, type AdminPreset, type CatalogPack, type EditProblems, type PresetEdit, type PublicationStatus } from './presetAdmin'
+import { parseTags, STATUS_DESCRIPTIONS, STATUS_LABELS, STATUS_ORDER, type AdminPreset, type CatalogPack, type EditProblems, type PresetEdit, type PublicationStatus } from './presetAdmin'
 import { activationLabel, presetVersionInfo } from './presetTechnical'
 
 const NOOP = () => undefined
 type InspectorTab = 'info' | 'store' | 'technical'
 const TABS = [{ id: 'info', label: 'INFO' }, { id: 'store', label: 'STORE' }, { id: 'technical', label: 'TECHNICAL' }] as const
-const STATUS_ORDER: readonly (PublicationStatus | '')[] = ['', 'draft', 'published', 'archived']
+/** The status dropdown's options: each status with the sentence that says what it means. The empty status (nothing recorded) is `unset`. */
+const STATUS_OPTIONS = STATUS_ORDER.map(value => ({ value: value || 'unset', label: STATUS_LABELS[value || 'unset'], description: STATUS_DESCRIPTIONS[value || 'unset'] }))
 
 interface Props {
   preset: AdminPreset
@@ -23,9 +25,6 @@ interface Props {
   packs: readonly CatalogPack[]
   onPatch: (patch: Partial<PresetEdit>) => void
   onPublish: () => void
-  onSave: () => void
-  onDiscard: () => void
-  onResetToShipped: () => void
   onAddToPack: (packId: string) => void
   onRemoveFromPack: (packId: string) => void
 }
@@ -46,7 +45,7 @@ function TagEditor({ tagsText, onChange, error }: { tagsText: string; onChange: 
       {tags.length > 0 && (
         <ul className="adm-chips" aria-label="Tags">
           {tags.map(tag => (
-            <li key={tag} className="adm-chip"><span>{tag}</span><button type="button" aria-label={`Remove tag ${tag}`} onClick={() => onChange(tags.filter(entry => entry !== tag).join(', '))}>×</button></li>
+            <li key={tag}><TagPill label={tag} removeLabel="Remove tag" onRemove={() => onChange(tags.filter(entry => entry !== tag).join(', '))} /></li>
           ))}
         </ul>
       )}
@@ -65,7 +64,7 @@ function TagEditor({ tagsText, onChange, error }: { tagsText: string; onChange: 
  * The right window: one preset's details, with publishing first. Everything here edits an unsaved draft (so the admin can move to another preset and come
  * back); Save writes it, Publish sets the status to Published and writes the draft in one step.
  */
-export function PresetCatalogInspector({ preset, edit, problems, changed, busy, packs, onPatch, onPublish, onSave, onDiscard, onResetToShipped, onAddToPack, onRemoveFromPack }: Props) {
+export function PresetCatalogInspector({ preset, edit, problems, changed, busy, packs, onPatch, onPublish, onAddToPack, onRemoveFromPack }: Props) {
   const [tab, setTab] = useState<InspectorTab>('info')
   const [addPack, setAddPack] = useState('')
   const record = preset.record
@@ -84,18 +83,11 @@ export function PresetCatalogInspector({ preset, edit, problems, changed, busy, 
             {tab === 'info' && (
               <>
                 <Collapsible label="Publishing">
-                  <div className="adm-segmented" role="radiogroup" aria-label="Publication status">
-                    {STATUS_ORDER.map(value => (
-                      <button key={value || 'unset'} type="button" role="radio" aria-checked={edit.status === value} data-status={value || 'unset'} onClick={() => onPatch({ status: value })}>
-                        {STATUS_LABELS[value || 'unset']}
-                      </button>
-                    ))}
-                  </div>
+                  <SelectRow label="Status" value={edit.status || 'unset'} onChange={value => onPatch({ status: value === 'unset' ? '' : value as PublicationStatus })} options={STATUS_OPTIONS} showOptionDescriptions disabled={busy} />
                   <div className="adm-publish">
                     <IconChipButton tone="primary" disabled={busy || blocked} onClick={onPublish}
                       icon={<AppIcon kind="upload" size={12} color="currentColor" />}>{published && !changed ? 'Published' : changed ? 'Save & Publish' : 'Publish'}</IconChipButton>
                   </div>
-                  <p className="adm-note">Name, description, category, tags and display order show in the app as soon as they are saved. The status is recorded for the store.</p>
                 </Collapsible>
                 <Collapsible label="Preset Info">
                   <TextInputRow label="Name" value={edit.name} onChange={value => onPatch({ name: value })} maxLength={160} />
@@ -112,7 +104,7 @@ export function PresetCatalogInspector({ preset, edit, problems, changed, busy, 
                   {memberOf.length === 0 && <p className="adm-muted">Not in any pack.</p>}
                   <ul className="adm-chips" aria-label="Packs this preset is in">
                     {memberOf.map(pack => (
-                      <li key={pack.id} className="adm-chip"><span>{pack.name}</span><button type="button" aria-label={`Remove from ${pack.name}`} disabled={busy} onClick={() => onRemoveFromPack(pack.id)}>×</button></li>
+                      <li key={pack.id}><TagPill label={pack.name} removeLabel="Remove from" disabled={busy} onRemove={() => onRemoveFromPack(pack.id)} /></li>
                     ))}
                   </ul>
                   {available.length > 0 && (
@@ -122,9 +114,6 @@ export function PresetCatalogInspector({ preset, edit, problems, changed, busy, 
                     </div>
                   )}
                 </Collapsible>
-                <div className="adm-reset">
-                  <IconChipButton disabled={busy || !preset.row} title="Remove every saved change and show what the app ships" onClick={onResetToShipped}>Reset to Shipped</IconChipButton>
-                </div>
               </>
             )}
             {tab === 'store' && (
@@ -149,11 +138,6 @@ export function PresetCatalogInspector({ preset, edit, problems, changed, busy, 
             )}
           </div>
         </div>
-      </div>
-      <div className="adm-form-actions adm-inspector-actions">
-        <span className="adm-dirty" role="status" aria-live="polite">{changed ? 'Unsaved changes' : preset.row ? 'Saved' : 'As shipped'}</span>
-        <IconChipButton disabled={busy || !changed} onClick={onDiscard}>Discard</IconChipButton>
-        <IconChipButton tone="primary" disabled={busy || !changed || blocked} onClick={onSave}>{busy ? 'Saving…' : 'Save'}</IconChipButton>
       </div>
     </>
   )

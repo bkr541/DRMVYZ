@@ -6,7 +6,7 @@ import { DreamVizTextInput } from './react/controls/DreamVizTextInput'
 import { UnderlineDropdown } from './react/controls/UnderlineDropdown'
 import { NoticeCard } from './react/controls/NoticeCard'
 import { IconChipButton } from './react/controls/IconChipButton'
-import { Badge } from './react/controls/Badge'
+import { TagPill } from './react/controls/TagPill'
 import { useState, useRef, useEffect, useCallback, useId } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { mediaMutationKey, useMediaStore, DEFAULT_UPLOAD_DRAFT } from '../../stores/mediaStore'
@@ -166,7 +166,7 @@ function TagChips({ tags, onRemove }: { tags: string[]; onRemove: (t: string) =>
   return (
     <>
       {tags.map(t => (
-        <Badge key={t} label={t} tone="#4ac7db" onRemove={() => onRemove(t)} removeLabel="Remove tag" />
+        <TagPill key={t} label={t} onRemove={() => onRemove(t)} removeLabel="Remove tag" />
       ))}
     </>
   )
@@ -180,7 +180,7 @@ function CollectionChips({ ids, collections, onRemove }: {
       {ids.map(id => {
         const name = collections.find(c => c.id === id)?.name ?? id
         return (
-          <Badge key={id} label={name} tone="#b84fc9" onRemove={() => onRemove(id)} removeLabel="Remove collection" />
+          <TagPill key={id} label={name} onRemove={() => onRemove(id)} removeLabel="Remove collection" />
         )
       })}
     </>

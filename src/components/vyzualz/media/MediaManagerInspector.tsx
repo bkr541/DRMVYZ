@@ -5,7 +5,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { Collapsible, NumberInputRow, SelectRow, TextInputRow, ToggleRow } from '../react/ReactControlRows'
 import { IconChipButton } from '../react/controls/IconChipButton'
 import { DreamVizTextInput } from '../react/controls/DreamVizTextInput'
-import { Badge } from '../react/controls/Badge'
+import { TagPill } from '../react/controls/TagPill'
 import { DrawerNotice } from '../shared/DrawerNotice'
 import { Dropdown } from '../../shared/Dropdown/Dropdown'
 import { useMediaStore } from '../../../stores/mediaStore'
@@ -130,7 +130,7 @@ export function TagsCollectionsGroup({
         />
         {tags.length > 0 && (
           <div className="mmi-chip-field">
-            {tags.map(tag => <Badge key={tag} label={tag} tone="#4ac7db" onRemove={disabled ? undefined : () => onTagsChange(tags.filter(candidate => candidate !== tag))} removeLabel="Remove tag" />)}
+            {tags.map(tag => <TagPill key={tag} label={tag} onRemove={disabled ? undefined : () => onTagsChange(tags.filter(candidate => candidate !== tag))} removeLabel="Remove tag" />)}
           </div>
         )}
       </div>
@@ -156,7 +156,7 @@ export function TagsCollectionsGroup({
         {collectionIds.length > 0 && (
           <div className="mmi-chip-field">
             {collectionIds.map(id => (
-              <Badge key={id} label={collections.find(collection => collection.id === id)?.name ?? id} tone="#b84fc9" onRemove={disabled ? undefined : () => onCollectionIdsChange(collectionIds.filter(candidate => candidate !== id))} removeLabel="Remove collection" />
+              <TagPill key={id} label={collections.find(collection => collection.id === id)?.name ?? id} onRemove={disabled ? undefined : () => onCollectionIdsChange(collectionIds.filter(candidate => candidate !== id))} removeLabel="Remove collection" />
             ))}
           </div>
         )}

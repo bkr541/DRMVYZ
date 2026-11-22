@@ -13,7 +13,7 @@ export interface PresetMetadataRow {
   category: string | null
   tags: string[] | null
   display_order: number | null
-  publication_status: 'draft' | 'published' | 'archived' | null
+  publication_status: 'designing' | 'draft' | 'published' | 'archived' | null
   store_title: string | null
   store_subtitle: string | null
   store_cover_ref: string | null

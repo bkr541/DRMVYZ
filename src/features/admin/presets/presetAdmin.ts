@@ -136,13 +136,25 @@ export function rowFromEdit(record: PresetManagerRecord, edit: PresetEdit): Pres
   return Object.values(columns).every(value => value === null) ? null : row
 }
 
-export const STATUS_LABELS: Readonly<Record<PublicationStatus | 'unset', string>> = { unset: 'Not set', draft: 'Draft', published: 'Published', archived: 'Archived' }
+export const STATUS_LABELS: Readonly<Record<PublicationStatus | 'unset', string>> = { unset: 'Not set', designing: 'Designing', draft: 'Draft', published: 'Published', archived: 'Archived' }
+
+/** One sentence on what each status means, shown under it in the status dropdown. */
+export const STATUS_DESCRIPTIONS: Readonly<Record<PublicationStatus | 'unset', string>> = {
+  unset: 'No status is recorded; the preset is just as it ships.',
+  designing: 'Still being designed and not ready for anyone to review.',
+  draft: 'Designed and ready to review, but not published yet.',
+  published: 'Live: recorded as released for the store.',
+  archived: 'Retired from the store, with its saved details kept.',
+}
+
+/** The statuses in the order they are offered: from nothing recorded, through the work, to done. */
+export const STATUS_ORDER: readonly (PublicationStatus | '')[] = ['', 'designing', 'draft', 'published', 'archived']
 
 export type StatusCounts = Record<PublicationStatus | 'unset' | 'all', number>
 
 /** How many presets are in each status, for the filter chips. The counts follow the other filters, so a chip always says what clicking it will show. */
 export function statusCounts(presets: readonly AdminPreset[]): StatusCounts {
-  const counts: StatusCounts = { all: presets.length, unset: 0, draft: 0, published: 0, archived: 0 }
+  const counts: StatusCounts = { all: presets.length, unset: 0, designing: 0, draft: 0, published: 0, archived: 0 }
   for (const preset of presets) counts[preset.status ?? 'unset'] += 1
   return counts
 }

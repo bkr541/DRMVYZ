@@ -19,6 +19,7 @@ import {
 } from './ReactTypes'
 import { ReactPresetThumbnail } from './ReactPresetThumbnail'
 import { Badge } from './controls/Badge'
+import { TagPill } from './controls/TagPill'
 import { PresetSearchRow } from './controls/PresetSearchRow'
 import { PanelSubtabs } from './PanelSubtabs'
 import {
@@ -226,7 +227,7 @@ function StandardReactPresetCard({
             <span>{production.requiredCapabilities.map(item => item.label).join(' · ')}</span>
           </div>
           <div className="rv-production-tags">
-            {production.styleTags.map(tag => <Badge key={tag} label={tag} tone="#a78bfa" />)}
+            {production.styleTags.map(tag => <TagPill key={tag} label={tag} />)}
           </div>
         </div>
       ) : undefined}

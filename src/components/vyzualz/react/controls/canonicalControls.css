@@ -705,6 +705,43 @@ label:has(> .dv-icon-morph-checkbox) {
   margin-top: 4px;
 }
 
+/* The pill for tags, collections and packs (TagPill): a rounded outline, the label, and a round × when it can be removed. */
+
+.dv-tag-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 3px 4px 3px 10px;
+  border: 1px solid rgba(103, 247, 255, 0.3);
+  border-radius: 999px;
+  color: var(--color-text-strong, #e8f4f8);
+  font: var(--type-field-value);
+}
+
+.dv-tag-pill--static { padding-right: 10px; }
+
+.dv-tag-pill-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.dv-tag-pill-remove {
+  all: unset;
+  box-sizing: border-box;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  color: var(--color-text-muted, rgba(196, 212, 220, 0.66));
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.dv-tag-pill-remove:hover:not(:disabled) { color: #67f7ff; background: rgba(103, 247, 255, 0.12); }
+.dv-tag-pill-remove:focus-visible { outline: 1px solid #67f7ff; }
+.dv-tag-pill-remove:disabled { opacity: 0.35; cursor: default; }
+
 /* Canonical DRMVYZ tag/genre label from Layout Lab's "Removable Capsule" winner. */
 
 .dv-badge {

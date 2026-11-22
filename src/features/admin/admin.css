@@ -71,10 +71,9 @@
 .adm-new-pack > .rv-ctrl-row { flex: 1; }
 
 .adm-chips { list-style: none; margin: 4px 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
-.adm-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 4px 3px 9px; border: 1px solid rgba(103, 247, 255, 0.3); border-radius: 999px; color: var(--color-text-strong, #e8f4f8); font: var(--type-field-value); }
-.adm-chip button, .adm-member-actions button { all: unset; cursor: pointer; display: grid; place-items: center; width: 18px; height: 18px; border-radius: 999px; color: var(--color-text-muted, rgba(196, 212, 220, 0.66)); }
-.adm-chip button:hover, .adm-member-actions button:hover:not(:disabled) { color: #67f7ff; background: rgba(103, 247, 255, 0.12); }
-.adm-chip button:focus-visible, .adm-member-actions button:focus-visible { outline: 1px solid #67f7ff; }
+.adm-member-actions button { all: unset; cursor: pointer; display: grid; place-items: center; width: 18px; height: 18px; border-radius: 999px; color: var(--color-text-muted, rgba(196, 212, 220, 0.66)); }
+.adm-member-actions button:hover:not(:disabled) { color: #67f7ff; background: rgba(103, 247, 255, 0.12); }
+.adm-member-actions button:focus-visible { outline: 1px solid #67f7ff; }
 .adm-member-actions button:disabled { opacity: 0.35; cursor: default; }
 .adm-members { list-style: none; margin: 4px 0; padding: 0; display: grid; gap: 2px; }
 .adm-member { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 6px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
@@ -83,10 +82,15 @@
 .adm-member-actions { display: inline-flex; gap: 2px; }
 
 /* ── Preset Catalog: Preset Manager's three windows (library, preview, inspector) with admin-only additions ─────────────────────────────────────────── */
-.adm-pc { flex: 1; min-width: 0; min-height: 0; --adm-published: #64b98b; --adm-draft: #ffb347; --adm-archived: #8fa3ab; --adm-unset: rgba(196, 212, 220, 0.5); }
+.adm-pc { flex: 1; min-width: 0; min-height: 0; --adm-published: #64b98b; --adm-designing: #a98bff; --adm-draft: #ffb347; --adm-archived: #8fa3ab; --adm-unset: rgba(196, 212, 220, 0.5); }
 .adm-pc > .pmv-content { flex: 1; min-height: 0; }
+/* Presets and Packs are the same three windows, both mounted; the one not showing is hidden. */
+.adm-pane { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.adm-pane[hidden] { display: none; }
 .adm-browser { display: flex; flex-direction: column; min-height: 0; }
 .adm-subtabs.dv-underline-tabs { padding: 0; }
+/* The manager layout insets the search row by 26px; here it lines up with the dropdown rows under it (12px each side). */
+.adm-browser.vz-media-browser--manager .vz-md-search-row { padding-inline: 12px; }
 .adm-filter-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 4px 12px; padding: 4px 12px 0; }
 .adm-filter-grid .drm-dropdown__trigger { min-height: 30px !important; }
 
@@ -108,6 +112,7 @@
 .adm-tile .rv-preset-card-shell { height: 100%; }
 /* The status is the poster's chip, in the status's colour; a card in the bulk selection carries a cyan edge and its round button lights. */
 .adm-tile[data-status='published'] .rv-preset-poster-chip { color: var(--adm-published); }
+.adm-tile[data-status='designing'] .rv-preset-poster-chip { color: var(--adm-designing); }
 .adm-tile[data-status='draft'] .rv-preset-poster-chip { color: var(--adm-draft); }
 .adm-tile[data-status='archived'] .rv-preset-poster-chip { color: var(--adm-archived); }
 .adm-tile[data-status='unset'] .rv-preset-poster-chip { color: var(--adm-unset); }
@@ -120,12 +125,12 @@
 .adm-status { display: inline-flex; align-items: center; gap: 5px; padding: 1px 7px; border: 1px solid currentColor; border-radius: 999px; font: var(--type-record-meta); text-transform: uppercase; letter-spacing: 0.06em; line-height: 1.5; }
 .adm-status::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
 .adm-status[data-status='published'] { color: var(--adm-published); }
+.adm-status[data-status='designing'] { color: var(--adm-designing); }
 .adm-status[data-status='draft'] { color: var(--adm-draft); }
 .adm-status[data-status='archived'] { color: var(--adm-archived); }
 .adm-status[data-status='unset'] { color: var(--adm-unset); }
 
 .adm-bulk { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--color-border-subtle, rgba(154, 178, 188, 0.18)); background: var(--color-panel-alt, #0b1115); }
-.adm-reset { display: flex; justify-content: flex-end; padding: 4px 0 12px; }
 .adm-bulk-count { flex: 1 0 100%; margin-right: auto; color: var(--color-text-muted, rgba(196, 212, 220, 0.66)); font: var(--type-field-value); }
 .adm-bulk-count strong { color: var(--color-text-strong, #e8f4f8); }
 
@@ -152,24 +157,20 @@
 .adm-inapp-grid { width: 220px; height: 150px; }
 
 /* Right window. */
-.adm-segmented { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin: 4px 0 8px; }
-.adm-segmented button { all: unset; box-sizing: border-box; padding: 6px 8px; border: 1px solid var(--color-border-subtle, rgba(154, 178, 188, 0.18)); border-radius: var(--radius-group, 6px); color: var(--color-text-muted, rgba(196, 212, 220, 0.66)); font: var(--type-record-meta); text-align: center; text-transform: uppercase; letter-spacing: 0.06em; cursor: pointer; }
-.adm-segmented button:hover { border-color: var(--color-border, rgba(154, 178, 188, 0.3)); color: var(--color-text-strong, #e8f4f8); }
-.adm-segmented button[aria-checked='true'] { border-color: currentColor; background: rgba(255, 255, 255, 0.05); color: var(--adm-unset); }
-.adm-segmented button[aria-checked='true'][data-status='published'] { color: var(--adm-published); }
-.adm-segmented button[aria-checked='true'][data-status='draft'] { color: var(--adm-draft); }
-.adm-segmented button[aria-checked='true'][data-status='archived'] { color: var(--adm-archived); }
-.adm-segmented button[aria-checked='true'][data-status='unset'] { color: var(--color-text-strong, #e8f4f8); }
-.adm-segmented button:focus-visible { outline: 2px solid var(--color-primary, #4ac7db); outline-offset: 2px; }
 .adm-publish { display: flex; margin-bottom: 6px; }
 .adm-publish .dv-icon-chip { flex: 1; justify-content: center; }
 .adm-note { margin: 0 0 4px; color: var(--color-text-muted, rgba(196, 212, 220, 0.66)); font: var(--type-field-value); line-height: 1.45; }
 .adm-tags { display: grid; gap: 4px; margin: 4px 0 8px; }
 .adm-inspector-body { flex: 1; min-height: 0; }
-.adm-inspector-actions { align-items: center; flex-wrap: wrap; margin: 0; }
-.adm-dirty { margin-right: auto; color: var(--color-text-muted, rgba(196, 212, 220, 0.66)); font: var(--type-field-value); }
 .adm-inspector-notice { padding: 0 12px 12px; }
 .adm-inspector-notice:empty { display: none; }
 .adm-inspector-empty { padding: 16px 12px; }
 
 @media (max-width: 900px) { .adm-pc > .pmv-content { grid-template-columns: minmax(0, 1fr); } .adm-pc .pmv-stage { display: none; } }
+
+/* Packs tab */
+.adm-browser > .adm-new-pack { flex: 0 0 auto; max-width: none; padding: 10px 12px 0; }
+.adm-pad { padding: 6px 12px 0; margin: 0; }
+.adm-browser .adm-cards { overflow: visible; }
+.adm-pack-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.adm-pack-missing { display: grid; place-items: center; min-height: 80px; border: 1px dashed var(--color-border-subtle, rgba(154, 178, 188, 0.18)); border-radius: var(--radius-group, 6px); color: var(--color-text-muted, rgba(196, 212, 220, 0.66)); font: var(--type-field-value); }
