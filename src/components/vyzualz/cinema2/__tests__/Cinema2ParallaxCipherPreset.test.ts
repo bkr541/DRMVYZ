@@ -79,7 +79,7 @@ async function createScene(controls: Record<string, unknown> = {}) {
 describe('Paradox Weave — Parallax Cipher controls', () => {
   it('exposes the standard Design controls, six patterns, a palette and the bloom', () => {
     const byId = new Map(manifest.parameters!.map(parameter => [parameter.id, parameter]))
-    expect(manifest.revision).toBe(3)
+    expect(manifest.revision).toBe(4)
     const pattern = byId.get(CINEMA2_PARALLAX_CIPHER_PATTERN_ID)!
     expect(pattern).toMatchObject({ label: 'Pattern', type: 'enum', designParentGroup: 'design', group: 'Pattern' })
     expect((pattern.options as readonly unknown[]).length).toBeGreaterThanOrEqual(6)
@@ -88,9 +88,12 @@ describe('Paradox Weave — Parallax Cipher controls', () => {
     expect(byId.get(parallaxCipherParameterId('bpmSync'))).toMatchObject({ label: 'BPM Sync', designParentGroup: 'master-controls', defaultValue: true })
     expect(manifest.parameters!.filter(parameter => parameter.type === 'color' && parameter.designParentGroup === 'palette').length).toBeGreaterThanOrEqual(4)
     expect(byId.get(CINEMA2_PARALLAX_CIPHER_TEXT_ID)).toMatchObject({ group: 'Typography' })
-    expect(manifest.effects![0]!.parameterBindings?.intensity).toEqual(cinema2Ref(parallaxCipherParameterId('bloom')))
-    // No control is declared without a reader: the module, the bloom effect or the camera.
-    const bound = new Set([...Object.values(manifest.modules![0]!.parameterBindings!), ...Object.values(manifest.cameras![0]!.controls!), ...Object.values(manifest.effects![0]!.parameterBindings!)].map(ref => ref.$ref as string))
+    expect(manifest.effects!.find(effect => effect.typeId === 'hdr-bloom')!.parameterBindings?.intensity).toEqual(cinema2Ref(parallaxCipherParameterId('bloom')))
+    // No control is declared without a reader: the module, an effect, a light or the camera.
+    const bound = new Set([
+      ...Object.values(manifest.modules![0]!.parameterBindings!), ...Object.values(manifest.cameras![0]!.controls!),
+      ...manifest.effects!.flatMap(effect => Object.values(effect.parameterBindings ?? {})), ...manifest.lighting!.lights.flatMap(light => Object.values(light.controls ?? {})),
+    ].map(ref => ref.$ref as string))
     for (const parameter of manifest.parameters!) expect(bound.has(parameter.id as string), parameter.label).toBe(true)
   })
 
@@ -503,5 +506,61 @@ describe('Paradox Weave — the score', () => {
     }
     expect(await run(true)).toBe('CIPHER')
     expect(await run(false)).toBe('PARADOX')
+  })
+})
+
+describe('Paradox Weave finishing', () => {
+  const effect = (typeId: string) => manifest.effects!.find(entry => entry.typeId === typeId)!
+  const control = (label: string) => manifest.parameters!.find(parameter => parameter.label === label)!
+
+  it('runs the scene through floor, haze, focus, bloom, glare and grade, in that order, with depth where the effect needs it', () => {
+    expect(manifest.effects!.map(entry => entry.typeId)).toEqual(['reflective-floor', 'volumetric-atmosphere', 'depth-of-field', 'hdr-bloom', 'glare', 'cinematic-finish'])
+    const passes = manifest.render!.passes
+    expect(passes.map(pass => pass.kind)).toEqual(['scene', 'fullscreen', 'fullscreen', 'fullscreen', 'fullscreen', 'fullscreen', 'fullscreen'])
+    expect(passes.slice(1).map(pass => String(pass.effect!.$ref))).toEqual(manifest.effects!.map(entry => String(entry.id)))
+    const depthIn = (index: number) => passes[index]!.inputs!.some(input => input.attachment === 'depth')
+    expect([1, 2, 3].every(depthIn)).toBe(true); expect([4, 5, 6].some(depthIn)).toBe(false)
+    expect(passes[0]!.outputs!.map(output => output.attachment)).toEqual(['color', 'depth'])
+    expect(manifest.render!.outputPass).toEqual(cinema2Ref(passes[6]!.id))
+    // The floor stands under the rails and dots, and the focus holds the whole depth range of the word.
+    expect(effect('reflective-floor').parameters!.floorY).toBe(-3)
+    expect(effect('depth-of-field').parameters).toMatchObject({ focusCameraTarget: true, focusRange: expect.any(Number), nearBlur: expect.any(Number) })
+    expect(Number(effect('depth-of-field').parameters!.focusRange)).toBeGreaterThanOrEqual(6)
+  })
+
+  it('gives every finishing stage a control in Effects, starting on moderate values, so each can be taken to zero', () => {
+    const expected = [['Haze', .16, 'volumetric-atmosphere', 'mix'], ['Floor Reflection', .5, 'reflective-floor', 'mix'], ['Depth Focus', .25, 'depth-of-field', 'mix'], ['Light Flares', .08, 'glare', 'mix'],
+      ['Film Grain', .07, 'cinematic-finish', 'grain'], ['Lens Fringe', .05, 'cinematic-finish', 'aberration'], ['Vignette', .22, 'cinematic-finish', 'vignette']] as const
+    for (const [label, value, typeId, property] of expected) {
+      expect(control(label), label).toMatchObject({ type: 'float', designParentGroup: 'effects', defaultValue: value, min: 0 })
+      expect(effect(typeId).parameterBindings![property], label).toEqual(cinema2Ref(control(label).id))
+    }
+    // The strength of a stage at its control's default is what the effect starts with, so there is no jump when the control is first moved.
+    expect(control('Reflections')).toMatchObject({ designParentGroup: 'design', group: 'Lighting', defaultValue: 1 })
+    expect(manifest.modules![0]!.parameterBindings!.environmentIntensity).toEqual(cinema2Ref(control('Reflections').id))
+  })
+
+  it('lights the haze with the palette: the cyan, magenta and red lights take the Left Bank, Right Bank and Red Marker colours', () => {
+    const lights = manifest.lighting!.lights.filter(light => String(light.id).includes('-haze-'))
+    expect(lights.map(light => light.type)).toEqual(['point', 'point', 'point'])
+    expect(lights.map(light => light.controls!.color)).toEqual([cinema2Ref(parallaxCipherParameterId('leftBankColor')), cinema2Ref(parallaxCipherParameterId('rightBankColor')), cinema2Ref(parallaxCipherParameterId('redMarkerColor'))])
+    expect(lights.map(light => light.color)).toEqual([[...PARALLAX_CIPHER_PALETTE_DEFAULTS.leftBankColor], [...PARALLAX_CIPHER_PALETTE_DEFAULTS.rightBankColor], [...PARALLAX_CIPHER_PALETTE_DEFAULTS.redMarkerColor]])
+  })
+
+  it('opens the lens on a kick and a drop, and flares and thickens the air on the drop, through the preset\'s own controls', () => {
+    const rules = manifest.choreography!.rules
+    const hits = (signal: string, property: string) => rules.some(rule => rule.source.signal === signal && rule.actions.some(action => (action.target as { property?: string }).property === property))
+    expect(hits('kick', 'aberration')).toBe(true); expect(hits('drop', 'aberration')).toBe(true); expect(hits('drop', 'mix')).toBe(true)
+    const kick = rules.find(rule => rule.id.includes('kick-lensfringe'))!
+    expect(kick.conditions!.some(condition => condition.kind === 'not-silent')).toBe(true)
+    const drop = rules.find(rule => rule.id.includes('drop-lensfringe'))!
+    expect(drop.conditions!.some(condition => condition.kind === 'not-silent')).toBeFalsy()
+  })
+
+  it('still compiles, and keeps Glyph Sphere on the shared crate finish', () => {
+    const result = compileCinema2NativePreset(manifest)
+    if (!result.ok) throw new Error(result.diagnostics.map(entry => entry.message).join('\n'))
+    const sphere = CINEMA2_CRATE_PRESET_MANIFESTS.find(preset => preset.id === 'drmvyz.cinema2.crate-glyph-sphere')
+    if (sphere) expect(sphere.effects!.map(entry => entry.typeId)).toEqual(['hdr-bloom', 'cinematic-finish'])
   })
 })

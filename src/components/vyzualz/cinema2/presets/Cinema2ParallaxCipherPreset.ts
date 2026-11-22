@@ -1,5 +1,5 @@
 import {
-  cinema2Ref, cinema2StableId, type Cinema2CapabilityId, type Cinema2ChoreographyActionId, type Cinema2ChoreographyContinuousSourcePath, type Cinema2ChoreographyRuleId,
+  cinema2Ref, cinema2StableId, type Cinema2Vector3, type Cinema2LightId, type Cinema2CapabilityId, type Cinema2ChoreographyActionId, type Cinema2ChoreographyContinuousSourcePath, type Cinema2ChoreographyRuleId,
   type Cinema2ChoreographyRuleManifest, type Cinema2NativePresetManifest, type Cinema2ParameterId, type Cinema2ParameterManifest,
 } from '../contracts/Cinema2NativePresetManifest'
 import { CINEMA2_PARALLAX_CIPHER_MODULE_TYPE_ID } from '../modules/Cinema2CratePresentationModule'
@@ -10,7 +10,11 @@ import { PARALLAX_CIPHER_PALETTE_DEFAULTS, PARALLAX_CIPHER_PALETTE_NAMES } from 
 import { CINEMA2_PARALLAX_CIPHER_DEFAULT_PATTERN, CINEMA2_PARALLAX_CIPHER_PATTERNS } from '../modules/crate/Cinema2ParallaxCipherPatterns'
 import { CINEMA2_SAY_IT_GLYPH_ASSET_ID } from '../modules/three/Cinema2ThreeAssetManifest'
 import { CINEMA2_AFTERHOURS_TRIGGER_OPTIONS } from './Cinema2AfterhoursPreset'
-import { withCinema2CratePresentationFinish } from './Cinema2CratePresentationFinish'
+import { CINEMA2_HDR_BLOOM_EFFECT_TYPE_ID } from '../effects/Cinema2HdrBloomEffect'
+import { CINEMA2_CINEMATIC_FINISH_EFFECT_TYPE_ID } from '../effects/Cinema2CinematicFinishEffect'
+import { CINEMA2_VOLUMETRIC_ATMOSPHERE_EFFECT_TYPE_ID } from '../effects/Cinema2VolumetricAtmosphereEffect'
+import { CINEMA2_GLARE_EFFECT_TYPE_ID } from '../effects/Cinema2GlareEffect'
+import { finishParallaxCipher } from './Cinema2ParallaxCipherFinish'
 import { withCinema2MoodDrives, type Cinema2MoodDrive } from './Cinema2MoodConductorAuthoring'
 
 export const CINEMA2_PARALLAX_CIPHER_TEXT_ID = cinema2StableId<Cinema2ParameterId>('parallax-cipher-text')
@@ -28,6 +32,12 @@ const toggle = (name: string, label: string, parent: Cinema2ParameterManifest['d
   ({ ...base, id: parallaxCipherParameterId(name), label, type: 'boolean', defaultValue: value, designParentGroup: parent, order, group, ...(description ? { description } : {}) })
 
 const PARALLAX_CIPHER_DISTANCE = PARALLAX_CIPHER_EYE[2]
+/** Where the haze's coloured lights stand: beside the word on each side, and inside the weave. */
+const HAZE_LIGHTS = [
+  { id: 'cyan', palette: 'leftBankColor', position: [-3.6, 1.1, 4.5] as Cinema2Vector3, intensity: 1, range: 16 },
+  { id: 'magenta', palette: 'rightBankColor', position: [3.6, 1.1, 4.5] as Cinema2Vector3, intensity: 1, range: 16 },
+  { id: 'red', palette: 'redMarkerColor', position: [0, -.4, -6.4] as Cinema2Vector3, intensity: .8, range: 10 },
+] as const
 const PALETTE_LABELS = { leftBankColor: 'Left Bank', rightBankColor: 'Right Bank', letterColor: 'Letters', weaveColor: 'Weave', redMarkerColor: 'Red Marker' } as const
 /** Every control the module reads, by the module-parameter name it is bound to. */
 export const PARALLAX_CIPHER_MODULE_BINDINGS = [
@@ -70,6 +80,7 @@ export function withCinema2ParallaxCipher(manifest: Readonly<Cinema2NativePreset
     number('farContours', 'Far Contours', 'design', 1, 0, 2, 1, 'Lighting', 'The glowing rim lines on the banks in the distance.'),
     number('letterBevels', 'Letter Bevels', 'design', 1, 0, 2, 2, 'Lighting', 'The glowing edge of each letter.'),
     number('registrationDots', 'Registration Dots', 'design', 1, 0, 2, 3, 'Lighting', 'The rows of dots along the floor.'),
+    number('reflections', 'Reflections', 'design', 1, 0, 3, 5, 'Lighting', 'How strongly the plates and letters mirror the studio around them.'),
     number('redMarker', 'Red Marker', 'design', 1, 0, 2, 4, 'Lighting', 'The red marker inside the weave and its two floor ticks.'),
     // The two typed lines follow SAY IT's input style: a Line Mode, then Line 1 and Line 2 (12 characters each, 20 in all). One line is on stage at a time;
     // with both typed, the patterns take the word off and the other line on through their own text transitions.
@@ -100,6 +111,13 @@ export function withCinema2ParallaxCipher(manifest: Readonly<Cinema2NativePreset
     number('textMotion', 'Letter Motion', 'design', 1, 0, 1.5, 4, 'Typography', 'How strongly the letters play their pattern\'s text effect and its line transition. At 0 the word stays still and a line change is instant.'),
     number('scoreAmount', 'Score Amount', 'design', .5, 0, 1, 3, 'Pattern', 'How much the kick, snare and drop cues play on the plates, letters and weave. Zero turns the score off.'),
     number('bloom', 'Bloom', 'effects', .31, 0, 1, 0, undefined, 'The glow around every light.'),
+    number('haze', 'Haze', 'effects', .16, 0, 1, 1, undefined, 'The air in the corridor: far banks fade into it, and the cyan, magenta and red lights show as shafts. At 0 the air is clear.'),
+    number('floorReflection', 'Floor Reflection', 'effects', .5, 0, 1, 2, undefined, 'A glossy floor under the corridor that mirrors the plates, the letters and the dots. At 0 there is no floor.'),
+    number('depthFocus', 'Depth Focus', 'effects', .25, 0, 1, 3, undefined, 'Softens the banks nearest the viewer and the far end of the corridor while the word stays sharp. At 0 everything is sharp.'),
+    number('lightFlares', 'Light Flares', 'effects', .08, 0, 1, 4, undefined, 'Star-shaped glints on the brightest edges and letters.'),
+    number('filmGrain', 'Film Grain', 'effects', .07, 0, .5, 5, undefined, 'A fine film grain over the picture.'),
+    number('lensFringe', 'Lens Fringe', 'effects', .05, 0, .5, 6, undefined, 'Colour fringing toward the edges of the picture, like a lens. It widens on the kick and the drop.'),
+    number('vignette', 'Vignette', 'effects', .22, 0, 1, 7, undefined, 'Darkens the corners of the picture.'),
     ...PARALLAX_CIPHER_PALETTE_NAMES.map((name, order): Cinema2ParameterManifest => ({
       ...base, id: parallaxCipherParameterId(name), label: PALETTE_LABELS[name], type: 'color', defaultValue: PARALLAX_CIPHER_PALETTE_DEFAULTS[name], designParentGroup: 'palette', order,
     })),
@@ -108,12 +126,12 @@ export function withCinema2ParallaxCipher(manifest: Readonly<Cinema2NativePreset
   const bound = (name: string) => name === 'cipherText' ? CINEMA2_PARALLAX_CIPHER_TEXT_ID : name === 'lineTwoText' ? CINEMA2_PARALLAX_CIPHER_LINE_TWO_TEXT_ID : parallaxCipherParameterId(name)
   const moduleNames = ['cipherText', 'lineTwoText', ...PARALLAX_CIPHER_MODULE_BINDINGS]
   const defaults = Object.fromEntries(moduleNames.map(name => [name, parameters.find(parameter => parameter.id === bound(name))!.defaultValue!]))
-  const finished = withCinema2CratePresentationFinish({
+  const finished = finishParallaxCipher({
     ...manifest,
-    revision: 3,
+    revision: 4,
     metadata: {
       ...manifest.metadata,
-      description: 'Parallax Cipher. A deep arrangement of the original angular planes with beveled letters that align from a single sightline, with six beat-driven patterns.',
+      description: 'Parallax Cipher. A deep, hazy corridor of the original angular planes on a glossy floor, with beveled letters that align from a single sightline, light shafts and six beat-driven patterns.',
       tags: ['reference', 'crate', 'animated', '3d', 'typography'],
     },
     parameters,
@@ -131,18 +149,26 @@ export function withCinema2ParallaxCipher(manifest: Readonly<Cinema2NativePreset
       safety: { minPosition: [-5.4, -3.5, 8.4], maxPosition: [5.4, 5.5, 20], minFovDegrees: 40, maxFovDegrees: 50 },
       controls: { rigMode: bind('cameraMode'), motionSpeed: bind('cameraSpeed'), tempoSync: bind('bpmSync'), kickZoom: bind('zoomOnKick'), orbitRadius: bind('cameraDistance'), orbitAzimuthDegrees: bind('cameraHeading'), orbitElevationDegrees: bind('cameraElevation') },
     }],
-    lighting: { lights: manifest.lighting!.lights.map(light => ({ ...light, intensity: light.type === 'ambient' ? .72 : 1.5 })) },
+    // The three coloured lights the haze scatters: cyan and magenta stand in the corridor beside the word, red inside the weave. Their colours are the palette's
+    // Left Bank, Right Bank and Red Marker, so recolouring the banks recolours the air too.
+    lighting: { lights: [
+      ...manifest.lighting!.lights.map(light => ({ ...light, intensity: light.type === 'ambient' ? .72 : 1.5 })),
+      ...HAZE_LIGHTS.map(entry => ({
+        id: cinema2StableId<Cinema2LightId>(`${prefix}-haze-${entry.id}`), type: 'point' as const, color: [...PARALLAX_CIPHER_PALETTE_DEFAULTS[entry.palette]] as [number, number, number, number], intensity: entry.intensity,
+        controls: { color: bind(entry.palette) }, transform: { position: entry.position }, config: { range: entry.range },
+      })),
+    ] },
     environment: { backgroundColor: [.018, .022, .035, 1], exposure: 1 },
     modules: [{
       ...module, typeId: CINEMA2_PARALLAX_CIPHER_MODULE_TYPE_ID,
-      parameters: { ...defaults, ...Object.fromEntries(PARALLAX_CIPHER_SCORE_CHANNELS.map(name => [name, 0])) },
-      parameterBindings: Object.fromEntries(moduleNames.map(name => [name, cinema2Ref(bound(name))])),
+      parameters: { ...defaults, environmentIntensity: 1, ...Object.fromEntries(PARALLAX_CIPHER_SCORE_CHANNELS.map(name => [name, 0])) },
+      parameterBindings: { ...Object.fromEntries(moduleNames.map(name => [name, cinema2Ref(bound(name))])), environmentIntensity: bind('reflections') },
       config: { instances: [
         { asset: 'cinema2-crate-paradox-weave', node: source.id, preserveMaterials: true, spin: false },
         { asset: CINEMA2_SAY_IT_GLYPH_ASSET_ID, preserveMaterials: true, spin: false },
       ] },
     }],
-  }, prefix, bind('bloom'))
+  }, prefix, parallaxCipherParameterId)
   return withParallaxCipherPerformance(finished, bind)
 }
 
@@ -151,10 +177,16 @@ type Bind = (name: string) => ReturnType<typeof cinema2Ref<'parameter'>>
 /** Audio choreography, the mood drives and Auto Performance. Every target is one of the preset's own controls, so the Inspector shows each one moving and Auto Performance locks it. */
 function withParallaxCipherPerformance(manifest: Readonly<Cinema2NativePresetManifest>, bind: Bind): Readonly<Cinema2NativePresetManifest> {
   const module = manifest.modules![0]!
-  const bloom = manifest.effects![0]!
+  const effectOf = (typeId: string) => manifest.effects!.find(effect => effect.typeId === typeId)!
   const moduleTarget = (property: string) => ({ kind: 'module' as const, ref: cinema2Ref(module.id), property })
-  const bloomTarget = { kind: 'effect' as const, ref: cinema2Ref(bloom.id), property: 'intensity' }
-  const target = (property: string) => property === 'bloom' ? bloomTarget : moduleTarget(property)
+  // The finishing effects that react: bloom, the grade's lens fringe, the haze and the glare. Each property is the one its control is bound to.
+  const effectTargets: Record<string, { kind: 'effect'; ref: ReturnType<typeof cinema2Ref<'effect'>>; property: string }> = {
+    bloom: { kind: 'effect', ref: cinema2Ref(effectOf(CINEMA2_HDR_BLOOM_EFFECT_TYPE_ID).id), property: 'intensity' },
+    lensFringe: { kind: 'effect', ref: cinema2Ref(effectOf(CINEMA2_CINEMATIC_FINISH_EFFECT_TYPE_ID).id), property: 'aberration' },
+    haze: { kind: 'effect', ref: cinema2Ref(effectOf(CINEMA2_VOLUMETRIC_ATMOSPHERE_EFFECT_TYPE_ID).id), property: 'mix' },
+    lightFlares: { kind: 'effect', ref: cinema2Ref(effectOf(CINEMA2_GLARE_EFFECT_TYPE_ID).id), property: 'mix' },
+  }
+  const target = (property: string) => effectTargets[property] ?? moduleTarget(property)
   const continuous = (name: string, capability: Cinema2CapabilityId, path: Cinema2ChoreographyContinuousSourcePath, property: string, factor: number, gated = false): Cinema2ChoreographyRuleManifest => ({
     id: cinema2StableId<Cinema2ChoreographyRuleId>(`parallax-cipher-${name}`), priority: 20, strengthParameter: bind('reactivity'), ...(gated ? { enabledParameter: bind('autoPerformance') } : {}),
     source: { signal: 'continuous', capability, path, clamp: [0, 1], smoothingMs: 150 },
@@ -189,6 +221,8 @@ function withParallaxCipherPerformance(manifest: Readonly<Cinema2NativePresetMan
     accent('kick', 'weaveScale', 1.18, .25), accent('kick', 'redMarker', 2.2, .2),
     accent('snare', 'registrationDots', 1.8, .22), accent('snare', 'letterBevels', 1.5, .22),
     accent('drop', 'bloom', 1.7, 1.2), accent('drop', 'plateSpread', 1.15, 1.2), accent('drop', 'intensity', 1.2, 1.2),
+    // The lens opens on a kick and a drop, the glare flares and the air thickens on the drop.
+    accent('kick', 'lensFringe', 2.2, .2), accent('drop', 'lensFringe', 3.2, 1.2), accent('drop', 'lightFlares', 1.8, 1.2), accent('drop', 'haze', 1.25, 1.2),
     continuous('director-twist', 'visual-director.significance', 'director.intensity', 'bankTwist', 1.15, true),
     continuous('director-letters', 'visual-director.significance', 'director.momentum', 'textMotion', 1.2, true),
     // The score (as in Bass Sigil): the kick, snare and drop each fire a cue on their own channel, and the scene plays that channel on the plates, letters and weave.
@@ -204,11 +238,13 @@ function withParallaxCipherPerformance(manifest: Readonly<Cinema2NativePresetMan
     drive('build-weave', 'weaveScale', 'mood.build', .85), drive('build-far', 'farContours', 'mood.build', 1.3),
     drive('peak-near', 'nearContours', 'mood.peak', 1.3), drive('peak-far', 'farContours', 'mood.peak', 1.3), drive('peak-bloom', 'bloom', 'mood.peak', 1.3),
     drive('shock-bevels', 'letterBevels', 'mood.shock', 1.4),
+    // A build thickens the air; a peak lights the glare.
+    drive('build-haze', 'haze', 'mood.build', 1.3), drive('peak-flares', 'lightFlares', 'mood.peak', 1.4),
     // The letters follow the passage too: calmer words move less, a build agitates them, a driving or peak passage plays them hard.
     drive('calm-letters', 'textMotion', 'mood.calm', .6), drive('build-letters', 'textMotion', 'mood.build', 1.25), drive('drive-letters', 'textMotion', 'mood.drive', 1.15),
     drive('peak-letters', 'textMotion', 'mood.peak', 1.2),
   ]
-  for (const name of ['intensity', 'nearContours', 'farContours', 'letterBevels', 'registrationDots', 'redMarker', 'bloom', 'textMotion']) drives.push(drive(`silence-${name.toLowerCase()}`, name, 'mood.silence', .1))
+  for (const name of ['intensity', 'nearContours', 'farContours', 'letterBevels', 'registrationDots', 'redMarker', 'bloom', 'textMotion', 'haze', 'lightFlares', 'lensFringe']) drives.push(drive(`silence-${name.toLowerCase()}`, name, 'mood.silence', .1))
   return withCinema2MoodDrives({
     ...manifest,
     capabilities: [...manifest.capabilities ?? [], ...(['audio.transport', 'audio.bands', 'audio.features', 'music.rhythm-events', 'music.drop', 'music.vocal-presence', 'visual-director.significance'] as const).map(id => ({ id, requirement: 'optional' as const, purpose: 'Shared musical facts and performance meaning.' }))],
