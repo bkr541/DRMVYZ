@@ -1,101 +1,32 @@
-import {
-  PIX_GRID_DECK_MAX_ITEMS,
-  PIX_GRID_DECK_MIN_ITEMS,
-  type PixGridDeckMusicalArrivalAnchor,
-  type PixGridDeckPlaybackOrder,
-  type PixGridDeckPreDropBehavior,
-  type PixGridDeckReactionProfileId,
-  type PixGridDeckTransitionMode,
-} from '../pixGrid/PixGridDeckDomain'
+import { PIX_GRID_DECK_MAX_ITEMS, PIX_GRID_DECK_MIN_ITEMS } from '../pixGrid/PixGridDeckDomain'
+import { newPopoverDeck, type PopoverDeck, type PopoverItem, type PopoverReadiness } from '../pixGrid/pixGridDeckPopoverModel'
 
 /** Local fixtures for the PixGrid Deck popover study. Nothing here touches the store, the Media Library or the compiler. */
 export const DECK_STUDY_MAX_ITEMS = PIX_GRID_DECK_MAX_ITEMS
 export const DECK_STUDY_MIN_ITEMS = PIX_GRID_DECK_MIN_ITEMS
 
 export type DeckStudyScenario = 'new' | 'editing' | 'compiling' | 'error'
-export type DeckStudySectionType = 'intro' | 'verse' | 'build' | 'preDrop' | 'drop' | 'breakdown' | 'bridge' | 'outro'
-
-export interface DeckStudyItem {
-  id: string
-  name: string
-  enabled: boolean
-  /** Beats; null follows the Deck default. */
-  duration: number | null
-  revision: number
-}
-
-export interface DeckStudyPair { mode: string; motion: string; length: number | null }
-export interface DeckStudySection { beats: number | null; item: string; motion: string }
-
-export interface DeckStudyDeck {
-  name: string
-  items: DeckStudyItem[]
-  playback: PixGridDeckPlaybackOrder
-  defaultDuration: number
-  loop: boolean
-  reaction: PixGridDeckReactionProfileId
-  motion: string
-  transitionMode: PixGridDeckTransitionMode
-  transitionLength: number
-  anchorMode: 'onset' | 'arrival'
-  arrivalAnchor: PixGridDeckMusicalArrivalAnchor
-  pairs: Record<string, DeckStudyPair>
-  preDrop: PixGridDeckPreDropBehavior
-  sections: Record<DeckStudySectionType, DeckStudySection>
-}
 
 export const SAMPLE_IMAGE_NAMES = ['neon-skyline.png', 'crystal-mask.webp', 'logo-mark.svg', 'portrait-03.jpg', 'sunset-grid.png', 'chrome-wave.png'] as const
 
 let counter = 0
 export const newStudyItemId = () => `study-item-${++counter}`
 
-export function studyItem(name: string, patch: Partial<DeckStudyItem> = {}): DeckStudyItem {
+export function studyItem(name: string, patch: Partial<PopoverItem> = {}): PopoverItem {
   return { id: newStudyItemId(), name, enabled: true, duration: null, revision: 1, ...patch }
 }
 
-export function emptySections(): DeckStudyDeck['sections'] {
-  const empty: DeckStudySection = { beats: null, item: '', motion: 'default' }
-  return { intro: { ...empty }, verse: { ...empty }, build: { ...empty }, preDrop: { ...empty }, drop: { ...empty }, breakdown: { ...empty }, bridge: { ...empty }, outro: { ...empty } }
-}
-
-export function createStudyDeck(scenario: DeckStudyScenario): DeckStudyDeck {
-  const base: DeckStudyDeck = {
-    name: scenario === 'new' ? 'Untitled Deck' : 'Afterhours Skyline',
-    items: [],
-    playback: 'forward', defaultDuration: 4, loop: true, reaction: 'balanced', motion: 'balanced',
-    transitionMode: 'auto', transitionLength: 0.25, anchorMode: 'onset', arrivalAnchor: 'dropImpact',
-    pairs: {}, preDrop: 'hold', sections: emptySections(),
-  }
+export function createStudyDeck(scenario: DeckStudyScenario): PopoverDeck {
+  const base = newPopoverDeck(scenario === 'new' ? 'Untitled Deck' : 'Afterhours Skyline')
   if (scenario === 'new') return base
   // One image has its own duration and, while editing, one is switched off, so those states are visible straight away.
   const items = SAMPLE_IMAGE_NAMES.slice(0, 5).map((name, index) => studyItem(name, { duration: index === 2 ? 8 : null, enabled: !(scenario === 'editing' && index === 4) }))
   return { ...base, items }
 }
 
-export function enabledStudyItems(deck: DeckStudyDeck): DeckStudyItem[] {
-  return deck.items.filter(item => item.enabled)
-}
-
-/** The directed pairs a Deck can override: each enabled image to the next, and the last back to the first when it loops. */
-export function studyTransitionPairs(deck: DeckStudyDeck): Array<{ key: string; from: number; to: number; source: DeckStudyItem; target: DeckStudyItem }> {
-  const enabled = enabledStudyItems(deck)
-  return enabled.flatMap((source, index) => {
-    const target = enabled[index + 1] ?? (deck.loop ? enabled[0] : null)
-    return target && target.id !== source.id ? [{ key: `${source.id}:${target.id}`, from: index + 1, to: enabled.indexOf(target) + 1, source, target }] : []
-  })
-}
-
-export interface DeckStudyReadiness {
-  level: 'invalid' | 'preparing' | 'ready' | 'error'
-  frameProgress: number
-  transitionProgress: number
-  message: string
-  errors: string[]
-}
-
 /** What the compiler would report. The study moves progress on a timer so every state can be seen. */
-export function studyReadiness(deck: DeckStudyDeck, scenario: DeckStudyScenario, elapsed: number): DeckStudyReadiness {
-  const enabled = enabledStudyItems(deck).length
+export function studyReadiness(deck: PopoverDeck, scenario: DeckStudyScenario, elapsed: number): PopoverReadiness {
+  const enabled = deck.items.filter(item => item.enabled).length
   if (enabled < DECK_STUDY_MIN_ITEMS) return { level: 'invalid', frameProgress: 0, transitionProgress: 0, message: 'Enable at least two images.', errors: [] }
   if (scenario === 'error') {
     return {

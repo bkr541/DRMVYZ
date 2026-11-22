@@ -5,6 +5,8 @@ export const PIX_GRID_DECK_SCHEMA_VERSION = 1 as const
 export const PIX_GRID_DECK_MIN_ITEMS = 2
 export const PIX_GRID_DECK_MAX_ITEMS = MAX_PIX_GRID_SEQUENCE_OCCURRENCES
 export const PIX_GRID_DECK_NAME_MAX_LENGTH = 80
+/** The song sections a Deck can time and assign images to, in song order. */
+export const PIX_GRID_DECK_SECTION_TYPES = ['intro', 'verse', 'build', 'preDrop', 'drop', 'breakdown', 'bridge', 'outro'] as const
 export const PIX_GRID_DECK_GENERATED_PRESET_ID_PREFIX = 'pix-grid-deck:' as const
 export const PIX_GRID_DECK_PATTERN_ID = 'mediaDeck' as const
 export const PIX_GRID_DECK_FRAME_SOURCE_KIND = 'deck' as const

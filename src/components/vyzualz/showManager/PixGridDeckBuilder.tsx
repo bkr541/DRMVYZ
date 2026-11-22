@@ -14,6 +14,7 @@ import {
   PIX_GRID_DECK_MIN_ITEMS,
   PIX_GRID_DECK_NAME_MAX_LENGTH,
   PIX_GRID_DECK_REACTION_PROFILE_IDS,
+  PIX_GRID_DECK_SECTION_TYPES,
   type PixGridDeckDefinition,
   type PixGridDeckItemDefinition,
   type PixGridDeckMusicalArrivalAnchor,
@@ -29,8 +30,7 @@ import { PIX_GRID_MOTION_PROFILES } from '../react/pixGrid/PixGridMotionProfiles
 
 export type { PixGridDeckUploadUiState }
 
-/** The song sections a Deck can time and assign images to, in song order. */
-export const PIX_GRID_DECK_SECTION_TYPES = ['intro', 'verse', 'build', 'preDrop', 'drop', 'breakdown', 'bridge', 'outro'] as const
+export { PIX_GRID_DECK_SECTION_TYPES }
 
 export const PLAYBACK_OPTIONS: ReadonlyArray<{ value: PixGridDeckPlaybackOrder; label: string }> = [
   { value: 'forward', label: 'Forward' },

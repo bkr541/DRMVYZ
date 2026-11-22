@@ -37,6 +37,8 @@ export interface PixGridDeckBuilderOptions {
   onPresetCreated?: (generatedPresetId: string) => void
   /** Runs when a confirmed Deck deletion succeeded, just before the builder closes. */
   onDeleted?: (deckId: string) => void
+  /** Create Preset keeps the builder open on a confirmation (`created`) instead of closing it; the host closes it with `exit`. */
+  confirmCreation?: boolean
 }
 
 /**
@@ -78,6 +80,8 @@ export function usePixGridDeckBuilder(options: PixGridDeckBuilderOptions = {}) {
 
   const [active, setActive] = useState(false)
   const [editingDeckId, setEditingDeckId] = useState<string | null>(null)
+  const [mode, setMode] = useState<'create' | 'edit'>('create')
+  const [created, setCreated] = useState(false)
   const [draftName, setDraftName] = useState('Untitled Deck')
   const [nameError, setNameError] = useState<string | null>(null)
   const [previewItemId, setPreviewItemId] = useState<string | null>(null)
@@ -129,6 +133,8 @@ export function usePixGridDeckBuilder(options: PixGridDeckBuilderOptions = {}) {
   const enter = (deckId: string | null) => {
     cancelUpload()
     returnTargetRef.current = deckId ? 'edit' : 'create'
+    setMode(deckId ? 'edit' : 'create')
+    setCreated(false)
     setEditingDeckId(deckId)
     setActive(true)
     setUpload(READY_UPLOAD_STATE)
@@ -138,6 +144,7 @@ export function usePixGridDeckBuilder(options: PixGridDeckBuilderOptions = {}) {
     cancelUpload()
     const returnTarget = returnTargetRef.current
     setActive(false)
+    setCreated(false)
     setEditingDeckId(null)
     setPreviewItemId(null)
     window.setTimeout(() => optionsRef.current.onExit?.(returnTarget), 0)
@@ -266,7 +273,8 @@ export function usePixGridDeckBuilder(options: PixGridDeckBuilderOptions = {}) {
       return
     }
     optionsRef.current.onPresetCreated?.(deck.generatedPresetId)
-    exit()
+    if (optionsRef.current.confirmCreation) setCreated(true)
+    else exit()
   }
 
   /**
@@ -316,7 +324,7 @@ export function usePixGridDeckBuilder(options: PixGridDeckBuilderOptions = {}) {
   }
 
   return {
-    active, deck, readiness, previewPreset, enabledItems,
+    active, mode, created, deck, readiness, previewPreset, enabledItems,
     draftName, setDraftName, nameError, upload,
     previewItemId, setPreviewItemId, previewTransitionProgress, setPreviewTransitionProgress, previewTimeFor, stepPreview,
     headingRef, pendingDelete,
