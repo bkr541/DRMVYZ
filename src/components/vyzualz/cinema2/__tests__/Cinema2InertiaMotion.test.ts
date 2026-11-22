@@ -62,7 +62,7 @@ describe('Inertia native motion and controls', () => {
     expect(controls().find(c => c.definition.id === inertiaParameterId('trigger'))).toBeUndefined()
     expect(state.setPersistentValue(inertiaParameterId('pattern-change'), true).ok).toBe(true)
     expect(controls().find(c => c.definition.id === inertiaParameterId('trigger'))?.definition.options).toEqual(CINEMA2_AFTERHOURS_TRIGGER_OPTIONS)
-    expect(model().find(g => g.id === 'palette')!.controls.filter(c => c.definition.type === 'color')).toHaveLength(5)
+    expect(model().find(g => g.id === 'palette')!.controls.filter(c => c.definition.type === 'color')).toHaveLength(7)
     const sync = CINEMA2_INERTIA_PRESET_MANIFEST.parameters!.find(p => p.label === 'BPM Sync')!
     expect(sync.designParentGroup).toBe('master-controls')
     expect(CINEMA2_INERTIA_PRESET_MANIFEST.parameters!.find(p => p.label === 'Pattern')!.options).toHaveLength(6)

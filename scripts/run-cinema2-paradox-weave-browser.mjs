@@ -9,7 +9,7 @@ import sharp from 'sharp'
 const output = process.env.PARADOX_WEAVE_OUTPUT ?? 'artifacts/cinema2-paradox-weave'
 await mkdir(output, { recursive: true })
 const W = 1280, H = 720
-const REGION = { all: [0, 0, W, H], floor: [380, 540, 900, 720], word: [340, 300, 940, 410], leftBank: [0, 150, 220, 600], corner: [0, 0, 160, 90], flat: [500, 30, 780, 130] }
+const REGION = { all: [0, 0, W, H], floor: [380, 540, 900, 720], word: [340, 300, 940, 410], leftBank: [0, 150, 220, 600], corner: [0, 0, 160, 90], flat: [500, 30, 780, 130], weave: [520, 250, 780, 560], rails: [0, 0, 520, 720] }
 const browser = await chromium.launch({ headless: true, args: ['--enable-unsafe-swiftshader'] })
 const report = { measurements: [], errors: [], passed: [] }
 try {
@@ -34,10 +34,14 @@ try {
   const id = name => `parallax-cipher-${name.replace(/[A-Z]/g, c => `-${c.toLowerCase()}`)}`
   const base = await pixels(); await capture('default')
   // The word still reads at the reveal: its band carries the bright letters (not blown out to a block, not lost).
+  // It is not washed out: the picture stays dark where it should (the original look measures mean 43 and median 21; the finishing may lift that a little, never double it).
+  const tones = (buffer) => { const values = []; for (let i = 0; i < buffer.length; i += 3) values.push(.2126 * buffer[i] + .7152 * buffer[i + 1] + .0722 * buffer[i + 2]); values.sort((x, y) => x - y); return { mean: values.reduce((sum, v) => sum + v, 0) / values.length, median: values[values.length >> 1] } }
+  const tone = tones(base); report.measurements.push({ tone }); assert(tone.mean < 62 && tone.median < 32, `the default picture is not washed out (mean ${tone.mean.toFixed(1)}, median ${tone.median.toFixed(1)})`)
   const wordLit = lit(base, 'word'); report.measurements.push({ wordLit }); assert(wordLit > .04 && wordLit < .6, `the word reads (${wordLit})`)
 
   // Each finishing control, taken to zero and to its top, changes the part of the picture it owns.
-  const controls = [['haze', 0, 1, 'all', 1], ['floorReflection', 0, 1, 'floor', 1], ['depthFocus', 0, 1, 'leftBank', .4], ['lightFlares', 0, 1, 'all', .05], ['filmGrain', 0, .5, 'flat', .5], ['lensFringe', 0, .5, 'corner', .3], ['vignette', 0, 1, 'corner', 3], ['reflections', 0, 3, 'leftBank', .3]]
+  const controls = [['haze', 0, 1, 'all', 1], ['floorReflection', 0, 1, 'floor', 1], ['depthFocus', 0, 1, 'leftBank', .4], ['lightFlares', 0, 1, 'all', .05], ['filmGrain', 0, .5, 'flat', .5], ['lensFringe', 0, .5, 'corner', .3], ['vignette', 0, 1, 'corner', 3], ['reflections', 0, 3, 'leftBank', .3],
+    ['neonChase', 0, 1.5, 'rails', .15], ['weaveGlow', 0, 2, 'weave', .5], ['dust', 0, 1.5, 'all', .02]]
   for (const [name, low, high, region, minimum] of controls) {
     await set(name, low); await settle(); const a = await pixels()
     await set(name, high); await settle(); const b = await pixels(), d = difference(a, b, region)
@@ -55,7 +59,7 @@ try {
   report.passed.push('every finishing control changes its own part of the render; the word stays readable and sharp; the bare scene is intact')
 
   // The path camera: the finishing holds through the authored swing without failures.
-  for (const name of ['haze', 'floorReflection', 'depthFocus', 'lightFlares', 'filmGrain', 'lensFringe', 'vignette', 'reflections']) await set(name, authored[id(name)])
+  for (const name of ['haze', 'floorReflection', 'depthFocus', 'lightFlares', 'filmGrain', 'lensFringe', 'vignette', 'reflections', 'neonChase', 'weaveGlow', 'dust']) await set(name, authored[id(name)])
   await set('cameraMode', 'path'); await api('advance', 7.5); await capture('path')
   const swing = await snapshot(); assert.equal(swing.render.failedPassCount, 0); assert.equal(swing.effects.failedEffectCount, 0)
   report.passed.push('the Immersive Path swing renders with no failed pass or effect')

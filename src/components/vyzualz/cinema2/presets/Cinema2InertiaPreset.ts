@@ -36,6 +36,7 @@ export const inertiaParameterId = (key: string) => cinema2StableId<Cinema2Parame
 const palette = [
   ['background', 'Background', 0], ['lattice', 'Lattice', 176 / 255], ['core', 'Core', 208 / 255],
   ['anchor', 'Anchors', 1], ['rib', 'Ribs', 192 / 255],
+  ['orbit', 'Orbits', 224 / 255], ['dust', 'Dust and Dial', 160 / 255],
 ] as const
 const hidden = { section: 'Design', exposure: 'hidden' as const, persistence: 'preset' as const, reset: 'authored-default' as const }
 const primary = { ...hidden, exposure: 'primary' as const }
@@ -50,6 +51,21 @@ export const INERTIA_NUMBER_CONTROLS = [
   ['deformation', 'deformation', 'Deformation', 0, 0.45, 1, 'design'],
   ['damping', 'damping', 'Damping', 0, 0.65, 1, 'design'],
 ] as const
+/** The core's animation and the extra elements: each is how much of it shows, and 0 takes it out. They sit under Design > Core and Design > Elements. */
+export const INERTIA_ELEMENT_CONTROLS = [
+  ['core-motion', 'coreMotion', 'Core Motion', 0.7, 'Core', 'How much the core is alive: it turns on a tilting axis, waves travel through it and round it, it breathes, and the kick sets the waves off harder. At 0 it holds still.'],
+  ['inner-shell', 'innerShell', 'Inner Shell', 0.7, 'Core', 'A second, smaller dotted sphere inside the core, turning against it. At 0 it is gone.'],
+  ['orbit-rings', 'orbitRings', 'Orbit Rings', 0.8, 'Elements', 'Three rings of dots circling the core at different tilts, each with a bright satellite and a comet tail. The kick pushes them outward. At 0 they are gone.'],
+  ['outer-dial', 'outerDial', 'Outer Dial', 0.6, 'Elements', 'A tilted ring of ticks around the whole cage, with a brighter mark every twelfth tick and a highlight sweeping round it. At 0 it is gone.'],
+  ['dust', 'dust', 'Particle Dust', 0.6, 'Elements', 'Small points drifting round the sculpture at different speeds, twinkling. This is how many of them are shown. At 0 there is none.'],
+] as const
+/** How the view moves: Sway drifts slowly round the sculpture, Orbit turns steadily round it, Locked keeps the original fixed view. */
+const CAMERA_MODES = [{ value: 'sway', label: 'Sway' }, { value: 'orbit', label: 'Orbit' }, { value: 'locked', label: 'Locked' }] as const
+const CAMERA_RADIUS = 4
+const swayPoints = ([[0, 4], [26, 12], [34, -4], [0, -12], [-30, -6], [-24, 10]] as const).map(([azimuth, elevation]) => {
+  const a = azimuth * Math.PI / 180, e = elevation * Math.PI / 180
+  return { position: [CAMERA_RADIUS * Math.sin(a) * Math.cos(e), CAMERA_RADIUS * Math.sin(e), CAMERA_RADIUS * Math.cos(a) * Math.cos(e)] as [number, number, number], target: [0, 0, 0] as [number, number, number] }
+})
 const parameters: Cinema2ParameterManifest[] = [
   CINEMA2_QUALITY_MODE_PARAMETER,
   ...palette.map(([key, label, value], order): Cinema2ParameterManifest => ({
@@ -79,6 +95,17 @@ const parameters: Cinema2ParameterManifest[] = [
     ...primary, id: inertiaParameterId(key), label, type: 'float', min, max, defaultValue, step: 0.01,
     designParentGroup, group: designParentGroup === 'design' ? 'Geometry' : 'Master', order: 10 + i,
   })),
+  ...INERTIA_ELEMENT_CONTROLS.map(([key, , label, value, group, description], i): Cinema2ParameterManifest => ({
+    ...primary, id: inertiaParameterId(key), label, type: 'float', min: 0, max: 1, defaultValue: value, step: 0.01, description,
+    designParentGroup: 'design', group, order: i,
+  })),
+  { ...primary, id: inertiaParameterId('camera-mode'), label: 'Camera Mode', type: 'enum', defaultValue: 'sway', options: CAMERA_MODES,
+    description: 'Sway drifts slowly round the sculpture, Orbit turns steadily round it, and Locked keeps the original fixed front view.',
+    group: 'Camera', designParentGroup: 'design', order: 0 },
+  { ...primary, id: inertiaParameterId('camera-speed'), label: 'Camera Speed', type: 'float', defaultValue: 1, min: 0, max: 2, step: 0.01,
+    description: 'How fast the view travels. With BPM Sync on it also follows the track tempo.',
+    visibleWhen: [{ kind: 'parameter-not-equals', parameterId: inertiaParameterId('camera-mode'), value: 'locked' }],
+    group: 'Camera', designParentGroup: 'design', order: 1 },
   { ...primary, id: inertiaParameterId('pattern'), label: 'Pattern', type: 'enum', defaultValue: 'reference-cycle',
     options: INERTIA_PATTERNS.map(([value, label]) => ({ value, label })), group: 'Pattern', designParentGroup: 'design', order: 0 },
   { ...primary, id: inertiaParameterId('pattern-change'), label: 'Pattern Change', type: 'boolean', defaultValue: false,
@@ -97,12 +124,12 @@ const parameters: Cinema2ParameterManifest[] = [
 const CINEMA2_INERTIA_AUTHORED_PRESET_MANIFEST:Readonly<Cinema2NativePresetManifest> = {
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID, schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_INERTIA_PRESET_ID, revision: 6,
-  metadata: { name: 'Inertia', description: 'A dotted spherical core inside a folding lattice, with musical inertia, temporary automatic performances and restrained finishing.', tags: ['inertia', 'geometric', 'audio-reactive'] },
+  metadata: { name: 'Inertia', description: 'A living dotted core inside a folding lattice, ringed by orbiting satellites, a turning dial and drifting dust, seen from a moving camera, with musical inertia, temporary automatic performances and restrained finishing.', tags: ['inertia', 'geometric', 'audio-reactive'] },
   capabilities: [
     { id: 'render.webgl2', requirement: 'required', purpose: 'Native ordered point and rib rendering.' },
     { id: 'render.depth', requirement: 'required', purpose: 'Shared world target with transparent depth-read geometry.' },
     { id: 'scene.3d', requirement: 'required', purpose: 'Centered world-space sculpture.' },
-    { id: 'camera.world', requirement: 'required', purpose: 'Fixed orthographic world camera.' },
+    { id: 'camera.world', requirement: 'required', purpose: 'Orthographic world camera that drifts or orbits round the sculpture, or locks to the original front view.' },
     { id: 'audio.transport', requirement: 'optional', purpose: 'Native motion follows shared transport and tempo; no local analysis.' },
     { id: 'visual-director.significance', requirement: 'optional', purpose: 'Bounded shared intensity, momentum, build and impact shaping.' },
     { id: 'render.history', requirement: 'required', purpose: 'User-authorized finite feedback trails; off by default.' },
@@ -117,6 +144,7 @@ const CINEMA2_INERTIA_AUTHORED_PRESET_MANIFEST:Readonly<Cinema2NativePresetManif
       autoPerformance: false, performancePattern: 'reference-cycle',
       audioResponse: 0.65, ...INERTIA_AUDIO_CHANNELS,
       ...Object.fromEntries(INERTIA_NUMBER_CONTROLS.map(([, property, , , value]) => [property, value])),
+      ...Object.fromEntries(INERTIA_ELEMENT_CONTROLS.map(([, property, , value]) => [property, value])),
       ...Object.fromEntries(palette.filter(([key]) => key !== 'background').map(([key, , value]) => [`${key}Color`, [value, value, value, 1]])),
     },
     parameterBindings: {
@@ -127,6 +155,7 @@ const CINEMA2_INERTIA_AUTHORED_PRESET_MANIFEST:Readonly<Cinema2NativePresetManif
       bpmSync: cinema2Ref(inertiaParameterId('bpm-sync')), pattern: cinema2Ref(inertiaParameterId('pattern')),
       patternChange: cinema2Ref(inertiaParameterId('pattern-change')), trigger: cinema2Ref(inertiaParameterId('trigger')),
       ...Object.fromEntries(INERTIA_NUMBER_CONTROLS.map(([key, property]) => [property, cinema2Ref(inertiaParameterId(key))])),
+      ...Object.fromEntries(INERTIA_ELEMENT_CONTROLS.map(([key, property]) => [property, cinema2Ref(inertiaParameterId(key))])),
       ...Object.fromEntries(palette.filter(([key]) => key !== 'background').map(([key]) => [`${key}Color`, cinema2Ref(inertiaParameterId(`${key}-color`))])),
     },
   }],
@@ -136,9 +165,18 @@ const CINEMA2_INERTIA_AUTHORED_PRESET_MANIFEST:Readonly<Cinema2NativePresetManif
   },
   layers: [{ id: layer, label: 'Inertia Sculpture', source: cinema2Ref(root), role: 'world', depthPolicy: 'read-only', order: 0 }],
   cameras: [{
-    id: camera, label: 'Inertia Fixed Camera', projection: 'orthographic', orthographicHeight: 2,
-    transform: { position: [0, 0, 4] }, target: [0, 0, 0], near: 0.1, far: 10,
-    rig: { kind: 'static' }, smoothingMs: 0,
+    // The same orthographic view as ever (a 2-unit-high frame at 4 units), now free to move round the sculpture. Locked is the original fixed front view.
+    id: camera, label: 'Inertia Camera', projection: 'orthographic', orthographicHeight: 2,
+    transform: { position: [0, 0, CAMERA_RADIUS] }, target: [0, 0, 0], near: 0.1, far: 10,
+    rig: { kind: 'path', points: swayPoints, durationSeconds: 28, loop: true },
+    rigVariants: {
+      sway: { kind: 'path', points: swayPoints, durationSeconds: 28, loop: true },
+      orbit: { kind: 'orbit', radius: CAMERA_RADIUS, azimuthDegrees: 0, elevationDegrees: 10, angularVelocityDegreesPerSecond: 9 },
+      locked: { kind: 'static' },
+    },
+    motion: { idleMotion: true, interpolation: 'spline', constantSpeed: true, tempo: { referenceBpm: 120, flightSpeed: true } },
+    controls: { rigMode: cinema2Ref(inertiaParameterId('camera-mode')), motionSpeed: cinema2Ref(inertiaParameterId('camera-speed')), tempoSync: cinema2Ref(inertiaParameterId('bpm-sync')) },
+    smoothingMs: 0,
   }],
   environment: { backgroundColor: [0, 0, 0, 1], exposure: 1, controls: { backgroundColor: cinema2Ref(inertiaParameterId('background-color')) } },
   choreography: { rules: inertiaAudioRoutes(CINEMA2_INERTIA_MODULE_ID) },
@@ -198,6 +236,10 @@ export const CINEMA2_INERTIA_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
     { id: 'points-shock', target: moduleTarget('pointSize'), source: 'mood.shock', operation: 'add', value: 0.35 },
     { id: 'core-peak', target: moduleTarget('coreSize'), source: 'mood.peak', operation: 'add', value: 0.1 },
     { id: 'core-shock', target: moduleTarget('coreSize'), source: 'mood.shock', operation: 'add', value: 0.2 },
+    { id: 'core-motion-activity', target: moduleTarget('coreMotion'), source: 'mood.activity', operation: 'add', value: 0.15 },
+    { id: 'core-motion-calm', target: moduleTarget('coreMotion'), source: 'mood.calm', operation: 'add', value: -0.2 },
+    { id: 'rings-peak', target: moduleTarget('orbitRings'), source: 'mood.peak', operation: 'add', value: 0.15 },
+    { id: 'dust-shock', target: moduleTarget('dust'), source: 'mood.shock', operation: 'add', value: 0.25 },
     { id: 'bloom-peak', target: cinema2AutoTargets.effect('inertia-bloom', 'mix'), source: 'mood.peak', operation: 'add', value: 0.04 },
     { id: 'bloom-shock', target: cinema2AutoTargets.effect('inertia-bloom', 'mix'), source: 'mood.shock', operation: 'add', value: 0.08 },
   ],

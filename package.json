@@ -62,6 +62,7 @@
     "verify:pix-grid:deck-compiler": "npm run typecheck && npm run test:pix-grid:deck-compiler && npm run test:e2e:pix-grid-deck-compiler && npm run build",
     "test:e2e:pix-grid-deck-show-manager": "node scripts/run-pix-grid-deck-show-manager-browser.mjs",
     "test:e2e:cinema2-paradox-weave": "node scripts/run-cinema2-paradox-weave-browser.mjs",
+    "test:e2e:cinema2-inertia-elements": "node scripts/run-cinema2-inertia-elements-browser.mjs",
     "test:e2e:cinema2-space-boi": "node scripts/run-cinema2-space-boi-browser.mjs",
     "test:e2e:pix-grid-deck-preset-manager": "node scripts/run-pix-grid-deck-preset-manager-browser.mjs",
     "test:e2e:pix-grid-deck-authenticated": "node scripts/run-pix-grid-deck-authenticated-browser.mjs",

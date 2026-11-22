@@ -121,3 +121,26 @@ Primary boundaries:
 Shared source edits are the additive module/preset registrations and export of the existing raw timing helper. No shared detector, Inspector special case, or typography override was added. The final diff/working tree was reviewed for unintended changes.
 
 All requested implementation work and final visual acceptance are complete. The user’s “All approved.” instruction authorized keeper promotion, which is recorded in the catalog and the revision-6 manifest. The focused static/registration suite was rerun for this metadata/role-only change; rendering and musical behavior are unchanged. No commit, merge, or deployment was requested or created. The accumulated Inertia source, tests, harnesses, and documentation remain uncommitted.
+
+## Living core, extra elements and a moving camera
+
+A later pass, on request, added three things to the accepted sculpture. The cage, its six Patterns, the audio routes and Auto Performance are unchanged; the original look is still there (see **Original look** below).
+
+**More elements** (`modules/inertia/Cinema2InertiaExtras.ts`, all dots like the rest, generated each frame from one clock):
+
+- **Orbit Rings:** three rings of dots at different radii and tilts, each with a bright satellite and a fading comet tail; the kick pushes them outward and swells the satellites.
+- **Outer Dial:** a tilted ring of 144 ticks around the cage with a brighter mark every twelfth and a highlight sweeping round it.
+- **Particle Dust:** a drifting, twinkling field (160 / 260 / 380 points by quality, a fixed seed so it is the same field every time) that fills a wide frame. The control is a density.
+- **Inner Shell:** a second, smaller dotted sphere inside the core, turning against it.
+
+**A living core** (`coreAnimate` in `INERTIA_DEFORM_GLSL`, applied to the core only): it turns on a precessing, tilted axis, waves travel down it and round it, the dots swell as a wave passes and dim in its troughs, it breathes, and the kick sets the waves off harder. **Core Motion** (Design → Core, 0.7) sets how much; at 0 the core is exactly the old still sphere.
+
+**Camera movement:** the same orthographic view (a 2-unit frame, 4 units away) on a rig. **Camera Mode** (Design → Camera): **Sway** (default; a 28-second loop that drifts about 30° round the sculpture and 12° up and down), **Orbit** (9° a second) or **Locked** (the original fixed front view). **Camera Speed** follows the track tempo while BPM Sync is on.
+
+**One clock.** The core and every extra element run on a single beat clock (`Cinema2InertiaFlow.ts`): the shared tempo while BPM Sync is on and a tempo is known, 120 BPM otherwise, scaled by Motion Speed, stood still while a track is paused. With no track the runtime gives no frame delta, so it runs on the frame timestamps; with a track whose analysis is not running the clock holds. The sculpture is alive with or without music, but it makes no musical decisions: the clock is the shared one, and the only audio on these elements is the existing kick (`corePulse`, `displacement`).
+
+**Controls** (all 0 to 1, each can be taken to zero): Core Motion 0.7, Inner Shell 0.7, Orbit Rings 0.8, Outer Dial 0.6, Particle Dust 0.6; two new palette colours, **Orbits** and **Dust and Dial**. Auto Performance: the mood drives core motion (activity up, calm down), rings (peak) and dust (shock); the other new controls are covered by the shared automatic coverage.
+
+**Original look.** Camera Mode Locked with the five element controls at 0 reproduces the accepted sculpture. The static-proof parts (`proofPart` other than `all`) never draw the extra elements or animate the core. The older browser harnesses (`Cinema2InertiaProductionBrowserHarness.ts`, `Cinema2InertiaAudioProductionHarness.ts`) start in that original state unless the page is opened with `?elements`, so the Phase Two to Five checks still measure the original sculpture.
+
+**Verification.** `Cinema2InertiaElements.test.ts` covers the clock (tempo, 120 BPM fallback, speed, pause, idle), the extras (counts, bounds, determinism, every control to zero, comet tails, kick push), the shader hooks, the control definitions and the camera rig. `npm run test:e2e:cinema2-inertia-elements` (`scripts/run-cinema2-inertia-elements-browser.mjs`, needs a Vite server at `PLAYWRIGHT_BASE_URL`, default `http://127.0.0.1:5174`) renders the real runtime in Chromium (software WebGL): each element control changes the picture and can be taken to zero, together they add visible points, the core animates and holds still at 0, Sway and Orbit move the camera and Locked holds the original front view. The Phase Two (static), Three (motion; its palette count is now 7), Four (audio) and Five (choreography) browser checks pass. `run-cinema2-inertia-final-browser.mjs` fails at "Fresh build temporarily performs Countertwist", and it fails the same way on the code before this change. **Not done:** human visual acceptance of the new look, a check on a real GPU, and the portrait and low-quality views.

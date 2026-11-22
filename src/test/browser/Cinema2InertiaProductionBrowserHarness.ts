@@ -21,6 +21,11 @@ const created = Cinema2Runtime.create(canvas, {
 if (!created.runtime) throw new Error(created.error)
 const runtime = created.runtime
 runtime.getParameterState().setPersistentValue(inertiaParameterId('proof-pose'), pose)
+// The reference checks measure the original sculpture on its fixed front view, so unless the page asks for `?elements` the camera is locked and the extra
+// elements and the core's own motion are off.
+if (!new URLSearchParams(location.search).has('elements')) {
+  for (const [key, value] of Object.entries({ 'camera-mode': 'locked', 'core-motion': 0, 'inner-shell': 0, 'orbit-rings': 0, 'outer-dial': 0, dust: 0 })) runtime.getParameterState().setPersistentValue(inertiaParameterId(key), value)
+}
 function resize() { const bounds = canvas.getBoundingClientRect(); runtime.resize({ width: bounds.width, height: bounds.height, dpr: devicePixelRatio }) }
 resize(); addEventListener('resize', resize)
 runtime.start()

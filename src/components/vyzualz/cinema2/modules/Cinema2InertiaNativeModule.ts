@@ -4,6 +4,7 @@ import type { Cinema2ModuleCreateContext, Cinema2ModuleTypeDefinition } from './
 import { INERTIA_PARTS, INERTIA_PROOF_POSES } from './inertia/Cinema2InertiaGeometry'
 import { Cinema2InertiaRenderer } from './inertia/Cinema2InertiaRenderer'
 import { Cinema2InertiaMotion, INERTIA_PATTERNS } from './inertia/Cinema2InertiaMotion'
+import { Cinema2InertiaFlow } from './inertia/Cinema2InertiaFlow'
 import { CINEMA2_AFTERHOURS_TRIGGER_IDS } from './Cinema2AfterhoursNativeModule'
 import { Cinema2InertiaAudio, applyInertiaAudio } from './inertia/Cinema2InertiaAudio'
 import { selectCinema2MainframeAudio } from './mainframe/Cinema2MainframeAudioDelivery'
@@ -17,11 +18,12 @@ export const cinema2InertiaNativeModuleDefinition: Readonly<Cinema2ModuleTypeDef
   create(context: Cinema2ModuleCreateContext) {
     const motion = new Cinema2InertiaMotion()
     const audio = new Cinema2InertiaAudio()
+    const flow = new Cinema2InertiaFlow()
     const patternControls = new Cinema2PatternControlResolver<(typeof CINEMA2_AFTERHOURS_TRIGGER_IDS)[number]>()
     const renderer = context.resources.acquire('inertia:static-sculpture:v1', 'Cinema2InertiaRenderer',
       gl => new Cinema2InertiaRenderer(gl), value => value.dispose())
     return {
-      lifecycle: { update() {}, dispose() { patternControls.reset() } },
+      lifecycle: { update() {}, dispose() { patternControls.reset(); flow.reset() } },
       inspect: () => patternControls.inspect(),
       render: { providers: [{
         id: `${context.module.id}:sculpture`, moduleId: context.module.id, intent: 'world',
@@ -59,7 +61,13 @@ export const cinema2InertiaNativeModuleDefinition: Readonly<Cinema2ModuleTypeDef
                 ? resolved.value as typeof selection.pattern : selection.pattern
             },
           })
+          // One clock, in beats, runs the core's animation and every extra element; the kick sets the core's waves off harder.
+          const clock = flow.update(execution.frame, context.parameters.get('bpmSync') !== false, numeric(context, 'motionSpeed', 1, 0.25, 2))
           renderer.draw({
+            clock, coreMotion: numeric(context, 'coreMotion', 0.7, 0, 1), coreKick: Math.min(1, response.corePulse / 0.035),
+            rings: numeric(context, 'orbitRings', 0.8, 0, 1), dial: numeric(context, 'outerDial', 0.6, 0, 1), dust: numeric(context, 'dust', 0.6, 0, 1),
+            innerShell: numeric(context, 'innerShell', 0.7, 0, 1), push: Math.max(0, response.displacement) * 0.5,
+            orbits: color(context, 'orbitColor', 224 / 255), dustColor: color(context, 'dustColor', 160 / 255),
             viewProjection: execution.camera.viewProjectionMatrix,
             width: execution.width, height: execution.height,
             dpr: execution.width / Math.max(1, execution.frame.viewport.width),

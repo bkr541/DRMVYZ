@@ -79,7 +79,7 @@ async function createScene(controls: Record<string, unknown> = {}) {
 describe('Paradox Weave — Parallax Cipher controls', () => {
   it('exposes the standard Design controls, six patterns, a palette and the bloom', () => {
     const byId = new Map(manifest.parameters!.map(parameter => [parameter.id, parameter]))
-    expect(manifest.revision).toBe(4)
+    expect(manifest.revision).toBe(5)
     const pattern = byId.get(CINEMA2_PARALLAX_CIPHER_PATTERN_ID)!
     expect(pattern).toMatchObject({ label: 'Pattern', type: 'enum', designParentGroup: 'design', group: 'Pattern' })
     expect((pattern.options as readonly unknown[]).length).toBeGreaterThanOrEqual(6)
@@ -529,7 +529,7 @@ describe('Paradox Weave finishing', () => {
   })
 
   it('gives every finishing stage a control in Effects, starting on moderate values, so each can be taken to zero', () => {
-    const expected = [['Haze', .16, 'volumetric-atmosphere', 'mix'], ['Floor Reflection', .5, 'reflective-floor', 'mix'], ['Depth Focus', .25, 'depth-of-field', 'mix'], ['Light Flares', .08, 'glare', 'mix'],
+    const expected = [['Haze', .05, 'volumetric-atmosphere', 'mix'], ['Floor Reflection', .18, 'reflective-floor', 'mix'], ['Depth Focus', .25, 'depth-of-field', 'mix'], ['Light Flares', .08, 'glare', 'mix'],
       ['Film Grain', .07, 'cinematic-finish', 'grain'], ['Lens Fringe', .05, 'cinematic-finish', 'aberration'], ['Vignette', .22, 'cinematic-finish', 'vignette']] as const
     for (const [label, value, typeId, property] of expected) {
       expect(control(label), label).toMatchObject({ type: 'float', designParentGroup: 'effects', defaultValue: value, min: 0 })
@@ -562,5 +562,117 @@ describe('Paradox Weave finishing', () => {
     if (!result.ok) throw new Error(result.diagnostics.map(entry => entry.message).join('\n'))
     const sphere = CINEMA2_CRATE_PRESET_MANIFESTS.find(preset => preset.id === 'drmvyz.cinema2.crate-glyph-sphere')
     if (sphere) expect(sphere.effects!.map(entry => entry.typeId)).toEqual(['hdr-bloom', 'cinematic-finish'])
+  })
+})
+
+describe('Paradox Weave neon', () => {
+  const control = (label: string) => manifest.parameters!.find(parameter => parameter.label === label)!
+  type Neon = { chase: { value: number }; phase: { value: number } }
+  const dust = (scene: Cinema2ParallaxCipherScene) => (scene as unknown as { dust: { points: THREE.Points; material: THREE.PointsMaterial; palette: string }[] }).dust
+  const neonMeshes = (root: THREE.Object3D) => { const found: THREE.InstancedMesh[] = []; root.traverse(object => { if (object.name === 'neon-edges') found.push(object as THREE.InstancedMesh) }); return found }
+
+  it('adds Weave Glow, Neon Chase and Parallax Dust to Design > Lighting, bound to the scene', () => {
+    for (const [label, value, name] of [['Weave Glow', .7, 'weaveGlow'], ['Neon Chase', .6, 'neonChase'], ['Parallax Dust', .5, 'dust']] as const) {
+      expect(control(label), label).toMatchObject({ type: 'float', designParentGroup: 'design', group: 'Lighting', defaultValue: value, min: 0 })
+      expect(control(label).id).toBe(parallaxCipherParameterId(name))
+      expect(manifest.modules![0]!.parameterBindings![name], label).toEqual(cinema2Ref(control(label).id))
+    }
+  })
+
+  it('runs a thick neon tube along the edges of every plate in every bank, in the bank\'s own glow, and in the weave under its own control', async () => {
+    const { scene, draw, internals } = await createScene()
+    draw(8)
+    const banks = (scene as unknown as { plateBanks: { object: THREE.Group; index: number; side: number }[] }).plateBanks
+    for (const bank of banks) {
+      const tubes = neonMeshes(bank.object)
+      expect(tubes.length, `bank ${bank.index}`).toBeGreaterThanOrEqual(3)
+      for (const mesh of tubes) {
+        expect(mesh.count).toBeGreaterThan(0)
+        const glow = internals.glows.find(entry => entry.material === mesh.material)!
+        expect(glow.bank, 'follows its own bank\'s pattern glow').toBe(bank.index * 2 + (bank.side > 0 ? 1 : 0))
+        expect(glow.palette).toBe(bank.side > 0 ? 'rightBankColor' : 'leftBankColor')
+      }
+    }
+    const weave = neonMeshes(internals.knot)
+    expect(weave.length).toBeGreaterThan(0)
+    for (const mesh of weave) expect(internals.glows.find(entry => entry.material === mesh.material)).toMatchObject({ role: 'weave-neon', palette: 'weaveColor' })
+  })
+
+  it('turns the weave neon off at Weave Glow 0 and scales every neon tube with Intensity', async () => {
+    const { draw, set, internals } = await createScene()
+    const brightness = (role: string) => { const glow = internals.glows.find(entry => entry.role === role)!; return glow.material.color.r + glow.material.color.g + glow.material.color.b }
+    draw(8)
+    const lit = brightness('weave-neon'), rail = brightness('far-cyan-contours')
+    expect(lit).toBeGreaterThan(0)
+    set('weaveGlow', 0); draw(8)
+    expect(brightness('weave-neon')).toBe(0)
+    set('weaveGlow', .7); set('intensity', .5); draw(8)
+    expect(brightness('weave-neon')).toBeCloseTo(lit / 2, 5)
+    expect(brightness('far-cyan-contours')).toBeCloseTo(rail / 2, 5)
+  })
+
+  it('runs the chase every two beats, harder on the kick cue, and holds it still at Neon Chase 0', async () => {
+    const { scene, run, set } = await createScene()
+    const neon = (scene as unknown as { neon: Neon }).neon
+    run(1); const rest = neon.chase.value, first = neon.phase.value
+    run(2)
+    expect(neon.phase.value - first).toBeCloseTo(Math.PI, 3)
+    expect(rest).toBeCloseTo(.6 * .7, 5)
+    set('platePulse', 1); run(2.1)
+    expect(neon.chase.value).toBeGreaterThan(rest)
+    set('neonChase', 0); run(2.2)
+    expect(neon.chase.value).toBe(0)
+  })
+
+  it('gives every neon material its chase in the shader, with the pulse multiplying the plain color', async () => {
+    const { scene, draw, internals } = await createScene()
+    draw(1)
+    const neon = (scene as unknown as { neon: Neon }).neon
+    const glow = internals.glows.find(entry => entry.role === 'near-cyan-contours')!.material
+    const shader = { uniforms: {} as Record<string, unknown>, vertexShader: '#include <common>\n#include <project_vertex>', fragmentShader: '#include <common>\n#include <color_fragment>' }
+    glow.onBeforeCompile(shader as never, undefined as never)
+    expect(shader.uniforms['neonChase']).toBe(neon.chase)
+    expect(shader.uniforms['neonPhase']).toBe(neon.phase)
+    expect(shader.vertexShader).toContain('instanceMatrix')
+    expect(shader.fragmentShader).toContain('neonWave')
+    // The letters' bevels sweep across the word; the red marker does not chase.
+    const bevel = internals.glows.find(entry => entry.role === 'letter-bevels')!.material
+    const bevelShader = { uniforms: {}, vertexShader: '#include <common>\n#include <project_vertex>', fragmentShader: '#include <common>\n#include <color_fragment>' }
+    bevel.onBeforeCompile(bevelShader as never, undefined as never)
+    expect(bevelShader.fragmentShader).toContain('vNeonWorld.x')
+    expect(internals.glows.find(entry => entry.role === 'red-alignment-marker')!.material.onBeforeCompile.toString()).not.toContain('neonWave')
+  })
+
+  it('drifts two layers of parallax dust in the bank colors, follows the palette and Parallax Dust, and fades each point in and out of its run', async () => {
+    const { scene, draw, set } = await createScene()
+    draw(4)
+    const layers = dust(scene)
+    expect(layers.map(layer => layer.palette)).toEqual(['leftBankColor', 'rightBankColor'])
+    const first = Array.from(layers[0]!.points.geometry.getAttribute('position').array.slice(0, 60))
+    draw(12)
+    expect(Array.from(layers[0]!.points.geometry.getAttribute('position').array.slice(0, 60))).not.toEqual(first)
+    const position = layers[0]!.points.geometry.getAttribute('position')
+    for (let index = 0; index < position.count; index += 1) {
+      expect(position.getZ(index)).toBeGreaterThanOrEqual(-22.001)
+      expect(position.getZ(index)).toBeLessThanOrEqual(7.001)
+    }
+    const color = layers[0]!.points.geometry.getAttribute('color')
+    for (let index = 0; index < color.count; index += 1) expect(color.getX(index)).toBeLessThanOrEqual(1.0001)
+    // The left layer is the Left Bank color; changing the palette changes it.
+    expect(layers[0]!.material.color.r).toBeLessThan(layers[0]!.material.color.b)
+    set('leftBankColor', [1, 0, 0, 1]); draw(12)
+    expect(layers[0]!.material.color.r).toBeGreaterThan(layers[0]!.material.color.b)
+    set('dust', 0); draw(12)
+    expect(layers.every(layer => !layer.points.visible)).toBe(true)
+  })
+
+  it('disposes the dust and its texture with the scene', async () => {
+    const { scene, draw } = await createScene()
+    draw(1)
+    const layers = dust(scene)
+    const disposed = layers.map(layer => { let done = false; layer.material.addEventListener('dispose', () => { done = true }); return () => done })
+    scene.dispose()
+    expect(disposed.every(check => check())).toBe(true)
+    expect(dust(scene)).toHaveLength(0)
   })
 })

@@ -8,7 +8,7 @@ import { createCinema2ThreeSceneModuleDefinition } from './Cinema2ThreeSceneModu
 import { Cinema2BeatClock } from './Cinema2BeatClock'
 import { resolveCinema2AfterhoursTriggerEventIdentity, type Cinema2AfterhoursTriggerId } from './Cinema2AfterhoursNativeModule'
 import { Cinema2MainframePatternController } from './mainframe/Cinema2MainframePatternController'
-import { BASS_SIGIL_PALETTE, BASS_SIGIL_PATTERN_IDS, deformBassSigilPoint, type BassSigilPattern } from './bassSigil/Cinema2BassSigilMotion'
+import { BASS_SIGIL_CAMERA_PRESENCE, BASS_SIGIL_PALETTE, BASS_SIGIL_PATTERN_IDS, bassSigilPresenceTurn, deformBassSigilPoint, type BassSigilPattern } from './bassSigil/Cinema2BassSigilMotion'
 
 export const CINEMA2_BASS_SIGIL_MODULE_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('bass-sigil-native')
 /** The original logo is not part of this preset: its nodes are removed when the scene is built. These are the sphere, its particles and the glow behind the model. */
@@ -46,6 +46,12 @@ export class Cinema2BassSigilModelController {
   private heroRest: THREE.Vector3 | null = null
   private logoPhase = 0
   private logoSpinPhase = 0
+  /** 0 with Auto Performance off, easing to 1 with it on: how much the logo's heading is the camera-facing program rather than the free spin. */
+  private presence = 0
+  /** The camera's angle around the logo, relative to the default view, as the logo has followed it. */
+  private faceYaw = 0
+  private dropSpinStart: number | null = null
+  private deltaSec = 0
   private lastTimestamp: number | null = null
   private sphere: THREE.Mesh | null = null
   private sphereBase: Float32Array | null = null
@@ -122,7 +128,7 @@ export class Cinema2BassSigilModelController {
     const identity = JSON.stringify([frame.transport?.trackId ?? null,frame.audio?.upstream.trackId??null,frame.audio?.upstream.sourceId??null,frame.audio?.upstream.analysisRevision??null,frame.audio?.upstream.timelineRevision??null])
     const audioGeneration = frame.audio?.discontinuity?.generation ?? 0
     const reset = this.sourceIdentity !== identity || this.audioGeneration !== audioGeneration || this.generation !== frame.contextGeneration || (this.previousTime != null && (time < this.previousTime - .01 || time - this.previousTime > .75))
-    if (reset) { this.clock.reset(); this.selection.reset(); this.policy.reset(); this.auto.reset(); this.transition=null; this.phase = 0; this.logoPhase = 0; this.logoSpinPhase = 0; this.lastBeat = null; this.previousTime = null }
+    if (reset) { this.clock.reset(); this.selection.reset(); this.policy.reset(); this.auto.reset(); this.transition=null; this.phase = 0; this.logoPhase = 0; this.logoSpinPhase = 0; this.dropSpinStart = null; this.lastBeat = null; this.previousTime = null }
     const idleDelta = this.lastTimestamp == null ? frame.deltaTimeSec : Math.min(.1, Math.max(0, (frame.timestampMs-this.lastTimestamp)/1000))
     this.lastTimestamp = frame.timestampMs
     const timingFrame = !frame.transport?.sourcePresent && !frame.transport?.paused ? { ...frame, transport: undefined, deltaTimeSec: Number.isFinite(idleDelta) ? idleDelta : 0 } : frame
@@ -153,6 +159,10 @@ export class Cinema2BassSigilModelController {
     if(next!==this.pattern && !patternEdited && !reset && this.sphere) this.transition={start:beats,duration:performance.reason==='drop'?.125:1,poses:this.moving.map(r=>restOf(r.object)),vertices:new Float32Array(this.sphere.geometry.attributes.position.array)}
     if(patternEdited||reset)this.transition=null
     this.pattern=next;this.autoReason=performance.reason
+    // Auto Performance gives the logo a camera-facing spin program; it eases in and out over about a second so switching it never snaps the logo round.
+    this.deltaSec = frame.transport?.animationActive === false ? 0 : Math.min(.1, Math.max(0, frame.deltaTimeSec))
+    this.presence += ((autoOn ? 1 : 0) - this.presence) * (1 - Math.exp(-this.deltaSec * 3))
+    if (performance.reason === 'drop') this.dropSpinStart = performance.startBeat
     this.performingPhase=performance.reason==='drop' ? (beats-performance.startBeat)*Math.PI/4 : null
     this.previousTime = time; this.sourceIdentity = identity; this.generation = frame.contextGeneration; this.audioGeneration = audioGeneration
   }
@@ -172,24 +182,52 @@ export class Cinema2BassSigilModelController {
     model.matrix.copy(this.chain).multiply(this.fit).multiply(base)
     model.matrixWorldNeedsUpdate = true
   }
+  private cameraPoint: { local: THREE.Vector3; inverse: THREE.Matrix4 } | null = null
+  private cameraAngle(world: readonly [number, number, number]): number {
+    const hero = this.hero, parent = hero?.parent
+    if (!hero || !parent) return 0
+    const { THREE } = this.library
+    this.cameraPoint ??= { local: new THREE.Vector3(), inverse: new THREE.Matrix4() }
+    const { local, inverse } = this.cameraPoint
+    parent.updateWorldMatrix(true, false)
+    inverse.copy(parent.matrixWorld).invert()
+    local.set(world[0], world[1], world[2]).applyMatrix4(inverse)
+    return Math.atan2(local.x - hero.position.x, local.z - hero.position.z)
+  }
+  /**
+   * The logo's heading. Auto Performance off: Model Heading plus the free spin, as it always was. On: Model Heading plus most of the camera's angle (so the logo stays
+   * somewhat centered on the viewer as the camera orbits) plus a quick turn every few beats that always ends back facing the camera.
+   */
+  private heading(camera?: Readonly<{ position: readonly [number, number, number] }>): number {
+    const offset = this.number('logoHeading', 0, -180, 180) * Math.PI / 180
+    const free = offset + this.logoSpinPhase
+    if (this.presence < .001) return free
+    const wrap = (angle: number) => angle - Math.PI * 2 * Math.round(angle / (Math.PI * 2))
+    // The default camera stands on +Z; the angle the camera has swung to from there is the angle the logo faces.
+    const target = camera ? wrap(this.cameraAngle(camera.position) - this.cameraAngle([0, 0, 11.2])) : 0
+    this.faceYaw += wrap(target - this.faceYaw) * (1 - Math.exp(-this.deltaSec * 2.5))
+    const turn = bassSigilPresenceTurn(this.beats, this.number('logoSpinRate', .25, 0, 2), this.dropSpinStart == null ? null : this.beats - this.dropSpinStart)
+    const present = offset + BASS_SIGIL_CAMERA_PRESENCE * this.faceYaw + turn
+    return free + wrap(present - free) * this.presence
+  }
   private chain: THREE.Matrix4 | null = null
   private fit: THREE.Matrix4 | null = null
   private number(name: string, fallback: number, min: number, max: number) {
     const value = this.context?.parameters.get(name)
     return typeof value === 'number' && Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback
   }
-  beforeDraw() {
+  beforeDraw(_quality?: unknown, camera?: Readonly<{ position: readonly [number, number, number] }>) {
     if (!this.context || !this.sphere || !this.sphereBase || !this.hero) return
     const { THREE } = this.library
     const phase = this.performingPhase??this.phase
     const extent = this.number('geometryExtent', .35, 0, 1), travel = this.number('coreTravel', .25, 0, 1)
     const master = this.number('intensity', 1, 0, 2), depth = this.number('tunnelDepth', 1, .5, 1.5)
-    this.hero.scale.setScalar(this.number('heroScale', 1, .5, 1.5))
+    this.hero.scale.setScalar(this.number('heroScale', 1, .5, 2))
     const logoPhase = this.logoPhase, sway = this.number('logoSway', .35, 0, 1)
     const radians = Math.PI / 180
     this.hero.rotation.set(
       this.number('logoPitch',0,-90,90)*radians + Math.sin(logoPhase*.7)*sway*.3,
-      this.number('logoHeading',0,-180,180)*radians + this.logoSpinPhase,
+      this.heading(camera),
       this.number('logoRoll',0,-180,180)*radians + Math.sin(logoPhase*.9)*sway*.16,
     )
     if (this.heroRest) {

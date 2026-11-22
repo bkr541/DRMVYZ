@@ -185,8 +185,29 @@ uniform float u_cageSize;
 uniform float u_coreSize;
 uniform float u_safeRadius;
 uniform float u_displacement;
+uniform float u_clock;
+uniform float u_coreMotion;
+uniform float u_coreKick;
+out float v_ripple;
+/**
+ * The core's own life, on top of its size: it turns about a tilted axis that slowly precesses, waves travel down it and round it (the dots slide through them),
+ * it breathes, and the kick sets the waves off harder. All of it runs on the shared beat clock, so it is the same animation at any tempo.
+ */
+vec3 coreAnimate(vec3 p) {
+  float m = u_coreMotion;
+  v_ripple = 0.0;
+  if (m <= 0.0) return p;
+  float spin = u_clock * 0.7854 * (0.6 + 0.8 * m);
+  vec3 axis = normalize(vec3(0.38, 1.0, 0.22) + 0.25 * vec3(sin(u_clock * 0.19), 0.0, cos(u_clock * 0.23)));
+  float c = cos(spin), s = sin(spin);
+  p = p * c + cross(axis, p) * s + axis * dot(axis, p) * (1.0 - c);
+  vec3 w = normalize(p + vec3(0.00001));
+  float ripple = 0.55 * sin(w.y * 8.0 - u_clock * 1.9) + 0.45 * sin(atan(w.z, w.x) * 3.0 + u_clock * 1.3);
+  v_ripple = ripple * m;
+  return p * (1.0 + m * (0.045 + 0.3 * u_coreKick) * ripple + m * 0.035 * sin(u_clock * 0.9));
+}
 vec3 deform(vec3 p, bool core) {
-  if (core) return p * u_coreSize;
+  if (core) return coreAnimate(p) * u_coreSize;
   float twistWave = mix(sin(p.y * 7.0), sin(p.y * 7.0 - u_phase * 6.2831853), u_travel);
   float shearWave = mix(sin(p.y * 12.0), sin(p.y * 12.0 - u_phase * 6.2831853), u_travel);
   float angle = u_shape.x * p.y + u_shape.y * twistWave;

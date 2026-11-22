@@ -30,7 +30,7 @@ type AssetMesh = Three.Mesh<Three.BufferGeometry, Three.Material | Three.Materia
 
 export const PARALLAX_CIPHER_LIGHTS = [
   'near-cyan-contours', 'near-magenta-contours', 'far-cyan-contours', 'far-magenta-contours',
-  'letter-bevels', 'registration-dots', 'red-alignment-marker',
+  'letter-bevels', 'registration-dots', 'red-alignment-marker', 'weave-neon',
 ] as const
 type LightRole = typeof PARALLAX_CIPHER_LIGHTS[number]
 type Rgb = readonly [number, number, number]
@@ -41,6 +41,11 @@ interface TintEntry { material: Three.MeshStandardMaterial | Three.LineBasicMate
 const hexRgb = (hex: number): Rgb => [(hex >> 16 & 255) / 255, (hex >> 8 & 255) / 255, (hex & 255) / 255]
 const bankId = (index: number, side: number) => index * 2 + (side > 0 ? 1 : 0)
 const TRANSITION_BEATS = 2
+/** Where the parallax dust drifts: two depth layers of pinpoints that flow toward the viewer through the corridor, so the camera's swing sweeps them across each other. */
+const DUST_COUNT = 300
+const DUST_NEAR = 7, DUST_FAR = -22
+const DUST_SPEED = .42
+interface DustLayer { points: Three.Points; material: Three.PointsMaterial; palette: ParallaxCipherPaletteName; base: Float32Array; phase: Float32Array; colors: Float32Array }
 const BACKDROP_LEFT: Rgb = [.018, .033, .051]
 const BACKDROP_RIGHT: Rgb = [.040, .020, .040]
 function readPattern(value: unknown): Cinema2ParallaxCipherPattern { return (CINEMA2_PARALLAX_CIPHER_PATTERN_IDS as readonly unknown[]).includes(value) ? value as Cinema2ParallaxCipherPattern : CINEMA2_PARALLAX_CIPHER_DEFAULT_PATTERN }
@@ -107,6 +112,10 @@ export class Cinema2ParallaxCipherScene {
   private time = 0
   private knot: Three.Group | null = null
   private plateCount = 0
+  /** Shared by every neon material: the chase's phase (one cycle every two beats) and its strength. At zero strength the neon is the plain glow. */
+  private readonly neon = { phase: { value: 0 }, chase: { value: 0 } }
+  private readonly dust: DustLayer[] = []
+  private dustTexture: Three.DataTexture | null = null
 
   constructor(private readonly library: Cinema2ThreeLibrary) {
     this.THREE = library.THREE
@@ -118,7 +127,7 @@ export class Cinema2ParallaxCipherScene {
       color: 0xe2e7f4, emissive: 0xc8d6f2, emissiveIntensity: .16, metalness: .63, roughness: .23,
     }))
     this.tints.push({ material: this.chrome, palette: 'letterColor', color: hexRgb(0xe2e7f4), emissive: hexRgb(0xc8d6f2) })
-    this.bevels = [this.glow(0x42dfef, .68, 'leftBankColor', 'letter-bevels'), this.glow(0xff60bb, .68, 'rightBankColor', 'letter-bevels')]
+    this.bevels = [this.glow(0x42dfef, .68, 'leftBankColor', 'letter-bevels', null, THREE.FrontSide, 'across'), this.glow(0xff60bb, .68, 'rightBankColor', 'letter-bevels', null, THREE.FrontSide, 'across')]
   }
 
   attach(root: Three.Object3D, _userModel?: boolean, _clips?: readonly Three.AnimationClip[], id?: string): void {
@@ -315,7 +324,33 @@ export class Cinema2ParallaxCipherScene {
       this.knot.rotation.y = .72 - sway * .26 + weaveSpin
       this.knot.scale.setScalar(2.45 * this.number('weaveScale', 1, .5, 1.6) * weaveScale * (1 + .15 * release))
     }
+    this.neon.phase.value = this.beats * Math.PI
+    this.neon.chase.value = this.number('neonChase', .6, 0, 1.5) * (.7 + .9 * score * this.number('platePulse', 0, 0, 1))
+    this.driftDust(score)
     this.applyLook()
+  }
+
+  /** The dust flows toward the viewer and wavers a little; each point fades in and out at the ends of its run, so nothing pops. The kick lifts its brightness. */
+  private driftDust(score: number): void {
+    const level = this.number('dust', .5, 0, 1.5) * (1 + .8 * score * this.number('platePulse', 0, 0, 1))
+    const range = DUST_NEAR - DUST_FAR
+    for (const layer of this.dust) {
+      layer.points.visible = level > .001
+      if (!layer.points.visible) continue
+      const position = layer.points.geometry.getAttribute('position') as Three.BufferAttribute
+      const color = layer.points.geometry.getAttribute('color') as Three.BufferAttribute
+      for (let index = 0; index < position.count; index += 1) {
+        const phase = layer.phase[index]!
+        const run = ((layer.base[index * 3 + 2]! - DUST_FAR + this.time * DUST_SPEED * (.6 + .8 * (phase % 1))) % range + range) % range
+        const edge = Math.min(run, range - run) / (range * .12)
+        const fade = Math.min(1, edge) * (.55 + .45 * Math.sin(this.time * 1.3 + phase * 6.1))
+        position.setXYZ(index, layer.base[index * 3]! + Math.sin(this.time * .17 + phase * 4) * .22, layer.base[index * 3 + 1]! + Math.sin(this.time * .23 + phase * 7) * .26, DUST_FAR + run)
+        color.setXYZ(index, fade, fade, fade)
+      }
+      position.needsUpdate = true
+      color.needsUpdate = true
+      layer.material.opacity = Math.min(1, level)
+    }
   }
 
   private number(name: string, fallback: number, min: number, max: number): number {
@@ -344,6 +379,7 @@ export class Cinema2ParallaxCipherScene {
       'near-cyan-contours': this.number('nearContours', 1, 0, 2), 'near-magenta-contours': this.number('nearContours', 1, 0, 2),
       'far-cyan-contours': this.number('farContours', 1, 0, 2), 'far-magenta-contours': this.number('farContours', 1, 0, 2),
       'letter-bevels': this.number('letterBevels', 1, 0, 2), 'registration-dots': this.number('registrationDots', 1, 0, 2), 'red-alignment-marker': this.number('redMarker', 1, 0, 2),
+      'weave-neon': this.number('weaveGlow', .7, 0, 2),
     }
     for (const entry of this.glows) {
       const [r, g, b] = tint(entry.base, entry.palette)
@@ -351,6 +387,8 @@ export class Cinema2ParallaxCipherScene {
       const letters = entry.role === 'letter-bevels' ? this.letterGlow : 1
       entry.material.color.setRGB(r, g, b, THREE.SRGBColorSpace).multiplyScalar(entry.gain * intensity * roleGain[entry.role] * pattern * letters)
     }
+    const dustGain = intensity * Math.max(1, this.number('dust', .5, 0, 1.5))
+    for (const layer of this.dust) layer.material.color.setRGB(...palette[layer.palette], THREE.SRGBColorSpace).multiplyScalar(dustGain)
     for (const entry of this.tints) {
       entry.material.color.setRGB(...tint(entry.color, entry.palette), THREE.SRGBColorSpace)
       if (entry.emissive) (entry.material as Three.MeshStandardMaterial).emissive.setRGB(...tint(entry.emissive, entry.palette), THREE.SRGBColorSpace)
@@ -380,6 +418,10 @@ export class Cinema2ParallaxCipherScene {
     this.localFontRoot = null
     for (const material of this.materials) material.dispose()
     for (const geometry of this.geometry) geometry.dispose()
+    for (const layer of this.dust) { layer.points.geometry.dispose(); layer.material.dispose() }
+    this.dust.length = 0
+    this.dustTexture?.dispose()
+    this.dustTexture = null
     this.glyphSources.clear()
     this.edges.clear()
     this.glyphs = []
@@ -462,16 +504,19 @@ export class Cinema2ParallaxCipherScene {
     const transfer = this.tinted(this.ownMaterial(new THREE.MeshStandardMaterial({
       color: 0x364351, emissive: 0x182236, emissiveIntensity: .55, metalness: .63, roughness: .27, side: THREE.DoubleSide,
     })), 0x364351, 0x182236, 'weaveColor')
-    const red = this.glow(0xff3a46, 1.5, 'redMarkerColor', 'red-alignment-marker', null, THREE.DoubleSide)
+    const red = this.glow(0xff3a46, 1.5, 'redMarkerColor', 'red-alignment-marker', null, THREE.DoubleSide, null)
     const knot = this.group(scene, 'original-paradox-weave')
     this.knot = knot
     knot.position.set(0, -.78, -7.35)
     knot.rotation.set(.18, .72, .14)
     knot.scale.setScalar(2.45)
     const backJoint = this.tinted(this.ownMaterial(new THREE.LineBasicMaterial({ color: 0x7f8ea8 })), 0x7f8ea8, undefined, 'weaveColor')
+    const weaveNeon = this.glow(0xa9c8ff, .8, 'weaveColor', 'weave-neon')
+    const weaveTubes = this.lightGroup(knot, 'weave-neon')
     for (const [index, plate] of plates.entries()) {
       this.copyPlate(knot, plate, transfer)
       if (index % 6 === 0) this.outline(knot, plate, backJoint)
+      if (index % 4 === 1) this.neonEdges(weaveTubes, plate, null, .0085, weaveNeon, 8)
     }
     const alignment = this.lightGroup(knot, 'red-alignment-marker')
     if (redGlb) this.copyPlate(alignment, redGlb, red)
@@ -495,6 +540,7 @@ export class Cinema2ParallaxCipherScene {
         this.plateBanks.push({ object: rig, turn, tip, side, offset: index * .6 + variant, index, baseX, baseY })
         const contour = this.lightGroup(rig, role)
         const light = this.glow(warm, near ? 1.7 : 1.02, cyan ? 'leftBankColor' : 'rightBankColor', role, bankId(index, side))
+        const tube = this.glow(warm, near ? .95 : .6, cyan ? 'leftBankColor' : 'rightBankColor', role, bankId(index, side))
         for (let slice = 0; slice < 3; slice += 1) {
           const plate = rankedPlates[index * 4 + slice * 7 + variant]?.mesh
           if (!plate) continue
@@ -505,6 +551,8 @@ export class Cinema2ParallaxCipherScene {
           this.copyPlate(wall, plate, wallMaterial[variant + slice % 2 * 2]!)
           if (slice < 2) this.insetPlate(wall, plate, wallMaterial[variant + 2]!, (index + slice) % 2 ? 1 : -1)
           this.outline(wall, plate, lines)
+          wall.updateMatrix()
+          this.neonEdges(contour, plate, wall.matrix, near ? .026 : .016, tube, near ? 20 : 12)
         }
         const rim: Cinema2Vector3[] = [
           [-side * .34, 2.85, -1.02], [-side * .79, 1.75, -.1], [-side * .84, -.58, .18],
@@ -521,11 +569,17 @@ export class Cinema2ParallaxCipherScene {
         }
       }
     }
-    const frameMetal = this.ownMaterial(new THREE.MeshStandardMaterial({ color: 0x242832, emissive: 0x191f2b, roughness: .53 }))
+    // The two long rails per side are neon tubes now: the chase runs down them toward the viewer, cyan on the left and magenta on the right.
+    const rails = [
+      [this.glow(0x61e6f5, .75, 'leftBankColor', 'far-cyan-contours'), this.glow(0x61e6f5, .4, 'leftBankColor', 'far-cyan-contours')],
+      [this.glow(0xf876c7, .75, 'rightBankColor', 'far-magenta-contours'), this.glow(0xf876c7, .4, 'rightBankColor', 'far-magenta-contours')],
+    ] as const
     for (const side of [-1, 1]) {
-      this.beam(scene, [side * 4.65, -2.37, 8], [side * 3.7, -2.66, -21], .043, frameMetal)
-      this.beam(scene, [side * 4.68, 3.1, 7.8], [side * 3.8, 2.56, -20], .035, frameMetal)
+      const [low, high] = rails[side < 0 ? 0 : 1]
+      this.beam(scene, [side * 4.65, -2.37, 8], [side * 3.7, -2.66, -21], .034, low)
+      this.beam(scene, [side * 4.68, 3.1, 7.8], [side * 3.8, 2.56, -20], .024, high)
     }
+    this.buildDust(scene)
     const endpoint = this.lightGroup(scene, 'red-alignment-marker')
     for (const side of [-1, 1]) {
       this.beam(endpoint, [side * .46, -1.87, -3.4], [side * .17, -2.07, -3.34], .018, red)
@@ -609,12 +663,7 @@ export class Cinema2ParallaxCipherScene {
   }
 
   private outline(parent: Three.Object3D, source: AssetMesh, material: Three.LineBasicMaterial): void {
-    let edges = this.edges.get(source.geometry)
-    if (!edges) {
-      edges = this.ownGeometry(new this.THREE.EdgesGeometry(source.geometry, 23))
-      this.edges.set(source.geometry, edges)
-    }
-    const contour = new this.THREE.LineSegments(edges, material)
+    const contour = new this.THREE.LineSegments(this.edgesOf(source), material)
     contour.matrixAutoUpdate = false
     contour.matrix.copy(source.matrixWorld)
     parent.add(contour)
@@ -646,11 +695,108 @@ export class Cinema2ParallaxCipherScene {
   }
 
   /** A glowing line, dot or bevel. Its color and brightness are applied every frame from the palette, Intensity, its lighting control and its bank's pattern glow. */
-  private glow(color: number, gain: number, palette: ParallaxCipherPaletteName, role: LightRole, bank: number | null = null, side: Three.Side = this.THREE.FrontSide): Three.MeshBasicMaterial {
+  private glow(color: number, gain: number, palette: ParallaxCipherPaletteName, role: LightRole, bank: number | null = null, side: Three.Side = this.THREE.FrontSide, lane: 'depth' | 'across' | null = 'depth'): Three.MeshBasicMaterial {
     const material = this.ownMaterial(new this.THREE.MeshBasicMaterial({ color, side, toneMapped: false }))
     material.color.multiplyScalar(gain)
+    if (lane) this.neonize(material, lane)
     this.glows.push({ material, palette, base: hexRgb(color), gain, role, bank })
     return material
+  }
+
+  /**
+   * Gives a glowing material its neon chase: a bright pulse that travels along the corridor toward the viewer (or across the word) once every two beats, hottest at its
+   * centre where the color burns toward white, like gas in a tube. The material keeps its plain color and the palette still drives it; the pulse only multiplies it, and
+   * at a Neon Chase of 0 it multiplies by one.
+   */
+  private neonize(material: Three.MeshBasicMaterial, lane: 'depth' | 'across'): void {
+    const { phase, chase } = this.neon
+    material.onBeforeCompile = shader => {
+      shader.uniforms['neonPhase'] = phase
+      shader.uniforms['neonChase'] = chase
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', '#include <common>\nvarying vec3 vNeonWorld;')
+        .replace('#include <project_vertex>', `#include <project_vertex>
+          vec4 neonLocal = vec4(transformed, 1.0);
+          #ifdef USE_INSTANCING
+            neonLocal = instanceMatrix * neonLocal;
+          #endif
+          vNeonWorld = (modelMatrix * neonLocal).xyz;`)
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', '#include <common>\nvarying vec3 vNeonWorld;\nuniform float neonPhase;\nuniform float neonChase;')
+        .replace('#include <color_fragment>', `#include <color_fragment>
+          float neonLane = ${lane === 'across' ? 'vNeonWorld.x * 0.9' : 'vNeonWorld.z * 0.5 + vNeonWorld.y * 0.12'};
+          float neonWave = pow(0.5 + 0.5 * sin(neonLane - neonPhase), 5.0);
+          float neonTop = max(diffuseColor.r, max(diffuseColor.g, diffuseColor.b));
+          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(neonTop), neonChase * 0.4 * neonWave) * (1.0 + neonChase * 1.5 * neonWave);`)
+    }
+    material.customProgramCacheKey = () => `parallax-cipher-neon-${lane}`
+  }
+
+  private edgesOf(source: AssetMesh): Three.EdgesGeometry {
+    let edges = this.edges.get(source.geometry)
+    if (!edges) {
+      edges = this.ownGeometry(new this.THREE.EdgesGeometry(source.geometry, 23))
+      this.edges.set(source.geometry, edges)
+    }
+    return edges
+  }
+
+  /** A real tube along each of a plate's longest edges, instanced into one draw call: the thick neon line that sits over the plate's 1px outline. `frame` places the plate in `parent`'s space (a wall's own transform). */
+  private neonEdges(parent: Three.Object3D, source: AssetMesh, frame: Three.Matrix4 | null, radius: number, material: Three.Material, limit: number): void {
+    const { THREE } = this
+    const position = this.edgesOf(source).getAttribute('position')
+    const toParent = frame ? frame.clone().multiply(source.matrixWorld) : source.matrixWorld
+    const segments: { a: Three.Vector3; b: Three.Vector3; length: number }[] = []
+    for (let index = 0; index + 1 < position.count; index += 2) {
+      const a = new THREE.Vector3().fromBufferAttribute(position, index).applyMatrix4(toParent)
+      const b = new THREE.Vector3().fromBufferAttribute(position, index + 1).applyMatrix4(toParent)
+      segments.push({ a, b, length: a.distanceTo(b) })
+    }
+    const picked = segments.filter(segment => segment.length > .14).sort((x, y) => y.length - x.length).slice(0, limit)
+    if (!picked.length) return
+    const tubes = new THREE.InstancedMesh(this.lampTube, material, picked.length)
+    const matrix = new THREE.Matrix4(), up = new THREE.Vector3(0, 1, 0), direction = new THREE.Vector3(), turn = new THREE.Quaternion(), middle = new THREE.Vector3(), size = new THREE.Vector3()
+    picked.forEach(({ a, b }, index) => {
+      direction.subVectors(b, a)
+      const length = direction.length()
+      turn.setFromUnitVectors(up, direction.normalize())
+      matrix.compose(middle.addVectors(a, b).multiplyScalar(.5), turn, size.set(radius, length, radius))
+      tubes.setMatrixAt(index, matrix)
+    })
+    tubes.instanceMatrix.needsUpdate = true
+    tubes.frustumCulled = false
+    tubes.name = 'neon-edges'
+    parent.add(tubes)
+  }
+
+  /** Two layers of dust, one in each bank's color. They are small round points whose positions are driven every frame (see driftDust). */
+  private buildDust(scene: Three.Object3D): void {
+    const { THREE } = this
+    const size = 32, data = new Uint8Array(size * size * 4)
+    for (let y = 0; y < size; y += 1) for (let x = 0; x < size; x += 1) {
+      const d = Math.hypot((x + .5) / size - .5, (y + .5) / size - .5) * 2
+      data.set([255, 255, 255, Math.round(255 * Math.max(0, 1 - d) ** 2)], (y * size + x) * 4)
+    }
+    this.dustTexture = new THREE.DataTexture(data, size, size, THREE.RGBAFormat)
+    this.dustTexture.needsUpdate = true
+    let seed = 0x9e3779b9
+    const random = () => { seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296 }
+    for (const [side, palette] of [[-1, 'leftBankColor'], [1, 'rightBankColor']] as const) {
+      const base = new Float32Array(DUST_COUNT * 3), phase = new Float32Array(DUST_COUNT), colors = new Float32Array(DUST_COUNT * 3)
+      for (let index = 0; index < DUST_COUNT; index += 1) {
+        base.set([side * (.6 + random() * 7), -2.9 + random() * 6.4, DUST_FAR + random() * (DUST_NEAR - DUST_FAR)], index * 3)
+        phase[index] = random()
+      }
+      const geometry = new THREE.BufferGeometry()
+      geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(base), 3))
+      geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+      const material = new THREE.PointsMaterial({ map: this.dustTexture, size: .15, sizeAttenuation: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, vertexColors: true, toneMapped: false })
+      const points = new THREE.Points(geometry, material)
+      points.name = `parallax-dust-${side < 0 ? 'cyan' : 'magenta'}`
+      points.frustumCulled = false
+      scene.add(points)
+      this.dust.push({ points, material, palette, base, phase, colors })
+    }
   }
 
   private ownGeometry<G extends Three.BufferGeometry>(geometry: G): G { this.geometry.push(geometry); return geometry }

@@ -36,7 +36,7 @@ export function finishParallaxCipher(manifest: Readonly<Cinema2NativePresetManif
     {
       id: eid('floor'), typeId: CINEMA2_REFLECTIVE_FLOOR_EFFECT_TYPE_ID, version: 1,
       parameters: {
-        mix: 1, floorY: PARALLAX_CIPHER_FLOOR_Y, reflectivity: .4, lowReflectivity: .12, mediumReflectivity: .24, roughness: .5, fresnel: 2.2, albedo: .18, poolIntensity: 1.2,
+        mix: 1, floorY: PARALLAX_CIPHER_FLOOR_Y, reflectivity: .3, lowReflectivity: .09, mediumReflectivity: .18, roughness: .5, fresnel: 2.2, albedo: .18, poolIntensity: .8,
         specular: 1.4, fadeDistance: 48, maxReflection: 36, thickness: 1.5, skyColor: [.02, .026, .05, 1], baseColor: [.028, .034, .056, 1], streak: .22, samplingStability: 1, edgeFallback: .5, grit: 0, gritScale: 6,
       },
       parameterBindings: { mix: ref('floorReflection') },
@@ -44,7 +44,7 @@ export function finishParallaxCipher(manifest: Readonly<Cinema2NativePresetManif
     {
       id: eid('haze'), typeId: CINEMA2_VOLUMETRIC_ATMOSPHERE_EFFECT_TYPE_ID, version: 1,
       parameters: {
-        mix: 1, density: .016, beamIntensity: 1, anisotropy: .6, occlusion: .5, ambientHaze: .025, mistAmount: .55, mistHeight: .9, mistFloor: PARALLAX_CIPHER_FLOOR_Y, floorY: PARALLAX_CIPHER_FLOOR_Y,
+        mix: 1, density: .012, beamIntensity: 1, anisotropy: .6, occlusion: .5, ambientHaze: .01, mistAmount: .55, mistHeight: .9, mistFloor: PARALLAX_CIPHER_FLOOR_Y, floorY: PARALLAX_CIPHER_FLOOR_Y,
         floorReflection: .3, noiseScale: .3, noiseStrength: .5, drift: .05, maxDistance: 46, reactivity: .6,
       },
       parameterBindings: { mix: ref('haze') },
@@ -68,7 +68,7 @@ export function finishParallaxCipher(manifest: Readonly<Cinema2NativePresetManif
     {
       id: eid('color-finish'), typeId: CINEMA2_CINEMATIC_FINISH_EFFECT_TYPE_ID, version: 1,
       parameters: {
-        mix: 1, toneMap: 1, exposure: 1.18, contrast: 1.06, saturation: 1.08, vignette: .22, vignetteSoftness: .6, grain: .07, grainSize: 1.3, aberration: .05,
+        mix: 1, toneMap: 1, exposure: .98, contrast: 1.06, saturation: 1.08, vignette: .22, vignetteSoftness: .6, grain: .07, grainSize: 1.3, aberration: .05,
         tintAmount: .25, shadowTint: [.45, .52, .78], highlightTint: [1, .9, .95],
       },
       parameterBindings: { vignette: ref('vignette'), grain: ref('filmGrain'), aberration: ref('lensFringe') },

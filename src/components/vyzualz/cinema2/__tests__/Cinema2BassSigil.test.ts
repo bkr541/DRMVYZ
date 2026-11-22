@@ -8,7 +8,7 @@ import { cinema2NativePresetRegistry } from '../presets/Cinema2PresetRegistry'
 import { CINEMA2_CRATE_ARTIFACTS, CINEMA2_CRATE_PRESET_MANIFESTS } from '../presets/Cinema2CratePresets'
 import { CINEMA2_AFTERHOURS_TRIGGER_OPTIONS } from '../presets/Cinema2AfterhoursPreset'
 import { Cinema2BassSigilModelController } from '../modules/Cinema2BassSigilNativeModule'
-import { BASS_SIGIL_PATTERN_IDS, deformBassSigilPoint } from '../modules/bassSigil/Cinema2BassSigilMotion'
+import { BASS_SIGIL_PATTERN_IDS, bassSigilPresenceTurn, deformBassSigilPoint } from '../modules/bassSigil/Cinema2BassSigilMotion'
 import type { Cinema2ThreeLibrary } from '../modules/three/Cinema2ThreeLibrary'
 import { moodMusic } from './support/MoodMigrationHarness'
 import type { Cinema2ModuleFrameReadContext } from '../modules/Cinema2ModuleContracts'
@@ -55,6 +55,8 @@ it('compiles once under its existing identity and restores the complete original
 it('exposes canonical shared controls, a background plus two sphere colors, and eight real programs',()=>{
   const parameters=manifest.parameters!
   expect(parameters.find(p=>p.label==='BPM Sync')).toMatchObject({type:'boolean',designParentGroup:'master-controls'})
+  expect(parameters.find(p=>p.label==='Logo Size')).toMatchObject({type:'float',designParentGroup:'master-controls',defaultValue:1,min:.5,max:2})
+  expect(parameters.find(p=>p.label==='Model Scale')).toBeUndefined()
   expect(parameters.find(p=>p.label==='Trigger')?.options).toEqual(CINEMA2_AFTERHOURS_TRIGGER_OPTIONS)
   expect(parameters.filter(p=>p.type==='color'&&p.designParentGroup==='palette').map(p=>p.label)).toEqual(['Background','Membrane','Particles'])
   // The model is chosen from the Source tab, so its control is hidden from the inspector.
@@ -169,12 +171,14 @@ it('routes all eleven canonical Triggers through the native controller without r
  }
 })
 
-it('places the model at the anchor, scaled to fit inside the sphere, and follows Model Scale and Model Bounce',async()=>{
+it('places the model at the anchor, scaled to fit inside the sphere, and follows Logo Size (a Master Controls slider up to 2) and Model Bounce',async()=>{
   const s=await setup();s.values.logoSpinRate=0;s.values.logoSway=0;s.values.motionRate=0;s.values.coreTravel=0;s.values.heroScale=1;s.step()
   const size=(m:THREE.Object3D)=>new THREE.Box3().setFromObject(m).getSize(new THREE.Vector3())
   const base=size(s.model).x
   expect(base).toBeGreaterThan(0)
   s.values.heroScale=1.5;s.step();expect(size(s.model).x).toBeCloseTo(base*1.5,3)
+  s.values.heroScale=2;s.step();expect(size(s.model).x).toBeCloseTo(base*2,3)
+  s.values.heroScale=9;s.step();expect(size(s.model).x).toBeCloseTo(base*2,3)
   s.values.heroScale=1;s.step()
   const resting=new THREE.Box3().setFromObject(s.model).getCenter(new THREE.Vector3()).y
   s.values.coreTravel=1;s.values.motionRate=1;for(let i=0;i<12;i++)s.step()
@@ -189,5 +193,64 @@ it('shows nothing in the middle with no model chosen, hides the model at zero In
   s.values.intensity=1;s.step();expect(s.model.visible).toBe(true)
   s.controller.detach(s.model);s.model.matrixAutoUpdate=true;s.model.position.set(5,0,0);s.model.updateMatrix()
   const frozen=s.model.matrix.clone();s.step();expect(s.model.matrix.elements).toEqual(frozen.elements)
+  s.controller.dispose()
+})
+
+
+it('turns the logo in quick whole turns that end facing the camera, alternating direction, with two on a drop and none at Spin Rate 0',()=>{
+  const full=Math.PI*2,mod=(a:number)=>Math.abs(a-full*Math.round(a/full))
+  // Rate .25: a turn every 8 beats, 1.5 beats long.
+  expect(bassSigilPresenceTurn(0,.25,null)).toBeCloseTo(0,9)
+  expect(bassSigilPresenceTurn(.75,.25,null)).toBeCloseTo(Math.PI,6)
+  expect(bassSigilPresenceTurn(1.499,.25,null)).toBeCloseTo(full,3)
+  for(const beat of [1.5,2,4,7.99])expect(mod(bassSigilPresenceTurn(beat,.25,null))).toBeLessThan(1e-6)
+  expect(bassSigilPresenceTurn(8.75,.25,null)).toBeCloseTo(-Math.PI,6)
+  // The turn is a continuous, forward-moving sweep (no jumps) while it runs.
+  let last=0;for(let beat=0;beat<=1.5;beat+=.05){const a=bassSigilPresenceTurn(beat,.25,null);expect(a).toBeGreaterThanOrEqual(last-1e-9);expect(a-last).toBeLessThan(.7);last=a}
+  // A faster Spin Rate turns more often and never leaves the logo mid-turn at the start of a cycle.
+  expect(bassSigilPresenceTurn(.5,1,null)).not.toBe(0);expect(mod(bassSigilPresenceTurn(2,1,null))).toBeLessThan(1e-6)
+  // Two turns in two beats on a drop, then back facing the camera.
+  expect(bassSigilPresenceTurn(4,.25,1)).toBeCloseTo(Math.PI*2,6)
+  expect(mod(bassSigilPresenceTurn(4,.25,2.5))).toBeLessThan(1e-6)
+  expect(bassSigilPresenceTurn(.75,0,null)).toBe(0);expect(bassSigilPresenceTurn(4,0,1)).toBe(0)
+})
+
+it('with Auto Performance on, keeps the logo somewhat centered on the camera as it orbits; with it off the free spin is untouched',async()=>{
+  const s=await setup(),music=moodMusic(),hero=(s.controller as unknown as {hero:THREE.Group}).hero
+  const forward=()=>{hero.parent!.updateWorldMatrix(true,false);hero.updateWorldMatrix(true,false);return hero.getWorldDirection(new THREE.Vector3())}
+  const horizontal=(v:THREE.Vector3)=>new THREE.Vector3(v.x,0,v.z).normalize()
+  const at=(azimuth:number)=>({position:[Math.sin(azimuth)*11.2,0,Math.cos(azimuth)*11.2] as const})
+  const settle=(azimuth:number)=>{for(let i=0;i<240;i++)s.controller.beforeDraw(undefined,at(azimuth));return horizontal(forward())}
+  s.values.logoSpinRate=0;s.values.logoSway=0;s.values.motionRate=0
+  // Off: the camera does not move the logo at all.
+  s.step();const off=forward().clone();settle(Math.PI/2);expect(forward().distanceTo(off)).toBeLessThan(1e-6)
+  // On, at the default view: where it always faced.
+  s.values.autoPerformance=true;s.values.reactivity=1
+  for(let i=0;i<120;i++)s.step({},music.next({energy:.7,section:'verse'}))
+  const front=settle(0)
+  // Swung a quarter turn round, the camera's side is where the logo now looks (about 85% of the way): it turned toward the camera.
+  const toCamera=(azimuth:number)=>new THREE.Vector3(Math.sin(azimuth),0,Math.cos(azimuth))
+  const turned=settle(Math.PI/2)
+  expect(Math.abs(front.angleTo(turned)-Math.PI/2*.85)).toBeLessThan(.12)
+  expect(Math.abs(turned.dot(toCamera(Math.PI/2)))).toBeGreaterThan(Math.abs(front.dot(toCamera(Math.PI/2))))
+  // Behind the logo, it turns the whole way round to face the camera rather than showing its back (within the 15% it is allowed to lag).
+  const behind=settle(Math.PI)
+  expect(front.angleTo(behind)).toBeGreaterThan(Math.PI*.8)
+  s.controller.dispose()
+})
+
+it('keeps the logo facing the camera between its quick turns with Auto Performance on, while the free spin carries on with it off',async()=>{
+  const s=await setup(),music=moodMusic(),hero=(s.controller as unknown as {hero:THREE.Group}).hero
+  s.values.logoSway=0;s.values.logoSpinRate=.25;s.values.motionRate=0
+  const yaw=()=>hero.rotation.y
+  const mod=(a:number)=>Math.abs(a-Math.PI*2*Math.round(a/(Math.PI*2)))
+  // Off: the spin accumulates.
+  for(let i=0;i<60;i++)s.step();const first=yaw();for(let i=0;i<60;i++)s.step();expect(yaw()).toBeGreaterThan(first)
+  s.values.autoPerformance=true;s.values.reactivity=1
+  const samples:number[]=[]
+  for(let i=0;i<600;i++){s.step({},music.next({energy:.7,section:'verse'}));if(i>150)samples.push(mod(yaw()))}
+  // Most of the time it is back facing the camera (within 0.2 rad), and it does turn away during its quick turns.
+  expect(samples.filter(angle=>angle<.2).length/samples.length).toBeGreaterThan(.6)
+  expect(Math.max(...samples)).toBeGreaterThan(1)
   s.controller.dispose()
 })

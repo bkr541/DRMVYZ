@@ -47,6 +47,12 @@ const tick = (callback: FrameRequestCallback) => requestAnimationFrame(() => {
   }
   callback(timestamp)
 })
+/** The reference checks measure the original sculpture on its fixed front view, so unless the page asks for `?elements` the camera is locked and the extra elements and the core's own motion are off. */
+const REFERENCE_SCULPTURE = { 'camera-mode': 'locked', 'core-motion': 0, 'inner-shell': 0, 'orbit-rings': 0, 'outer-dial': 0, dust: 0 } as const
+function pinReferenceSculpture(runtime: Cinema2Runtime) {
+  if (new URLSearchParams(location.search).has('elements')) return
+  for (const [key, value] of Object.entries(REFERENCE_SCULPTURE)) runtime.getParameterState().setPersistentValue(inertiaParameterId(key), value)
+}
 function create(presetId: Cinema2PresetId = CINEMA2_INERTIA_PRESET_ID, serializedParameterState?: string): Cinema2Runtime {
   const result = Cinema2Runtime.create(canvas, {
     presetId, serializedParameterState, diagnosticsEnabled: true, renderQuality: quality,
@@ -57,6 +63,7 @@ function create(presetId: Cinema2PresetId = CINEMA2_INERTIA_PRESET_ID, serialize
       paused, trackId: source ? track : null, timeSec: musicTime, bpm: 120, bpmSync: false }) },
   })
   if (!result.runtime) throw new Error(result.error)
+  if (presetId === CINEMA2_INERTIA_PRESET_ID && !serializedParameterState) pinReferenceSculpture(result.runtime)
   return result.runtime
 }
 let runtime = create()

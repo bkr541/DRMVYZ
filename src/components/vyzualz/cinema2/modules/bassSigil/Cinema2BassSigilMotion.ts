@@ -37,3 +37,22 @@ export function deformBassSigilPoint(pattern: BassSigilPattern, x: number, y: nu
     }
   }
 }
+
+const easeInOutCubic = (t: number) => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
+/** Beats a spin takes: quick, so the logo whips round and is back looking at the camera before the next beat's worth of music has passed. */
+export const BASS_SIGIL_SPIN_BEATS = 1.5
+/** How much of the camera's angle the logo follows while Auto Performance is on: most of it, so it stays somewhat centered on the viewer rather than pinned to it. */
+export const BASS_SIGIL_CAMERA_PRESENCE = .85
+/**
+ * The extra heading, in radians, Auto Performance gives the logo on top of facing the camera: a quick full turn every `2 / spinRate` beats (1 to 16; alternating
+ * direction), then a hold facing the camera, and on a drop two quick turns in 2 beats. Every turn is a whole number of revolutions, so the logo is always back
+ * facing the camera when a turn ends. Spin Rate 0 turns the spinning off.
+ */
+export function bassSigilPresenceTurn(beats: number, spinRate: number, beatsSinceDrop: number | null): number {
+  if (!(spinRate > 0) || !(beats >= 0)) return 0
+  const period = Math.min(16, Math.max(1, 2 / spinRate)), turn = Math.min(BASS_SIGIL_SPIN_BEATS, period * .45)
+  const cycle = Math.floor(beats / period), t = (beats - cycle * period) / turn
+  let angle = t < 1 ? (cycle % 2 ? -1 : 1) * Math.PI * 2 * easeInOutCubic(t) : 0
+  if (beatsSinceDrop != null && beatsSinceDrop >= 0 && beatsSinceDrop < 2) angle += Math.PI * 4 * easeInOutCubic(beatsSinceDrop / 2)
+  return angle
+}

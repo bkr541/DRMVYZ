@@ -43,7 +43,7 @@ const parameters: readonly Cinema2ParameterManifest[] = [
     number('membraneScale','Membrane Scale','design',1,.65,1.4,14),
     number('particleDensity','Particle Density','design',1,0,1,15),
     number('tunnelDepth','Tunnel Depth','design',1,.5,1.5,16),
-    { ...number('heroScale','Model Scale','design',1,.5,1.5,17), description: 'Size of the model inside the sphere. 1 fits it within the sphere.' },
+    { ...number('heroScale','Logo Size','master-controls',1,.5,2,4), description: 'How large the logo stands in the scene. 1 fits it inside the sphere; above 1 it grows past the sphere toward the camera. The downbeat still gives it a small pulse.' },
     { ...number('logoSpinRate','Model Spin Rate','design',.25,0,2,1), group: 'Model' },
     { ...number('logoSway','Model Sway','design',.35,0,1,2), group: 'Model' },
     { ...number('logoHeading','Model Heading','design',0,-180,180,3), group: 'Model' },

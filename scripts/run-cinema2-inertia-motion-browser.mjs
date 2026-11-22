@@ -141,7 +141,7 @@ try {
   assert.equal(font.size, '11px', 'Portaled Pattern options must use the shared field role')
   await page.screenshot({ path: join(output, 'inspector.png'), animations: 'disabled' })
   await page.getByRole('button', { name: 'Palette', exact: true }).scrollIntoViewIfNeeded()
-  assert.equal(await page.locator('[data-palette-row-label]').count(), 5)
+  assert.equal(await page.locator('[data-palette-row-label]').count(), 7)
   await page.screenshot({ path: join(output, 'inspector-palette.png'), animations: 'disabled' })
   // Rendered density range must survive each quality budget.
   for (const quality of ['low', 'high']) {
