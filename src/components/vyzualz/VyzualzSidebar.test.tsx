@@ -4,6 +4,9 @@
 import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import reactNavIcon from '../../assets/navigation/react.svg'
+import presetManagerNavIcon from '../../assets/navigation/preset-manager.svg'
+import lyricManagerNavIcon from '../../assets/navigation/lyric-manager.png'
 const fixture = vi.hoisted(() => ({ source: 'file' as 'file' | 'microphone' | 'demo' }))
 
 vi.mock('../../context/AudioEngineContext', () => ({
@@ -96,6 +99,10 @@ describe('VyzualzSidebar workspace navigation', () => {
     expect(navItems.map(item => item.querySelector('svg')?.getAttribute('data-app-icon'))).toEqual([
       'navReact', 'navPerformance', 'navPreset', 'navShow', 'navLyrics', 'navMedia',
     ])
+    const iconAsset = (kind: string) => container?.querySelector(`[data-app-icon="${kind}"] image`)?.getAttribute('href')
+    expect(iconAsset('navReact')).toBe(reactNavIcon)
+    expect(iconAsset('navPreset')).toBe(presetManagerNavIcon)
+    expect(iconAsset('navLyrics')).toBe(lyricManagerNavIcon)
     expect(labels.indexOf('Media Manager')).toBe(labels.indexOf('Lyric Manager') + 1)
 
     const presetManagerItem = navItems.find(item => item.getAttribute('aria-label') === 'Preset Manager')

@@ -1,57 +1,28 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useId, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { AppIcon } from '../../../shared/icons/AppIcon'
+import { AuthVisualizer } from '../../../auth/AuthVisualizer'
 import { DreamVizTextInput } from '../controls/DreamVizTextInput'
 import { IconMorphToggle } from '../controls/IconMorphToggle'
+import { BRAND_FONT_LINK } from './brandKitModel'
+import baseStyles from '../../../../styles.css?inline'
+import appearanceStyles from '../../../../styles/appearance.css?inline'
+import typographyStyles from '../../../../styles/typography.css?inline'
 import authStyles from '../../../../styles/auth.css?inline'
-import { AUTH_ENGINES, startAuthAnimation, type AuthAnimationStyle } from './authStudyAnimations'
+import canonicalStyles from '../controls/canonicalControls.css?inline'
+import iconStyles from '../../../shared/icons/appIcon.css?inline'
 import studyStyles from './authStudies.css?inline'
 
 /**
- * Four sign-in and sign-up mockups. Each is built from the Brand Kit (the S mark and wordmark, the brand colors, Space Grotesk and Manrope, the 6px radius, the
- * glow and the gradient) and differs from the others in layout, styling and in the animation it plays for the app's six engines. Every mockup shows both groups:
- * Sign in and Create account.
+ * The production sign-in and sign-up page (src/components/auth/AuthPage.tsx), shown as it is on a desktop and on a phone. Its markup, class names, copy and
+ * stylesheets are the production page's own; the animated panel is the production `AuthVisualizer`. Each device is its own iframe so the production CSS (including
+ * its `max-width: 640px` rules) answers to the frame's real width, not the Layout Lab window's. Layout Lab is itself a separate window that receives none of the app's
+ * stylesheets, so the ones the page needs are carried into each frame here. Nothing is submitted: this page has no account behind it.
  */
 const asset = (file: string) => `${import.meta.env.BASE_URL ?? '/'}${file}`
+const FRAME_CSS = [baseStyles, appearanceStyles, typographyStyles, canonicalStyles, iconStyles, authStyles].join('\n')
+const FRAME_HTML = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="${BRAND_FONT_LINK}"></head><body></body></html>`
 
-interface Study {
-  id: 'aperture' | 'afterglow' | 'broadsheet' | 'rack'
-  name: string
-  layout: string
-  animation: AuthAnimationStyle
-  summary: string
-  animationNote: string
-  inspiration: readonly { label: string; href: string }[]
-}
-const STUDIES: readonly Study[] = [
-  { id: 'aperture', name: 'Aperture', layout: 'Split screen: animation left, form panel right', animation: 'schematic',
-    summary: 'Precise and technical. The production form panel beside an engineering view of the engines.',
-    animationNote: 'Schematic line drawings with callouts: one engine at a time, each drawn as the diagram of what it does.',
-    inspiration: [{ label: 'Dribbble · split-screen register', href: 'https://dribbble.com/search/split-screen-register' }, { label: 'Dribbble · dark theme login', href: 'https://dribbble.com/search/dark-theme-login' }] },
-  { id: 'afterglow', name: 'Afterglow', layout: 'Full-bleed animation behind one centred glass card', animation: 'glow',
-    summary: 'Immersive and soft. The engines fill the whole screen and the production form floats over them on a frosted glass card with the brand glow.',
-    animationNote: 'Additive light: luminous ribbons, a star flight, drifting colour, laser haze, glowing pixels and stage cones.',
-    inspiration: [{ label: 'Dribbble · glassmorphism sign-up', href: 'https://dribbble.com/search/signup-glassmorphism' }, { label: 'Dribbble · Animated Glassmorphism', href: 'https://dribbble.com/shots/14844902-Animated-Glassmorphism' }] },
-  { id: 'broadsheet', name: 'Broadsheet', layout: 'Editorial: narrow form rail, big type, kinetic type wall', animation: 'type',
-    summary: 'Flat and editorial. A square-cornered form rail with a masthead and hard rules beside a wall of kinetic type; no glass and no glow.',
-    animationNote: 'Kinetic typography: each engine\'s name moves the way the engine does (level bars, fly-through, colour split, slit scan, pixelation, marquee).',
-    inspiration: [{ label: 'Dribbble · neo-brutalism login and sign-up', href: 'https://dribbble.com/shots/20823980-Neo-Brutalism-Login-and-Sign-up-page' }, { label: 'Dribbble · big typography', href: 'https://dribbble.com/search/big-typography' }] },
-  { id: 'rack', name: 'Rack', layout: 'Stacked: an engine display rack above a hardware-style form plate', animation: 'matrix',
-    summary: 'Hardware and playful. A form plate with LED details and two-column fields under a wall of displays.',
-    animationNote: 'All six engines at once, each on its own LED dot-matrix display; the one on stage lights up and takes its turn.',
-    inspiration: [{ label: 'Dribbble · Synth collection', href: 'https://dribbble.com/paultebbott/collections/98137-Synth' }, { label: 'Dribbble · LED matrix display', href: 'https://dribbble.com/shots/15213693-Matrix-Display-VanMoof-Exploration' }] },
-]
-
-function AuthCanvas({ animation }: { animation: AuthAnimationStyle }) {
-  const ref = useRef<HTMLCanvasElement>(null)
-  useEffect(() => ref.current ? startAuthAnimation(ref.current, animation) : undefined, [animation])
-  return <canvas ref={ref} className="ll-am-canvas" aria-hidden="true" />
-}
-
-/**
- * The form is the production sign-in and sign-up form's own markup, classes and copy (src/components/auth/AuthPage.tsx and src/styles/auth.css): the shared text
- * input, field labels and icons, the eye toggle, the remember toggle, the checkbox, the primary action, links and the switch line. The four mockups change only what
- * is around the form (layout, surface, brand lockup, animation), never the controls.
- */
 function Field({ label, type, placeholder, icon, password }: { label: string; type: string; placeholder: string; icon: 'user' | 'mail' | 'lock' | 'mic'; password?: boolean }) {
   const id = useId()
   const [visible, setVisible] = useState(false)
@@ -67,77 +38,97 @@ function Field({ label, type, placeholder, icon, password }: { label: string; ty
   </div>
 }
 
-function AuthForm({ study, signingUp, other }: { study: Study; signingUp: boolean; other(): void }) {
+function LoginForm({ onSwitch }: { onSwitch(): void }) {
   const [remember, setRemember] = useState(false)
+  return <form className="auth-form" noValidate onSubmit={event => event.preventDefault()}>
+    <div className="auth-form-heading">
+      <h1 className="auth-form-title">Welcome Back</h1>
+      <p className="auth-form-sub">Log in to access your studio</p>
+    </div>
+    <Field label="Email" type="email" placeholder="you@example.com" icon="user" />
+    <Field label="Password" type="password" placeholder="••••••••" icon="lock" password />
+    <div className="auth-form-row">
+      <label className="auth-remember" htmlFor="auth-remember"><span>Remember me</span><IconMorphToggle id="auth-remember" checked={remember} onCheckedChange={setRemember} aria-label="Remember me" /></label>
+      <button type="button" className="auth-link">Forgot password?</button>
+    </div>
+    <button className="auth-submit" type="submit">Log In</button>
+    <p className="auth-switch">Don't have an account?{' '}<button type="button" className="auth-link" onClick={onSwitch}>Create one</button></p>
+  </form>
+}
+
+function SignupForm({ onSwitch }: { onSwitch(): void }) {
   const [agreed, setAgreed] = useState(false)
-  return <div className="ll-am-panel">
-    {study.id === 'aperture' && <img className="ll-am-wordmark" src={asset('stageless_wordmark.png')} alt="STAGELESS" />}
-    {study.id === 'afterglow' && <div className="auth-logo"><img src={asset('stageless_logo.png')} alt="STAGELESS" className="auth-logo-img" style={{ width: 72, height: 72, objectFit: 'contain' }} /></div>}
-    {study.id === 'broadsheet' && <div className="ll-am-masthead"><img className="ll-am-wordmark" src={asset('stageless_wordmark.png')} alt="STAGELESS" /><span>{signingUp ? 'New member' : 'Members'}</span></div>}
-    {study.id === 'rack' && <div className="ll-am-rack-head"><img className="ll-am-wordmark" src={asset('stageless_wordmark.png')} alt="STAGELESS" /><span className="ll-am-leds" aria-hidden="true"><i /><i /><i /></span></div>}
-    <form className="auth-form" autoComplete="off" onSubmit={event => event.preventDefault()}>
-      <div className="auth-form-heading">
-        <h1 className="auth-form-title">{signingUp ? 'Create Account' : 'Welcome Back'}</h1>
-        <p className="auth-form-sub">{signingUp ? 'Sign up to start your studio experience' : 'Log in to access your studio'}</p>
+  return <form className="auth-form" noValidate onSubmit={event => event.preventDefault()}>
+    <div className="auth-form-heading">
+      <h1 className="auth-form-title">Create Account</h1>
+      <p className="auth-form-sub">Sign up to start your studio experience</p>
+    </div>
+    <Field label="Full Name" type="text" placeholder="Your name" icon="user" />
+    <Field label="Artist Name" type="text" placeholder="Your artist / stage name" icon="mic" />
+    <Field label="Email" type="email" placeholder="you@example.com" icon="mail" />
+    <Field label="Password" type="password" placeholder="••••••••" icon="lock" password />
+    <Field label="Confirm Password" type="password" placeholder="••••••••" icon="lock" password />
+    <div className="auth-form-row">
+      <label className="auth-checkbox">
+        <input type="checkbox" checked={agreed} onChange={event => setAgreed(event.target.checked)} />
+        <span className="auth-checkbox-box" />
+        <span>I agree to the{' '}<button type="button" className="auth-link">Terms &amp; Privacy Policy</button></span>
+      </label>
+    </div>
+    <button className="auth-submit" type="submit" disabled={!agreed}>Sign Up</button>
+    <p className="auth-switch">Already have an account?{' '}<button type="button" className="auth-link" onClick={onSwitch}>Log in</button></p>
+  </form>
+}
+
+/** The production page: the form panel (logo and the login or sign-up form) beside the animated emblem panel. */
+function ProductionAuthPage({ mode, onMode }: { mode: 'login' | 'signup'; onMode(mode: 'login' | 'signup'): void }) {
+  return <div className="auth-root">
+    <div className={`auth-panels ${mode === 'signup' ? 'auth-panels--signup' : ''}`}>
+      <div className="auth-panel auth-panel--form">
+        <div className={`auth-logo ${mode === 'signup' ? 'auth-logo--compact' : ''}`}>
+          <img src={asset('stageless_logo.png')} alt="STAGELESS" className="auth-logo-img" style={{ width: mode === 'signup' ? 72 : 106, height: mode === 'signup' ? 72 : 106, objectFit: 'contain' }} />
+        </div>
+        {mode === 'login' ? <LoginForm onSwitch={() => onMode('signup')} /> : <SignupForm onSwitch={() => onMode('login')} />}
       </div>
-      <div className="ll-am-fields">
-        {signingUp && <>
-          <Field label="Full Name" type="text" placeholder="Your name" icon="user" />
-          <Field label="Artist Name" type="text" placeholder="Your artist / stage name" icon="mic" />
-        </>}
-        <Field label="Email" type="email" placeholder="you@example.com" icon={signingUp ? 'mail' : 'user'} />
-        <Field label="Password" type="password" placeholder="••••••••" icon="lock" password />
-        {signingUp && <Field label="Confirm Password" type="password" placeholder="••••••••" icon="lock" password />}
+      <div className="auth-panel auth-panel--emblem">
+        <div className="auth-emblem-panel" aria-hidden="true">
+          <div className="auth-emblem-glow-outer" />
+          <div className="auth-emblem-glow-inner" />
+          <AuthVisualizer />
+          <div className="auth-emblem-mist" />
+        </div>
       </div>
-      <div className="auth-form-row">
-        {signingUp ? <label className="auth-checkbox">
-          <input type="checkbox" checked={agreed} onChange={event => setAgreed(event.target.checked)} />
-          <span className="auth-checkbox-box" />
-          <span>I agree to the <button type="button" className="auth-link">Terms &amp; Privacy Policy</button></span>
-        </label> : <>
-          <label className="auth-remember"><span>Remember me</span><IconMorphToggle checked={remember} onCheckedChange={setRemember} aria-label="Remember me" /></label>
-          <button type="button" className="auth-link">Forgot password?</button>
-        </>}
-      </div>
-      <button className="auth-submit" type="submit">{signingUp ? 'Sign Up' : 'Log In'}</button>
-      <p className="auth-switch">{signingUp ? 'Already have an account? ' : 'Don\'t have an account? '}<button type="button" className="auth-link" onClick={other}>{signingUp ? 'Log in' : 'Create one'}</button></p>
-    </form>
+    </div>
   </div>
 }
 
-function AuthStudy({ study }: { study: Study }) {
-  const frames = useRef<Record<string, HTMLElement | null>>({})
-  const show = (state: string) => frames.current[state]?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' })
-  return <section className="ll-am-study" data-auth-study={study.id} aria-labelledby={`ll-am-${study.id}`}>
-    <header>
-      <h2 id={`ll-am-${study.id}`}><span>{String(STUDIES.indexOf(study) + 1).padStart(2, '0')}</span>{study.name}</h2>
-      <p>{study.summary}</p>
-      <dl>
-        <div><dt>Layout</dt><dd>{study.layout}</dd></div>
-        <div><dt>Animation</dt><dd data-auth-animation={study.animation}>{study.animationNote}</dd></div>
-        <div><dt>Inspired by</dt><dd>{study.inspiration.map(link => <a key={link.href} href={link.href} target="_blank" rel="noreferrer noopener">{link.label}</a>)}</dd></div>
-      </dl>
-    </header>
-    <div className="ll-am-pair">
-      {([false, true] as const).map(signingUp => {
-        const state = signingUp ? 'signup' : 'signin'
-        return <figure key={state} className="ll-am-frame" ref={node => { frames.current[state] = node }}>
-          <figcaption>{signingUp ? 'Create account' : 'Sign in'}</figcaption>
-          <div className="ll-am-screen" data-theme="dark" data-layout={study.id} data-auth-state={state}>
-            <div className="ll-am-art"><AuthCanvas animation={study.animation} /></div>
-            <AuthForm study={study} signingUp={signingUp} other={() => show(signingUp ? 'signin' : 'signup')} />
-          </div>
-        </figure>
-      })}
-    </div>
-  </section>
+/** One device: an iframe whose document carries the app's stylesheets, with the production page rendered into it. */
+function DeviceFrame({ device, initial, width, height }: { device: 'desktop' | 'mobile'; initial: 'login' | 'signup'; width: number | string; height: number }) {
+  const [body, setBody] = useState<HTMLElement | null>(null)
+  const [mode, setMode] = useState(initial)
+  return <figure className={`ll-auth-device ll-auth-device--${device}`} data-auth-device={device} data-auth-initial={initial}>
+    <figcaption>{device === 'desktop' ? 'Desktop' : 'Mobile'} · {initial === 'login' ? 'Log in' : 'Sign up'}</figcaption>
+    <iframe className="ll-auth-frame" title={`${device} ${initial} page`} srcDoc={FRAME_HTML} style={{ width, height }}
+      onLoad={event => {
+        const doc = event.currentTarget.contentDocument
+        if (!doc) return
+        doc.documentElement.dataset.theme = 'dark'
+        setBody(doc.body)
+      }} />
+    {body && createPortal(<><style>{FRAME_CSS}</style><ProductionAuthPage mode={mode} onMode={setMode} /></>, body)}
+  </figure>
 }
 
-export function AuthStudies() {
-  return <div className="ll-am" aria-label="Sign in and sign up mockups" data-auth-engines={AUTH_ENGINES.join(',')}>
-    {/* The production form's own stylesheet travels with the studies, like every other study's CSS, so the form never depends on another page having loaded it. */}
-    <style>{authStyles}</style>
+export function AuthStudies(): ReactNode {
+  return <div className="ll-auth-studies" aria-label="Production sign-in and sign-up page, desktop and mobile">
     <style>{studyStyles}</style>
-    {STUDIES.map(study => <AuthStudy key={study.id} study={study} />)}
+    <section className="ll-auth-section" data-auth-section="desktop" aria-label="Desktop">
+      <DeviceFrame device="desktop" initial="login" width="100%" height={700} />
+      <DeviceFrame device="desktop" initial="signup" width="100%" height={700} />
+    </section>
+    <section className="ll-auth-section ll-auth-section--mobile" data-auth-section="mobile" aria-label="Mobile">
+      <DeviceFrame device="mobile" initial="login" width={390} height={780} />
+      <DeviceFrame device="mobile" initial="signup" width={390} height={780} />
+    </section>
   </div>
 }

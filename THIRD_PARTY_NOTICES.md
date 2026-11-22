@@ -20,6 +20,12 @@ The user-supplied Lyrics — Streamline Sharp Material artwork is used for the
 Lyric Versions action on audio track cards. Source attribution supplied with
 the SVG: https://streamlinehq.com. Its fill inherits the application icon color.
 
+## Left navigation icons
+
+The React and Preset Manager buttons use the supplied 3D Print Mesh and
+Image Store Local Carbon SVGs in `src/assets/navigation`. The SVGs include
+their source attribution to Streamline: https://streamlinehq.com.
+
 ## VTracer model vectorization
 
 The model generator ships the WASM binary and adapted wasm-bindgen JavaScript

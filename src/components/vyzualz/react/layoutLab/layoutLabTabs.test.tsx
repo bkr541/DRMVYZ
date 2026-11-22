@@ -81,8 +81,8 @@ describe('persistent Layout Lab tabs', () => {
 
   it('keeps content identity through renaming, switching tabs and reopening', async () => {
     await render()
-    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(8)
-    expect(host.querySelectorAll('[role="tabpanel"]')).toHaveLength(8)
+    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(7)
+    expect(host.querySelectorAll('[role="tabpanel"]')).toHaveLength(7)
     const panel = host.querySelector<HTMLElement>('#layout-lab-tab-01-panel')!
     const studies = panel.querySelector('.ll-pad-studies')
     const rows = [...panel.querySelectorAll('[data-pad-study]')]
@@ -125,11 +125,27 @@ describe('persistent Layout Lab tabs', () => {
     await key('Enter')
     expect(tab(1).textContent).toBe('Tab 1')
     await act(async () => tab(1).dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true })))
-    expect(tab(11).getAttribute('aria-selected')).toBe('true')
-    await act(async () => tab(11).dispatchEvent(new KeyboardEvent('keydown', { key: 'F2', bubbles: true })))
+    expect(tab(12).getAttribute('aria-selected')).toBe('true')
+    await act(async () => tab(12).dispatchEvent(new KeyboardEvent('keydown', { key: 'F2', bubbles: true })))
     await type('Geometry')
     await act(async () => input().blur())
-    expect(tab(11).textContent).toBe('Geometry')
+    expect(tab(12).textContent).toBe('Geometry')
+  })
+
+  it('adds the UI Preview tab last, with its own permanent id and one window frame', async () => {
+    await render()
+    expect(tab(12).textContent).toBe('UI Preview')
+    expect([...host.querySelectorAll('[role="tab"]')].map(item => item.textContent).at(-1)).toBe('UI Preview')
+    expect(host.querySelectorAll('#layout-lab-tab-12-panel iframe.ll-ui-preview-frame')).toHaveLength(1)
+  })
+
+  it('has no Nav Bar Icons tab, and a saved selection of it falls back to the first tab', async () => {
+    window.localStorage.setItem(LAYOUT_LAB_STORAGE_KEY, JSON.stringify({ version: 1, activeTabId: 'layout-lab-tab-04', tabs: [{ id: 'layout-lab-tab-04', name: 'Nav bar icons' }] }))
+    await render()
+    expect([...host.querySelectorAll('[role="tab"]')].map(item => item.textContent)).not.toContain('Nav bar icons')
+    expect(host.querySelector('#layout-lab-tab-04')).toBeNull()
+    expect(host.querySelector('[aria-label="Navigation icon studies"]')).toBeNull()
+    expect(tab(1).getAttribute('aria-selected')).toBe('true')
   })
 
   it('has no PixGrid Deck tab, and a saved selection of it falls back to the first tab', async () => {
@@ -138,15 +154,17 @@ describe('persistent Layout Lab tabs', () => {
     expect([...host.querySelectorAll('[role="tab"]')].map(item => item.textContent)).not.toContain('PixGrid Deck')
     expect(host.querySelector('#layout-lab-tab-10')).toBeNull()
     expect(host.querySelector('[aria-label="PixGrid Deck popover studies"]')).toBeNull()
-    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(8)
+    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(7)
     expect(tab(1).getAttribute('aria-selected')).toBe('true')
   })
 
-  it('adds the Brand Kit tab last, with its own permanent id, and also shows it in an empty slot someone has renamed Brand Kit', async () => {
+  it('has exactly one Brand Kit tab (slot 7), and also shows it in an empty slot someone has renamed Brand Kit', async () => {
     await render()
-    expect(tab(11).textContent).toBe('Brand Kit')
-    expect(host.querySelector('#layout-lab-tab-11-panel [data-brand-kit]')).not.toBeNull()
-    // Slots 6 and 7 are empty until they are renamed; a slot named Brand Kit (any capitals or spaces) gets the same page.
+    expect([...host.querySelectorAll('[role="tab"]')].filter(item => item.textContent === 'Brand Kit')).toHaveLength(1)
+    expect(tab(7).textContent).toBe('Brand Kit')
+    expect(host.querySelector('#layout-lab-tab-07-panel [data-brand-kit]')).not.toBeNull()
+    expect(host.querySelector('#layout-lab-tab-11')).toBeNull()
+    // Slot 6 is empty until it is renamed; a slot named Brand Kit (any capitals or spaces) gets the same page.
     expect(host.querySelector('#layout-lab-tab-06-panel [data-brand-kit]')).toBeNull()
     await act(async () => root.unmount())
     window.localStorage.setItem(LAYOUT_LAB_STORAGE_KEY, JSON.stringify({ version: 1, tabs: [{ id: 'layout-lab-tab-07', name: '  brand KIT ' }, { id: 'layout-lab-tab-03', name: 'brand kit' }], activeTabId: 'layout-lab-tab-07' }))
@@ -162,7 +180,7 @@ describe('persistent Layout Lab tabs', () => {
     window.localStorage.setItem(LAYOUT_LAB_STORAGE_KEY, 'broken json')
     vi.spyOn(window.localStorage, 'setItem').mockImplementation(() => { throw new Error('Storage blocked') })
     await render()
-    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(8)
+    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(7)
     expect(host.querySelector('[role="status"]')?.textContent).toContain('could not be saved')
     await act(async () => tab(3).click())
     expect(tab(3).getAttribute('aria-selected')).toBe('true')
@@ -188,7 +206,7 @@ describe('persistent Layout Lab tabs', () => {
     expect(saved.tabs).not.toContainEqual({ id: 'layout-lab-tab-02', name: 'My card studies' })
   })
 
-  it('adds AUTH to saved workspaces and shows four mockups, each with Sign in and Create account', async () => {
+  it('adds AUTH to saved workspaces and shows the production page on desktop and mobile, each with log in and sign up', async () => {
     window.localStorage.setItem(LAYOUT_LAB_STORAGE_KEY, JSON.stringify({
       version: 1,
       activeTabId: 'layout-lab-tab-03',
@@ -199,28 +217,14 @@ describe('persistent Layout Lab tabs', () => {
     expect(tab(3).getAttribute('aria-selected')).toBe('true')
     expect(tab(8).textContent).toBe('AUTH')
     await act(async () => tab(8).click())
-    const studies = [...host.querySelectorAll('#layout-lab-tab-08-panel [data-auth-study]')]
-    expect(studies.map(study => (study as HTMLElement).dataset.authStudy)).toEqual(['aperture', 'afterglow', 'broadsheet', 'rack'])
-    for (const study of studies) {
-      // Every mockup shows both groups at once: Sign in (email, password) and Create account (name, artist name, email, password, confirmation).
-      expect(study.querySelectorAll('[data-auth-state="signin"] input.dv-text-input')).toHaveLength(2)
-      expect(study.querySelectorAll('[data-auth-state="signup"] input.dv-text-input')).toHaveLength(5)
-      expect(study.querySelectorAll('[data-auth-state] canvas')).toHaveLength(2)
-      // The production controls, unchanged: the shared input, the primary action, links and the switch line.
-      expect(study.querySelectorAll('[data-auth-state] .auth-submit')).toHaveLength(2)
-      expect(study.querySelectorAll('[data-auth-state] .auth-switch .auth-link')).toHaveLength(2)
-      expect(study.querySelectorAll('[data-auth-state] .ll-am-input, [data-auth-state] .ll-am-submit')).toHaveLength(0)
-      // The brand's mark or wordmark, never an invented logo.
-      expect(study.querySelector('img[src$="stageless_logo.png"], img[src$="stageless_wordmark.png"]')).not.toBeNull()
-    }
-    // The production form's stylesheet travels with the studies (inline, like every other study's CSS), so the form is styled however the page was loaded.
-    expect(host.querySelectorAll('#layout-lab-tab-08-panel style').length).toBeGreaterThanOrEqual(2)
-    // Four different animation languages and four different layouts.
-    expect(new Set(studies.map(study => study.querySelector('[data-auth-animation]')!.getAttribute('data-auth-animation'))).size).toBe(4)
-    const password = studies[0].querySelector<HTMLInputElement>('[data-auth-state="signin"] input[type="password"]')!
-    await act(async () => studies[0].querySelector<HTMLButtonElement>('[data-auth-state="signin"] [aria-label="Show password"]')!.click())
-    expect(password.type).toBe('text')
-    expect(studies[1].querySelector<HTMLInputElement>('[data-auth-state="signin"] input[type="password"]')!.type).toBe('password')
+    const panel = host.querySelector('#layout-lab-tab-08-panel')!
+    // One page, the production one, on two devices; each device shows log in and sign up.
+    expect([...panel.querySelectorAll('[data-auth-section]')].map(section => (section as HTMLElement).dataset.authSection)).toEqual(['desktop', 'mobile'])
+    expect([...panel.querySelectorAll('[data-auth-device]')].map(frame => `${(frame as HTMLElement).dataset.authDevice}:${(frame as HTMLElement).dataset.authInitial}`)).toEqual(['desktop:login', 'desktop:signup', 'mobile:login', 'mobile:signup'])
+    expect(panel.querySelectorAll('iframe.ll-auth-frame')).toHaveLength(4)
+    expect(panel.querySelectorAll('[data-auth-study]')).toHaveLength(0)
+    // The mobile frames are phone-width, so the production CSS's max-width: 640px rules apply inside them.
+    expect([...panel.querySelectorAll<HTMLIFrameElement>('[data-auth-device="mobile"] iframe')].map(frame => frame.style.width)).toEqual(['390px', '390px'])
   })
 
   it('removes the retired left nav tab from saved workspaces without renumbering other tabs', async () => {
@@ -237,7 +241,7 @@ describe('persistent Layout Lab tabs', () => {
     expect(host.querySelector('[data-left-nav-study], .az-sidebar')).toBeNull()
     expect(tab(1).getAttribute('aria-selected')).toBe('true')
     expect(tab(6).textContent).toBe('My geometry')
-    await act(async () => tab(4).dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })))
+    await act(async () => tab(3).dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })))
     expect(tab(6).getAttribute('aria-selected')).toBe('true')
     const saved = JSON.parse(window.localStorage.getItem(LAYOUT_LAB_STORAGE_KEY)!)
     expect(saved.tabs.some((item: { id: string }) => item.id === 'layout-lab-tab-05')).toBe(false)

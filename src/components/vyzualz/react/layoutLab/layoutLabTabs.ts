@@ -1,8 +1,8 @@
 export const LAYOUT_LAB_STORAGE_KEY = 'drmvyz.layoutLab.tabs.v1'
 export const LAYOUT_LAB_AUTH_TAB_ID = 'layout-lab-tab-08'
 export const LAYOUT_LAB_RECORD_LISTING_TAB_ID = 'layout-lab-tab-09'
-/** The PixGrid Deck tab (layout-lab-tab-10) was removed; its id is not reused, so Brand Kit keeps its own. */
-export const LAYOUT_LAB_BRAND_KIT_TAB_ID = 'layout-lab-tab-11'
+export const LAYOUT_LAB_UI_PREVIEW_TAB_ID = 'layout-lab-tab-12'
+/** The dedicated Brand Kit tab (layout-lab-tab-11) and the PixGrid Deck tab (layout-lab-tab-10) were removed; their ids are not reused. Brand Kit is slot 7 by default. */
 /** The empty slots a person may rename "Brand Kit" themselves; a slot with that name shows the Brand Kit too. */
 export const LAYOUT_LAB_BRAND_KIT_PLACEHOLDER_IDS: readonly string[] = ['layout-lab-tab-06', 'layout-lab-tab-07']
 export const isBrandKitTabName = (name: string) => name.trim().toLowerCase() === 'brand kit'
@@ -10,12 +10,11 @@ export const isBrandKitTabName = (name: string) => name.trim().toLowerCase() ===
 const DEFAULT_TABS = [
   { id: 'layout-lab-tab-01', name: 'Tab 1' },
   { id: 'layout-lab-tab-03', name: 'Engine dropdown' },
-  { id: 'layout-lab-tab-04', name: 'Nav bar icons' },
   { id: 'layout-lab-tab-06', name: 'Tab 6' },
-  { id: 'layout-lab-tab-07', name: 'Tab 7' },
+  { id: 'layout-lab-tab-07', name: 'Brand Kit' },
   { id: LAYOUT_LAB_AUTH_TAB_ID, name: 'AUTH' },
   { id: LAYOUT_LAB_RECORD_LISTING_TAB_ID, name: 'Record Listing' },
-  { id: LAYOUT_LAB_BRAND_KIT_TAB_ID, name: 'Brand Kit' },
+  { id: LAYOUT_LAB_UI_PREVIEW_TAB_ID, name: 'UI Preview' },
 ]
 
 export interface LayoutLabTabsState {

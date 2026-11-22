@@ -1,0 +1,4 @@
+/* UI Preview (Layout Lab): only the arrangement of the frame; the window inside is the app's own components and stylesheets. */
+.ll-ui-preview { display: grid; justify-items: center; padding: 18px 2px 44px; }
+.ll-ui-preview-clip { overflow: hidden; border-radius: 6px; background: #090d0f; }
+.ll-ui-preview-frame { display: block; max-width: none; border: 0; background: #090d0f; }

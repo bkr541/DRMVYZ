@@ -34,6 +34,8 @@ sidebar background rules exclude the notched rail: only its masked pseudo-elemen
 paints the surface, leaving the cutout transparent to the page background.
 A 1.5px edge in the main cyan token runs along the right side of the rail,
 following the notch curve as it moves between selected buttons.
+The React, Preset Manager and Lyric Manager buttons use the supplied artwork
+in `src/assets/navigation`, tinted with the navigation button's current color.
 
 `WorkspaceRegion` marks a semantic layout **region** (`header`, `navigation`,
 `stage`, `left`, `right`, `lower`, `audio`, `tools`); it is not a styled panel

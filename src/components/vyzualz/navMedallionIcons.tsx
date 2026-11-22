@@ -1,4 +1,7 @@
-import type { ReactElement } from 'react'
+import { useId, type ReactElement } from 'react'
+import reactNavIcon from '../../assets/navigation/react.svg'
+import presetManagerNavIcon from '../../assets/navigation/preset-manager.svg'
+import lyricManagerNavIcon from '../../assets/navigation/lyric-manager.png'
 import './navMedallionIcons.css'
 
 /**
@@ -77,12 +80,29 @@ const admin = (): ReactElement[] => [...RING, P('s', 's', 'M16 7.5l7 2.6v5.2c0 4
 
 export const NAV_MEDALLION_ARTWORK: Record<NavMedallionKind, () => ReactElement[]> = { navReact: react, navPerformance: pads, navPreset: presets, navShow: show, navLyrics: lyrics, navMedia: media, navAdmin: admin }
 
+const SIDEBAR_ICON_ASSETS: Partial<Record<NavMedallionKind, string>> = {
+  navReact: reactNavIcon,
+  navPreset: presetManagerNavIcon,
+  navLyrics: lyricManagerNavIcon,
+}
+
 /** `size` is the symbol's scale (px per 32 grid); the svg is 38/32 larger so the wider ring fits. */
 export function NavMedallionIcon({ kind, size = 36 }: { kind: NavMedallionKind; size?: number }) {
   const box = size * 38 / 32
+  const maskId = useId()
+  const asset = SIDEBAR_ICON_ASSETS[kind]
   return (
     <svg className="app-icon nav-medallion" data-app-icon={kind} viewBox="-3 -3 38 38" width={box} height={box} aria-hidden="true">
-      {NAV_MEDALLION_ARTWORK[kind]()}
+      {asset ? (
+        <>
+          <defs>
+            <mask id={maskId} style={{ maskType: 'alpha' }}>
+              <image href={asset} x="5" y="5" width="22" height="22" />
+            </mask>
+          </defs>
+          <rect width="32" height="32" fill="currentColor" mask={`url(#${maskId})`} />
+        </>
+      ) : NAV_MEDALLION_ARTWORK[kind]()}
     </svg>
   )
 }
