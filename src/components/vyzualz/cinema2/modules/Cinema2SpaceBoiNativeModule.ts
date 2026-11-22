@@ -10,6 +10,7 @@ import { resolveCinema2AfterhoursTriggerEventIdentity } from './Cinema2Afterhour
 import { Cinema2MainframePatternController, resolveCinema2MainframeTriggerEventIdentity, type Cinema2MainframeTriggerId } from './mainframe/Cinema2MainframePatternController'
 import { Cinema2MainframeBeatClockResolver } from './mainframe/Cinema2MainframePatternEngine'
 import { splitGeometryByCell } from './chamber/Cinema2ChamberCells'
+import { SpaceBoiArm } from './spaceBoi/Cinema2SpaceBoiArms'
 import { SPACE_BOI_PALETTE_DEFAULTS, type SpaceBoiPaletteName } from './spaceBoi/Cinema2SpaceBoiPalette'
 import {
   CINEMA2_SPACE_BOI_DEFAULT_PATTERN, CINEMA2_SPACE_BOI_PATTERN_IDS, CINEMA2_SPACE_BOI_TRIGGER_IDS,
@@ -21,7 +22,7 @@ const TRANSITION_BEATS = 2
 /** The black material of the file (the figure's fill, the hatching on the planets, the water's floor) and the off-white one (every line). */
 const VOID_MATERIAL = 'Material.001'
 /** The figure in the model's own space (scene units, floor at y = 0). Triangles above the neck are the head; outside the gap between the arms and the body they are an arm. */
-const FIGURE = { waterY: .1, neckY: 2.52, armGap: .66, shoulderX: .92, shoulderY: 1.8 } as const
+const FIGURE = { waterY: .1, neckY: 2.52, armGap: .66, shoulderX: .62, shoulderY: 2.2 } as const
 /** The nodes of each planet: a white disc or rings and the black hatching drawn over it. */
 const PLANET_NODES: readonly (readonly string[])[] = [['Sphere', 'Sphere001', 'Sphere004'], ['Sphere005', 'Sphere006'], ['Sphere002', 'Sphere003'], ['Sphere007', 'Sphere008']]
 const MOON_NODES = ['Sphere009', 'Sphere010', 'Sphere011'] as const
@@ -51,7 +52,10 @@ export class Cinema2SpaceBoiController {
   private voidMaterial: THREE.MeshBasicMaterial | null = null
   private body: THREE.Group | null = null
   private head: THREE.Group | null = null
-  private arm: THREE.Group[] = []
+  private arm: SpaceBoiArm[] = []
+  private planetRadius: number[] = []
+  /** Which planet each hand holds: the viewer's left hand the big left planet, the right hand the ringed one. */
+  private static readonly HELD = [1, 0] as const
   private planetRig: THREE.Group[] = []
   private planetHome: THREE.Vector3[] = []
   private moonRig: THREE.Group[] = []
@@ -120,20 +124,19 @@ export class Cinema2SpaceBoiController {
     // The figure: split each of its two meshes (black fill and white outline) into body, head and two arms, and hang the parts from their joints.
     const bodyRig = pivot('space-boi-body', at(0, FIGURE.waterY)); this.body = bodyRig
     const headRig = pivot('space-boi-head', at(0, FIGURE.neckY), bodyRig); this.head = headRig
-    const armRigs = [-1, 1].map(side => pivot(`space-boi-arm:${side < 0 ? 'left' : 'right'}`, at(side * FIGURE.shoulderX, FIGURE.shoulderY), bodyRig))
-    this.arm = armRigs
     const regionOf = (mesh: THREE.Mesh) => (centroid: THREE.Vector3) => {
       const p = centroid.clone().applyMatrix4(mesh.matrixWorld)
       return p.y > FIGURE.neckY ? 1 : p.x < -FIGURE.armGap ? 2 : p.x > FIGURE.armGap ? 3 : 0
     }
-    const parts = [bodyRig, headRig, armRigs[0]!, armRigs[1]!]
+    const parts = [bodyRig, headRig]
     for (const mesh of body) {
       const white = !isVoid(mesh), geometries = splitGeometryByCell(THREE, mesh.geometry, 4, regionOf(mesh))
       const material = white ? ink(mesh, 'figure', pose => pose.figure) : this.voidMaterial!
       geometries.forEach((geometry, part) => {
-        if (!geometry.getAttribute('position').count) { geometry.dispose(); return }
+        // The file's arm slivers (regions 2 and 3) are left out: the arms are drawn by SpaceBoiArm.
+        if (part > 1 || !geometry.getAttribute('position').count) { geometry.dispose(); return }
         const piece = new THREE.Mesh(geometry, material)
-        piece.name = `${mesh.name}:${['body', 'head', 'left-arm', 'right-arm'][part]}`
+        piece.name = `${mesh.name}:${['body', 'head'][part]}`
         piece.position.copy(mesh.position); piece.quaternion.copy(mesh.quaternion); piece.scale.copy(mesh.scale); mesh.parent!.add(piece); piece.updateMatrixWorld(true)
         parts[part]!.attach(piece); this.ownedGeometry.push(geometry)
       })
@@ -150,6 +153,8 @@ export class Cinema2SpaceBoiController {
     // Planets: each is a group at its own centre, lifted and swelled as one.
     PLANET_NODES.forEach((names, planet) => {
       const group = nodes(...names); if (!group.length) return
+      // The planet's own body (not its ring) sizes the hand that holds it; measured before the meshes move under the rig.
+      this.planetRadius[planet] = Math.min(...group.map(mesh => new THREE.Box3().setFromObject(mesh).getSize(new THREE.Vector3()).x)) / 2 / (root.getWorldScale(new THREE.Vector3()).x || 1)
       const rig = pivot(`space-boi-planet:${planet}`, centerOf(group[0]!)); this.planetRig[planet] = rig; this.planetHome[planet] = rig.position.clone()
       for (const mesh of group) { if (!isVoid(mesh)) { remember(mesh); mesh.material = ink(mesh, 'planets', pose => pose.planets.level[planet]!) } rig.attach(mesh) }
     })
@@ -157,6 +162,18 @@ export class Cinema2SpaceBoiController {
       const [mesh] = nodes(name); if (!mesh) return
       const rig = pivot(`space-boi-moon:${moon}`, centerOf(mesh)); this.moonRig[moon] = rig
       remember(mesh); mesh.material = ink(mesh, 'stars', pose => pose.moons[moon]!); rig.attach(mesh)
+    })
+
+    // The arms: the file has none, so each is drawn here and reaches for the planet it holds. The planets' radius (the body of the planet, not its ring) sizes the hand.
+    const line = (body.find(mesh => !isVoid(mesh))!.material as THREE.MeshBasicMaterial).clone(); line.side = THREE.BackSide; this.ownedMaterial.push(line)
+    this.inks.push({ family: 'figure', material: line, read: pose => pose.figure })
+    bodyRig.updateMatrixWorld(true)
+    ;([-1, 1] as const).forEach((side, index) => {
+      const held = Cinema2SpaceBoiController.HELD[index]!, center = this.planetHome[held]
+      if (!center || !this.planetRadius[held]) return
+      const shoulder = root.worldToLocal(bodyRig.localToWorld(new THREE.Vector3(side * FIGURE.shoulderX, FIGURE.shoulderY - FIGURE.waterY, 0)))
+      const arm = new SpaceBoiArm(this.library, side, this.voidMaterial!, line, shoulder.distanceTo(center) * 1.0, this.planetRadius[held]!)
+      root.add(arm.group); this.arm.push(arm)
     })
 
     // The stars: one mesh of tiny triangles, turned slowly about the figure.
@@ -226,12 +243,6 @@ export class Cinema2SpaceBoiController {
       this.body.scale.set(1, 1 + pose.body[2] * bodyMotion, 1)
     }
     if (this.head) this.head.quaternion.copy(about(Y, pose.head[0] * headMotion)).multiply(about(X, -pose.head[1] * headMotion)).multiply(about(Z, -pose.head[2] * headMotion))
-    this.arm.forEach((rig, index) => {
-      const side = index === 0 ? -1 : 1
-      quaternion.copy(about(Z, side * pose.arms.raise[index]! * arms)).multiply(about(X, -pose.arms.forward[index]! * arms))
-      rig.quaternion.copy(quaternion)
-    })
-
     // Water, planets, moons and stars.
     this.waterRig.forEach((rig, band) => { const s = 1 + (pose.ripples.scale[band]! - 1) * rippleMotion; rig.scale.set(s, 1, s) })
     this.planetRig.forEach((rig, planet) => {
@@ -243,6 +254,16 @@ export class Cinema2SpaceBoiController {
     const advanced = this.lastBeats == null ? 0 : Math.min(1, Math.max(0, this.beats - this.lastBeats)); this.lastBeats = this.beats
     this.starAngle += pose.stars.spin * shimmer * advanced
     if (this.stars) this.stars.quaternion.copy(about(Y, this.starAngle))
+
+    // The arms: each shoulder rides the body, each hand cradles its planet wherever the pose has put it, and the elbow swings out with the pattern's arm raise.
+    this.body?.updateMatrixWorld(true)
+    this.arm.forEach((arm, index) => {
+      const held = Cinema2SpaceBoiController.HELD[index]!, rig = this.planetRig[held]
+      if (!rig || !this.body) return
+      const root = rig.parent!
+      const shoulder = root.worldToLocal(this.body.localToWorld(new THREE.Vector3(arm.side * FIGURE.shoulderX, FIGURE.shoulderY - FIGURE.waterY, 0)))
+      arm.update({ shoulder, center: rig.position, radius: this.planetRadius[held]! * rig.scale.x, swing: Math.min(1, Math.max(0, pose.arms.raise[index]! * arms / 2.4)), grip: 1 })
+    })
 
     // Ink: every family's level is its authored look times the pose, the family's own brightness, the master Intensity and the kick ripple.
     const score = this.number('scoreAmount', .5, 0, 1), master = this.number('intensity', 1, 0, 2)
@@ -273,7 +294,7 @@ export class Cinema2SpaceBoiController {
 
   inspect(): Readonly<Record<string, unknown>> {
     return {
-      source: 'space-boi.glb', arms: this.arm.length, planets: this.planetRig.filter(Boolean).length, moons: this.moonRig.filter(Boolean).length, water: this.waterRig.length, inks: this.inks.length,
+      source: 'space-boi.glb', arms: this.arm.length, planetHome: this.planetHome.map(v => v?.toArray()), planetRadius: this.planetRadius, planets: this.planetRig.filter(Boolean).length, moons: this.moonRig.filter(Boolean).length, water: this.waterRig.length, inks: this.inks.length,
       ...this.policy.inspect(), performanceOverride: this.overrideReason, pattern: this.pattern, beats: this.beats, pose: this.pose,
     }
   }
@@ -285,7 +306,7 @@ export class Cinema2SpaceBoiController {
     for (const rig of this.rigs) rig.removeFromParent()
     this.ownedGeometry.forEach(geometry => geometry.dispose()); this.ownedMaterial.forEach(material => material.dispose())
     this.ownedGeometry.length = 0; this.ownedMaterial.length = 0; this.moved.length = 0; this.hidden.length = 0; this.rigs.length = 0; this.inks.length = 0
-    this.arm = []; this.planetRig = []; this.planetHome = []; this.moonRig = []; this.waterRig = []; this.body = null; this.head = null; this.stars = null; this.voidMaterial = null; this.starAngle = 0; this.lastBeats = null
+    this.arm.forEach(arm => arm.dispose()); this.arm = []; this.planetRadius = []; this.planetRig = []; this.planetHome = []; this.moonRig = []; this.waterRig = []; this.body = null; this.head = null; this.stars = null; this.voidMaterial = null; this.starAngle = 0; this.lastBeats = null
     this.clock.reset(); this.selection.reset(); this.policy.reset(); this.performance.reset(); this.triggerClock.reset(); this.params = null
   }
 }
