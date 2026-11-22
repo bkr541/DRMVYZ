@@ -16,8 +16,7 @@ const DRAWINGS = {
   brand: ['M8 25q-7-1-5-8 1-4 6-4 0-9 9-9 6 0 8 8 7 0 6 7 0 6-7 6Z', 'M16 10q1 5 6 6-5 1-6 6-1-5-6-6 5-1 6-6Z'],
   rekordbox: ['M16 2 29 9v14l-13 7L3 23V9Z', 'M9 22V10h8a4 4 0 0 1 0 8H9M17 18l7 6'],
   navReact: ['M16 3a13 13 0 1 0 0 26 13 13 0 1 0 0-26M16 8a8 8 0 1 0 0 16 8 8 0 1 0 0-16M16 14a2 2 0 1 0 0 4 2 2 0 1 0 0-4', 'M16 3v6M23 12l2 1M24 20l-2 1'],
-  mobilePreview: ['M9 2h14a3 3 0 0 1 3 3v22a3 3 0 0 1-3 3H9a3 3 0 0 1-3-3V5a3 3 0 0 1 3-3Z', 'M13 6h6M13 26h6'],
-  // A phone with a running screen: the live app in a phone window (the static mockup uses mobilePreview).
+  // The live app in a phone window.
   mobileApp: ['M9 2h14a3 3 0 0 1 3 3v22a3 3 0 0 1-3 3H9a3 3 0 0 1-3-3V5a3 3 0 0 1 3-3Z', 'M13 26h6', 'M13.5 10.5v8l6.5-4Z'],
   navPerformance: ['M3 4h26v24H3ZM3 12h26M3 20h26M12 4v24M21 4v24', 'M6 7h3v2H6ZM15 15h3v2h-3ZM24 23h2v2h-2Z'],
   navPreset: ['M4 17v11h18M7 11v11h18M11 4h18v12H11Z', 'M15 8h10M18 6v4M15 12h6'],

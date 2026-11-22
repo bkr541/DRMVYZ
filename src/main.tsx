@@ -2,8 +2,6 @@ import { installPerformanceTelemetry } from './lib/performanceTelemetry'
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
-import { MobileAuthPreviewScreen } from './components/auth/MobileAuthPreviewScreen'
-import { getMobileAppPreviewScreen } from './components/vyzualz/layout/mobileAppPreview'
 import './styles.css'
 import './styles/analyzer.css'
 import './styles/reference.css'
@@ -33,6 +31,6 @@ if (import.meta.env.DEV) {
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    {getMobileAppPreviewScreen() === 'auth' ? <MobileAuthPreviewScreen /> : <App />}
+    <App />
   </React.StrictMode>
 )

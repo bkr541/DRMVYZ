@@ -1,5 +1,4 @@
-/* The mobile screens' compositions (header, page body, bottom navigation, Perform, Pads, Visualizer). Used by the real mobile app and by the
-   Mobile Preview window, which imports this file. */
+/* Mobile app screen compositions for the header, page body, navigation, Perform, Pads and Visualizer. */
 /* Mobile compositions only. Cards, tabs, typography, headers, pads and fields
    retain their actual production classes and CSS without variant restyling. */
 .mpm { display: flex; flex-direction: column; gap: var(--fw-region-gap); height: 100%; min-height: 0; padding: var(--fw-outer-inset); color: var(--color-text); background: var(--color-background); font: var(--type-field-value); }

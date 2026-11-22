@@ -78,7 +78,7 @@ Each specification tracks its preset’s implementation status and requirements.
 | `docs/preset-store/OPEN_DECISIONS.md` | Preset Store operator decisions and local/test, payment, content and publishing gates |
 | `docs/preset-store/SCHEMA.md` | Preset Store marketplace schema (migration 0043): relationships, RLS/privilege matrix, server primitives, local execution, rollback, verification status |
 | `docs/model-assets-phase01.md` | User model domain, private storage, immutable version/recovery APIs, Phase 01 validation and deployment gate |
-| `docs/mobile-preview-window.md` | Floating mobile-preview launcher, iPhone 16 portrait shell, native window policy and validation |
+| `docs/mobile-preview-window.md` | Mobile App Preview launcher, iPhone 16 viewport and Electron window policy |
 | `docs/performance-manager-phase01.md` | Performance Manager engine/preset browsing, read-only pad mirror, Configuration and shared dock |
 | `docs/mobile-stage-links.md` | Desktop lease, account pad sync, shareable stage links and the `stage-link` Edge Function |
 | `docs/mobile-app.md` | The phone experience: who gets it, the Perform / Pads / Visualizer / Remote screens, account pad sync and what is not built yet |

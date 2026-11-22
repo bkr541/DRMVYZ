@@ -4,7 +4,6 @@ import { createPortal } from 'react-dom'
 import type { AppView } from '../appView'
 import { APP_VIEW_LABELS } from '../appView'
 import { AppIcon } from '../../shared/icons/AppIcon'
-import { MobilePreviewLauncher } from './MobilePreviewLauncher'
 import { MobileAppPreviewLauncher } from './MobileAppPreviewLauncher'
 import { isMobileAppPreviewFrame } from './mobileAppPreview'
 import { LayoutLabModal } from '../react/LayoutLabModal'
@@ -84,7 +83,6 @@ export function ApplicationWorkspaceFrame({
                     title="Layout Lab" aria-haspopup="dialog" onClick={() => setLayoutLabOpen(true)}>
                     <AppIcon kind="sliders" size={20} />
                   </button>
-                  <MobilePreviewLauncher />
                 </>}
               />
             </WorkspaceRegion>

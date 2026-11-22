@@ -171,18 +171,12 @@ function createMainWindow() {
   wc.on('unresponsive', () => windowLog.warn('renderer unresponsive'))
 
   window.webContents.setWindowOpenHandler(({ url, frameName }) => {
-    // Device previews are blank same-origin design surfaces, never arbitrary web content. Each is a named, blank-window request only.
-    // Mobile Preview: the mockup pages. Mobile App Preview: the running app in a 393 × 852 phone frame (content 449 × 908 with its padding).
-    const devicePreview = {
-      'drmvyz-mobile-preview': { width: 1200, height: 1000, minWidth: 800, minHeight: 960, title: `${BRAND_NAME} — Mobile Preview` },
-      'drmvyz-mobile-app-preview': { width: 449, height: 908, minWidth: 449, minHeight: 480, title: `${BRAND_NAME} — Mobile App Preview` },
-    }[frameName]
-    if (devicePreview && (url === '' || url === 'about:blank')) {
-      const { title, ...size } = devicePreview
+    // The renderer fills a named blank window with the running app in a 393 × 852 phone frame.
+    if (frameName === 'drmvyz-mobile-app-preview' && (url === '' || url === 'about:blank')) {
       return { action: 'allow', overrideBrowserWindowOptions: {
-        ...size, useContentSize: true, resizable: true,
+        width: 449, height: 908, minWidth: 449, minHeight: 480, useContentSize: true, resizable: true,
         minimizable: true, maximizable: true, fullscreenable: false,
-        backgroundColor: '#020304', title, icon: APP_ICON,
+        backgroundColor: '#020304', title: `${BRAND_NAME} — Mobile App Preview`, icon: APP_ICON,
         autoHideMenuBar: true,
         webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true },
       } }

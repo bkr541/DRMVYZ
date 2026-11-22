@@ -1,6 +1,6 @@
 # Mobile app
 
-Phones that sign in get a dedicated set of mobile screens instead of the full desktop application. Auth is unchanged: the same sign-in page and Supabase session, then the shell is chosen. Built from the same stores and components as the desktop, guided by the Mobile Preview mockups (`docs/mobile-preview-window.md`).
+Phones use the same sign-in screen and Supabase session as desktop. After sign-in, they get a dedicated mobile shell built with the desktop app's stores and components. Open [Mobile App Preview](mobile-preview-window.md) to run that shell in a phone-sized window from desktop.
 
 ## Who gets it
 `src/components/vyzualz/mobile/mobileDevice.ts`, decided once per page load in `App.tsx`.

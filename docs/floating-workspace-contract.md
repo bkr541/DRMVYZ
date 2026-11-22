@@ -12,7 +12,8 @@ The production navigation rail is permanently collapsed at 72px and has no
 expand/collapse control or expansion state. It follows Layout Lab's Preview 1
 Notch design: bare 40px icons, a 52px active icon, and a 44px × 64px cutout
 centered on the selected button. The notch follows navigation, window resizing,
-and the admin-only button in the account area. Production styling lives in
+and the admin-only button in the account area. The Admin row spans the rail so
+its shield aligns with the main navigation icons. Production styling lives in
 `src/styles/sidebar.css`. The retired Left Nav Bar tab and its mockups have been
 removed from Layout Lab. Theme and legacy
 sidebar background rules exclude the notched rail: only its masked pseudo-element
@@ -100,12 +101,11 @@ Lyric Manager share `--workspace-header-height: 44px`, including borders. Floati
 header surfaces use the same value via `--fw-header-height`. Panel title bars and
 collapsible group headers retain their own sizing.
 
-## Mobile preview launcher
+## Mobile App Preview launcher
 
-The shared frame also owns a phone-shaped floating key immediately left of
-Layout Lab. It opens an independent iPhone 16 portrait design shell; see
-[mobile-preview-window.md](mobile-preview-window.md) for dimensions, lifecycle,
-Electron policy and validation. It does not replace the current workspace.
+The shared frame puts the phone-shaped **Mobile App Preview** button above
+Layout Lab. It runs the mobile app in a separate iPhone 16-sized window.
+See [Mobile App Preview](mobile-preview-window.md).
 
 React, Performance Manager and Preset Manager consume `--fw-performance-rail-width`
 from `floatingWorkspace.css`: clamp(210px, 22vw, 354px), then

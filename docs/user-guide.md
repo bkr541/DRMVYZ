@@ -102,7 +102,7 @@ The engine determines the visual system. A visual source can be text, SVG, media
 | Media Manager | Manage reusable media, fonts, and models | Which asset or version should a visual use? |
 | Admin Console | Authorized administrative operations | Which server-approved administration tools may this account access? |
 
-The production left navigation is permanently collapsed, with an active-icon notch and tooltips rather than an expand/collapse arrow. Layout Lab and mobile preview utilities are separate design/development surfaces. Administrative visibility is permission dependent; hiding a navigation item is not the security boundary.
+The production left navigation is permanently collapsed, with an active-icon notch and tooltips. Layout Lab opens the design workspace. Mobile App Preview runs the mobile app in a phone-sized window. Administrative visibility is permission dependent; hiding a navigation item is not the security boundary.
 
 ### Header, windows, tabs, and groups
 
@@ -721,11 +721,11 @@ Mobile casting, real desktop remote control, other engines and phone-side fullsc
 
 Account pad sets carry revisions. Unsynced edits are debounced; a fresh device with stock pads does not overwrite a customized cloud set. If the cloud revision wins a conflict, local unsynced pads are backed up before replacement. Device focus/visibility/network changes and periodic visible refresh keep state current. This is assignment synchronization, not live remote control of another device's renderer.
 
-### Layout Lab and iPhone mockups
+### Layout Lab and Mobile App Preview
 
 Layout Lab is a design sandbox with named/stable tab identities. Its performance-pad and record-listing studies explore interface presentation. A renamed visible tab should retain its stable identity so future work can refer to the same study.
 
-The mobile mockup window and **Mobile App Preview** have different purposes: the first compares designs; the latter frames the actual mobile application. Mockup buttons and navigation may demonstrate screen transitions without processing media or establishing a cast. Design studies must not be taken as shipped production behavior.
+**Mobile App Preview** opens the running mobile application in a separate iPhone 16-sized window. Its phone icon is directly above Layout Lab in the desktop sidebar.
 
 Further reference: [mobile-app.md](mobile-app.md), [mobile-preview-window.md](mobile-preview-window.md), and [layout-lab-design-workbench.md](layout-lab-design-workbench.md).
 
@@ -1053,7 +1053,7 @@ This guide intentionally does not invent a universal Space/record/blackout keybo
 | Branding | [Brand Kit](brand-kit.md) |
 | Capture and casting | [Recording and output](react-recording-and-output.md) |
 | Real mobile shell | [Mobile app](mobile-app.md) |
-| Design-only phone concepts | [Mobile previews](mobile-preview-window.md) |
+| Desktop phone preview | [Mobile App Preview](mobile-preview-window.md) |
 | Design sandbox | [Layout Lab](layout-lab-design-workbench.md) |
 | Desktop launch and icon | [Desktop launcher](desktop-launcher.md) |
 

@@ -66,6 +66,22 @@ describe('application floating chrome (every workspace)', () => {
     expect(host.querySelector('[role="dialog"][aria-label="Layout Lab"]')).toBeNull()
   })
 
+  it('opens the running mobile app from the only phone launcher', async () => {
+    const popup = { document: document.implementation.createHTMLDocument(), focus: vi.fn(), close: vi.fn() }
+    const open = vi.fn(() => popup)
+    vi.stubGlobal('open', open)
+    await render(<Harness />)
+
+    const phone = host.querySelector<HTMLButtonElement>('[aria-label="Mobile App Preview"]')!
+    expect(host.querySelectorAll('.az-sidebar [aria-label^="Mobile"]')).toHaveLength(1)
+    await act(async () => phone.click())
+
+    expect(open).toHaveBeenCalledWith('', 'drmvyz-mobile-app-preview', expect.stringContaining('popup=yes'))
+    const iframe = popup.document.querySelector('iframe')!
+    expect(iframe.getAttribute('src')).toBe(`${window.location.origin}${window.location.pathname}?mobilePreview=1`)
+    expect(popup.focus).toHaveBeenCalledOnce()
+  })
+
   it.each(APP_VIEWS)('keeps the shared header and rail single-owned on the %s route', async (view: AppView) => {
     await render(<Harness initialView={view}><main data-testid="route-stage" /></Harness>)
     const frame = host.querySelector(`[data-app-workspace="${view}"]`)
@@ -79,8 +95,8 @@ describe('application floating chrome (every workspace)', () => {
     expect(frame?.querySelectorAll('[aria-label="Layout Lab"]')).toHaveLength(1)
     const lab = frame?.querySelector('.az-sidebar-account > .fw-layout-lab-launcher')
     expect(lab).not.toBeNull()
-    expect(lab?.nextElementSibling?.classList.contains('fw-mobile-preview-launcher')).toBe(true)
-    expect(lab?.nextElementSibling?.nextElementSibling?.classList.contains('az-sidebar-notifications')).toBe(true)
+    expect(lab?.previousElementSibling?.classList.contains('fw-mobile-app-preview-launcher')).toBe(true)
+    expect(lab?.nextElementSibling?.classList.contains('az-sidebar-notifications')).toBe(true)
     expect(frame?.querySelector('.fw-app-header [data-app-icon="brand"]')).toBeNull()
     expect(frame?.querySelector('.fw-app-header')?.textContent).not.toContain('STAGELESS')
     expect(frame?.querySelectorAll('.az-sidebar')).toHaveLength(1)
