@@ -45,3 +45,14 @@ STAGELESS converts the specular/glossiness material to metal/rough PBR, caps map
 1024px, encodes WebP quality 95, and reuses the material maps on ORBITAL lettering.
 Original meshes and animation are retained. The source hash and generated
 attribution are recorded in the Cinema asset catalog.
+
+## Space Boi
+
+"space boi" by silvercrow101, supplied as `space_boi.glb`.
+Source: https://sketchfab.com/3d-models/space-boi-f6a8c6a6727b4f2cb020c8b50bb2ee60
+Author: https://sketchfab.com/silvercrow101
+License: CC BY-NC 4.0, https://creativecommons.org/licenses/by-nc/4.0/
+This license allows non-commercial use only. The owner accepted that restriction for this one
+model on 2026-11-22 (it is the only entry on the Cinema asset allowlist with a non-commercial
+license), so a build that ships Space Boi must stay non-commercial, or the preset must be removed
+or the author's permission obtained first. The shipped file is byte for byte the supplied one.

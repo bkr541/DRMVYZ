@@ -247,6 +247,13 @@
       "origin": "scripts/cinema2-assets/generate-smoke-volume.mjs (64^3 volume stored as a 64x4096 PNG, converted to lossless WebP because the channels are data; the 32^3 file is the same noise field sampled more coarsely)"
     },
     {
+      "id": "cinema2-space-boi",
+      "kind": "model",
+      "license": "CC-BY-NC-4.0",
+      "attribution": "space boi by silvercrow101 (https://sketchfab.com/silvercrow101), https://sketchfab.com/3d-models/space-boi-f6a8c6a6727b4f2cb020c8b50bb2ee60, licensed CC BY-NC 4.0 (https://creativecommons.org/licenses/by-nc/4.0/). Non-commercial use only.",
+      "origin": "Original space_boi.glb supplied by the user. The bundled GLB is unchanged."
+    },
+    {
       "id": "cinema2-studio-environment",
       "kind": "environment",
       "license": "generated-in-house",

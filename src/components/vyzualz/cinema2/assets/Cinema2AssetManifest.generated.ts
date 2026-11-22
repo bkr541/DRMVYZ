@@ -716,6 +716,25 @@ export const CINEMA2_ASSET_RECORDS = [
     }
   },
   {
+    "id": "cinema2-space-boi",
+    "kind": "model",
+    "compression": "none",
+    "license": "CC-BY-NC-4.0",
+    "attribution": "space boi by silvercrow101 (https://sketchfab.com/silvercrow101), https://sketchfab.com/3d-models/space-boi-f6a8c6a6727b4f2cb020c8b50bb2ee60, licensed CC BY-NC 4.0 (https://creativecommons.org/licenses/by-nc/4.0/). Non-commercial use only.",
+    "files": {
+      "high": {
+        "url": "/cinema2/models/space-boi.glb",
+        "bytes": 3144116,
+        "triangles": 80664
+      }
+    },
+    "gpuBytes": {
+      "high": 3122080,
+      "medium": 3122080,
+      "low": 3122080
+    }
+  },
+  {
     "id": "cinema2-studio-environment",
     "kind": "environment",
     "license": "generated-in-house",

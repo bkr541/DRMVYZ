@@ -8,6 +8,8 @@ export const LICENSE_ALLOWLIST = Object.freeze({
   CC0: Object.freeze({ attribution: false }),
   'CC-BY-4.0': Object.freeze({ attribution: true }),
   'CC-BY-3.0': Object.freeze({ attribution: true }),
+  // Non-commercial: the owner accepted this restriction for Space Boi only (2026-11-22). A build that ships it must stay non-commercial.
+  'CC-BY-NC-4.0': Object.freeze({ attribution: true }),
   MIT: Object.freeze({ attribution: true }),
   'Apache-2.0': Object.freeze({ attribution: true }),
   'OFL-1.1': Object.freeze({ attribution: true }),
