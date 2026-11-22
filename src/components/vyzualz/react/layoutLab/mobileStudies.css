@@ -10,3 +10,8 @@
 .ll-mobile-study dd { margin: 0; color: #dbe5e9; }
 .ll-mobile-captions { display: grid; grid-template-columns: 390px 390px; justify-content: space-between; color: rgba(196, 207, 211, .58); font: 500 9px/1.2 var(--font-ui, sans-serif); letter-spacing: .24em; text-transform: uppercase; padding: 0 2px; }
 .ll-mobile-frame { display: block; width: 100%; max-width: 860px; height: 900px; border: 0; background: #060d10; border-radius: 6px; }
+
+.ll-mobile-study--wide { width: min(100%, 1360px); }
+.ll-mobile-captions--flow { display: flex; justify-content: space-between; gap: 32px; }
+.ll-mobile-captions--flow > span { flex: 0 0 390px; }
+.ll-mobile-frame--wide { max-width: none; }

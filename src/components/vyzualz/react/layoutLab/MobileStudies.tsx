@@ -34,11 +34,11 @@ import studyStyles from './mobileStudies.css?inline'
  * shows both: "DJ set" and "Party". Everything is built from the app's real components; the stage is a still of the preset's artwork standing in for the
  * live render. Each layout is an iframe whose document carries the app's stylesheets (Layout Lab receives none). Nothing here changes the real mobile app.
  */
-const asset = (file: string) => `${import.meta.env.BASE_URL ?? '/'}${file}`
-const FRAME_CSS = [baseStyles, vyzualzStyles, appearanceStyles, floatingStyles, tabRowStyles, groupSpacingStyles, typographyStyles, reactViewStyles, canonicalStyles, iconStyles, collapsibleStyles, searchRowStyles, padStyles, mobileScreensStyles, mobileAppStyles, frameStyles].join('\n')
-const FRAME_HTML = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="${BRAND_FONT_LINK}"></head><body></body></html>`
+export const asset = (file: string) => `${import.meta.env.BASE_URL ?? '/'}${file}`
+export const FRAME_CSS = [baseStyles, vyzualzStyles, appearanceStyles, floatingStyles, tabRowStyles, groupSpacingStyles, typographyStyles, reactViewStyles, canonicalStyles, iconStyles, collapsibleStyles, searchRowStyles, padStyles, mobileScreensStyles, mobileAppStyles, frameStyles].join('\n')
+export const FRAME_HTML = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="${BRAND_FONT_LINK}"></head><body></body></html>`
 
-const PRESETS = [
+export const PRESETS = [
   { key: 'afterhours', name: 'Afterhours', pad: 'Hours', color: '#5993e8' }, { key: 'space-boi', name: 'Space Boi', pad: 'Boi', color: '#df706d' }, { key: 'chamber', name: 'Chamber', pad: 'Chamber', color: '#64b98b' },
   { key: 'cathedral', name: 'Cathedral', pad: 'Nave', color: '#d9a35e' }, { key: 'inertia', name: 'Inertia', pad: 'Inertia', color: '#4ac7db' }, { key: 'constellation', name: 'Constellation', pad: 'Stars', color: '#b84fc9' },
   { key: 'event-horizon', name: 'Event Horizon', pad: 'Horizon', color: '#e8b84a' }, { key: 'electric-storm', name: 'Electric Storm', pad: 'Storm', color: '#7aa2f7' },
@@ -48,18 +48,17 @@ const TRACKS = [{ id: 't1', title: 'Midnight Run', meta: 'This phone · 124 BPM'
 type NavTab = 'pads' | 'presets' | 'tune' | 'source'
 type SourceTab = 'mic' | 'track'
 
-interface Phone { preset: number; setPreset(index: number): void; blackout: boolean; setBlackout(value: boolean): void; playing: boolean; setPlaying(value: boolean): void }
-const icon = (kind: AppIconKind, size = 16): ReactNode => <AppIcon kind={kind} size={size} color="currentColor" aria-hidden="true" />
+export interface Phone { preset: number; setPreset(index: number): void; playing: boolean; setPlaying(value: boolean): void }
+export const icon = (kind: AppIconKind, size = 16): ReactNode => <AppIcon kind={kind} size={size} color="currentColor" aria-hidden="true" />
 
 function Stage({ phone, children }: { phone: Phone; children?: ReactNode }) {
   const preset = PRESETS[phone.preset]!
-  return <div className="ll-m-stage" data-blackout={phone.blackout || undefined} aria-label="Visualizer output (a still stands in for the live render)">
+  return <div className="ll-m-stage" aria-label="Visualizer output (a still stands in for the live render)">
     <img src={asset(`preset-artwork/drmvyz.cinema2.${preset.key}.webp`)} alt="" />
     <div className="ll-m-stage-top">
       <StatusBadge tone={phone.playing ? 'playing' : 'loaded'}>{phone.playing ? 'Live' : 'Paused'}</StatusBadge>
       <span className="ll-m-stage-name">{preset.name}</span>
       <span className="ll-m-stage-actions">
-        <IconChipButton aria-label="Blackout" title="Blackout" tone={phone.blackout ? 'primary' : 'default'} icon={icon('blackout')} onClick={() => phone.setBlackout(!phone.blackout)} />
         <IconChipButton aria-label="Cast to screen" title="Cast to screen" tone="primary" icon={icon('cast')} />
       </span>
     </div>
@@ -67,7 +66,7 @@ function Stage({ phone, children }: { phone: Phone; children?: ReactNode }) {
   </div>
 }
 
-function Pads({ phone, columns = 3, rows, height }: { phone: Phone; columns?: number; rows: number; height: number }) {
+export function Pads({ phone, columns = 3, rows, height }: { phone: Phone; columns?: number; rows: number; height: number }) {
   const count = columns * rows
   return <div className="rv-pads-section rv-pads-section--embedded"><div className="rv-pads-grid ll-m-pads" role="group" aria-label="Performance pads" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`, gridAutoRows: `${height}px` }}>
     {Array.from({ length: count }, (_, index) => {
@@ -78,7 +77,7 @@ function Pads({ phone, columns = 3, rows, height }: { phone: Phone; columns?: nu
   </div></div>
 }
 
-function PresetCards({ phone, layout }: { phone: Phone; layout: 'grid' | 'carousel' }) {
+export function PresetCards({ phone, layout }: { phone: Phone; layout: 'grid' | 'carousel' }) {
   const cards = PRESETS.map((preset, index) => (
     <ReactPresetCard key={preset.key} id={`m-${preset.key}`} title={preset.name} description="" activateLabel={`Load ${preset.name}`} isActive={phone.preset === index} onActivate={() => phone.setPreset(index)}
       backdrop={<img className="ll-m-card-art" src={asset(`preset-artwork/drmvyz.cinema2.${preset.key}.webp`)} alt="" />} chips={[{ label: 'Cinema 2.0' }]} />
@@ -173,9 +172,8 @@ function LayoutC({ phone, mode }: { phone: Phone; mode: 'dj' | 'party' }) {
 
 function PhoneScreen({ layout, mode }: { layout: 'a' | 'b' | 'c'; mode: 'dj' | 'party' }) {
   const [preset, setPreset] = useState(mode === 'dj' ? 1 : 0)
-  const [blackout, setBlackout] = useState(false)
   const [playing, setPlaying] = useState(true)
-  const phone: Phone = { preset, setPreset, blackout, setBlackout, playing, setPlaying }
+  const phone: Phone = { preset, setPreset, playing, setPlaying }
   return <div className={`ll-m-phone ll-m-phone--${layout}`} data-mobile-layout={layout} data-mobile-mode={mode} aria-label={`${mode === 'dj' ? 'DJ set' : 'Party'} screen`}>
     {layout === 'a' && <LayoutA phone={phone} initial={mode === 'dj' ? 'pads' : 'source'} />}
     {layout === 'b' && <LayoutB phone={phone} mode={mode} />}
@@ -207,10 +205,11 @@ function LayoutStudy({ study }: { study: typeof STUDIES[number] }) {
   </section>
 }
 
-export function MobileStudies() {
+export function MobileStudies({ children }: { children?: ReactNode }) {
   return <div className="ll-mobile" aria-label="Mobile layout studies">
     <style>{studyStyles}</style>
     <p className="ll-mobile-intro">Portrait, 390 × 844, Cinema 2.0 only. Each layout shows the phone in its two jobs: a DJ performing, and a party or event. Pads, preset cards and the audio source respond; the stage is a still of the preset's artwork. Nothing here changes the real mobile app.</p>
+    {children}
     {STUDIES.map(study => <LayoutStudy key={study.id} study={study} />)}
   </div>
 }

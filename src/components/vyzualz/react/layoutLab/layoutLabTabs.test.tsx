@@ -144,7 +144,9 @@ describe('persistent Layout Lab tabs', () => {
     expect([...host.querySelectorAll('[role="tab"]')].map(item => item.textContent).at(-1)).toBe('Mobile')
     const panel = host.querySelector('#layout-lab-tab-13-panel')!
     expect([...panel.querySelectorAll('[data-mobile-study]')].map(study => (study as HTMLElement).dataset.mobileStudy)).toEqual(['a', 'b', 'c'])
-    expect(panel.querySelectorAll('iframe.ll-mobile-frame')).toHaveLength(3)
+    // The controller-mode studies come first: pairing, connected and connection lost, then the Design tab and the laptop side.
+    expect([...panel.querySelectorAll('[data-mobile-controller]')].map(study => (study as HTMLElement).dataset.mobileController)).toEqual(['flow', 'design'])
+    expect(panel.querySelectorAll('iframe.ll-mobile-frame')).toHaveLength(5)
   })
 
   it('has no Nav Bar Icons tab, and a saved selection of it falls back to the first tab', async () => {

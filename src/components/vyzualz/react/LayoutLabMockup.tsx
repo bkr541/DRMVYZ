@@ -9,7 +9,7 @@ import { AuthStudies } from './layoutLab/AuthStudies'
 import { RecordListingStudies } from './layoutLab/RecordListingStudies'
 import { BrandKitStudies } from './layoutLab/BrandKitStudies'
 import { UiPreviewStudies } from './layoutLab/UiPreviewStudies'
-import { MobileStudies } from './layoutLab/MobileStudies'
+import { MobileTab } from './layoutLab/MobileTab'
 import { LAYOUT_LAB_AUTH_TAB_ID, LAYOUT_LAB_BRAND_KIT_PLACEHOLDER_IDS, isBrandKitTabName, LAYOUT_LAB_RECORD_LISTING_TAB_ID, LAYOUT_LAB_STORAGE_KEY, LAYOUT_LAB_UI_PREVIEW_TAB_ID, LAYOUT_LAB_MOBILE_TAB_ID, readLayoutLabTabs } from './layoutLab/layoutLabTabs'
 
 /** Visual workspace. Preview actions remain local; Record Listing reuses production presentation. */
@@ -87,7 +87,7 @@ export function LayoutLabMockup() {
       {tab.id === LAYOUT_LAB_AUTH_TAB_ID && <AuthStudies />}
       {tab.id === LAYOUT_LAB_RECORD_LISTING_TAB_ID && <RecordListingStudies />}
       {tab.id === LAYOUT_LAB_UI_PREVIEW_TAB_ID && <UiPreviewStudies />}
-      {tab.id === LAYOUT_LAB_MOBILE_TAB_ID && <MobileStudies />}
+      {tab.id === LAYOUT_LAB_MOBILE_TAB_ID && <MobileTab />}
       {(LAYOUT_LAB_BRAND_KIT_PLACEHOLDER_IDS.includes(tab.id) && isBrandKitTabName(tab.name)) && <BrandKitStudies />}
     </section>)}
   </main>
