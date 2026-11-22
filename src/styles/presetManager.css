@@ -25,7 +25,7 @@
 }
 
 /* In the shared app header the toolbar draws no surface of its own. */
-[data-workspace-layout='floating'][data-app-workspace='presetManager'] .pmv-header {
+[data-workspace-layout='floating']:is([data-app-workspace='presetManager'], [data-app-workspace='admin']) .pmv-header {
   width: 100%;
   height: 100%;
   min-height: 0;
@@ -286,59 +286,59 @@
   .pmv-selection-summary { grid-template-columns: 1fr; }
 }
 
-/* Phase 05: Preset Manager alone adopts the floating outer surfaces. Its
+/* Phase 05: Preset Manager (and the Admin Console's Preset Catalog, which uses the same windows) adopts the floating outer surfaces. Its
    existing library, Cinema preview, Inspector and independent scrollers own
    their contents, state and lifecycles without extra wrapper components. */
-[data-workspace-layout='floating'][data-app-workspace='presetManager'] .pmv-root {
+[data-workspace-layout='floating']:is([data-app-workspace='presetManager'], [data-app-workspace='admin']) .pmv-root {
   background: transparent;
 }
 
-[data-workspace-layout='floating'][data-app-workspace='presetManager'] .pmv-workspace {
+[data-workspace-layout='floating']:is([data-app-workspace='presetManager'], [data-app-workspace='admin']) .pmv-workspace {
   gap: 0;
   overflow: visible;
 }
 
-[data-workspace-layout='floating'][data-app-workspace='presetManager'] .pmv-content {
+[data-workspace-layout='floating']:is([data-app-workspace='presetManager'], [data-app-workspace='admin']) .pmv-content {
   gap: var(--fw-region-gap);
   overflow: visible;
 }
 
 /* Round the existing rail's own clipping surface, not the entire rail: the
    collapse grips remain clickable and internal library scroll is unchanged. */
-[data-workspace-layout='floating'][data-app-workspace='presetManager'] .pmv-content > .vz-inspector > .vz-inspector-inner {
+[data-workspace-layout='floating']:is([data-app-workspace='presetManager'], [data-app-workspace='admin']) .pmv-content > .vz-inspector > .vz-inspector-inner {
   border-radius: calc(var(--fw-surface-radius) - 1px);
 }
 
 /* The previous full-bleed edge thread crosses the new inter-panel gutters. */
-[data-workspace-layout='floating'][data-app-workspace='presetManager'] .pmv-content > .rw-frame--left::after,
-[data-workspace-layout='floating'][data-app-workspace='presetManager'] .pmv-content > .rw-frame--right::after {
+[data-workspace-layout='floating']:is([data-app-workspace='presetManager'], [data-app-workspace='admin']) .pmv-content > .rw-frame--left::after,
+[data-workspace-layout='floating']:is([data-app-workspace='presetManager'], [data-app-workspace='admin']) .pmv-content > .rw-frame--right::after {
   content: none;
 }
 
-[data-workspace-layout='floating'][data-app-workspace='presetManager'] .pmv-stage {
+[data-workspace-layout='floating']:is([data-app-workspace='presetManager'], [data-app-workspace='admin']) .pmv-stage {
   background: #070c14;
 }
 
-[data-workspace-layout='floating'][data-app-workspace='presetManager'] .pmv-stage-tabs {
+[data-workspace-layout='floating']:is([data-app-workspace='presetManager'], [data-app-workspace='admin']) .pmv-stage-tabs {
   border-radius: calc(var(--fw-surface-radius) - 1px) calc(var(--fw-surface-radius) - 1px) 0 0;
 }
 
-[data-workspace-layout='floating'][data-app-workspace='presetManager'] .pmv-preview-group {
+[data-workspace-layout='floating']:is([data-app-workspace='presetManager'], [data-app-workspace='admin']) .pmv-preview-group {
   border-radius: 0 0 calc(var(--fw-surface-radius) - 1px) calc(var(--fw-surface-radius) - 1px);
 }
 
 /* Match React's two rails and center-stage layout at every viewport width. */
-[data-workspace-layout='floating'][data-app-workspace='presetManager'] .pmv-content {
+[data-workspace-layout='floating']:is([data-app-workspace='presetManager'], [data-app-workspace='admin']) .pmv-content {
   --vz-left-width: var(--fw-performance-rail-width);
   --vz-right-width: var(--fw-performance-rail-width);
   grid-template-columns: minmax(0, var(--vz-left-width)) minmax(0, 1fr) minmax(0, var(--vz-right-width));
 }
-[data-workspace-layout='floating'][data-app-workspace='presetManager'] .pmv-content[data-left-collapsed='true'] {
+[data-workspace-layout='floating']:is([data-app-workspace='presetManager'], [data-app-workspace='admin']) .pmv-content[data-left-collapsed='true'] {
   --vz-left-width: 32px;
 }
-[data-workspace-layout='floating'][data-app-workspace='presetManager'] .pmv-content[data-right-collapsed='true'] {
+[data-workspace-layout='floating']:is([data-app-workspace='presetManager'], [data-app-workspace='admin']) .pmv-content[data-right-collapsed='true'] {
   --vz-right-width: 32px;
 }
-[data-workspace-layout='floating'][data-app-workspace='presetManager'] .pmv-stage {
+[data-workspace-layout='floating']:is([data-app-workspace='presetManager'], [data-app-workspace='admin']) .pmv-stage {
   display: flex;
 }

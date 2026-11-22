@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { AdminHeaderActionsContext } from './AdminHeaderActions'
 import { ApplicationHeaderControls } from '../../components/vyzualz/layout/ApplicationWorkspaceFrame'
 import { HeaderControlGroup } from '../../components/vyzualz/layout/HeaderControlGroup'
 import { VyzualzHeaderActions } from '../../components/vyzualz/shared/VyzualzHeaderActions'
@@ -21,26 +22,32 @@ const TABS = [{ id: 'users', label: 'User Accounts' }, { id: 'presets', label: '
 export function AdminView() {
   const isAdmin = useAdminAccess()
   const [tab, setTab] = useState<AdminTab>('users')
+  // The page header's own toolbar: the open tab puts its actions here (Preset Catalog: Save, Publish, Discard).
+  const [actionsHost, setActionsHost] = useState<HTMLElement | null>(null)
   return (
     <main className="vz-main admin-view" data-testid="admin-view" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', flex: 1 }}>
       {isAdmin && <ApplicationHeaderControls fallbackWhenUnavailable>
         <header className="vz-header" aria-label="Admin Console header">
-          <HeaderControlGroup label="Admin Console controls">{null}</HeaderControlGroup>
+          <HeaderControlGroup label="Admin Console controls"><span ref={setActionsHost} className="adm-header-actions" /></HeaderControlGroup>
           <VyzualzHeaderActions page="admin" />
         </header>
       </ApplicationHeaderControls>}
-      <WorkspaceSurface className="admin-view-canvas">
-        {isAdmin && (
-          <div className="adm">
-            <div className="adm-tabs"><UnderlineTabs ariaLabel="Admin Console sections" activeTab={tab} onChange={setTab} tabs={TABS} /></div>
-            <div className="adm-body" role="tabpanel" aria-label={TABS.find(entry => entry.id === tab)!.label}>
-              {tab === 'users' && <UsersTab />}
-              {tab === 'presets' && <PresetsTab />}
-              {tab === 'messages' && <MessagesTab />}
-            </div>
-          </div>
-        )}
-      </WorkspaceSurface>
+      <AdminHeaderActionsContext.Provider value={actionsHost}>
+        <div className="admin-view-canvas">
+          {isAdmin && (
+            <>
+              <WorkspaceSurface className="adm-tabs-surface">
+                <div className="adm-tabs"><UnderlineTabs ariaLabel="Admin Console sections" activeTab={tab} onChange={setTab} tabs={TABS} /></div>
+              </WorkspaceSurface>
+              <div className="adm-body" role="tabpanel" aria-label={TABS.find(entry => entry.id === tab)!.label}>
+                {tab === 'users' && <WorkspaceSurface className="adm-surface"><UsersTab /></WorkspaceSurface>}
+                {tab === 'presets' && <PresetsTab />}
+                {tab === 'messages' && <WorkspaceSurface className="adm-surface"><MessagesTab /></WorkspaceSurface>}
+              </div>
+            </>
+          )}
+        </div>
+      </AdminHeaderActionsContext.Provider>
     </main>
   )
 }

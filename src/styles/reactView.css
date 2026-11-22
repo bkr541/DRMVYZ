@@ -700,7 +700,9 @@
   grid-template-columns: minmax(0, 1fr);
   place-items: end center;
   padding: 0 8px 5px;
-  background: linear-gradient(to top, #24292d, #24292ddb 26%, transparent 68%);
+  /* A dark-gray scrim that fades up into the thumbnail. It is darkest at the very bottom and lightens as it rises, and it is centered on the name:
+     the ellipse is only 70% of the card wide, so the scrim thins out toward the left and right edges instead of running the card's full width. */
+  background: radial-gradient(ellipse 70% 68% at 50% 100%, #08090a, #101214e6 22%, #1a1e21b8 52%, transparent);
 }
 
 .rv-preset-spotlight-card--poster[data-preset-card] .rv-preset-spotlight-name {
@@ -23751,7 +23753,7 @@ button.llhr-chip { cursor: pointer; }
   --ui-text-muted: rgba(196, 212, 220, 0.5);
 }
 
-[data-workspace-layout='floating']:is([data-app-workspace='react'], [data-app-workspace='performanceManager']) .fw-app-header-controls > .vz-header {
+[data-workspace-layout='floating']:is([data-app-workspace='react'], [data-app-workspace='performanceManager']) :is(.fw-app-header-controls, .fw-app-header-fallback) > .vz-header {
   box-sizing: border-box;
   flex: 1 1 0;
   min-width: 0;

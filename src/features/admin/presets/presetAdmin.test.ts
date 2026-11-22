@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { PresetManagerRecord } from '../../../components/vyzualz/presetManager/presetManagerCatalog'
 import type { PresetMetadataRow } from '../../presetCatalog/presetMetadata'
 import {
-  ALL, NO_PACK, buildAdminPresets, editFromPreset, filterAdminPresets, groupByEngine, groupByPack, parseTags, rowFromEdit, sortAdminPresets, validateEdit,
+  ALL, NO_PACK, buildAdminPresets, currentEdit, editFromPreset, filterAdminPresets, groupByEngine, groupByPack, isEditChanged, parseTags, rowFromEdit, rowWithStatus, sharedStatus, sortAdminPresets, statusCounts, validateEdit,
   type CatalogPack, type PackMember, type PresetFilter,
 } from './presetAdmin'
 
@@ -77,5 +77,40 @@ describe('admin preset catalog', () => {
     expect(validateEdit({ ...edit, orderText: '999999' }).order).toBeTruthy()
     expect(validateEdit({ ...edit, tagsText: Array.from({ length: 33 }, (_, index) => `t${index}`).join(',') }).tags).toBeTruthy()
     expect(validateEdit({ ...edit, tagsText: 'x'.repeat(41) }).tags).toBeTruthy()
+  })
+
+  it('counts presets by status for the filter chips', () => {
+    expect(statusCounts(presets)).toEqual({ all: 3, unset: 2, draft: 1, published: 0, archived: 0 })
+    expect(statusCounts([])).toEqual({ all: 0, unset: 0, draft: 0, published: 0, archived: 0 })
+  })
+
+  it('tells a changed draft from an unchanged one, ignoring spacing', () => {
+    const preset = presets[0]!, edit = editFromPreset(preset)
+    expect(isEditChanged(preset, undefined)).toBe(false)
+    expect(isEditChanged(preset, edit)).toBe(false)
+    expect(isEditChanged(preset, { ...edit, name: `  ${edit.name} `, tagsText: ` ${edit.tagsText} ,`, orderText: ' ' })).toBe(false)
+    expect(isEditChanged(preset, { ...edit, status: 'published' })).toBe(true)
+    expect(isEditChanged(preset, { ...edit, tagsText: 'a, b' })).toBe(true)
+  })
+
+  it('shows the unsaved draft when there is one and what is stored otherwise', () => {
+    const preset = presets[0]!, draft = { ...editFromPreset(preset), name: 'Draft name' }
+    expect(currentEdit(preset, {}).name).toBe('Xenon')
+    expect(currentEdit(preset, { [preset.record.id]: draft }).name).toBe('Draft name')
+  })
+
+  it('builds the row that saves a status, keeping the unsaved draft of the other fields', () => {
+    const preset = presets[0]!
+    expect(rowWithStatus(preset, 'published')).toMatchObject({ engine_id: 'cinema2', preset_key: 'x', publication_status: 'published', name: null })
+    expect(rowWithStatus(preset, 'published', { ...editFromPreset(preset), name: 'Renamed', status: 'draft' })).toMatchObject({ publication_status: 'published', name: 'Renamed' })
+    // Setting a preset back to "Not set" with nothing else changed leaves no row at all.
+    expect(rowWithStatus(preset, '')).toBeNull()
+    expect(rowWithStatus(presets[1]!, '')).toMatchObject({ name: 'Alpha Prime', publication_status: null, display_order: 3 })
+  })
+
+  it('reports the status a selection shares, or mixed', () => {
+    expect(sharedStatus([presets[0]!, presets[2]!])).toBe('unset')
+    expect(sharedStatus([presets[1]!])).toBe('draft')
+    expect(sharedStatus([presets[0]!, presets[1]!])).toBe('mixed')
   })
 })

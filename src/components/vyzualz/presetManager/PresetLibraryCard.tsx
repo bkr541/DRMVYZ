@@ -1,4 +1,4 @@
-import { useId } from 'react'
+import { useId, type ReactNode } from 'react'
 import { AppIcon } from '../../shared/icons/AppIcon'
 import { ReactPresetArtwork } from '../react/ReactPresetCard'
 import { ReactPresetThumbnail } from '../react/ReactPresetThumbnail'
@@ -11,21 +11,20 @@ const LIVE_ARTWORK_PRESETS = new Map(
     .map(preset => [preset.id, preset]),
 )
 
-export function PresetLibraryArtwork({ preset, className }: { preset: PresetManagerRecord; className: string }) {
+/**
+ * The live artwork behind a preset's card, when it has one: oscilloscope and PixGrid presets render their own thumbnail, and a user-built PixGrid Deck (no
+ * shipped artwork) renders one from its first image. Every other preset uses its shipped artwork image, so this returns undefined.
+ */
+export function presetArtworkBackdrop(preset: PresetManagerRecord): ReactNode | undefined {
   const livePreset = preset.activation === 'react' ? LIVE_ARTWORK_PRESETS.get(preset.sourceId) : undefined
-  // A user-built PixGrid Deck has no shipped artwork: its thumbnail is rendered from its own first image.
   const deckPreset = preset.custom && preset.artwork === 'pixGrid' ? preset.sourceData as unknown as ReactPreset : undefined
-  return (
-    <ReactPresetArtwork
-      id={preset.sourceId}
-      className={className}
-      backdrop={livePreset
-        ? <ReactPresetThumbnail preset={livePreset} />
-        : deckPreset?.pixGridDeck
-          ? <ReactPresetThumbnail preset={deckPreset} generationKey={deckPreset.pixGridDeck.thumbnailFingerprint} />
-          : undefined}
-    />
-  )
+  if (livePreset) return <ReactPresetThumbnail preset={livePreset} />
+  if (deckPreset?.pixGridDeck) return <ReactPresetThumbnail preset={deckPreset} generationKey={deckPreset.pixGridDeck.thumbnailFingerprint} />
+  return undefined
+}
+
+export function PresetLibraryArtwork({ preset, className }: { preset: PresetManagerRecord; className: string }) {
+  return <ReactPresetArtwork id={preset.sourceId} className={className} backdrop={presetArtworkBackdrop(preset)} />
 }
 
 export function PresetLibraryCard({ preset, active, favorite, onSelect, onToggleFavorite }: { preset: PresetManagerRecord; active: boolean; favorite: boolean; onSelect: () => void; onToggleFavorite: () => void }) {

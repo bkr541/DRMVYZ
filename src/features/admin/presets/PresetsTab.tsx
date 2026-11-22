@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { WorkspaceSurface } from '../../../components/vyzualz/layout/FloatingWorkspace'
 import { NoticeCard } from '../../../components/vyzualz/react/controls/NoticeCard'
 import { UnderlineTabs } from '../../../components/vyzualz/react/controls/UnderlineTabs'
 import { PRESET_MANAGER_PRESETS } from '../../../components/vyzualz/presetManager/presetManagerCatalog'
 import type { PresetMetadataRow } from '../../presetCatalog/presetMetadata'
 import { buildAdminPresets, recordKey, type AdminPreset, type CatalogPack, type PackMember } from './presetAdmin'
 import { PackPane } from './PackPane'
-import { PresetCatalogPane } from './PresetCatalogPane'
+import { PresetCatalogPane, type SaveManyResult } from './PresetCatalogPane'
 import { addPackMember, createPack, deletePack, loadPackMembers, loadPacks, loadPresetMetadata, movePackMember, removePackMember, savePresetMetadata, updatePack } from './presetsApi'
 
 type Section = 'presets' | 'packs'
@@ -37,6 +38,26 @@ export function PresetsTab() {
     onSave: async (preset: AdminPreset, row: PresetMetadataRow | null) => {
       const key = recordKey(preset.record)
       setRows(await savePresetMetadata(key.engine_id, key.preset_key, row, rows))
+    },
+    /**
+     * Saves several presets one after another, each on top of the rows the one before left. It never throws: it says how many were saved and, if one failed,
+     * why, so the list can show exactly where it stopped and keep the ones that went through.
+     */
+    onSaveMany: async (changes: readonly { preset: AdminPreset; row: PresetMetadataRow | null }[]): Promise<SaveManyResult> => {
+      let current = rows
+      let saved = 0
+      let error: string | undefined
+      try {
+        for (const { preset, row } of changes) {
+          const key = recordKey(preset.record)
+          current = await savePresetMetadata(key.engine_id, key.preset_key, row, current)
+          saved += 1
+        }
+      } catch (reason) {
+        error = reason instanceof Error ? reason.message : 'That did not work.'
+      }
+      if (saved > 0) setRows(current)
+      return error ? { saved, error } : { saved }
     },
     onAddToPack: async (preset: AdminPreset, packId: string) => {
       const key = recordKey(preset.record)
@@ -80,14 +101,18 @@ export function PresetsTab() {
     },
   }
 
+  const sections = <UnderlineTabs ariaLabel="Preset catalog sections" activeTab={section} onChange={setSection} tabs={[{ id: 'presets', label: 'Presets' }, { id: 'packs', label: 'Packs' }]} className="pmv-tabs vz-filter-tabs dv-underline-tabs--equal adm-subtabs" />
+  const notices = <>
+    {status === 'error' && <NoticeCard tone="warning" title="The catalog could not be loaded" role="alert">{error} <button type="button" className="adm-link" onClick={load}>Try again</button></NoticeCard>}
+    {status === 'loading' && <p className="adm-empty" role="status">Loading the catalog…</p>}
+  </>
+
+  if (status === 'ready' && section === 'presets') return <PresetCatalogPane presets={presets} packs={packs} section={sections} {...handlers} />
   return (
-    <div className="adm-presets">
-      <UnderlineTabs ariaLabel="Preset catalog sections" activeTab={section} onChange={setSection} tabs={[{ id: 'presets', label: 'Presets' }, { id: 'packs', label: 'Packs' }]} className="adm-subtabs" />
-      {status === 'error' && <NoticeCard tone="warning" title="The catalog could not be loaded" role="alert">{error} <button type="button" className="adm-link" onClick={load}>Try again</button></NoticeCard>}
-      {status === 'loading' && <p className="adm-empty" role="status">Loading the catalog…</p>}
-      {status === 'ready' && (section === 'presets'
-        ? <PresetCatalogPane presets={presets} packs={packs} {...handlers} />
-        : <PackPane presets={presets} packs={packs} members={members} {...packHandlers} />)}
-    </div>
+    <WorkspaceSurface className="adm-surface adm-presets">
+      {sections}
+      {notices}
+      {status === 'ready' && <PackPane presets={presets} packs={packs} members={members} {...packHandlers} />}
+    </WorkspaceSurface>
   )
 }

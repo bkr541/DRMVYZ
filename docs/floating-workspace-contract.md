@@ -8,6 +8,20 @@ header, the navigation rail and the content slot.
 `ApplicationHeaderControls` portals feature-owned actions into that header;
 it does **not** copy, recreate or rebind those actions.
 
+**Every page always has its own header.** While a page's controls are not in
+the header slot (its code is still loading, or it has none), the frame shows a
+stand-in page header (`.fw-app-header-fallback`): the same logo, page name and
+divider (`HeaderControlGroup`) and the same status readouts
+(`VyzualzHeaderActions`, reported under that page), laid out exactly as the
+page's own header is. It is never a bare text label. It is hidden, and its
+content not rendered, as soon as a page puts its own controls in the slot, so
+the bar holds one header at every moment. The slot is a stable object: a page
+finds the header element through it when it mounts (and again after every
+commit if the element is not there yet), and `occupy()` counts the pages that
+are in the slot, so one page leaving cannot mark the header empty while another
+is still in it. A page that sets `fallbackWhenUnavailable` still renders its
+header inline only when there is no frame at all (a standalone mount).
+
 The production navigation rail is permanently collapsed at 72px and has no
 expand/collapse control or expansion state. It follows Layout Lab's Preview 1
 Notch design: bare 40px icons, a 52px active icon, and a 44px × 64px cutout

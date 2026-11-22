@@ -135,3 +135,34 @@ export function rowFromEdit(record: PresetManagerRecord, edit: PresetEdit): Pres
   void _engine; void _key; void _at
   return Object.values(columns).every(value => value === null) ? null : row
 }
+
+export const STATUS_LABELS: Readonly<Record<PublicationStatus | 'unset', string>> = { unset: 'Not set', draft: 'Draft', published: 'Published', archived: 'Archived' }
+
+export type StatusCounts = Record<PublicationStatus | 'unset' | 'all', number>
+
+/** How many presets are in each status, for the filter chips. The counts follow the other filters, so a chip always says what clicking it will show. */
+export function statusCounts(presets: readonly AdminPreset[]): StatusCounts {
+  const counts: StatusCounts = { all: presets.length, unset: 0, draft: 0, published: 0, archived: 0 }
+  for (const preset of presets) counts[preset.status ?? 'unset'] += 1
+  return counts
+}
+
+const editKey = (edit: PresetEdit) => JSON.stringify([edit.name.trim(), edit.description.trim(), edit.category.trim(), parseTags(edit.tagsText), edit.orderText.trim(), edit.status,
+  edit.storeTitle.trim(), edit.storeSubtitle.trim(), edit.storeCover.trim(), edit.storePreview.trim()])
+
+/** True when a draft differs from what is stored. Whitespace and tag spacing do not count. */
+export const isEditChanged = (preset: AdminPreset, edit: PresetEdit | undefined): boolean => edit !== undefined && editKey(edit) !== editKey(editFromPreset(preset))
+
+/** The edit to show for a preset: the admin's unsaved draft if there is one, else what is stored. */
+export const currentEdit = (preset: AdminPreset, drafts: Readonly<Record<string, PresetEdit>>): PresetEdit => drafts[preset.record.id] ?? editFromPreset(preset)
+
+/** The row that saves `status` for a preset, keeping any unsaved draft of its other fields. Null means the preset would carry no changes at all. */
+export function rowWithStatus(preset: AdminPreset, status: PublicationStatus | '', draft?: PresetEdit): PresetMetadataRow | null {
+  return rowFromEdit(preset.record, { ...(draft ?? editFromPreset(preset)), status })
+}
+
+/** The status a set of presets all share, or 'mixed'. */
+export function sharedStatus(presets: readonly AdminPreset[]): PublicationStatus | 'unset' | 'mixed' {
+  const statuses = new Set(presets.map(preset => preset.status ?? 'unset'))
+  return statuses.size === 1 ? [...statuses][0]! : 'mixed'
+}

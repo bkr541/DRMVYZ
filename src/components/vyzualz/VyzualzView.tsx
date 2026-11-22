@@ -20,7 +20,7 @@ import {
 } from './appView'
 import type { AppView, PerformanceAppView } from './appView'
 import type { LyricManagerNavigationIntent } from '../../features/lyrics/lyricNavigation'
-import { useAdminAccess } from '../../lib/adminAccess'
+import { useAdminAccessStatus } from '../../lib/adminAccess'
 import { setAudioSourcePolicyAppView } from '../../audio/audioSourcePolicy'
 
 const ReactView = lazy(() =>
@@ -98,8 +98,9 @@ export function VyzualzView({ initialAppView = DEFAULT_PERFORMANCE_VIEW }: Props
   const mediaEditorNeedsGuard = imageEditorNeedsGuard || modelEditorNeedsGuard
 
   // Leaving the Admin view if admin access is lost (signing out, or the role being removed) while it is open.
-  const isAdmin = useAdminAccess()
-  useEffect(() => { if (appView === 'admin' && !isAdmin) setAppView(DEFAULT_PERFORMANCE_VIEW) }, [appView, isAdmin])
+  // Only a settled "denied" ends an Admin visit; the first check still being on its way, or a routine re-check, does not.
+  const adminStatus = useAdminAccessStatus()
+  useEffect(() => { if (appView === 'admin' && adminStatus === 'denied') setAppView(DEFAULT_PERFORMANCE_VIEW) }, [appView, adminStatus])
 
   useLayoutEffect(() => {
     setAudioSourcePolicyAppView(appView)

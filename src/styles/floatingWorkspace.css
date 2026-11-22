@@ -104,6 +104,20 @@
   display: none;
 }
 
+/* The stand-in page header (brand, page name, status readouts) fills the header exactly as the page's own controls do. */
+[data-workspace-layout='floating'] .fw-app-header-fallback:not([hidden]) {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+}
+
+/* While the stand-in is showing, the empty slot takes no room. */
+[data-workspace-layout='floating'] .fw-app-header-controls:empty {
+  flex: 0 0 0;
+}
+
 [data-workspace-layout='floating'] .fw-app-header-controls {
   display: flex;
   align-items: center;
@@ -150,7 +164,7 @@
 }
 
 /* One toolbar geometry, including React: feature CSS must not offset the status columns. */
-[data-workspace-layout='floating'][data-app-workspace] .fw-app-header .fw-app-header-controls > :is(.vz-header, .pmv-header, .sm-topbar, .mmv-header, .lmv-header) {
+[data-workspace-layout='floating'][data-app-workspace] .fw-app-header :is(.fw-app-header-controls, .fw-app-header-fallback) > :is(.vz-header, .pmv-header, .sm-topbar, .mmv-header, .lmv-header) {
   box-sizing: border-box;
   flex: 1 1 0;
   width: 100%;

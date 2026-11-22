@@ -4,17 +4,26 @@
 import React, { Suspense, act, createContext, useContext, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { APP_VIEWS, FLOATING_APP_VIEWS } from '../appView'
+import { APP_VIEWS, APP_VIEW_LABELS, FLOATING_APP_VIEWS } from '../appView'
 import type { AppView } from '../appView'
 import { ApplicationHeaderControls, ApplicationWorkspaceFrame } from './ApplicationWorkspaceFrame'
 
 const fixture = vi.hoisted(() => ({ source: 'file' as 'file' | 'microphone' }))
 vi.mock('../../../context/AudioEngineContext', () => ({ useSharedAudio: () => fixture }))
 
+// The sidebar's admin check talks to Supabase when the machine has a .env; a frame test does not need it.
+vi.mock('../../../lib/adminAccess', () => ({ useAdminAccess: () => false, useAdminAccessStatus: () => 'denied', hasAdminAccess: () => false }))
+
+// The real readouts start Supabase and the CPU meter, which a frame test does not need; the stand-in only has to place them.
+vi.mock('../shared/VyzualzHeaderActions', () => ({
+  VyzualzHeaderActions: ({ page }: { page: string }) => <div className="rv-header-status" data-react-header-status data-page={page} />,
+}))
+
 vi.mock('../react/LayoutLabModal', () => ({
   LayoutLabModal: ({ onClose }: { onClose: () => void }) => <div role="dialog" aria-label="Layout Lab"><button onClick={onClose}>Close</button></div>,
 }))
 
+const HEADER_PAGE: Record<AppView, string> = { react: 'react', performanceManager: 'performance-manager', presetManager: 'preset-manager', showManager: 'show-manager', lyrics: 'lyric-manager', media: 'media-manager', admin: 'admin' }
 const FeatureContext = createContext('missing')
 let host: HTMLDivElement
 let root: ReturnType<typeof createRoot>
@@ -108,7 +117,8 @@ describe('application floating chrome (every workspace)', () => {
     expect(host.querySelectorAll('.fw-app-header')).toHaveLength(1)
     expect(host.querySelectorAll('.fw-app-navigation .fw-sidebar-toggle')).toHaveLength(0)
     expect(host.querySelector('.fw-app-navigation .az-logo')).toBeNull()
-    expect(host.querySelector('.fw-app-header-fallback')).toBeNull()
+    // Like every page, it has a stand-in header of its own while its controls are not in the slot.
+    expect(host.querySelector('.fw-app-header-fallback .vz-header-brand-name')?.textContent).toBe('Preset Manager')
     expect(host.querySelector('.fw-app-content > .pmv-root')).not.toBeNull()
     expect(host.querySelectorAll('.pmv-header')).toHaveLength(0)
   })
@@ -133,6 +143,62 @@ describe('application floating chrome (every workspace)', () => {
     await render(<Harness initialView="media"><main className="mmv-root" /></Harness>)
     expect(host.querySelectorAll('.mmv-header')).toHaveLength(0)
     expect(host.querySelector<HTMLSpanElement>('.fw-app-header-fallback')?.hidden).toBe(false)
+  })
+
+  it.each(APP_VIEWS)('gives the %s page its own header, never a bare label, until its controls arrive', async (view: AppView) => {
+    await render(<Harness initialView={view}><main data-testid="route-stage" /></Harness>)
+    const fallback = host.querySelector<HTMLElement>('.fw-app-header-fallback')!
+    expect(fallback.hidden).toBe(false)
+    expect(fallback.getAttribute('data-app-header-fallback')).toBe(view)
+    expect(fallback.querySelector(':scope > .vz-header .vz-header-brand-logo')).not.toBeNull()
+    expect(fallback.querySelector('.vz-header-brand-name')?.textContent).toBe(APP_VIEW_LABELS[view])
+    expect(fallback.querySelector('[role="toolbar"]')?.getAttribute('aria-label')).toBe(`${APP_VIEW_LABELS[view]} controls`)
+    expect(fallback.querySelector('[data-react-header-status]')?.getAttribute('data-page')).toBe(HEADER_PAGE[view])
+  })
+
+  it('swaps the stand-in for the page\'s own header and back, with one header in the bar at every moment', async () => {
+    const page = (withHeader: boolean) => (
+      <Harness initialView="media">
+        <main className="mmv-root">
+          {withHeader && <ApplicationHeaderControls><header className="mmv-header" data-own>Own header</header></ApplicationHeaderControls>}
+        </main>
+      </Harness>
+    )
+    const visibleHeaders = () => host.querySelectorAll('.fw-app-header-controls > *, .fw-app-header-fallback:not([hidden]) > *').length
+    await render(page(false)); expect(visibleHeaders()).toBe(1)
+    await render(page(true)); expect(host.querySelector<HTMLElement>('.fw-app-header-fallback')?.hidden).toBe(true); expect(host.querySelector('.fw-app-header-fallback .vz-header')).toBeNull(); expect(visibleHeaders()).toBe(1)
+    await render(page(false)); expect(host.querySelector<HTMLElement>('.fw-app-header-fallback')?.hidden).toBe(false); expect(visibleHeaders()).toBe(1)
+    await render(page(true)); expect(host.querySelector('.fw-app-header-controls [data-own]')).not.toBeNull()
+  })
+
+  it('keeps the header occupied while any page still has its controls in it', async () => {
+    function Two({ first, second }: { first: boolean; second: boolean }) {
+      return <main>
+        {first && <ApplicationHeaderControls><span data-who="first">first</span></ApplicationHeaderControls>}
+        {second && <ApplicationHeaderControls><span data-who="second">second</span></ApplicationHeaderControls>}
+      </main>
+    }
+    const hidden = () => host.querySelector<HTMLElement>('.fw-app-header-fallback')!.hidden
+    await render(<Harness><Two first second /></Harness>); expect(hidden()).toBe(true)
+    await render(<Harness><Two first={false} second /></Harness>); expect(hidden()).toBe(true)
+    await render(<Harness><Two first={false} second={false} /></Harness>); expect(hidden()).toBe(false)
+  })
+
+  it('finds the header after a page that suspends and is replaced, as when moving between lazy pages', async () => {
+    let release: () => void = () => {}
+    const gate = new Promise<void>(resolve => { release = resolve })
+    const Late = React.lazy(async () => { await gate; return { default: () => <ApplicationHeaderControls><span data-who="late">late</span></ApplicationHeaderControls> } })
+    const Quick = () => <ApplicationHeaderControls><span data-who="quick">quick</span></ApplicationHeaderControls>
+    const view = (node: React.ReactNode) => <Harness><Suspense fallback={<i data-loading />}>{node}</Suspense></Harness>
+    await render(view(<Quick />)); expect(host.querySelector('.fw-app-header-controls [data-who="quick"]')).not.toBeNull()
+    await render(view(<Late />)); expect(host.querySelector('[data-loading]')).not.toBeNull()
+    expect(host.querySelector<HTMLElement>('.fw-app-header-fallback')!.hidden).toBe(false)
+    await act(async () => { release(); await gate })
+    await act(async () => { await Promise.resolve() })
+    expect(host.querySelector('.fw-app-header-controls [data-who="late"]')).not.toBeNull()
+    expect(host.querySelector<HTMLElement>('.fw-app-header-fallback')!.hidden).toBe(true)
+    await render(view(<Quick />)); expect(host.querySelector('.fw-app-header-controls [data-who="quick"]')).not.toBeNull()
+    expect(host.querySelector<HTMLElement>('.fw-app-header-fallback')!.hidden).toBe(true)
   })
 
   it('keeps feature-owned callbacks and provider state live through the header portal', async () => {
@@ -232,7 +298,7 @@ describe('application floating chrome (every workspace)', () => {
     const pending = new Promise<void>(() => {})
     function Deferred(): React.ReactElement { throw pending }
     await render(<Harness><Suspense fallback={<div>Loading workspace</div>}><Deferred /></Suspense></Harness>)
-    expect(host.querySelector('.fw-app-header-fallback')?.textContent).toBe('React')
+    expect(host.querySelector('.fw-app-header-fallback .vz-header-brand-name')?.textContent).toBe('React')
     expect(host.querySelector('.fw-app-header-controls')?.children).toHaveLength(0)
 
     const Feature = () => {
