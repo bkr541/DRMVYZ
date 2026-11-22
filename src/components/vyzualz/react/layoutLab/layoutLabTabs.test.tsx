@@ -79,8 +79,8 @@ describe('persistent Layout Lab tabs', () => {
 
   it('keeps content identity through renaming, switching tabs and reopening', async () => {
     await render()
-    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(8)
-    expect(host.querySelectorAll('[role="tabpanel"]')).toHaveLength(8)
+    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(9)
+    expect(host.querySelectorAll('[role="tabpanel"]')).toHaveLength(9)
     const panel = host.querySelector<HTMLElement>('#layout-lab-tab-01-panel')!
     const studies = panel.querySelector('.ll-pad-studies')
     const rows = [...panel.querySelectorAll('[data-pad-study]')]
@@ -129,25 +129,41 @@ describe('persistent Layout Lab tabs', () => {
     await key('Enter')
     expect(tab(1).textContent).toBe('Tab 1')
     await act(async () => tab(1).dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true })))
-    expect(tab(10).getAttribute('aria-selected')).toBe('true')
-    await act(async () => tab(10).dispatchEvent(new KeyboardEvent('keydown', { key: 'F2', bubbles: true })))
+    expect(tab(11).getAttribute('aria-selected')).toBe('true')
+    await act(async () => tab(11).dispatchEvent(new KeyboardEvent('keydown', { key: 'F2', bubbles: true })))
     await type('Geometry')
     await act(async () => input().blur())
-    expect(tab(10).textContent).toBe('Geometry')
+    expect(tab(11).textContent).toBe('Geometry')
   })
 
-  it('adds the PixGrid Deck tab last, with its own permanent id and the popover studies', async () => {
+  it('adds the PixGrid Deck tab with its own permanent id and the popover studies', async () => {
     await render()
     expect(tab(10).textContent).toBe('PixGrid Deck')
     expect(host.querySelector('#layout-lab-tab-10-panel [aria-label="PixGrid Deck popover studies"]')).not.toBeNull()
-    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(8)
+    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(9)
+  })
+
+  it('adds the Brand Kit tab last, with its own permanent id, and also shows it in an empty slot someone has renamed Brand Kit', async () => {
+    await render()
+    expect(tab(11).textContent).toBe('Brand Kit')
+    expect(host.querySelector('#layout-lab-tab-11-panel [data-brand-kit]')).not.toBeNull()
+    // Slots 6 and 7 are empty until they are renamed; a slot named Brand Kit (any capitals or spaces) gets the same page.
+    expect(host.querySelector('#layout-lab-tab-06-panel [data-brand-kit]')).toBeNull()
+    await act(async () => root.unmount())
+    window.localStorage.setItem(LAYOUT_LAB_STORAGE_KEY, JSON.stringify({ version: 1, tabs: [{ id: 'layout-lab-tab-07', name: '  brand KIT ' }, { id: 'layout-lab-tab-03', name: 'brand kit' }], activeTabId: 'layout-lab-tab-07' }))
+    root = createRoot(host)
+    await render()
+    expect(tab(7).textContent).toBe('brand KIT')
+    expect(host.querySelector('#layout-lab-tab-07-panel [data-brand-kit]')).not.toBeNull()
+    // Only the empty slots do this: a tab that has its own content keeps it.
+    expect(host.querySelector('#layout-lab-tab-03-panel [data-brand-kit]')).toBeNull()
   })
 
   it('recovers invalid saved state and reports unavailable persistence', async () => {
     window.localStorage.setItem(LAYOUT_LAB_STORAGE_KEY, 'broken json')
     vi.spyOn(window.localStorage, 'setItem').mockImplementation(() => { throw new Error('Storage blocked') })
     await render()
-    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(8)
+    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(9)
     expect(host.querySelector('[role="status"]')?.textContent).toContain('could not be saved')
     await act(async () => tab(3).click())
     expect(tab(3).getAttribute('aria-selected')).toBe('true')
