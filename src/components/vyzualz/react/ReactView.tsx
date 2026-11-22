@@ -117,6 +117,9 @@ import {
 import { resolveBrandedReactPreset } from '../../../features/personalization/resolveBrandedReactPreset'
 import { subscribePixGridWorkspace } from './pixGrid/PixGridWorkspaceNavigation'
 import '../../../styles/reactView.css'
+
+// Development only: the floating review notes button (see docs/review-notes.md). In a production build `import.meta.env.DEV` is false, so this and the module it imports are removed.
+const ReviewNotesButton = import.meta.env.DEV ? lazy(() => import('../../../dev/reviewNotes/ReviewNotesButton').then(module => ({ default: module.ReviewNotesButton }))) : null
 import {
   CANVAS_OUTPUT_AVAILABLE,
   isCanvasOutputAvailable,
@@ -426,6 +429,17 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager, onOpenPreset
     cinema2Workspace.activationRevision,
   )
   const activeEnginePresetName = useActiveEnginePresetName(activeReactEngineId, cinema2PresetId)
+  const reviewNotesPresetId = (activeReactEngineId === 'cinema2' ? cinema2PresetId : activeReactEngineId === 'canvas' ? selectedCanvasPresetId : activeReactPresetId) ?? null
+  // What the screen is showing when a review note is written; saved with the note so "too bright" has its settings beside it.
+  const getReviewNotesContext = useCallback((): Record<string, unknown> => {
+    let parameterState: unknown
+    if (activeReactEngineId === 'cinema2' && cinema2Runtime) { try { parameterState = JSON.parse(cinema2Runtime.getParameterState().serialize()) } catch { /* not available */ } }
+    return {
+      playing: engine.isPlaying, bpm: engine.currentEffectiveBpm ?? null,
+      canvas: outputCanvas ? { width: outputCanvas.width, height: outputCanvas.height } : null,
+      ...(parameterState === undefined ? {} : { cinema2ParameterState: parameterState }),
+    }
+  }, [activeReactEngineId, cinema2Runtime, engine.isPlaying, engine.currentEffectiveBpm, outputCanvas])
   const handleCinema2PresetSelect = useCallback((presetId: Cinema2PresetId) => {
     requestTextSceneNavigation(() => {
       const result = activateCinema2Workspace({ presetId })
@@ -937,6 +951,11 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager, onOpenPreset
               </div>
             )}
             {laserDmxAuthoringOverlayVisibility.showBeamMatrixEditor && <LaserDmxBeamMatrixEditorOverlay />}
+            {ReviewNotesButton && (
+              <Suspense fallback={null}>
+                <ReviewNotesButton engine={activeReactEngineId} presetId={reviewNotesPresetId} presetName={activeEnginePresetName ?? reviewNotesPresetId ?? ''} canvas={outputCanvas} getContext={getReviewNotesContext} />
+              </Suspense>
+            )}
           </div>
           {lowerSurfaces.length > 0 && (
             <section

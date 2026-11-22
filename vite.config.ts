@@ -2,13 +2,15 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { fileURLToPath } from 'node:url'
+import { reviewNotesPlugin } from './src/dev/reviewNotes/reviewNotesPlugin.ts'
 
 export default defineConfig({
   // Relative asset URLs let the built renderer resolve its own JS/CSS bundle
   // entrypoints when Electron serves dist/ through the app's custom protocol
   // (see electron/main.cjs) instead of the dev server's HTTP origin.
   base: './',
-  plugins: [react()],
+  // Development only: the review notes endpoints (see docs/review-notes.md). `apply: 'serve'` keeps them out of every build.
+  plugins: [react(), reviewNotesPlugin()],
   // Standalone generation engine: Phase 03 can import it lazily without adding
   // tracing or WASM to the app's initial renderer bundle.
   build: {

@@ -9,6 +9,9 @@ artifacts/
 release/
 *.tgz
 
+# Temporary review notes written by the dev-only notes panel (see docs/review-notes.md)
+.review-notes/
+
 # Test and browser output
 test-results/
 playwright-report/
