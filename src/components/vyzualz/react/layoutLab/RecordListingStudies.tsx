@@ -15,6 +15,8 @@ import headerStyles from '../../layout/HeaderControlGroup.css?inline'
 import viewStyles from '../controls/LibraryViewToggle.css?inline'
 import styles from './recordListingStudies.css?inline'
 import padStyles from './recordPadStudies.css?inline'
+import indexStyles from './recordIndexStudies.css?inline'
+import { RecordIndexColumn } from './RecordIndexStudies'
 import { RecordPadColumn } from './RecordPadStudies'
 import { LIBRARY_PRESETS, MODELS, TRACKS } from './recordListingData'
 
@@ -42,7 +44,7 @@ export function RecordListingStudies() {
   </header>
   return <div className="ll-records-compare">
     {fontStylesheet && <link rel="stylesheet" href={fontStylesheet} />}
-    <style>{productionStyles + styles + padStyles}</style>
+    <style>{productionStyles + styles + padStyles + indexStyles}</style>
     <div className="ll-records-lane">
     <p className="ll-records-lane-label">Current production</p>
     <div className="ll-records" style={productionTokens} data-theme="dark" aria-label="Record Listing studies">
@@ -84,6 +86,12 @@ export function RecordListingStudies() {
       <p className="ll-records-lane-label">Performance Pad styling</p>
       <div className="ll-records ll-records--pads" style={productionTokens} data-theme="dark" aria-label="Record Listing pad styling">
         <RecordPadColumn />
+      </div>
+    </div>
+    <div className="ll-records-lane">
+      <p className="ll-records-lane-label">Index styling</p>
+      <div className="ll-records ll-records--index" style={productionTokens} data-theme="dark" aria-label="Record Listing index styling">
+        <RecordIndexColumn />
       </div>
     </div>
   </div>

@@ -9,7 +9,7 @@ import { LIBRARY_PRESETS, MODELS, TRACKS } from './recordListingData'
 
 type Section = 'presets' | 'audio' | 'models'
 
-function formatDuration(seconds: number) {
+export function formatDuration(seconds: number) {
   return `${Math.floor(seconds / 60)}:${Math.floor(seconds % 60).toString().padStart(2, '0')}`
 }
 

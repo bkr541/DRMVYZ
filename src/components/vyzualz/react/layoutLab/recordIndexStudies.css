@@ -1,0 +1,50 @@
+/* Index rows: one row for presets, audio tracks and 3D models. Three lines: eyebrow, title, facts; 3D Models, which always have a preview, add a thumbnail.
+   The design language is the STAGELESS mark and wordmark (public/stageless_logo.png, stageless_wordmark.png): a cyan-to-azure gradient sampled from the
+   mark (#00cfe1 to #0090dc), continuous rounded forms, and round "node" terminals where a stroke ends. It shows up as a gradient eyebrow, a rounded
+   gradient selection stroke and a gradient node for the loaded track. Rows are inset cards with the same padding whether selected or not (a transparent
+   border is always present, so selecting never shifts the layout). Colours are app theme tokens; fonts are the shared record roles in typography.css. */
+.ll-records--index { --ll-idx-brand-a: #00cfe1; --ll-idx-brand-b: #0090dc; --ll-idx-brand: linear-gradient(135deg, var(--ll-idx-brand-a), var(--ll-idx-brand-b)); }
+
+.ll-idx-list { display: grid; gap: 6px; margin: 0; padding: 12px; align-content: start; }
+.ll-idx-list--grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+
+.ll-idx-row { position: relative; display: flex; align-items: stretch; min-width: 0; border: 1px solid var(--color-border-faint); border-radius: 8px; background: var(--color-panel); color: var(--color-text); transition: background 80ms, border-color 80ms; }
+.ll-idx-row:hover { background: var(--color-surface); border-color: var(--color-border-subtle); }
+.ll-idx-row:has(.ll-idx-main:active) { background: var(--color-panel-alt); }
+.ll-idx-row[data-selected], .ll-idx-row[data-selected]:hover { border-color: rgba(var(--color-primary-rgb, 74, 199, 219), .55); background: rgba(var(--color-primary-rgb, 74, 199, 219), .1); }
+/* The selection stroke: a rounded gradient bar inside the border, like a stroke of the S. */
+.ll-idx-row[data-selected]::before { content: ''; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 0 3px 3px 0; background: linear-gradient(180deg, var(--ll-idx-brand-a), var(--ll-idx-brand-b)); }
+
+.ll-idx-main { appearance: none; display: flex; align-items: center; flex: 1 1 auto; gap: 12px; min-width: 0; margin: 0; padding: 10px 4px 10px 14px; border: 0; border-radius: inherit; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.ll-idx-main:focus-visible { outline: 2px solid var(--color-primary, #4ac7db); outline-offset: -2px; }
+
+/* Only 3D Models carry a thumbnail: a rounded square preview before the text in a list, above it in a grid. */
+.ll-idx-thumb { position: relative; display: block; flex: none; width: 48px; aspect-ratio: 1 / 1; border: 1px solid var(--color-border-subtle); border-radius: 6px; overflow: hidden; background: var(--color-panel); }
+.ll-idx-thumb > * { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; object-fit: cover; }
+
+.ll-idx-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1 1 auto; }
+.ll-idx-eyebrow { display: flex; align-items: center; gap: 8px; min-width: 0; font: var(--type-record-meta); letter-spacing: .08em; text-transform: uppercase; }
+.ll-idx-eyebrow-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-primary, #4ac7db); background: var(--ll-idx-brand); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+.ll-idx-title { overflow: hidden; color: var(--color-text-strong); font: var(--type-record-title); text-overflow: ellipsis; white-space: nowrap; }
+
+.ll-idx-facts { display: flex; flex-wrap: wrap; gap: 2px 12px; margin: 1px 0 0; padding: 0; list-style: none; }
+.ll-idx-fact { display: inline-flex; align-items: center; gap: 4px; color: var(--color-text-muted); font: var(--type-record-meta); font-variant-numeric: tabular-nums; }
+.ll-idx-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* The loaded track: a gradient node, the round terminal of the mark's stroke, with a soft ring. */
+.ll-idx-loaded { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--ll-idx-brand); box-shadow: 0 0 0 2px rgba(0, 144, 220, .28); }
+
+.ll-idx-actions { display: flex; align-items: center; flex: none; padding-right: 8px; }
+.ll-idx-action { appearance: none; display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--color-text-muted); cursor: pointer; }
+.ll-idx-action:hover { background: rgba(255, 255, 255, .08); color: var(--color-text-strong); }
+.ll-idx-action:focus-visible { outline: 2px solid var(--color-primary, #4ac7db); outline-offset: 1px; }
+.ll-idx-star[aria-pressed='true'] { color: #ffd166; }
+
+/* Grid: the same three lines in the same card, the thumbnail above them, actions in the top corner. */
+.ll-idx-list--grid .ll-idx-main { flex-direction: column; align-items: stretch; gap: 8px; padding: 10px 10px 12px 12px; }
+.ll-idx-list--grid .ll-idx-thumb { width: 100%; }
+.ll-idx-list--grid .ll-idx-title { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow-wrap: break-word; }
+.ll-idx-list--grid .ll-idx-actions { position: absolute; top: 4px; right: 4px; padding: 0; }
+.ll-idx-list--grid .ll-idx-row:has(.ll-idx-thumb) .ll-idx-actions { top: 14px; right: 14px; border-radius: 50%; background: rgba(8, 13, 16, .66); }
+
+@media (prefers-reduced-motion: reduce) { .ll-idx-row { transition: none; } }
