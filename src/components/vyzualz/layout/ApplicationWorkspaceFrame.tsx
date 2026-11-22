@@ -1,4 +1,4 @@
-import { createContext, useContext, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createContext, lazy, Suspense, useContext, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import type { AppView } from '../appView'
@@ -12,6 +12,9 @@ import { isMobileAppPreviewFrame } from './mobileAppPreview'
 import { LayoutLabModal } from '../react/LayoutLabModal'
 import { VyzualzSidebar } from '../VyzualzSidebar'
 import { FloatingWorkspaceFrame, WorkspaceRegion, WorkspaceSurface } from './FloatingWorkspace'
+
+// Development only: the app-level review notes button in the middle of the header (see docs/review-notes.md). In a production build `import.meta.env.DEV` is false, so this and the module it imports are removed.
+const AppReviewNotes = import.meta.env.DEV ? lazy(() => import('../../../dev/reviewNotes/AppReviewNotes').then(module => ({ default: module.AppReviewNotes }))) : null
 
 /**
  * The frame's header slot. The slot is the same object for the frame's whole life, and a feature finds the header element through it when it mounts,
@@ -98,6 +101,7 @@ export function ApplicationWorkspaceFrame({
                   </div>}
                 </div>
                 <div ref={headerRef} className="fw-app-header-controls" data-app-header-slot="controls" />
+                {AppReviewNotes && <div className="fw-app-header-center"><Suspense fallback={null}><AppReviewNotes page={{ id: appView, label: APP_VIEW_LABELS[appView] }} /></Suspense></div>}
               </div>
             </WorkspaceSurface>
           </WorkspaceRegion>

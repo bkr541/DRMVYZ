@@ -16,10 +16,10 @@ if (command === 'list') {
   for (const { fileName, file } of entries) {
     const notes = file.notes.filter(note => all || note.status === 'open')
     if (!notes.length) continue
-    console.log(`\n## ${file.presetName}  [${file.engine}]  ${file.presetId}\n   .review-notes/${fileName}`)
+    console.log(`\n## ${file.presetName}  [${file.engine === 'app' ? 'app page' : file.engine}]  ${file.presetId}\n   .review-notes/${fileName}`)
     for (const note of notes) {
       shown++
-      console.log(`\n- ${note.id} [${note.status}] ${note.createdAt}`)
+      console.log(`\n- ${note.id} [${note.status}]${note.kind ? ` [${note.kind}]` : ''} ${note.createdAt}${note.area ? `  area: ${note.area}` : ''}`)
       console.log(note.text.trim().split('\n').map(line => `    ${line}`).join('\n'))
       if (note.screenshot) console.log(`    screenshot: ${note.screenshot}`)
       if (note.resolution) console.log(`    resolved: ${note.resolution}`)

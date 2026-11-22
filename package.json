@@ -154,6 +154,7 @@
     "fake-indexeddb": "^6.2.4",
     "globals": "^17.7.0",
     "gltf-validator": "^2.0.0-dev.3.10",
+    "html-to-image": "^1.11.13",
     "jsdom": "^29.1.1",
     "meshoptimizer": "~1.2.0",
     "sharp": "^0.35.5",

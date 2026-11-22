@@ -1,48 +1,31 @@
-import type { ReviewNote, ReviewNoteStatus } from './reviewNotesFormat'
+import type { ReviewNote, ReviewNoteKind, ReviewNoteStatus } from './reviewNotesFormat'
 
 /** Browser side of the dev-only review notes endpoints (mounted by the Vite plugin; see docs/review-notes.md). */
 const ROUTE = '/__review-notes'
 const headers = { 'content-type': 'application/json', 'x-review-notes': '1' }
 
-async function request(path: string, init: RequestInit = {}): Promise<ReviewNote[]> {
+async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(`${ROUTE}${path}`, { ...init, headers: { ...headers, ...init.headers } })
-  let body: { notes?: ReviewNote[]; error?: string } = {}
+  let body: { error?: string } = {}
   try { body = await response.json() as typeof body } catch { /* not JSON */ }
   if (!response.ok) throw new Error(body.error ?? `The review notes server said ${response.status}.`)
-  return body.notes ?? []
+  return body as T
 }
 
-export interface ReviewNotePreset { engine: string; presetId: string; presetName: string }
-const query = ({ engine, presetId }: ReviewNotePreset) => `?engine=${encodeURIComponent(engine)}&presetId=${encodeURIComponent(presetId)}`
+/** Where a note belongs: a preset (its engine and id), a page of the app (`engine: 'app'`, the page's id) or the whole app (`app` / `general`). */
+export interface ReviewNotePlace { engine: string; presetId: string; presetName: string }
+export interface ReviewNotesEntry extends ReviewNotePlace { notes: ReviewNote[] }
+const query = ({ engine, presetId }: ReviewNotePlace) => `?engine=${encodeURIComponent(engine)}&presetId=${encodeURIComponent(presetId)}`
 
 export const reviewNotesClient = {
-  list: (preset: ReviewNotePreset) => request(`/notes${query(preset)}`),
-  add: (preset: ReviewNotePreset, text: string, screenshot: string | null, context: Record<string, unknown>) =>
-    request('/notes', { method: 'POST', body: JSON.stringify({ ...preset, text, context, ...(screenshot ? { screenshot } : {}) }) }),
-  setStatus: (preset: ReviewNotePreset, id: string, status: ReviewNoteStatus) =>
-    request(`/notes/${encodeURIComponent(id)}/status`, { method: 'POST', body: JSON.stringify({ ...preset, status }) }),
-  remove: (preset: ReviewNotePreset, id: string) => request(`/notes/${encodeURIComponent(id)}${query(preset)}`, { method: 'DELETE' }),
+  /** Every place that has notes, with its notes. */
+  listAll: async (): Promise<ReviewNotesEntry[]> => (await call<{ entries: ReviewNotesEntry[] }>('/all')).entries,
+  add: async (place: ReviewNotePlace, text: string, extra: { kind?: ReviewNoteKind; area?: string; screenshot?: string | null; context: Record<string, unknown> }): Promise<void> => {
+    await call('/notes', { method: 'POST', body: JSON.stringify({ ...place, text, kind: extra.kind, area: extra.area, context: extra.context, ...(extra.screenshot ? { screenshot: extra.screenshot } : {}) }) })
+  },
+  setStatus: async (place: ReviewNotePlace, id: string, status: ReviewNoteStatus): Promise<void> => {
+    await call(`/notes/${encodeURIComponent(id)}/status`, { method: 'POST', body: JSON.stringify({ ...place, status }) })
+  },
+  remove: async (place: ReviewNotePlace, id: string): Promise<void> => { await call(`/notes/${encodeURIComponent(id)}${query(place)}`, { method: 'DELETE' }) },
   screenshotUrl: (path: string) => `${ROUTE}/screenshots/${path.split('/').pop()}`,
-}
-
-/**
- * A still of a canvas. A WebGL canvas only keeps its picture until the browser shows it, so the copy is made in the next animation frame, after the stage has drawn
- * the frame for that tick (its own frame callback was queued first) and before the picture is presented. Scaled down to at most `maxWidth` wide. Resolves null if
- * the canvas cannot be read.
- */
-export function captureCanvasStill(canvas: HTMLCanvasElement, maxWidth = 1600): Promise<string | null> {
-  return new Promise(resolve => {
-    requestAnimationFrame(() => {
-      try {
-        if (!canvas.width || !canvas.height) { resolve(null); return }
-        const scale = Math.min(1, maxWidth / canvas.width)
-        const copy = document.createElement('canvas')
-        copy.width = Math.max(1, Math.round(canvas.width * scale)); copy.height = Math.max(1, Math.round(canvas.height * scale))
-        const context = copy.getContext('2d')
-        if (!context) { resolve(null); return }
-        context.drawImage(canvas, 0, 0, copy.width, copy.height)
-        resolve(copy.toDataURL('image/png'))
-      } catch { resolve(null) }
-    })
-  })
 }

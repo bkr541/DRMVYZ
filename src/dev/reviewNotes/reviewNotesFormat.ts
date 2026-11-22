@@ -5,6 +5,14 @@
  * Each note has a readable body and one machine-readable line, `<!-- note: {json} -->`; that line is the source of truth when the file is read back.
  */
 export type ReviewNoteStatus = 'open' | 'done'
+/** What a note is about: a bug to fix, a gap (something missing), a change to something that exists, or an idea. */
+export const REVIEW_NOTE_KINDS = ['bug', 'gap', 'change', 'idea'] as const
+export type ReviewNoteKind = typeof REVIEW_NOTE_KINDS[number]
+export const REVIEW_NOTE_KIND_LABELS: Readonly<Record<ReviewNoteKind, string>> = { bug: 'Bug', gap: 'Gap', change: 'Change', idea: 'Idea' }
+export const isReviewNoteKind = (value: unknown): value is ReviewNoteKind => (REVIEW_NOTE_KINDS as readonly unknown[]).includes(value)
+/** The `engine` of a note about a page or the whole app, not a preset. Its `presetId` is the page (`media`, `admin`, ...) or `general`. */
+export const REVIEW_NOTES_APP_ENGINE = 'app'
+export const REVIEW_NOTES_MAX_AREA = 120
 
 export interface ReviewNote {
   id: string
@@ -12,6 +20,9 @@ export interface ReviewNote {
   createdAt: string
   updatedAt?: string
   text: string
+  kind?: ReviewNoteKind
+  /** Where in the page the note is about, in the writer's words ("upload modal", "header"). */
+  area?: string
   /** Path of the attached screenshot, relative to the repository root. */
   screenshot?: string
   /** What the screen was showing when the note was written (engine, playing, tempo, canvas size, the preset's control values). */
@@ -67,6 +78,7 @@ function renderNote(note: ReviewNote): string {
     note.text.trim(),
     '',
   ]
+  if (note.kind || note.area) lines.push(`Type: ${[note.kind ? REVIEW_NOTE_KIND_LABELS[note.kind] : null, note.area ? `Area: ${note.area}` : null].filter(Boolean).join(' · ')}`, '')
   if (note.screenshot) lines.push(`Screenshot: \`${note.screenshot}\``, '')
   const context = contextLine(note.context)
   if (context) lines.push(`Context: ${context}`, '')
@@ -104,6 +116,8 @@ export function parseReviewNotes(markdown: string): ReviewNotesFile | null {
       notes.push({
         id: value.id, status: value.status, createdAt: value.createdAt, text: value.text,
         ...(typeof value.updatedAt === 'string' ? { updatedAt: value.updatedAt } : {}),
+        ...(isReviewNoteKind(value.kind) ? { kind: value.kind } : {}),
+        ...(typeof value.area === 'string' && value.area.trim() ? { area: value.area.trim().slice(0, REVIEW_NOTES_MAX_AREA) } : {}),
         ...(typeof value.screenshot === 'string' ? { screenshot: value.screenshot } : {}),
         ...(value.context && typeof value.context === 'object' ? { context: value.context } : {}),
         ...(typeof value.resolution === 'string' ? { resolution: value.resolution } : {}),
@@ -112,6 +126,9 @@ export function parseReviewNotes(markdown: string): ReviewNotesFile | null {
   }
   return { engine: meta.engine, presetId: meta.presetId, presetName: typeof meta.presetName === 'string' ? meta.presetName : meta.presetId, notes }
 }
+
+/** How a file's place reads: a preset by its name, a page or the whole app marked as the app. */
+export const placeLabel = (file: ReviewNotesFile): string => file.engine === REVIEW_NOTES_APP_ENGINE ? `${file.presetName} (app)` : file.presetName
 
 export interface ReviewNotesIndexEntry { fileName: string; file: ReviewNotesFile }
 
@@ -138,14 +155,14 @@ export function renderReviewNotesIndex(entries: readonly ReviewNotesIndexEntry[]
   if (!withOpen.length) lines.push('Nothing open.', '')
   for (const { fileName, file } of withOpen) {
     const open = file.notes.filter(note => note.status === 'open')
-    lines.push(`### ${file.presetName} — ${open.length} open (\`${fileName}\`)`, '')
+    lines.push(`### ${placeLabel(file)} — ${open.length} open (\`${fileName}\`)`, '')
     for (const note of open) {
       const first = note.text.trim().split('\n')[0]!.slice(0, 120)
-      lines.push(`- \`${note.id}\` ${first}${note.screenshot ? ' 📎' : ''}`)
+      lines.push(`- \`${note.id}\`${note.kind ? ` [${note.kind}]` : ''} ${first}${note.area ? ` (${note.area})` : ''}${note.screenshot ? ' 📎' : ''}`)
     }
     lines.push('')
   }
   const finished = entries.filter(entry => !withOpen.includes(entry))
-  if (finished.length) lines.push('## No open notes', '', ...finished.map(({ fileName, file }) => `- ${file.presetName} (\`${fileName}\`): ${file.notes.length} done`), '')
+  if (finished.length) lines.push('## No open notes', '', ...finished.map(({ fileName, file }) => `- ${placeLabel(file)} (\`${fileName}\`): ${file.notes.length} done`), '')
   return lines.join('\n')
 }

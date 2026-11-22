@@ -118,8 +118,8 @@ import { resolveBrandedReactPreset } from '../../../features/personalization/res
 import { subscribePixGridWorkspace } from './pixGrid/PixGridWorkspaceNavigation'
 import '../../../styles/reactView.css'
 
-// Development only: the floating review notes button (see docs/review-notes.md). In a production build `import.meta.env.DEV` is false, so this and the module it imports are removed.
-const ReviewNotesButton = import.meta.env.DEV ? lazy(() => import('../../../dev/reviewNotes/ReviewNotesButton').then(module => ({ default: module.ReviewNotesButton }))) : null
+// Development only: tells the app-level review notes which preset is on stage (see docs/review-notes.md). In a production build `import.meta.env.DEV` is false, so this and the module it imports are removed.
+const ReviewNotesScene = import.meta.env.DEV ? lazy(() => import('../../../dev/reviewNotes/ReviewNotesScene').then(module => ({ default: module.ReviewNotesScene }))) : null
 import {
   CANVAS_OUTPUT_AVAILABLE,
   isCanvasOutputAvailable,
@@ -951,9 +951,9 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager, onOpenPreset
               </div>
             )}
             {laserDmxAuthoringOverlayVisibility.showBeamMatrixEditor && <LaserDmxBeamMatrixEditorOverlay />}
-            {ReviewNotesButton && (
+            {ReviewNotesScene && (
               <Suspense fallback={null}>
-                <ReviewNotesButton engine={activeReactEngineId} presetId={reviewNotesPresetId} presetName={activeEnginePresetName ?? reviewNotesPresetId ?? ''} canvas={outputCanvas} getContext={getReviewNotesContext} />
+                <ReviewNotesScene engine={activeReactEngineId} presetId={reviewNotesPresetId} presetName={activeEnginePresetName ?? reviewNotesPresetId ?? ''} getContext={getReviewNotesContext} />
               </Suspense>
             )}
           </div>

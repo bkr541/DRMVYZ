@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { join } from 'node:path'
 import type { Plugin } from 'vite'
-import { REVIEW_NOTES_SCREENSHOT_DIR } from './reviewNotesFormat.ts'
+import { REVIEW_NOTES_SCREENSHOT_DIR, isReviewNoteKind } from './reviewNotesFormat.ts'
 import { ReviewNotesStore } from './reviewNotesStore.ts'
 
 export const REVIEW_NOTES_ROUTE = '/__review-notes'
@@ -32,7 +32,8 @@ const text = (value: unknown) => typeof value === 'string' ? value : ''
 
 /**
  * The request handler behind the review notes panel. Development only: it is mounted by the Vite plugin below, which only exists in `vite serve`.
- *   GET    /__review-notes/notes?engine=&presetId=       the notes for one preset
+ *   GET    /__review-notes/notes?engine=&presetId=       the notes for one place (a preset, a page of the app, or the whole app)
+ *   GET    /__review-notes/all                           every place that has notes, with its notes
  *   POST   /__review-notes/notes                         add a note (text, optional screenshot data URL and context)
  *   POST   /__review-notes/notes/:id/status              mark a note open or done
  *   DELETE /__review-notes/notes/:id?engine=&presetId=   remove a note
@@ -57,6 +58,10 @@ export function createReviewNotesHandler(root: string) {
         if (!engine || !presetId) { send(res, 400, { error: 'engine and presetId are required.' }); return true }
         send(res, 200, { notes: (await store.read(engine, presetId))?.notes ?? [] }); return true
       }
+      if (route === '/all' && req.method === 'GET') {
+        const entries = (await store.readAll()).map(({ file }) => ({ engine: file.engine, presetId: file.presetId, presetName: file.presetName, notes: file.notes }))
+        send(res, 200, { entries }); return true
+      }
       if (route === '/notes' && req.method === 'POST') {
         const body = await readBody(req)
         const bodyEngine = text(body['engine']), bodyPreset = text(body['presetId'])
@@ -66,6 +71,7 @@ export function createReviewNotesHandler(root: string) {
         const context = body['context'] && typeof body['context'] === 'object' && !Array.isArray(body['context']) ? body['context'] as Record<string, unknown> : undefined
         const file = await store.add({
           engine: bodyEngine, presetId: bodyPreset, presetName: text(body['presetName']) || bodyPreset, text: text(body['text']),
+          ...(isReviewNoteKind(body['kind']) ? { kind: body['kind'] } : {}), ...(text(body['area']).trim() ? { area: text(body['area']) } : {}),
           ...(context ? { context } : {}),
           ...(image ? { screenshot: { bytes: Buffer.from(image[2]!, 'base64'), extension: image[1] === 'jpeg' ? 'jpg' as const : image[1] as 'png' | 'webp' } } : {}),
         })

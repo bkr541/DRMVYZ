@@ -4,10 +4,17 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Review Notes Fixture</title>
-    <style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#060d10}#wrap{position:relative;width:1280px;height:720px;background:#060d10;overflow:hidden}canvas{display:block;width:100%;height:100%}</style>
+    <style>
+      html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#123456;font-family:sans-serif}
+      #header{position:relative;height:56px;background:#0b1012;color:#fff;display:flex;align-items:center;padding:0 16px}
+      .fw-app-header-center{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:6;display:flex}
+      #stage-wrap{position:relative;width:640px;height:360px;margin:24px}canvas{display:block;width:100%;height:100%}
+      #label{position:absolute;left:20px;top:20px;width:200px;height:60px;background:#00aa44;color:#fff;font:700 20px/60px sans-serif;text-align:center}
+    </style>
   </head>
   <body>
-    <div id="wrap" class="rv-canvas-wrap"><canvas id="stage" width="1280" height="720"></canvas><div id="notes-host" style="position:absolute;inset:0;pointer-events:none"></div></div>
+    <div id="header"><span>Fixture header</span><div class="fw-app-header-center" id="header-center"></div></div>
+    <div id="stage-wrap"><canvas id="stage" width="640" height="360"></canvas><div id="label">OVER THE STAGE</div></div>
     <script type="module" src="./ReviewNotesFixture.tsx"></script>
   </body>
 </html>

@@ -68,6 +68,7 @@
 }
 
 [data-workspace-layout='floating'] .fw-app-header-inner {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--fw-region-gap);

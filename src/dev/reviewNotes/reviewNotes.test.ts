@@ -12,7 +12,7 @@ const file = (): ReviewNotesFile => ({
   engine: 'cinema2', presetId: 'drmvyz.cinema2.inertia', presetName: 'Inertia',
   notes: [
     { id: 'n_one', status: 'open', createdAt: '2026-11-22T10:15:00.000Z', text: 'Make the core rotate faster.\n\n### Note: with a heading --> and <!-- a comment', context: { playing: true, bpm: 120.4, canvas: { width: 1280, height: 720 } } },
-    { id: 'n_two', status: 'done', createdAt: '2026-11-22T11:00:00.000Z', text: 'Dust is too faint.', screenshot: '.review-notes/screenshots/n_two.png', resolution: 'Raised the dust gain.' },
+    { id: 'n_two', status: 'done', createdAt: '2026-11-22T11:00:00.000Z', text: 'Dust is too faint.', kind: 'bug', area: 'dust layer', screenshot: '.review-notes/screenshots/n_two.png', resolution: 'Raised the dust gain.' },
   ],
 })
 
@@ -24,6 +24,7 @@ describe('review notes format', () => {
     expect(markdown).toContain('### [open] n_one')
     expect(markdown).toContain('Make the core rotate faster.')
     expect(markdown).toContain('Context: playing, 120 BPM, canvas 1280x720')
+    expect(markdown).toContain('Type: Bug · Area: dust layer')
     expect(markdown).toContain('Screenshot: `.review-notes/screenshots/n_two.png`')
     expect(markdown).toContain('Resolved: Raised the dust gain.')
     expect(parseReviewNotes(markdown)).toEqual(file())
@@ -50,6 +51,9 @@ describe('review notes format', () => {
     expect(index).toContain('## Open (1)')
     expect(index).toContain('Inertia — 1 open (`cinema2__a.md`)')
     expect(index).toContain('`n_one` Make the core rotate faster.')
+    const app = { engine: 'app', presetId: 'media', presetName: 'Media Manager', notes: [{ id: 'n_app', status: 'open' as const, createdAt: '2026-11-22T12:00:00.000Z', text: 'Upload loses tags.', kind: 'bug' as const, area: 'upload modal' }] }
+    expect(renderReviewNotesIndex([{ fileName: 'app__media.md', file: app }])).toContain('Media Manager (app) — 1 open (`app__media.md`)')
+    expect(renderReviewNotesIndex([{ fileName: 'app__media.md', file: app }])).toContain('`n_app` [bug] Upload loses tags. (upload modal)')
     expect(index).toContain('npm run review-notes -- done <id>')
     expect(index).toContain('Finished (`cinema2__x.md`): 1 done')
     expect(renderReviewNotesIndex([])).toContain('Nothing open.')
@@ -141,5 +145,23 @@ describe('review notes store and dev endpoints', () => {
     const notes = (await call('GET', `/__review-notes/notes${q}`)).json!.notes!
     expect(notes).toHaveLength(12)
     expect(new Set(notes.map(note => note.id)).size).toBe(12)
+  })
+
+  it('saves a note about a page or the whole app with its type and area, ignores a type it does not know, and lists every place', async () => {
+    const page = { engine: 'app', presetId: 'media', presetName: 'Media Manager' }
+    expect((await call('POST', '/__review-notes/notes', { ...page, text: 'Upload loses tags.', kind: 'bug', area: '  upload modal  ' })).status).toBe(200)
+    expect((await call('POST', '/__review-notes/notes', { engine: 'app', presetId: 'general', presetName: 'General', text: 'No export for shows.', kind: 'gap' })).status).toBe(200)
+    expect((await call('POST', '/__review-notes/notes', { ...preset, text: 'More neon.', kind: 'not-a-kind', area: 'x'.repeat(500) })).status).toBe(200)
+    expect((await readdir(join(root, '.review-notes'))).sort()).toEqual(['INDEX.md', 'app__general.md', 'app__media.md', 'cinema2__drmvyz.cinema2.inertia.md'])
+    const media = await readFile(join(root, '.review-notes/app__media.md'), 'utf8')
+    expect(media).toContain('Type: Bug · Area: upload modal')
+    const all = await call('GET', '/__review-notes/all')
+    const entries = (all.json as unknown as { entries: { engine: string; presetId: string; notes: { kind?: string; area?: string }[] }[] }).entries
+    expect(entries.map(entry => `${entry.engine}:${entry.presetId}`).sort()).toEqual(['app:general', 'app:media', 'cinema2:drmvyz.cinema2.inertia'])
+    expect(entries.find(entry => entry.presetId === 'media')!.notes[0]).toMatchObject({ kind: 'bug', area: 'upload modal' })
+    const unknown = entries.find(entry => entry.engine === 'cinema2')!.notes[0]!
+    expect(unknown.kind).toBeUndefined(); expect(unknown.area!.length).toBe(120)
+    expect(await readFile(join(root, '.review-notes/INDEX.md'), 'utf8')).toContain('Media Manager (app)')
+    expect((await call('GET', '/__review-notes/all', undefined, {})).status).toBe(403)
   })
 })

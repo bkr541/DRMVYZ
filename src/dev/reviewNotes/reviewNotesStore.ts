@@ -2,7 +2,7 @@ import { mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promise
 import { join } from 'node:path'
 import {
   REVIEW_NOTES_DIR, REVIEW_NOTES_MAX_TEXT, REVIEW_NOTES_SCREENSHOT_DIR, newReviewNoteId, parseReviewNotes, renderReviewNotesIndex, reviewNotesSlug, serializeReviewNotes,
-  type ReviewNote, type ReviewNoteStatus, type ReviewNotesFile, type ReviewNotesIndexEntry,
+  REVIEW_NOTES_MAX_AREA, type ReviewNote, type ReviewNoteKind, type ReviewNoteStatus, type ReviewNotesFile, type ReviewNotesIndexEntry,
 } from './reviewNotesFormat.ts'
 
 /** Reads and writes the review notes folder under a repository root. Used by the dev server and by the command line tool. */
@@ -47,7 +47,7 @@ export class ReviewNotesStore {
     await writeFile(join(this.dir, 'INDEX.md'), renderReviewNotesIndex(await this.readAll()), 'utf8')
   }
 
-  add(input: { engine: string; presetId: string; presetName: string; text: string; context?: Record<string, unknown>; screenshot?: { bytes: Buffer; extension: 'png' | 'webp' | 'jpg' } }): Promise<ReviewNotesFile> {
+  add(input: { engine: string; presetId: string; presetName: string; text: string; kind?: ReviewNoteKind; area?: string; context?: Record<string, unknown>; screenshot?: { bytes: Buffer; extension: 'png' | 'webp' | 'jpg' } }): Promise<ReviewNotesFile> {
     return this.serial(async () => {
       const text = input.text.trim()
       if (!text) throw new Error('A note needs some text.')
@@ -55,7 +55,8 @@ export class ReviewNotesStore {
       const id = newReviewNoteId()
       const file = await this.read(input.engine, input.presetId) ?? { engine: input.engine, presetId: input.presetId, presetName: input.presetName, notes: [] }
       file.presetName = input.presetName || file.presetName
-      const note: ReviewNote = { id, status: 'open', createdAt: new Date().toISOString(), text, ...(input.context ? { context: input.context } : {}) }
+      const area = input.area?.trim().slice(0, REVIEW_NOTES_MAX_AREA)
+      const note: ReviewNote = { id, status: 'open', createdAt: new Date().toISOString(), text, ...(input.kind ? { kind: input.kind } : {}), ...(area ? { area } : {}), ...(input.context ? { context: input.context } : {}) }
       if (input.screenshot) {
         await mkdir(join(this.root, REVIEW_NOTES_SCREENSHOT_DIR), { recursive: true })
         note.screenshot = `${REVIEW_NOTES_SCREENSHOT_DIR}/${id}.${input.screenshot.extension}`
