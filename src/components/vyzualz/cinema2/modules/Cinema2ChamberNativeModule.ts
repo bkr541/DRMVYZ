@@ -21,6 +21,25 @@ export type ChamberFamily = 'ring' | 'ticks' | 'beacons' | 'lamps' | 'core'
 const FAMILY_PALETTE: Record<ChamberFamily, ChamberPaletteName> = { ring: 'ringColor', ticks: 'tickColor', beacons: 'beaconColor', lamps: 'lampColor', core: 'coreColor' }
 const FAMILY_GAIN: Record<ChamberFamily, string> = { ring: 'ringLight', ticks: 'tickLight', beacons: 'beaconLight', lamps: 'lampLight', core: 'coreLight' }
 const TRANSITION_BEATS = 2
+/** The scene module's neutral stand-in for "no model chosen": with none chosen the middle of the chamber is empty, exactly as the model has it. */
+const DEFAULT_MODEL_ASSET_ID = 'user-model-default'
+/**
+ * Where the chosen model stands, in world space (the chamber's floor is near y = 0): the middle of the mechanical structure, between the platform (its top is at about
+ * y = 0.8) and the lamp under the device (about y = 5.2), clear of the arms. `MODEL_EXTENT` is its longest side at Model Size 1, so it fits between them with room to move.
+ */
+const MODEL_CENTER = [0, 3.1, 0] as const
+const MODEL_EXTENT = 2.6
+/** The light on the model: where it stands in the world (in front of and a little above the model), how far it reaches, and its colour. It belongs to the model, so with none chosen there is no light. */
+const MODEL_LIGHT = { position: [.6, 3.6, 3.6] as const, range: 6.5, color: [.78, .92, 1] as const }
+/**
+ * How far the model moves inside the chamber, at Model Tilt 1 and Model Drift 1. It floats and leans like something held in the structure: it never turns right
+ * round. Periods are in beats and share no common factor, so the motion does not repeat quickly.
+ */
+export const CHAMBER_MODEL_MOTION = {
+  yaw: .42, pitch: .12, roll: .16, x: .16, y: .14, z: .12,
+  periods: { yaw: 16, pitch: 9, roll: 12, x: 11, y: 7, z: 13 },
+  kickNod: .09, kickLift: .06, kickSwell: .03,
+} as const
 /** The device's two arms hang from ceiling brackets at about this distance either side of the platform's centre, 7.9 above the ring. Triangles in these boxes (relative to the ring's centre) belong to an arm. */
 const ARM_REGION = { minX: 1.25, maxX: 3.2, minY: 4.85, maxY: 8.05, maxZ: 2.2, pivotX: 1.55, pivotY: 7.9 } as const
 interface Arm { pivot: THREE.Group; swingAxis: THREE.Vector3; twistAxis: THREE.Vector3 }
@@ -63,10 +82,22 @@ export class Cinema2ChamberController {
   private authoredPattern: Cinema2ChamberPattern | null = null
   private editRevision: number | null = null
   private levels: ChamberLevels | null = null
+  private userRoot: THREE.Object3D | null = null
+  private userBase: THREE.Matrix4 | null = null
+  private userLight: THREE.PointLight | null = null
+  private readonly placement: THREE.Matrix4
+  private readonly scratch: { position: THREE.Vector3; rotation: THREE.Quaternion; scale: THREE.Vector3; euler: THREE.Euler; light: THREE.Matrix4 }
+  private modelPose: { position: [number, number, number]; yaw: number; pitch: number; roll: number; scale: number } | null = null
 
-  constructor(private readonly library: Cinema2ThreeLibrary) {}
+  constructor(private readonly library: Cinema2ThreeLibrary) {
+    const { THREE } = library
+    this.placement = new THREE.Matrix4()
+    this.scratch = { position: new THREE.Vector3(), rotation: new THREE.Quaternion(), scale: new THREE.Vector3(), euler: new THREE.Euler(), light: new THREE.Matrix4() }
+  }
 
-  attach(root: THREE.Object3D): void {
+  /** The chamber, or (with `userModel`) the model chosen in the Source tab, which is placed in the middle of the chamber by `placeUserModel`. */
+  attach(root: THREE.Object3D, userModel?: boolean, _clips?: readonly THREE.AnimationClip[], assetId?: string): void {
+    if (userModel) { this.attachUserModel(root, assetId); return }
     const { THREE } = this.library
     root.updateMatrixWorld(true)
     const meshes = new Map<string, THREE.Mesh[]>()
@@ -174,6 +205,58 @@ export class Cinema2ChamberController {
     }
   }
 
+  private attachUserModel(model: THREE.Object3D, assetId?: string): void {
+    if (assetId === DEFAULT_MODEL_ASSET_ID) { model.visible = false; return }
+    // The model is normalized by its loader (centered, longest side 2); that local transform is kept, and the placement is applied on top of it every frame.
+    model.updateMatrix()
+    this.userBase = model.matrix.clone()
+    model.matrixAutoUpdate = false
+    this.userRoot = model
+    // The light is the model's own, so the empty chamber is never lit by it; it is positioned in world space (see placeUserModel). Same intensity mapping as the manifest lights.
+    const { THREE } = this.library
+    const light = new THREE.PointLight(0xffffff, 0, MODEL_LIGHT.range, 2)
+    light.name = 'chamber-model-light'; light.color.setRGB(...MODEL_LIGHT.color, THREE.SRGBColorSpace); light.matrixAutoUpdate = false
+    model.add(light); this.userLight = light
+  }
+
+  detach(model: THREE.Object3D): void {
+    if (this.userRoot !== model) return
+    this.userLight?.removeFromParent(); this.userLight = null
+    this.userRoot = null; this.userBase = null; this.modelPose = null
+  }
+
+  /** Where the model is now: its place in the middle of the chamber, a slow float about it, a lean and a limited turn, and a small nod and lift on the kick. */
+  private placeUserModel(): void {
+    const model = this.userRoot, base = this.userBase
+    if (!model || !base) return
+    const motion = CHAMBER_MODEL_MOTION
+    const tilt = this.number('modelTilt', 1, 0, 1.5), drift = this.number('modelDrift', 1, 0, 1.5), size = this.number('modelSize', 1, .5, 1.5)
+    const wave = (period: number, phase: number) => Math.sin(this.beats * Math.PI * 2 / period + phase)
+    const kick = this.number('scoreAmount', .5, 0, 1) * this.number('cueModel', 0, 0, 1)
+    const position: [number, number, number] = [
+      MODEL_CENTER[0] + motion.x * drift * wave(motion.periods.x, 0),
+      MODEL_CENTER[1] + motion.y * drift * wave(motion.periods.y, 1.3) + .04 * drift * wave(3.1, 0) + motion.kickLift * drift * kick,
+      MODEL_CENTER[2] + motion.z * drift * wave(motion.periods.z, 2.4),
+    ]
+    const yaw = motion.yaw * tilt * wave(motion.periods.yaw, 1.1), pitch = motion.pitch * tilt * wave(motion.periods.pitch, .4) - motion.kickNod * tilt * kick, roll = motion.roll * tilt * wave(motion.periods.roll, 2.1)
+    const scale = size * MODEL_EXTENT / 2 * (1 + motion.kickSwell * kick)
+    this.modelPose = { position, yaw, pitch, roll, scale }
+    this.placement.compose(
+      this.scratch.position.set(...position),
+      this.scratch.rotation.setFromEuler(this.scratch.euler.set(pitch, yaw, roll, 'YXZ')),
+      this.scratch.scale.setScalar(scale),
+    )
+    model.matrix.copy(this.placement).multiply(base)
+    model.matrixWorldNeedsUpdate = true
+    const light = this.userLight
+    if (light) {
+      // A light with a fixed place in the world, whatever the model does: undo the model's own transform, then place it.
+      light.intensity = this.number('modelLight', .5, 0, 1.5) * Math.PI * (MODEL_LIGHT.range * .5) ** 2
+      light.matrix.copy(model.matrix).invert().multiply(this.scratch.light.makeTranslation(...MODEL_LIGHT.position))
+      light.matrixWorldNeedsUpdate = true
+    }
+  }
+
   private makeCell(family: ChamberFamily, index: number, material: THREE.MeshStandardMaterial, mesh: THREE.Mesh | null = null): Cell {
     return { family, index, mesh, material, color: material.color.clone(), emissive: material.emissive.clone(), intensity: material.emissiveIntensity,
       peak: Math.max(material.emissive.r, material.emissive.g, material.emissive.b, 1e-6), colorPeak: Math.max(material.color.r, material.color.g, material.color.b) }
@@ -250,6 +333,7 @@ export class Cinema2ChamberController {
       if (changed) cell.material.color.copy(color).multiplyScalar(cell.colorPeak); else cell.material.color.copy(cell.color)
       cell.material.emissiveIntensity = cell.intensity * master * gains[cell.family] * (level + cue[cell.family] * score * 1.2)
     }
+    this.placeUserModel()
   }
 
   private number(name: string, fallback: number, min: number, max: number): number {
@@ -264,13 +348,15 @@ export class Cinema2ChamberController {
 
   inspect(): Readonly<Record<string, unknown>> {
     const count = (family: ChamberFamily) => this.cells.filter(cell => cell.family === family).length
-    return { source: 'dark-chamber.glb', arms: this.arms.length, ...this.policy.inspect(), performanceOverride: this.overrideReason, pattern: this.pattern, beats: this.beats, cells: { ring: count('ring'), ticks: count('ticks'), beacons: count('beacons'), lamps: count('lamps'), core: count('core') }, levels: this.levels }
+    return { source: 'dark-chamber.glb', arms: this.arms.length, modelPlaced: this.userRoot != null, modelPose: this.modelPose, modelLight: this.userLight?.intensity ?? null, ...this.policy.inspect(), performanceOverride: this.overrideReason, pattern: this.pattern, beats: this.beats, cells: { ring: count('ring'), ticks: count('ticks'), beacons: count('beacons'), lamps: count('lamps'), core: count('core') }, levels: this.levels }
   }
 
   dispose(): void {
     for (const mesh of this.hidden) mesh.visible = true
     for (const arm of this.arms) arm.pivot.removeFromParent()
     this.arms.length = 0
+    this.userLight?.removeFromParent(); this.userLight = null
+    this.userRoot = null; this.userBase = null; this.modelPose = null
     this.ownedGeometry.forEach(geometry => geometry.dispose()); this.ownedMaterial.forEach(material => material.dispose())
     this.ownedGeometry.length = 0; this.ownedMaterial.length = 0; this.cells.length = 0; this.hidden.length = 0
     this.clock.reset(); this.selection.reset(); this.policy.reset(); this.performance.reset(); this.triggerClock.reset(); this.params = null

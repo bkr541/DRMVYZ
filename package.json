@@ -64,6 +64,7 @@
     "test:e2e:cinema2-paradox-weave": "node scripts/run-cinema2-paradox-weave-browser.mjs",
     "review-notes": "node scripts/review-notes.mjs",
     "test:e2e:review-notes": "node scripts/run-review-notes-browser.mjs",
+    "test:e2e:chamber-model": "node scripts/run-chamber-model-browser.mjs",
     "test:e2e:cinema2-inertia-elements": "node scripts/run-cinema2-inertia-elements-browser.mjs",
     "test:e2e:cinema2-space-boi": "node scripts/run-cinema2-space-boi-browser.mjs",
     "test:e2e:pix-grid-deck-preset-manager": "node scripts/run-pix-grid-deck-preset-manager-browser.mjs",

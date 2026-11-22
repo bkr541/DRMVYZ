@@ -21,6 +21,9 @@ export function findCinema2UserModelParameter(manifest: Readonly<Cinema2NativePr
   return null
 }
 
+/** Presets whose model slot is part of the preset itself: the model is chosen from the library and replaced by choosing another, with no "Remove model" or media shortcuts. */
+const PRESETS_WITH_A_FIXED_MODEL_SLOT: ReadonlySet<string> = new Set(['drmvyz.cinema2.crate-bass-sigil', 'drmvyz.cinema2.chamber'])
+
 interface PinnedModel { asset: ModelAsset; version: number }
 
 /**
@@ -29,7 +32,7 @@ interface PinnedModel { asset: ModelAsset; version: number }
  */
 export function Cinema2ModelSourcePanel({ runtime, parameterId, onOpenMediaManager }: { runtime: Cinema2Runtime; parameterId: Cinema2ParameterId; onOpenMediaManager?: () => void }) {
   const presetId = runtime.getCompiledPresetPlan().presetId, previewPrefix = 'drmvyz.cinema2.user-model-'
-  const showSelectionControls = presetId !== 'drmvyz.cinema2.crate-bass-sigil' && !(presetId.startsWith(previewPrefix) && isCinema2UserModelPreview(presetId.slice(previewPrefix.length)))
+  const showSelectionControls = !PRESETS_WITH_A_FIXED_MODEL_SLOT.has(presetId) && !(presetId.startsWith(previewPrefix) && isCinema2UserModelPreview(presetId.slice(previewPrefix.length)))
   const state = runtime.getParameterState()
   const value = useSyncExternalStore(state.subscribe, () => state.getValue(parameterId), () => DEFAULT_MODEL_BINDING)
   const [search, setSearch] = useState(''), [view, setView] = useState<LibraryView>('grid')

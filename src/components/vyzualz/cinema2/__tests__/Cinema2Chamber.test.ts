@@ -369,3 +369,168 @@ describe('CHAMBER device, kick ripple and atmosphere', () => {
     expect(r.named(/^Object_(6|7|10|14|20|21|22)$/).every(mesh => mesh.visible)).toBe(true)
   })
 })
+
+describe('CHAMBER model slot', () => {
+  const library = { THREE } as unknown as Cinema2ThreeLibrary
+  const OFFSET = new THREE.Vector3(0, 438.02, -446.92)
+  const names = ['bpmSync', 'intensity', 'reactivity', 'autoPerformance', 'pattern', 'patternChange', 'trigger', 'armMotion', 'scoreAmount', 'modelSize', 'modelTilt', 'modelDrift', 'modelLight', 'cueModel']
+
+  /** The real chamber, plus a stand-in for a normalized user model (centered, longest side 2, like the loader makes it). */
+  async function rig(controls: Record<string, unknown> = {}, assetId = 'user-model:test:1') {
+    const scene = await loadChamberScene(), controller = new Cinema2ChamberController(library)
+    controller.attach(scene)
+    const model = new THREE.Group(); model.name = 'Cinema2UserModel'
+    const box = new THREE.Mesh(new THREE.BoxGeometry(4, 2, 1), new THREE.MeshStandardMaterial()); model.add(box)
+    model.scale.setScalar(.5)
+    controller.attach(model, true, [], assetId)
+    const values = new Map<string, unknown>([['bpmSync', true], ['intensity', 1], ['armMotion', 1], ['scoreAmount', .5], ['pattern', 'standby'], ['patternChange', false], ['trigger', 'bar4'], ['modelSize', 1], ['modelTilt', 1], ['modelDrift', 1], ['cueModel', 0]])
+    for (const [name, value] of Object.entries(controls)) values.set(name, value)
+    const parameters = { get: (name: string) => values.get(name), getEditRevision: () => 0 }
+    // The beat clock starts at elapsed seconds x 120 BPM / 60, so a frame at beats / 2 seconds places it exactly.
+    const draw = (beats: number) => { controller.update({ frame: { elapsedTimeSec: beats / 2, deltaTimeSec: 0, timestampMs: 0, contextGeneration: 1 }, parameters } as never); controller.beforeDraw(); model.updateMatrixWorld(true) }
+    // Frames that let time pass (0.1 s steps; the first call places the clock exactly), for tests that need the beat position to move.
+    let seconds = 0, stamp = 0, started = false
+    const run = (beats: number) => {
+      const target = beats / 2
+      const frame = (dt: number) => { controller.update({ frame: { elapsedTimeSec: seconds, deltaTimeSec: dt, timestampMs: stamp, contextGeneration: 1 }, parameters } as never); controller.beforeDraw(); model.updateMatrixWorld(true) }
+      if (!started) { started = true; seconds = target; stamp = seconds * 1000; frame(0); return }
+      while (seconds < target - 1e-9) { const dt = Math.min(.1, target - seconds); seconds += dt; stamp += dt * 1000; frame(dt) }
+    }
+    const corners = () => {
+      const geometry = box.geometry as THREE.BoxGeometry; geometry.computeBoundingBox()
+      const b = geometry.boundingBox!
+      return [b.min.x, b.max.x].flatMap(x => [b.min.y, b.max.y].flatMap(y => [b.min.z, b.max.z].map(z => new THREE.Vector3(x, y, z).applyMatrix4(box.matrixWorld))))
+    }
+    const set = (name: string, value: unknown) => values.set(name, value)
+    return { scene, controller, model, draw, run, corners, set, names }
+  }
+
+  it('declares a model slot the way Bass Sigil does: a hidden Model parameter bound as userModel, a slot with no scene node, and three controls', () => {
+    const module = manifest.modules![0]!
+    expect(module.config!.userModel).toEqual({ node: null, neutralFloor: false, spin: false })
+    expect(module.parameterBindings!.userModel).toEqual(cinema2Ref(chamberParameterId('model')))
+    expect(module.parameters!.userModel).toBe('default-model')
+    expect(byLabel('Model')).toMatchObject({ type: 'string', defaultValue: 'default-model', exposure: 'hidden', modulatable: false })
+    expect(byLabel('Model Size')).toMatchObject({ type: 'float', designParentGroup: 'master-controls', defaultValue: 1, min: .5, max: 1.5 })
+    expect(byLabel('Model Tilt')).toMatchObject({ type: 'float', designParentGroup: 'design', group: 'Model', defaultValue: 1, min: 0 })
+    expect(byLabel('Model Drift')).toMatchObject({ type: 'float', designParentGroup: 'design', group: 'Model', defaultValue: 1, min: 0 })
+    for (const name of ['modelSize', 'modelTilt', 'modelDrift']) expect(module.parameterBindings![name]).toEqual(cinema2Ref(chamberParameterId(name)))
+    expect(compileCinema2NativePreset(manifest).ok).toBe(true)
+    // The chamber itself is unchanged: still one instance of its own asset.
+    expect(module.config!.instances).toHaveLength(1)
+  })
+
+  it('leaves the middle empty with no model chosen, and the chamber exactly as it was', async () => {
+    const r = await rig({}, 'user-model-default'); r.draw(3)
+    expect(r.model.visible).toBe(false)
+    expect(r.controller.inspect()).toMatchObject({ modelPlaced: false, modelPose: null, cells: { ring: 12, ticks: 8, beacons: 4, lamps: 6, core: 3 } })
+  })
+
+  it('stands the model in the middle of the structure at the size asked for, between the platform and the lamp under the device', async () => {
+    const r = await rig(); r.draw(4)
+    const box = new THREE.Box3(); for (const corner of r.corners()) box.expandByPoint(corner)
+    const center = box.getCenter(new THREE.Vector3())
+    expect(Math.abs(center.x)).toBeLessThan(.3); expect(Math.abs(center.z)).toBeLessThan(.3); expect(center.y).toBeGreaterThan(2.8); expect(center.y).toBeLessThan(3.4)
+    // The box is 4 x 2 x 1, normalized to a longest side of 2, then set to 2.6: it stands about 2.6 long at the middle of its sway.
+    r.set('modelTilt', 0); r.set('modelDrift', 0); r.draw(5)
+    const still = new THREE.Box3(); for (const corner of r.corners()) still.expandByPoint(corner)
+    expect(still.getSize(new THREE.Vector3()).x).toBeCloseTo(2.6, 3); expect(still.getCenter(new THREE.Vector3()).y).toBeCloseTo(3.1, 3)
+    r.set('modelSize', 1.5); r.draw(5)
+    const large = new THREE.Box3(); for (const corner of r.corners()) large.expandByPoint(corner)
+    expect(large.getSize(new THREE.Vector3()).x).toBeCloseTo(3.9, 3)
+    r.set('modelSize', .5); r.draw(5)
+    const small = new THREE.Box3(); for (const corner of r.corners()) small.expandByPoint(corner)
+    expect(small.getSize(new THREE.Vector3()).x).toBeCloseTo(1.3, 3)
+  })
+
+  it('tilts and moves slightly, never turning right round, and stays inside the structure through a long run of beats', async () => {
+    const chamber = await loadChamberScene(); chamber.updateMatrixWorld(true)
+    const ring = new THREE.Box3(), lamps = new THREE.Box3()
+    chamber.traverse(object => { const mesh = object as THREE.Mesh; if (!mesh.isMesh) return; const material = (mesh.material as THREE.Material).name; if (material === 'turquoise_glow') ring.expandByObject(mesh); if (material === 'White_0') lamps.expandByObject(mesh) })
+    ring.translate(OFFSET); lamps.translate(OFFSET)
+    const platformTop = ring.max.y, lampBottom = lamps.min.y, radius = Math.min(ring.getSize(new THREE.Vector3()).x, ring.getSize(new THREE.Vector3()).z) / 2
+    const r = await rig()
+    let minYaw = Infinity, maxYaw = -Infinity, travel = 0, last: THREE.Vector3 | null = null
+    for (let beats = 0; beats <= 200; beats += .25) {
+      r.run(beats)
+      const pose = r.controller.inspect().modelPose as { position: [number, number, number]; yaw: number; pitch: number; roll: number }
+      minYaw = Math.min(minYaw, pose.yaw); maxYaw = Math.max(maxYaw, pose.yaw)
+      expect(Math.abs(pose.pitch)).toBeLessThan(.15); expect(Math.abs(pose.roll)).toBeLessThan(.17)
+      const here = new THREE.Vector3(...pose.position); if (last) travel = Math.max(travel, here.distanceTo(last)); last = here
+      for (const corner of r.corners()) {
+        expect(corner.y).toBeGreaterThan(platformTop + .3); expect(corner.y).toBeLessThan(lampBottom - .2)
+        expect(Math.hypot(corner.x, corner.z)).toBeLessThan(radius)
+      }
+    }
+    // It leans and turns about 24 degrees either way (it really moves), and never anywhere near a half turn.
+    expect(maxYaw).toBeGreaterThan(.3); expect(minYaw).toBeLessThan(-.3); expect(maxYaw).toBeLessThan(.45); expect(minYaw).toBeGreaterThan(-.45)
+    // And it moves smoothly: no jump between quarter-beat frames.
+    expect(travel).toBeLessThan(.1)
+  })
+
+  it('holds still at Model Tilt 0 and Model Drift 0, and follows each control on its own', async () => {
+    const r = await rig({ modelTilt: 0, modelDrift: 0 })
+    const pose = (beats: number) => { r.run(beats); return JSON.stringify(r.controller.inspect().modelPose) }
+    expect(pose(3)).toBe(pose(11.7))
+    r.set('modelTilt', 1); r.draw(3); const leaned = r.controller.inspect().modelPose as { position: number[]; yaw: number }
+    expect(leaned.yaw).not.toBe(0); expect(leaned.position).toEqual([0, 3.1, 0])
+    r.set('modelTilt', 0); r.set('modelDrift', 1); r.draw(3); const floated = r.controller.inspect().modelPose as { position: number[]; yaw: number; pitch: number; roll: number }
+    expect(floated.yaw).toBeCloseTo(0, 9); expect(floated.pitch).toBeCloseTo(0, 9); expect(floated.roll).toBeCloseTo(0, 9); expect(floated.position).not.toEqual([0, 3.1, 0])
+  })
+
+  it('follows the beat: BPM-locked and the same at any frame rate, and the kick nods and lifts it', async () => {
+    const r = await rig()
+    r.draw(6); const rest = r.controller.inspect().modelPose as { position: number[]; pitch: number; scale: number }
+    r.draw(6); expect(r.controller.inspect().modelPose).toEqual(rest)
+    r.set('cueModel', 1); r.draw(6)
+    const kicked = r.controller.inspect().modelPose as { position: number[]; pitch: number; scale: number }
+    expect(kicked.position[1]).toBeGreaterThan(rest.position[1]! + .01); expect(kicked.pitch).toBeLessThan(rest.pitch - .02); expect(kicked.scale).toBeGreaterThan(rest.scale)
+    // Kick Ripple 0 silences the kick's part (the choreography does not set the cue, and the model ignores it).
+    r.set('scoreAmount', 0); r.draw(6); expect(r.controller.inspect().modelPose).toEqual(rest)
+  })
+
+  it('lets the model be replaced or removed, and takes it away with the controller', async () => {
+    const r = await rig(); r.draw(2)
+    expect(r.controller.inspect().modelPlaced).toBe(true)
+    const before = JSON.stringify(r.controller.inspect().modelPose)
+    r.controller.detach(new THREE.Group()); expect(r.controller.inspect().modelPlaced).toBe(true)
+    r.controller.detach(r.model); expect(r.controller.inspect()).toMatchObject({ modelPlaced: false, modelPose: null })
+    r.draw(3); expect(r.model.matrixAutoUpdate).toBe(false); expect(JSON.stringify(r.controller.inspect().modelPose)).not.toBe(before)
+    const again = await rig(); again.draw(2); again.controller.dispose(); expect(again.controller.inspect().modelPlaced).toBe(false)
+  })
+
+  it('lights the model with a light of its own that stays put while the model moves, and has no light at all with no model', async () => {
+    const lightsIn = (root: THREE.Object3D) => { const found: THREE.PointLight[] = []; root.traverse(object => { if ((object as THREE.PointLight).isPointLight) found.push(object as THREE.PointLight) }); return found }
+    const none = await rig({}, 'user-model-default'); none.draw(3)
+    expect(lightsIn(none.model)).toHaveLength(0); expect(lightsIn(none.scene)).toHaveLength(0); expect(none.controller.inspect().modelLight).toBeNull()
+    const r = await rig(); r.run(2)
+    const worldPosition = () => { const light = lightsIn(r.model)[0]!; r.model.updateMatrixWorld(true); return light.getWorldPosition(new THREE.Vector3()) }
+    expect(lightsIn(r.model)).toHaveLength(1)
+    const first = worldPosition().clone()
+    expect(first.distanceTo(new THREE.Vector3(.6, 3.6, 3.6))).toBeLessThan(1e-4)
+    r.run(40); expect(worldPosition().distanceTo(first)).toBeLessThan(1e-4)
+    // Model Light is the intensity the manifest lights would give it (intensity x pi x (range / 2)^2), and 0 turns it off.
+    const light = lightsIn(r.model)[0]!
+    expect(light.intensity).toBeCloseTo(.5 * Math.PI * 3.25 ** 2, 4); expect(light.distance).toBe(6.5); expect(light.decay).toBe(2)
+    r.set('modelLight', 0); r.run(41); expect(light.intensity).toBe(0)
+    r.set('modelLight', 1.5); r.run(42); expect(light.intensity).toBeCloseTo(1.5 * Math.PI * 3.25 ** 2, 4)
+    r.controller.detach(r.model); expect(lightsIn(r.model)).toHaveLength(0)
+    const again = await rig(); again.draw(1); again.controller.dispose(); expect(lightsIn(again.model)).toHaveLength(0)
+    expect(byLabel('Model Light')).toMatchObject({ type: 'float', designParentGroup: 'design', group: 'Lights', defaultValue: .5, min: 0 })
+    expect(manifest.lighting!.lights.some(entry => String(entry.id).includes('model'))).toBe(false)
+  })
+
+  it('does not disturb the chamber: the glowing cells and arms are the same with a model in the middle', async () => {
+    const r = await rig(); r.draw(3)
+    expect(r.controller.inspect()).toMatchObject({ arms: 2, cells: { ring: 12, ticks: 8, beacons: 4, lamps: 6, core: 3 } })
+    const withoutModel = await loadChamberScene(); const plain = new Cinema2ChamberController(library); plain.attach(withoutModel)
+    expect(plain.inspect().cells).toEqual(r.controller.inspect().cells)
+  })
+
+  it('moves the model with the music: it floats more with energy and a calm passage, and the kick cue is a choreography channel', () => {
+    const rules = manifest.choreography!.rules.map(rule => String(rule.id))
+    expect(rules).toContain('chamber-score-kick-cue-model'); expect(rules).toContain('chamber-energy-model')
+    expect(manifest.modules![0]!.parameters!.cueModel).toBe(0)
+    const drives = JSON.stringify(manifest.choreography!.rules.filter(rule => String(rule.id).includes('mood')).map(rule => rule.id)); expect(drives.length).toBeGreaterThan(2)
+  })
+})

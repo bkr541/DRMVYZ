@@ -6,6 +6,7 @@ import {
   type Cinema2RenderTargetId, type Cinema2SceneNodeId,
 } from '../contracts/Cinema2NativePresetManifest'
 import { CINEMA2_CHAMBER_MODULE_TYPE_ID } from '../modules/Cinema2ChamberNativeModule'
+import { createCinema2UserModelParameter } from '../model/Cinema2UserModelBaseEnvironment'
 import { CHAMBER_PALETTE_DEFAULTS, CHAMBER_PALETTE_NAMES } from '../modules/chamber/Cinema2ChamberPalette'
 import { CINEMA2_CHAMBER_DEFAULT_PATTERN, CINEMA2_CHAMBER_PATTERNS } from '../modules/chamber/Cinema2ChamberPatterns'
 import { CINEMA2_AFTERHOURS_TRIGGER_OPTIONS } from './Cinema2AfterhoursPreset'
@@ -23,7 +24,7 @@ const cameraMode = chamberParameterId('cameraMode')
 const when = (value: string) => [{ kind: 'parameter-equals' as const, parameterId: cameraMode, value }]
 
 /** Authored light levels; the Lights controls start here, so the defaults are the original look. */
-const LIGHTS = { floorPool: .22, deviceGlow: .025, platformGlow: .05, windowSpill: .22, rim: .08, fill: .025 } as const
+const LIGHTS = { floorPool: .22, deviceGlow: .025, platformGlow: .05, windowSpill: .22, rim: .08, fill: .025, modelLight: .5 } as const
 const PALETTE_LABELS = { ringColor: 'Platform Ring', tickColor: 'Floor Ticks', beaconColor: 'Corner Beacons', lampColor: 'Arm Lamps', coreColor: 'Core Lamp' } as const
 const SPILL_COLOR = [0, .65, .9, 1] as const
 const HOME_EYE: Cinema2Vector3 = [0, 3.6, 8], HOME_TARGET: Cinema2Vector3 = [0, 3.8, -.3]
@@ -39,6 +40,7 @@ const PARAMETERS: readonly Cinema2ParameterManifest[] = [
   number('reactivity', 'Audio Reactivity', 'master-controls', .65, 0, 1, 2, undefined, 'How strongly the glow and the lights follow the music. At 0 the music moves nothing.'),
   toggle('zoomOnKick', 'Zoom on Kick', 'master-controls', true, 3, 'On: the lens punches in a little on every kick, then eases back. Only the field of view changes.'),
   toggle('autoPerformance', 'Auto Performance', 'master-controls', false, 4, 'The music runs the show: it moves the controls with the mood of the passage, chooses how often the Pattern changes, and puts Charge Ring on stage for a build and Lockdown Flash for a drop.'),
+  number('modelSize', 'Model Size', 'master-controls', 1, .5, 1.5, 5, undefined, 'How large the model you chose stands in the middle of the chamber. 1 fits it between the platform and the device.'),
   { ...base, id: chamberParameterId('pattern'), label: 'Pattern', type: 'enum', defaultValue: CINEMA2_CHAMBER_DEFAULT_PATTERN, options: CINEMA2_CHAMBER_PATTERNS, designParentGroup: 'design', group: 'Pattern', order: 0,
     description: 'The light program the glowing elements play. Standby is the original, steady look.' },
   { ...toggle('patternChange', 'Pattern Change', 'design', false, 1, 'Advances to the next Pattern each time the Trigger fires.'), group: 'Pattern' },
@@ -51,12 +53,15 @@ const PARAMETERS: readonly Cinema2ParameterManifest[] = [
   number('coreLight', 'Core Lamp', 'design', 1, 0, 2, 4, 'Emission', 'Brightness of the white lamp under the device.'),
   number('armMotion', 'Arm Motion', 'design', 1, 0, 1.5, 0, 'Device', 'How far the device\'s two arms swing and turn in the light programs. Standby keeps them still.'),
   number('scoreAmount', 'Kick Ripple', 'design', .5, 0, 1, 1, 'Device', 'How strongly each kick sends a ripple outward through the glowing elements: the core lamp, the arm lamps, the ring, the floor ticks and the beacons.'),
+  number('modelTilt', 'Model Tilt', 'design', 1, 0, 1.5, 0, 'Model', 'How far the model leans and turns inside the structure. It never turns right round. At 0 it holds still.'),
+  number('modelDrift', 'Model Drift', 'design', 1, 0, 1.5, 1, 'Model', 'How far the model floats about its place in the middle, and how much each kick lifts it. At 0 it stays put.'),
   number('floorPool', 'Floor Pool', 'design', LIGHTS.floorPool, 0, 1, 0, 'Lights', 'The soft light pool on the platform.', .005),
   number('platformGlow', 'Platform Glow', 'design', LIGHTS.platformGlow, 0, .3, 1, 'Lights', 'The teal glow from under the platform.', .005),
   number('deviceGlow', 'Device Glow', 'design', LIGHTS.deviceGlow, 0, .2, 2, 'Lights', 'The cyan light from the device.', .005),
   number('windowSpill', 'Window Spill', 'design', LIGHTS.windowSpill, 0, 1, 3, 'Lights', 'The blue light spilling in from the window on the left.', .005),
   number('rim', 'Rim Light', 'design', LIGHTS.rim, 0, .5, 4, 'Lights', 'The cool light from above and behind that outlines the device.', .005),
   number('fill', 'Ambient Fill', 'design', LIGHTS.fill, 0, .2, 5, 'Lights', 'The faint overall fill.', .005),
+  number('modelLight', 'Model Light', 'design', LIGHTS.modelLight, 0, 1.5, 7, 'Lights', 'The soft light on the model standing in the middle. The light exists only while a model is chosen, so the empty chamber is unchanged.', .005),
   number('reflections', 'Reflections', 'design', .015, 0, .1, 6, 'Lights', 'How strongly the glossy metal reflects the studio environment.', .001),
   { ...base, id: cameraMode, label: 'Camera Mode', type: 'enum', defaultValue: 'home', designParentGroup: 'design', group: 'Camera', order: 0,
     options: [{ value: 'home', label: 'Home View' }, { value: 'drift', label: 'Interior Drift' }, { value: 'manual', label: 'Manual View' }],
@@ -70,11 +75,13 @@ const PARAMETERS: readonly Cinema2ParameterManifest[] = [
   number('exposure', 'Exposure', 'effects', 1, .5, 2, 1, undefined, 'Overall brightness of the picture.'),
   number('vignette', 'Vignette', 'effects', 0, 0, 1, 2, undefined, 'Darkens the corners of the picture.'),
   ...CHAMBER_PALETTE_NAMES.map((name, order): Cinema2ParameterManifest => ({ ...base, id: chamberParameterId(name), label: PALETTE_LABELS[name], type: 'color', defaultValue: CHAMBER_PALETTE_DEFAULTS[name], designParentGroup: 'palette', order })),
+  // The model is chosen from the left Source tab (a pinned version of one of the user's models); it has no control in the Design tab.
+  { ...createCinema2UserModelParameter(chamberParameterId('model')), exposure: 'hidden' },
   { ...base, id: chamberParameterId('spillColor'), label: 'Window Spill', type: 'color', defaultValue: SPILL_COLOR, designParentGroup: 'palette', order: CHAMBER_PALETTE_NAMES.length },
 ]
-const MODULE_BINDINGS = ['bpmSync', 'intensity', 'reactivity', 'autoPerformance', 'pattern', 'patternChange', 'trigger', 'ringLight', 'tickLight', 'beaconLight', 'lampLight', 'coreLight', 'armMotion', 'scoreAmount', ...CHAMBER_PALETTE_NAMES] as const
+const MODULE_BINDINGS = ['bpmSync', 'intensity', 'reactivity', 'autoPerformance', 'pattern', 'patternChange', 'trigger', 'ringLight', 'tickLight', 'beaconLight', 'lampLight', 'coreLight', 'armMotion', 'scoreAmount', 'modelSize', 'modelTilt', 'modelDrift', 'modelLight', ...CHAMBER_PALETTE_NAMES] as const
 /** Score channels the choreography sets (kick ripple); they are module inputs, not controls. */
-const SCORE_CHANNELS = ['cueCore', 'cueLamps', 'cueRing', 'cueTicks', 'cueBeacons'] as const
+const SCORE_CHANNELS = ['cueModel', 'cueCore', 'cueLamps', 'cueRing', 'cueTicks', 'cueBeacons'] as const
 
 const root = cinema2StableId<Cinema2SceneNodeId>('chamber-root')
 const room = cinema2StableId<Cinema2SceneNodeId>('chamber-room')
@@ -132,12 +139,14 @@ const authored: Readonly<Cinema2NativePresetManifest> = {
     // The GLB's surfaces are left as authored. The module only drives the emission of the glowing elements (its own copies of those meshes).
     config: {
       instances: [{ asset: 'cinema2-chamber', node: room, preserveMaterials: true, spin: false }], hdr: true,
+      // The model chosen in the Source tab stands in the middle of the structure. It has no scene node: the module places it in world space (see Cinema2ChamberNativeModule).
+      userModel: { node: null, neutralFloor: false, spin: false },
       // A few faint motes of dust in the room's air (high quality draws all of them, medium half, low none).
       particles: [{ count: 140, center: [0, 4.6, 0], size: [8.5, 7.6, 8.5], pointSize: .035, color: [.45, .8, 1], brightness: .12, drift: [.03, .05, .03], twinkle: .5 }],
     },
     // `environmentIntensity` is the viewer's reflection strength, not an override of any GLB material property.
-    parameters: { ...Object.fromEntries(MODULE_BINDINGS.map(name => [name, PARAMETERS.find(parameter => parameter.id === chamberParameterId(name))!.defaultValue!])), environmentIntensity: .015, ...Object.fromEntries(SCORE_CHANNELS.map(name => [name, 0])) },
-    parameterBindings: { ...Object.fromEntries(MODULE_BINDINGS.map(name => [name, bind(name)])), environmentIntensity: bind('reflections') },
+    parameters: { ...Object.fromEntries(MODULE_BINDINGS.map(name => [name, PARAMETERS.find(parameter => parameter.id === chamberParameterId(name))!.defaultValue!])), environmentIntensity: .015, userModel: 'default-model', ...Object.fromEntries(SCORE_CHANNELS.map(name => [name, 0])) },
+    parameterBindings: { ...Object.fromEntries(MODULE_BINDINGS.map(name => [name, bind(name)])), userModel: bind('model'), environmentIntensity: bind('reflections') },
   }],
   parameters: PARAMETERS,
   cameras: [{
@@ -214,6 +223,13 @@ function withChamberPerformance(manifest: Readonly<Cinema2NativePresetManifest>)
     conditions: [{ kind: 'once-per-event' }, ...(signal === 'drop' ? [] : [{ kind: 'not-silent' as const }])],
     actions: [{ id: cinema2StableId<Cinema2ChoreographyActionId>(`chamber-${signal}-${name}-accent`), target: targetRef as never, operation: 'envelope', composition: 'multiply', value: factor, envelope: { attack: .015, hold: .035, release, unit: 'seconds' }, retrigger: 'restart' }],
   })
+
+  // The model nods and lifts on the kick, at once, as the ripple begins; it floats more with the energy of the music (below).
+  const modelKick: Cinema2ChoreographyRuleManifest = {
+    id: cinema2StableId<Cinema2ChoreographyRuleId>('chamber-score-kick-cue-model'), priority: 40, strengthParameter: bind('reactivity'), enabledWhen: [{ kind: 'parameter-not-equals', parameterId: chamberParameterId('scoreAmount'), value: 0 }],
+    source: { signal: 'kick', capability: 'music.rhythm-events' }, conditions: [{ kind: 'once-per-event' }, { kind: 'not-silent' }],
+    actions: [{ id: cinema2StableId<Cinema2ChoreographyActionId>('chamber-score-cue-model-cue'), target: target('cueModel'), operation: 'envelope', composition: 'replace', value: 1, delayBeats: 0, envelope: { attack: .015, hold: .035, release: .3, unit: 'seconds' }, retrigger: 'restart' }],
+  }
   const rules = [
     // The ring and the platform glow breathe with the bass, the lamps follow the mids, the floor marks and beacons the highs, the device the voice.
     continuous('bass-ring', 'audio.bands', 'audio.bands.bass', 'ringLight', 1.4), continuous('bass-platform', 'audio.bands', 'audio.bands.bass', 'platformGlow', 1.8),
@@ -230,6 +246,8 @@ function withChamberPerformance(manifest: Readonly<Cinema2NativePresetManifest>)
     // Arms: they follow the energy of the music and tap on every kick.
     continuous('energy-arms', 'audio.features', 'audio.features.overallEnergy', 'armMotion', 1.4), accent('kick', 'arms', target('armMotion'), 1.5, .25),
     // Kick ripple: core lamp, arm lamps, ring, floor ticks, beacons, each an eighth of a beat after the last.
+    modelKick,
+    continuous('energy-model', 'audio.features', 'audio.features.overallEnergy', 'modelDrift', 1.4),
     ...(['cueCore', 'cueLamps', 'cueRing', 'cueTicks', 'cueBeacons'] as const).map((channel, step): Cinema2ChoreographyRuleManifest => ({
       id: cinema2StableId<Cinema2ChoreographyRuleId>(`chamber-score-kick-${kebab(channel)}`), priority: 40, strengthParameter: bind('reactivity'), enabledWhen: [{ kind: 'parameter-not-equals', parameterId: chamberParameterId('scoreAmount'), value: 0 }],
       source: { signal: 'kick', capability: 'music.rhythm-events' }, conditions: [{ kind: 'once-per-event' }, { kind: 'not-silent' }],
@@ -239,6 +257,7 @@ function withChamberPerformance(manifest: Readonly<Cinema2NativePresetManifest>)
   ]
   const drive = (id: string, property: string, source: Cinema2MoodDrive['source'], value: number): Cinema2MoodDrive => ({ id, target: target(property) as Cinema2MoodDrive['target'], source, operation: 'multiply', value })
   const drives: Cinema2MoodDrive[] = [
+    drive('calm-model', 'modelDrift', 'mood.calm', .7), drive('peak-model', 'modelTilt', 'mood.peak', 1.3),
     drive('calm-lamps', 'lampLight', 'mood.calm', .7), drive('calm-arms', 'armMotion', 'mood.calm', .7), drive('peak-arms', 'armMotion', 'mood.peak', 1.3), drive('calm-spill', 'windowSpill', 'mood.calm', .8), drive('calm-intensity', 'intensity', 'mood.calm', .85),
     drive('activity-ring', 'ringLight', 'mood.activity', 1.15), drive('activity-ticks', 'tickLight', 'mood.activity', 1.15),
     drive('momentum-beacons', 'beaconLight', 'mood.momentum', 1.2), drive('energy-intensity', 'intensity', 'mood.energy', 1.15), drive('drive-platform', 'platformGlow', 'mood.drive', 1.3),
@@ -247,7 +266,7 @@ function withChamberPerformance(manifest: Readonly<Cinema2NativePresetManifest>)
     drive('peak-ring', 'ringLight', 'mood.peak', 1.25), drive('peak-lamps', 'lampLight', 'mood.peak', 1.25), drive('peak-bloom', 'bloom', 'mood.peak', 1.3),
     drive('shock-beacons', 'beaconLight', 'mood.shock', 1.5), drive('shock-rim', 'rim', 'mood.shock', 1.8),
   ]
-  for (const name of ['intensity', 'armMotion', 'floorPool', 'platformGlow', 'deviceGlow', 'windowSpill', 'rim', 'bloom']) drives.push(drive(`silence-${name.toLowerCase()}`, name, 'mood.silence', .1))
+  for (const name of ['intensity', 'armMotion', 'modelDrift', 'modelTilt', 'floorPool', 'platformGlow', 'deviceGlow', 'windowSpill', 'rim', 'bloom']) drives.push(drive(`silence-${name.toLowerCase()}`, name, 'mood.silence', .1))
   return withCinema2MoodDrives({
     ...manifest,
     capabilities: [...manifest.capabilities ?? [], ...(['audio.transport', 'audio.bands', 'audio.features', 'music.rhythm-events', 'music.downbeat', 'music.drop', 'music.vocal-presence', 'visual-director.significance'] as const).map(id => ({ id, requirement: 'optional' as const, purpose: 'Shared musical facts and performance meaning.' }))],

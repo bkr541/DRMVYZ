@@ -16,6 +16,7 @@ import { WithNotificationDrawer, drawerText } from '../../../test/WithNotificati
 import { Cinema2ModelRuntimeNotices } from './Cinema2ModelRuntimeNotices'
 import { Cinema2ModelSourcePanel, findCinema2UserModelParameter } from './Cinema2ModelSourcePanel'
 import { CINEMA2_BASS_SIGIL_PRESET_MANIFEST } from '../cinema2/presets/Cinema2BassSigilPreset'
+import { CINEMA2_CHAMBER_PRESET_MANIFEST } from '../cinema2/presets/Cinema2ChamberPreset'
 import { CINEMA2_CRATE_PRESET_MANIFESTS } from '../cinema2/presets/Cinema2CratePresets'
 import { createCinema2UserModelPreset } from '../cinema2/presets/Cinema2UserModelPresetFactory'
 import type { ModelAsset } from '../../../features/models/domain/modelAssetTypes'
@@ -44,8 +45,9 @@ const render = async (initial: string, diagnostics: { code: string; message: str
 }
 
 describe('model slot detection', () => {
-  it('finds the model parameter of Bass Sigil and of the 3D preview presets, and none on a preset without a slot', () => {
+  it('finds the model parameter of Bass Sigil, Chamber and the 3D preview presets, and none on a preset without a slot', () => {
     expect(findCinema2UserModelParameter(CINEMA2_BASS_SIGIL_PRESET_MANIFEST)).toBe('bass-sigil-model')
+    expect(findCinema2UserModelParameter(CINEMA2_CHAMBER_PRESET_MANIFEST)).toBe('chamber-model')
     const preview = CINEMA2_CRATE_PRESET_MANIFESTS.find(manifest => manifest.id === 'drmvyz.cinema2.crate-paradox-weave')
     expect(findCinema2UserModelParameter(preview)).toBeNull()
     expect(findCinema2UserModelParameter(createCinema2UserModelPreset('form'))).toBe('user-model-form-model')
@@ -54,7 +56,7 @@ describe('model slot detection', () => {
 })
 
 describe('the model Source panel', () => {
-  it.each([CINEMA2_BASS_SIGIL_PRESET_MANIFEST.id, ...(['form', 'dust', 'hologram', 'shatter', 'slices', 'voxel'] as const).map(kind => createCinema2UserModelPreset(kind).id)])('omits all three source controls for %s while retaining model selection', async presetId => {
+  it.each([CINEMA2_BASS_SIGIL_PRESET_MANIFEST.id, CINEMA2_CHAMBER_PRESET_MANIFEST.id, ...(['form', 'dust', 'hologram', 'shatter', 'slices', 'voxel'] as const).map(kind => createCinema2UserModelPreset(kind).id)])('omits all three source controls for %s while retaining model selection', async presetId => {
     const fake = fakeRuntime(`user-model:${MODEL_ID}:1`, [], presetId)
     const openMediaManager = vi.fn()
     await act(async () => root.render(<Cinema2ModelSourcePanel runtime={fake.runtime} parameterId={'p' as never} onOpenMediaManager={openMediaManager} />))
