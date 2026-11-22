@@ -14,6 +14,8 @@ beforeEach(() => {
   // Production blueprint artwork uses SVG layout APIs absent from jsdom.
   Object.defineProperty(SVGElement.prototype, 'getScreenCTM', { configurable: true, value: () => null })
   Object.defineProperty(window, 'ResizeObserver', { configurable: true, value: class { observe() {} disconnect() {} } })
+  // The Auth mockups draw their animations on canvases, which jsdom cannot draw on.
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
   window.localStorage.clear()
   host = document.createElement('div')
   document.body.append(host)
@@ -189,7 +191,7 @@ describe('persistent Layout Lab tabs', () => {
     expect(saved.tabs).not.toContainEqual({ id: 'layout-lab-tab-02', name: 'My card studies' })
   })
 
-  it('adds AUTH to saved workspaces and previews both forms independently', async () => {
+  it('adds AUTH to saved workspaces and shows four mockups, each with Sign in and Create account', async () => {
     window.localStorage.setItem(LAYOUT_LAB_STORAGE_KEY, JSON.stringify({
       version: 1,
       activeTabId: 'layout-lab-tab-03',
@@ -201,16 +203,21 @@ describe('persistent Layout Lab tabs', () => {
     expect(tab(8).textContent).toBe('AUTH')
     await act(async () => tab(8).click())
     const studies = [...host.querySelectorAll('#layout-lab-tab-08-panel [data-auth-study]')]
-    expect(studies).toHaveLength(4)
-    for (const study of studies) expect(study.querySelectorAll('input.dv-text-input')).toHaveLength(2)
-    await act(async () => studies[0].querySelector<HTMLButtonElement>('.ll-auth-mode')!.click())
-    expect(studies[0].querySelectorAll('input.dv-text-input')).toHaveLength(5)
-    expect(studies[1].querySelectorAll('input.dv-text-input')).toHaveLength(2)
-    const password = studies[0].querySelector<HTMLInputElement>('input[type="password"]')!
-    await act(async () => studies[0].querySelector<HTMLButtonElement>('[aria-label="Show password"]')!.click())
+    expect(studies.map(study => (study as HTMLElement).dataset.authStudy)).toEqual(['aperture', 'afterglow', 'broadsheet', 'rack'])
+    for (const study of studies) {
+      // Every mockup shows both groups at once: Sign in (email, password) and Create account (name, artist name, email, password, confirmation).
+      expect(study.querySelectorAll('[data-auth-state="signin"] input.ll-am-input')).toHaveLength(2)
+      expect(study.querySelectorAll('[data-auth-state="signup"] input.ll-am-input')).toHaveLength(5)
+      expect(study.querySelectorAll('[data-auth-state] canvas')).toHaveLength(2)
+      // The brand's mark or wordmark, never an invented logo.
+      expect(study.querySelector('img[src$="stageless_logo.png"], img[src$="stageless_wordmark.png"]')).not.toBeNull()
+    }
+    // Four different animation languages and four different layouts.
+    expect(new Set(studies.map(study => study.querySelector('[data-auth-animation]')!.getAttribute('data-auth-animation'))).size).toBe(4)
+    const password = studies[0].querySelector<HTMLInputElement>('[data-auth-state="signin"] input[type="password"]')!
+    await act(async () => studies[0].querySelector<HTMLButtonElement>('[data-auth-state="signin"] [aria-label="Show password"]')!.click())
     expect(password.type).toBe('text')
-    await act(async () => studies[0].querySelector<HTMLButtonElement>('.ll-auth-mode')!.click())
-    expect(studies[0].querySelectorAll('input.dv-text-input')).toHaveLength(2)
+    expect(studies[1].querySelector<HTMLInputElement>('[data-auth-state="signin"] input[type="password"]')!.type).toBe('password')
   })
 
   it('removes the retired left nav tab from saved workspaces without renumbering other tabs', async () => {

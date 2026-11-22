@@ -1,4 +1,5 @@
 import { useId, type ReactElement } from 'react'
+import { NOTIFICATION_BELL_BODY, NOTIFICATION_BELL_CLASP } from '../../shared/notificationBellArt'
 import { engineSwitcherSymbol, NAV_MEDALLION_ARTWORK, NAV_MEDALLION_RING } from '../../navMedallionIcons'
 
 /**
@@ -17,7 +18,7 @@ export const NAV_ICON_DESTINATIONS: readonly { id: SharedNavIconDestination; lab
   { id: 'media', label: 'Media Manager' },
   { id: 'notifications', label: 'Notifications' },
 ])
-export type NavIconSystemId = 'hairline' | 'bold' | 'solid' | 'tinted' | 'technical' | 'plotter' | 'offset' | 'badge' | 'medallion' | 'matrix' | 'fragment' | 'misregister' | 'fade' | 'inlay' | 'geometric' | 'console' | 'neon' | 'spec' | 'stamp' | 'chips'
+export type NavIconSystemId = 'hairline' | 'bold' | 'solid' | 'tinted' | 'technical' | 'plotter' | 'offset' | 'badge' | 'medallion' | 'matrix' | 'fragment' | 'misregister' | 'fade' | 'inlay' | 'geometric' | 'console' | 'neon' | 'spec' | 'stamp' | 'chips' | 'production'
 export const NAV_ICON_SYSTEMS: readonly { id: NavIconSystemId; name: string; detail: string }[] = Object.freeze([
   { id: 'hairline', name: 'Hairline duotone', detail: '1.25 stroke · structure at 55% · one live accent' },
   { id: 'bold', name: 'Bold line', detail: '2.4 stroke · simplified silhouettes · round joins' },
@@ -39,6 +40,7 @@ export const NAV_ICON_SYSTEMS: readonly { id: NavIconSystemId; name: string; det
   { id: 'spec', name: 'Spec sheet', detail: 'Chamfered corners · dashed frame · rail pads, parameter table, document tiles' },
   { id: 'stamp', name: 'Solid stamp', detail: 'Filled shapes with knocked-out detail · vertical faders · condenser mic' },
   { id: 'chips', name: 'Chip tags', detail: 'Pill bodies · toggle switches · clip chips · filmstrip' },
+  { id: 'production', name: 'Production bell style', detail: 'The notification bell\'s drawing: 24 grid · 1.5 round stroke · one soft secondary stroke at 55% · no accent colour' },
 ])
 
 /** A rounded rectangle path. */
@@ -101,7 +103,30 @@ const hairline: Draw<Exclude<NavIconDestination, 'pads'>> = {
     P('video', 'fa', rr(17, 3, 12, 12, 2.5) + mediaGlyph('video', 17, 3), EO),
     P('symbols', 'a', mediaGlyph('image', 3, 3) + mediaGlyph('audio', 3, 16) + mediaGlyph('font', 17, 17)),
   ],
-  notifications: () => [P('a', 's', bell(.88)), P('b', 's', clapper(.88)), P('c', 'a', rr(18, 3, 11, 7, 3.5)), P('d', 'a', 'M21.5 6.5h4')],
+  // The production notifications bell, exactly as the sidebar draws it (24 grid, 1.5 stroke, the clasp at 55%), centred on this 32 grid.
+  notifications: () => [<g key="bell" transform="translate(4 4)" fill="none" stroke="currentColor" strokeWidth={1.5}>
+    <path className="bp" d={NOTIFICATION_BELL_CLASP} opacity={.55} />
+    <path className="bp" d={NOTIFICATION_BELL_BODY} />
+  </g>],
+}
+
+/**
+ * Production bell style: each Hairline drawing, unchanged in shape and parts, restyled the way the production notification bell is drawn: no
+ * fills and no accent colour, a 1.5 round stroke in the current colour, one bold outline for the object, and a single soft detail at 55% opacity
+ * (the way the bell's clasp is). The Hairline drawings fill the whole 32 grid, so they are scaled to the bell's size (the bell spans about 20 of 24).
+ * Primary parts are plain paths; the soft detail is class `s`. The notification bell itself is the production artwork, as it is.
+ */
+const BELL_FIT = 'translate(16 16) scale(.8) translate(-16 -16)'
+const fitted = (...parts: ReactElement[]): ReactElement[] => [<g key="fit" className="fit" transform={BELL_FIT}>{parts}</g>]
+const SPARK = 'M22 9.8l1.25 2.95L26.2 14l-2.95 1.25L22 18.2l-1.25-2.95L17.8 14l2.95-1.25Z'
+const production: Draw<Exclude<NavIconDestination, 'pads'>> = {
+  react: () => fitted(P('screen', 'p', rr(3.5, 5, 25, 18, 3)), P('stand', 's', 'M16 23v4M10.5 27h11'), P('pulse', 'p', 'M7 14h2.5l1.7-3.5 2.1 7 1.7-3.5h1.5'), P('spark', 'p', SPARK)),
+  presets: () => fitted(P('frame', 'p', rr(3, 5, 26, 22, 3)), P('faders', 's', 'M9 5v22M16 5v22M23 5v22'), P('curve', 'p', 'M5.5 22C10 22 11 10 16 10S22 22 26.5 22'), P('points', 'p', `${circle(5.5, 22, 1.4)}${circle(16, 10, 1.6)}${circle(26.5, 22, 1.4)}`)),
+  show: () => fitted(P('hood', 'p', 'M5 3v8a6 6 0 0 0 12 0V3'), P('lamp', 'p', rr(8, 8, 6, 8, 2)), P('beams', 's', 'M17 10 29 6M17 14l12 4'), P('timeline', 'p', rr(3, 24, 26, 5, 1.5)), P('playhead', 'p', 'M19 22v9')),
+  lyrics: () => fitted(P('mic', 'p', rr(11, 3, 10, 14, 5)), P('cradle', 'p', 'M7.5 12.5a8.5 8.5 0 0 0 17 0M16 21.5v4M11.5 25.5h9'), P('lines', 's', 'M13.5 8h5M13.5 11.5h5'), P('ticks', 's', 'M3 7h4M25 7h4')),
+  media: () => fitted(P('tiles', 'p', rr(3, 3, 12, 12, 2.5) + rr(17, 3, 12, 12, 2.5) + rr(3, 17, 12, 12, 2.5) + rr(17, 17, 12, 12, 2.5)),
+    P('glyphs', 's', mediaGlyph('image', 3, 3) + mediaGlyph('video', 17, 3) + mediaGlyph('audio', 3, 16) + mediaGlyph('font', 17, 17))),
+  notifications: () => [<g key="bell" transform="translate(4 4)">{P('clasp', 's', NOTIFICATION_BELL_CLASP)}{P('bell', 'p', NOTIFICATION_BELL_BODY)}</g>],
 }
 
 /** 02 · Bold line: 2.4 stroke, simplified silhouettes. */
@@ -397,7 +422,7 @@ export const NAV_REACT_SYSTEM_OPTIONS: readonly ReactOption[] = Object.freeze([
   { id: 'reactopt-y5', name: 'Engine rack', detail: 'Engines racked as modules, the middle one running', art: () => [P('r', 's', `${rr(8, 8.5, 16, 4.6, 1.5)}${rr(8, 19.9, 16, 4.6, 1.5)}`), P('m', 'ta', rr(8, 14.2, 16, 4.6, 1.5)), P('d', 'fa', `${circle(11, 10.8, .9)}${circle(11, 16.5, .9)}${circle(11, 22.2, .9)}`), P('l', 'a', 'M14 10.8h7M14 16.5h7M14 22.2h7')] },
 ])
 
-const SYSTEMS: Record<NavIconSystemId, Partial<Draw<NavIconDestination>>> = { hairline, bold, solid, tinted, technical, plotter, offset, badge, medallion, matrix, fragment, misregister, fade, inlay, geometric, console: console_, neon, spec, stamp, chips }
+const SYSTEMS: Record<NavIconSystemId, Partial<Draw<NavIconDestination>>> = { hairline, bold, solid, tinted, technical, plotter, offset, badge, medallion, matrix, fragment, misregister, fade, inlay, geometric, console: console_, neon, spec, stamp, chips, production }
 
 /** The artwork for one destination in one system, as the children of a 32 × 32 svg. */
 export function NavIconArtwork({ system, kind }: { system: NavIconSystemId; kind: NavIconDestination }) {
