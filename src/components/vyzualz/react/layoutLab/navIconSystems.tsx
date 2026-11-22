@@ -2,13 +2,14 @@ import { useId, type ReactElement } from 'react'
 import { engineSwitcherSymbol, NAV_MEDALLION_ARTWORK, NAV_MEDALLION_RING } from '../../navMedallionIcons'
 
 /**
- * Ten drawing systems for the left navigation's icons, each with the same six destinations. Every glyph is original
+ * Twenty drawing systems for the left navigation's icons, six destinations per row. Every glyph is original
  * path artwork on the navigation's 32 grid, painted in `currentColor` plus one accent colour (`--llni-accent`, the
  * convention production's navigation already uses), so any system can replace the current icons without new styling.
  * A system is a visual language, not a stroke setting: its shapes, construction and materials differ.
  */
-export type NavIconDestination = 'pads' | 'presets' | 'show' | 'lyrics' | 'media' | 'notifications'
-export const NAV_ICON_DESTINATIONS: readonly { id: NavIconDestination; label: string }[] = Object.freeze([
+type SharedNavIconDestination = 'pads' | 'presets' | 'show' | 'lyrics' | 'media' | 'notifications'
+export type NavIconDestination = SharedNavIconDestination | 'react'
+export const NAV_ICON_DESTINATIONS: readonly { id: SharedNavIconDestination; label: string }[] = Object.freeze([
   { id: 'pads', label: 'Performance Pads' },
   { id: 'presets', label: 'Presets Manager' },
   { id: 'show', label: 'Show Manager' },
@@ -60,9 +61,9 @@ const pixels = (rows: readonly string[], mark: string): string => {
   return d
 }
 
-type Draw = Record<NavIconDestination, (uid: string) => ReactElement[]>
+type Draw<Destination extends NavIconDestination = SharedNavIconDestination> = Record<Destination, (uid: string) => ReactElement[]>
 
-/* Every icon below follows the same content brief. Pads follow production's pad surface (dark tile, 1px border, a colour line under
+/* Pads follow production's pad surface (dark tile, 1px border, a colour line under
    the label, a lit hit state); Presets show configuration (faders, knobs, toggles, curves); Show combines DJ lighting with a timeline;
    Lyrics combine a mic with lyric lines and a note; Media shows several media types (image, video, audio, font). A system is its
    construction (stroke, fill, tile, dash, pixel), not a re-skin, so no two rows draw a destination the same way. */
@@ -85,12 +86,21 @@ const PAD_FRAME = 'M1.5 1.5h29v29h-29Z'
 const noteStem = (x: number, y: number, h = 7) => `M${x + 2.2} ${y}V${y - h}l4 1.2`
 
 /** 01 · Hairline duotone: a 1.25 stroke, structure at 55%, one live accent. */
-const hairline: Draw = {
-  pads: () => [P('a', 's', rr(4, 8, 24, 16, 4)), P('b', 's', 'M11 14h10'), P('c', 'a', 'M10 19.5h12'), P('d', 'a', rr(1.5, 5.5, 29, 21, 6.5), { style: { opacity: .35 } })],
+const hairline: Draw<Exclude<NavIconDestination, 'pads'>> = {
+  react: () => [
+    P('screen', 's', rr(3.5, 5, 25, 18, 3)),
+    P('stand', 's', 'M16 23v4M10.5 27h11'),
+    P('signal', 'a', 'M7 14h2.5l1.7-3.5 2.1 7 1.7-3.5h1.5'),
+    P('spark', 'fa', 'M22 9.8l1.25 2.95L26.2 14l-2.95 1.25L22 18.2l-1.25-2.95L17.8 14l2.95-1.25Z'),
+  ],
   presets: () => [P('a', 's', `${rr(3, 5, 26, 22, 3)}M9 5v22M16 5v22M23 5v22`), P('b', 'a', 'M5.5 22C10 22 11 10 16 10S22 22 26.5 22'), P('c', 'fa', `${circle(5.5, 22, 1.4)}${circle(16, 10, 1.6)}${circle(26.5, 22, 1.4)}`)],
   show: () => [P('a', 's', 'M5 3v8a6 6 0 0 0 12 0V3'), P('b', 's', rr(8, 8, 6, 8, 2)), P('c', 'a', 'M17 10 29 6M17 14l12 4'), P('d', 's', rr(3, 24, 26, 5, 1.5)), P('e', 'a', 'M19 22v9')],
-  lyrics: () => [P('a', 's', `${rr(11, 3, 10, 14, 5)}M7.5 12.5a8.5 8.5 0 0 0 17 0M16 21.5v4M11.5 25.5h9`), P('b', 'a', 'M13.5 8h5M13.5 11.5h5'), P('c', 's', 'M3 7h4M25 7h4'), P('d', 'fa', circle(5.5, 25, 1.8)), P('e', 'a', 'M7.3 25v-5l2.6.8')],
-  media: () => [P('a', 's', 'M3 8a2 2 0 0 1 2-2h7l3 3h12a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z'), P('b', 'a', 'M6 22l2.4-3 1.8 1.8 1.2-1.2 1.6 2.4M23 19v3M25 16v9M27 18v5'), P('c', 'fa', 'M15.5 16.5v6l4.8-3Z')],
+  lyrics: () => [P('a', 's', `${rr(11, 3, 10, 14, 5)}M7.5 12.5a8.5 8.5 0 0 0 17 0M16 21.5v4M11.5 25.5h9`), P('b', 'a', 'M13.5 8h5M13.5 11.5h5'), P('c', 's', 'M3 7h4M25 7h4')],
+  media: () => [
+    P('tiles', 's', rr(3, 3, 12, 12, 2.5) + rr(3, 17, 12, 12, 2.5) + rr(17, 17, 12, 12, 2.5)),
+    P('video', 'fa', rr(17, 3, 12, 12, 2.5) + mediaGlyph('video', 17, 3), EO),
+    P('symbols', 'a', mediaGlyph('image', 3, 3) + mediaGlyph('audio', 3, 16) + mediaGlyph('font', 17, 17)),
+  ],
   notifications: () => [P('a', 's', bell(.88)), P('b', 's', clapper(.88)), P('c', 'a', rr(18, 3, 11, 7, 3.5)), P('d', 'a', 'M21.5 6.5h4')],
 }
 
@@ -184,7 +194,7 @@ const medallion: Draw = Object.fromEntries(Object.entries({ pads: 'navPerformanc
 medallion.notifications = () => [<g key="m" transform={FIT}>{[...NAV_MEDALLION_RING, P('a', 's', `${bell(.5)}${clapper(.5)}`), P('b', 'fa', circle(21.4, 10.6, 1.9))]}</g>]
 
 /** 10 · LED matrix: a 9 × 9 grid of lit cells. */
-const MATRIX: Record<NavIconDestination, readonly string[]> = {
+const MATRIX: Record<SharedNavIconDestination, readonly string[]> = {
   pads: ['XX.XX.XX.', 'XX.XX.XX.', '.........', 'XX.AA.XX.', 'XX.AA.XX.', '.........', 'XX.XX.XX.', 'XX.XX.XX.', '.........'],
   presets: ['.X..X..X.', '.X..X.AAA', 'AAA.X..X.', '.X..X..X.', '.X.AAA.X.', '.X..X..X.', '.X..X..X.', '.X..X..X.', '.X..X..X.'],
   show: ['..XXXXX..', '..XXXXX..', '.A..A..A.', 'A...A...A', '.........', 'XXX.XX.XX', 'XXX.XX.XX', '....A....', '....A....'],
@@ -192,7 +202,7 @@ const MATRIX: Record<NavIconDestination, readonly string[]> = {
   media: ['XXXX.A...', 'X..X.AAA.', 'X..X.AAA.', 'XXXX.A...', '.........', '.X.X..XX.', 'XX.X.X..X', 'XX.X.XXXX', 'XXXX.X..X'],
   notifications: ['...XXX.AA', '..X...XAA', '..X...X..', '..X...X..', '.X.....X.', 'XXXXXXXXX', '....X....', '.........', '.........'],
 }
-const matrix: Draw = Object.fromEntries((Object.keys(MATRIX) as NavIconDestination[]).map(kind => [kind, () => [P('x', 'fs', pixels(MATRIX[kind], 'X')), P('y', 'fa', pixels(MATRIX[kind], 'A'))]])) as unknown as Draw
+const matrix: Draw = Object.fromEntries((Object.keys(MATRIX) as SharedNavIconDestination[]).map(kind => [kind, () => [P('x', 'fs', pixels(MATRIX[kind], 'X')), P('y', 'fa', pixels(MATRIX[kind], 'A'))]])) as unknown as Draw
 
 /** 11 · Hex fragments: a broken hexagon frame holds each symbol; accent segments sit where the frame is open. */
 const HEX_GAP_TL = 'M10.8 7 16 4l10.4 6v12L16 28 5.6 22V10'
@@ -387,12 +397,12 @@ export const NAV_REACT_SYSTEM_OPTIONS: readonly ReactOption[] = Object.freeze([
   { id: 'reactopt-y5', name: 'Engine rack', detail: 'Engines racked as modules, the middle one running', art: () => [P('r', 's', `${rr(8, 8.5, 16, 4.6, 1.5)}${rr(8, 19.9, 16, 4.6, 1.5)}`), P('m', 'ta', rr(8, 14.2, 16, 4.6, 1.5)), P('d', 'fa', `${circle(11, 10.8, .9)}${circle(11, 16.5, .9)}${circle(11, 22.2, .9)}`), P('l', 'a', 'M14 10.8h7M14 16.5h7M14 22.2h7')] },
 ])
 
-const SYSTEMS: Record<NavIconSystemId, Draw> = { hairline, bold, solid, tinted, technical, plotter, offset, badge, medallion, matrix, fragment, misregister, fade, inlay, geometric, console: console_, neon, spec, stamp, chips }
+const SYSTEMS: Record<NavIconSystemId, Partial<Draw<NavIconDestination>>> = { hairline, bold, solid, tinted, technical, plotter, offset, badge, medallion, matrix, fragment, misregister, fade, inlay, geometric, console: console_, neon, spec, stamp, chips }
 
 /** The artwork for one destination in one system, as the children of a 32 × 32 svg. */
 export function NavIconArtwork({ system, kind }: { system: NavIconSystemId; kind: NavIconDestination }) {
   const uid = useId().replace(/:/g, '')
-  return <>{SYSTEMS[system][kind](uid)}</>
+  return <>{SYSTEMS[system][kind]?.(uid)}</>
 }
 
 export type { Cls as NavIconPartClass }

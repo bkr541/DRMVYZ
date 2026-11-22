@@ -13,14 +13,16 @@ beforeEach(() => { window.localStorage.clear(); host = document.createElement('d
 afterEach(async () => { await act(async () => root.unmount()); host.remove() })
 
 describe('Layout Lab navigation icon studies', () => {
-  it('shows twenty systems, each with the six destinations drawn as SVG paths', async () => {
+  it('shows twenty systems with six destinations each, starting the Hairline row with React', async () => {
     await act(async () => root.render(<NavIconStudies />))
     const rows = [...host.querySelectorAll<HTMLElement>('[data-nav-icon-study]')]
     expect(rows.map(row => row.dataset.navIconStudy)).toEqual(NAV_ICON_SYSTEMS.map(system => system.id))
     expect(rows).toHaveLength(20)
+    const sharedLabels = NAV_ICON_DESTINATIONS.map(destination => destination.label)
     for (const row of rows) {
       const buttons = [...row.querySelectorAll<HTMLButtonElement>('[data-nav-icon-item]')]
-      expect(buttons.map(button => button.title)).toEqual(NAV_ICON_DESTINATIONS.map(destination => destination.label))
+      const labels = row.dataset.navIconStudy === 'hairline' ? ['React', ...sharedLabels.slice(1)] : sharedLabels
+      expect(buttons.map(button => button.title)).toEqual(labels)
       for (const button of buttons) {
         const paths = [...button.querySelectorAll('path')]
         expect(paths.length, button.dataset.navIconItem).toBeGreaterThan(0)
@@ -64,9 +66,25 @@ describe('Layout Lab navigation icon studies', () => {
   it('draws every system differently for the same destination', async () => {
     await act(async () => root.render(<NavIconStudies />))
     for (const destination of NAV_ICON_DESTINATIONS) {
-      const drawings = NAV_ICON_SYSTEMS.map(system => [...host.querySelectorAll(`[data-nav-icon-item="${system.id}-${destination.id}"] path`)].map(path => path.getAttribute('d')).join('|'))
-      expect(new Set(drawings).size, destination.label).toBe(NAV_ICON_SYSTEMS.length)
+      const items = [...host.querySelectorAll(`[data-nav-icon-item$="-${destination.id}"]`)]
+      const drawings = items.map(item => [...item.querySelectorAll('path')].map(path => path.getAttribute('d')).join('|'))
+      expect(new Set(drawings).size, destination.label).toBe(items.length)
     }
+  })
+
+  it('selects React by default and keeps its review choice separate from the retired pad', async () => {
+    window.localStorage.setItem(NAV_ICON_KEEP_STORAGE_KEY, JSON.stringify({ version: 1, kept: ['hairline-pads', 'bold-pads'] }))
+    await act(async () => root.render(<NavIconStudies />))
+
+    const reactButton = host.querySelector('[data-nav-icon-item="hairline-react"]')!
+    const reactKeep = host.querySelector<HTMLInputElement>('[data-nav-icon-keep="hairline-react"]')!
+    expect(reactButton.getAttribute('aria-pressed')).toBe('true')
+    expect(reactKeep.checked).toBe(false)
+    expect(host.querySelector('[data-nav-icon-summary]')!.textContent).toContain('1 of 120 kept')
+
+    await act(async () => reactKeep.click())
+    expect(host.querySelector('[data-nav-icon-count="hairline"]')!.textContent).toBe('1/6 kept')
+    expect(JSON.parse(window.localStorage.getItem(NAV_ICON_KEEP_STORAGE_KEY)!).kept).toEqual(['bold-pads', 'hairline-react'])
   })
 
   it('keeps the active item local to a row', async () => {

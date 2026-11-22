@@ -557,77 +557,81 @@ export function PresetManagerView() {
               ariaLabel="Preset Manager workspace views"
               className="pmv-stage-tabs"
             />
-            {deckBuilder.active ? (
-              <>
-                {deckBuilder.previewPreset ? (
+            {!deckBuilder.active && stageTab === 'store' ? (
+              <LivePresetStore />
+            ) : !deckBuilder.active && stageTab === 'downloads' ? (
+              <section className="pms-downloads" aria-label="My Downloads">
+                <h3>My Downloads</h3>
+                <p>Packs and presets you download will appear here. Coming soon.</p>
+              </section>
+            ) : (
+              <div className="pmv-preview-group" role="group" aria-label="Preset preview">
+                {deckBuilder.active ? (
+                  <>
+                    {deckBuilder.previewPreset ? (
+                      <PixGridPreviewStage
+                        preset={deckBuilder.previewPreset}
+                        pixGridState={pixGridState}
+                        pixGridDecks={pixGridDecks}
+                        intensity={reactIntensity}
+                        motion={reactMotion}
+                        glow={reactGlow}
+                        bassReactivity={reactBassReactivity}
+                        audioTimeSec={deckBuilder.previewTimeFor(null, 0)}
+                      />
+                    ) : (
+                      <section className="pmv-selection-summary" aria-label="New Deck">
+                        <div>
+                          <span>PixGrid Deck</span>
+                          <h2>New Deck</h2>
+                          <p>Name the Deck, then upload at least two images to preview it here.</p>
+                        </div>
+                      </section>
+                    )}
+                    {deckBuilder.deck && (
+                      <PixGridDeckSequenceStrip
+                        deck={deckBuilder.deck}
+                        previewItemId={deckBuilder.previewItemId}
+                        onPreview={deckBuilder.setPreviewItemId}
+                        onPrevious={() => deckBuilder.stepPreview(-1)}
+                        onNext={() => deckBuilder.stepPreview(1)}
+                        transitionProgress={deckBuilder.previewTransitionProgress}
+                        onTransitionProgress={deckBuilder.setPreviewTransitionProgress}
+                      />
+                    )}
+                  </>
+                ) : selectedPreset?.activation === 'cinema2' && selectedCinema2PresetId && CAN_HOST_CINEMA2_STAGE ? (
+                  <Cinema2Stage
+                    presetId={selectedCinema2PresetId}
+                    restoreState={cinema2RestoreState as Readonly<Cinema2WorkspacePresetState> | null}
+                    onCanvasReady={setOutputCanvas}
+                    onRuntimeReady={setCinema2Runtime}
+                    onRuntimeSnapshot={setCinema2RuntimeSnapshot}
+                    onRuntimeRetiring={state => useReactStore.getState().storeCinema2WorkspacePresetState(state)}
+                  />
+                ) : selectedReactPreset ? (
                   <PixGridPreviewStage
-                    preset={deckBuilder.previewPreset}
+                    preset={selectedReactPreset}
                     pixGridState={pixGridState}
                     pixGridDecks={pixGridDecks}
                     intensity={reactIntensity}
                     motion={reactMotion}
                     glow={reactGlow}
                     bassReactivity={reactBassReactivity}
-                    audioTimeSec={deckBuilder.previewTimeFor(null, 0)}
+                    audioTimeSec={0}
                   />
-                ) : (
-                  <section className="pmv-selection-summary" aria-label="New Deck">
+                ) : selectedPreset ? (
+                  <section className="pmv-selection-summary" aria-label={`${selectedPreset.name} selection`}>
+                    <PresetArtwork preset={selectedPreset} className="pmv-selection-art" />
                     <div>
-                      <span>PixGrid Deck</span>
-                      <h2>New Deck</h2>
-                      <p>Name the Deck, then upload at least two images to preview it here.</p>
+                      <span>{selectedPreset.engineName}</span>
+                      <h2>{selectedPreset.name}</h2>
+                      <p>{selectedPreset.description}</p>
                     </div>
                   </section>
-                )}
-                {deckBuilder.deck && (
-                  <PixGridDeckSequenceStrip
-                    deck={deckBuilder.deck}
-                    previewItemId={deckBuilder.previewItemId}
-                    onPreview={deckBuilder.setPreviewItemId}
-                    onPrevious={() => deckBuilder.stepPreview(-1)}
-                    onNext={() => deckBuilder.stepPreview(1)}
-                    transitionProgress={deckBuilder.previewTransitionProgress}
-                    onTransitionProgress={deckBuilder.setPreviewTransitionProgress}
-                  />
-                )}
-              </>
-            ) : stageTab === 'store' ? (
-              <LivePresetStore />
-            ) : stageTab === 'downloads' ? (
-              <section className="pms-downloads" aria-label="My Downloads">
-                <h3>My Downloads</h3>
-                <p>Packs and presets you download will appear here. Coming soon.</p>
-              </section>
-            ) : selectedPreset?.activation === 'cinema2' && selectedCinema2PresetId && CAN_HOST_CINEMA2_STAGE ? (
-              <Cinema2Stage
-                presetId={selectedCinema2PresetId}
-                restoreState={cinema2RestoreState as Readonly<Cinema2WorkspacePresetState> | null}
-                onCanvasReady={setOutputCanvas}
-                onRuntimeReady={setCinema2Runtime}
-                onRuntimeSnapshot={setCinema2RuntimeSnapshot}
-                onRuntimeRetiring={state => useReactStore.getState().storeCinema2WorkspacePresetState(state)}
-              />
-            ) : selectedReactPreset ? (
-              <PixGridPreviewStage
-                preset={selectedReactPreset}
-                pixGridState={pixGridState}
-                pixGridDecks={pixGridDecks}
-                intensity={reactIntensity}
-                motion={reactMotion}
-                glow={reactGlow}
-                bassReactivity={reactBassReactivity}
-                audioTimeSec={0}
-              />
-            ) : selectedPreset ? (
-              <section className="pmv-selection-summary" aria-label={`${selectedPreset.name} selection`}>
-                <PresetArtwork preset={selectedPreset} className="pmv-selection-art" />
-                <div>
-                  <span>{selectedPreset.engineName}</span>
-                  <h2>{selectedPreset.name}</h2>
-                  <p>{selectedPreset.description}</p>
-                </div>
-              </section>
-            ) : null}
+                ) : null}
+              </div>
+            )}
           </div>
           <WorkspaceRail
             side="right"

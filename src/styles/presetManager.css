@@ -63,6 +63,13 @@
   min-height: 0;
 }
 
+/* Match the Inspector rail surface in every appearance theme. */
+.pmv-tabs,
+.pmv-stage-tabs,
+.pmv-preview-group {
+  background-color: var(--color-panel-alt);
+}
+
 .pmv-category {
   width: 126px;
   flex: 0 0 126px;
@@ -81,23 +88,28 @@
   background: #070c14;
 }
 
-.pmv-stage > .rv-cinema2-stage {
-  width: 100%;
+.pmv-preview-group {
+  display: flex;
   flex: 1;
+  flex-direction: column;
   min-height: 0;
+  gap: 8px;
+  padding: var(--workspace-rail-inset, 12px);
 }
 
-/* Live PixGrid render for the selected preset or the Deck being built; the Deck sequence strip (fixed height) sits under it. */
-.pmv-stage > .pmv-pixgrid-stage {
-  position: relative;
+.pmv-preview-group > :is(.rv-cinema2-stage, .pmv-pixgrid-stage) {
   flex: 1;
   min-height: 0;
+  border-radius: var(--radius-group);
   overflow: hidden;
 }
+
+.pmv-pixgrid-stage { position: relative; }
 .pmv-pixgrid-stage .rv-pix-grid-surface-host { width: 100%; height: 100%; }
 
 .pmv-selection-summary {
-  width: min(520px, calc(100% - 48px));
+  box-sizing: border-box;
+  width: min(564px, 100%);
   margin: auto;
   display: grid;
   grid-template-columns: minmax(120px, 190px) minmax(0, 1fr);
@@ -307,10 +319,12 @@
   background: #070c14;
 }
 
-/* Clip only the existing Cinema stage to its surface radius; never clip
-   portals, Inspector popovers, or either rail's collapse handles. */
-[data-workspace-layout='floating'][data-app-workspace='presetManager'] .pmv-stage > .rv-cinema2-stage {
-  border-radius: calc(var(--fw-surface-radius) - 1px);
+[data-workspace-layout='floating'][data-app-workspace='presetManager'] .pmv-stage-tabs {
+  border-radius: calc(var(--fw-surface-radius) - 1px) calc(var(--fw-surface-radius) - 1px) 0 0;
+}
+
+[data-workspace-layout='floating'][data-app-workspace='presetManager'] .pmv-preview-group {
+  border-radius: 0 0 calc(var(--fw-surface-radius) - 1px) calc(var(--fw-surface-radius) - 1px);
 }
 
 /* Match React's two rails and center-stage layout at every viewport width. */

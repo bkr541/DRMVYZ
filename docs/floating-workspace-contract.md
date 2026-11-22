@@ -17,7 +17,8 @@ and the admin-only button in the account area. Production styling lives in
 removed from Layout Lab. Theme and legacy
 sidebar background rules exclude the notched rail: only its masked pseudo-element
 paints the surface, leaving the cutout transparent to the page background.
-A 1.5px edge in the main cyan token traces the inner notch curve and moves with it.
+A 1.5px edge in the main cyan token runs along the right side of the rail,
+following the notch curve as it moves between selected buttons.
 
 `WorkspaceRegion` marks a semantic layout **region** (`header`, `navigation`,
 `stage`, `left`, `right`, `lower`, `audio`, `tools`); it is not a styled panel
@@ -31,7 +32,7 @@ surface**. Common inset/gap/radius/border/elevation tokens live in
 | --- | --- | --- |
 | `react` | `ReactView.tsx`, `reactView.css` | Rails + live canvas/stage + lower workspace; original `VyzualzAudioDock` owns a separate second grid row. |
 | `performanceManager` | `PerformanceManagerView.tsx`, `performanceManager.css` | Engine library + mirrored pads + empty Configuration + preset Inspector; shared audio dock. |
-| `presetManager` | `PresetManagerView.tsx`, `presetManager.css` | Preset rail + detail stage + Inspector; no redundant feature header. |
+| `presetManager` | `PresetManagerView.tsx`, `presetManager.css` | Preset rail, detail stage and Inspector under the shared app header. The three tab rows and the inset preview group share the theme's panel-alt background. |
 | `showManager` | `ShowManagerView.tsx`, `showManager.css` | Library + visualizer/Track Map + Inspector, with its own second-row audio dock. |
 | `lyrics` | `LyricManagerView.tsx`, `lyricManager.css`, `lyricLayoutMode.ts` | Independent track/timeline/cue surfaces; rails become drawers at manager-width breakpoints. |
 | `media` | `MediaManagerView.tsx`, `mediaManager.css` | Library + existing preview/stage + Inspector, retaining feature-owned header actions. |

@@ -86,8 +86,9 @@ describe('Preset Manager view', () => {
     const preset = PRESET_MANAGER_PRESETS.find(candidate => candidate.artwork === 'soundDrawing')!
     act(() => container?.querySelector<HTMLButtonElement>(`.pmv-card[data-preset-id="${preset.sourceId}"] .pmv-card-main`)?.click())
     const preview = container?.querySelector('.pmv-stage')
+    const previewGroup = preview?.querySelector('[role="group"][aria-label="Preset preview"]')
     const inspector = container?.querySelector('.pmv-inspector-body')
-    expect(preview).not.toBeNull()
+    expect(previewGroup?.querySelector('.pmv-selection-summary h2')?.textContent).toBe(preset.name)
     expect(inspector?.getAttribute('data-selected-preset')).toBe(preset.sourceId)
 
     act(() => container?.querySelector<HTMLButtonElement>('[aria-label="Collapse left inspector"]')?.click())
@@ -95,6 +96,7 @@ describe('Preset Manager view', () => {
     expect(container?.querySelector('.pmv-content')?.getAttribute('data-left-collapsed')).toBe('true')
     expect(container?.querySelector('.pmv-content')?.getAttribute('data-right-collapsed')).toBe('true')
     expect(container?.querySelector('.pmv-stage')).toBe(preview)
+    expect(preview?.querySelector('.pmv-preview-group')).toBe(previewGroup)
     expect(container?.querySelector('.pmv-inspector-body')).toBe(inspector)
     expect(container?.querySelector('.pmv-card.is-active')?.getAttribute('data-preset-id')).toBe(preset.sourceId)
 

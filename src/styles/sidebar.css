@@ -261,6 +261,7 @@
 .az-sidebar.az-sidebar--notched {
   --az-notch-height: 64px;
   --az-notch-width: 44px;
+  --az-notch-top: calc(var(--az-sidebar-selected-y, 39px) - var(--az-notch-height) / 2);
   --az-notch-sweep: 380ms cubic-bezier(.22, 1, .36, 1);
   box-sizing: border-box;
   width: 72px;
@@ -283,22 +284,23 @@
   mask-size: 100% 100%, var(--az-notch-width) var(--az-notch-height);
   mask-repeat: no-repeat;
   mask-composite: exclude;
-  mask-position: 0 0, 100% calc(var(--az-sidebar-selected-y, 39px) - var(--az-notch-height) / 2);
+  mask-position: 0 0, 100% var(--az-notch-top);
   transition: mask-position var(--az-notch-sweep);
 }
 .az-sidebar--notched::after {
   content: '';
   position: absolute;
   pointer-events: none;
-  inset-inline-end: 0;
-  top: calc(var(--az-sidebar-selected-y, 39px) - var(--az-notch-height) / 2);
-  width: var(--az-notch-width);
-  height: var(--az-notch-height);
+  inset: 0;
+  border-radius: inherit;
   background: var(--az-cyan);
-  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 44 64'%3E%3Cpath d='M44 0C44 5 35 8 26 8C12.745 8 2 18.745 2 32S12.745 56 26 56C35 56 44 59 44 64' fill='none' stroke='white' stroke-width='1.5'/%3E%3C/svg%3E");
-  mask-size: 100% 100%;
+  /* Replace a moving segment of the straight edge with the notch stroke. */
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 44 64'%3E%3Cpath d='M43.25 0C43.25 5 35 8 26 8C12.745 8 2 18.745 2 32S12.745 56 26 56C35 56 43.25 59 43.25 64' fill='none' stroke='white' stroke-width='1.5'/%3E%3C/svg%3E"), linear-gradient(#fff, #fff), linear-gradient(#fff, #fff);
+  mask-size: var(--az-notch-width) var(--az-notch-height), 1.5px var(--az-notch-height), 1.5px 100%;
   mask-repeat: no-repeat;
-  transition: top var(--az-notch-sweep);
+  mask-position: 100% var(--az-notch-top), 100% var(--az-notch-top), 100% 0;
+  mask-composite: add, exclude;
+  transition: mask-position var(--az-notch-sweep);
 }
 .az-sidebar--notched .az-nav { padding-block: 16px 14px; }
 .az-sidebar--notched .az-nav-section-label,
