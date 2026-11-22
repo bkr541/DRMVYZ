@@ -1,14 +1,18 @@
 // @vitest-environment jsdom
 ;(globalThis as Record<string, unknown>)['IS_REACT_ACT_ENVIRONMENT'] = true
 
-import React, { act } from 'react'
+import React, { act, useLayoutEffect } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   browserProps: vi.fn(),
+  onBrowserCommit: vi.fn(),
   inspectorProps: { current: null as null | { onHeaderActions?: (actions: unknown) => void } },
 }))
+
+vi.mock('../../context/AudioEngineContext', () => ({ useSharedAudio: () => ({ source: 'file' }) }))
+vi.mock('../../lib/adminAccess', () => ({ useAdminAccess: () => false, useAdminAccessStatus: () => 'denied', hasAdminAccess: () => false }))
 
 vi.mock('../../stores/mediaStore', () => ({
   useMediaStore: (selector: (state: unknown) => unknown) => selector({
@@ -26,6 +30,7 @@ vi.mock('../../stores/audioStore', () => ({
 vi.mock('../../components/vyzualz/media/MediaLibraryBrowser', () => ({
   MediaLibraryBrowser: (props: unknown) => {
     mocks.browserProps(props)
+    useLayoutEffect(() => { mocks.onBrowserCommit() })
     return <div data-testid="media-library-browser">Shared media browser</div>
   },
 }))
@@ -41,6 +46,7 @@ vi.mock('../../components/vyzualz/media/MediaManagerInspector', () => ({
 
 import { MediaManagerView } from './MediaManagerView'
 import { MEDIA_MANAGER_CAPABILITIES } from '../../components/vyzualz/media/mediaLibraryCapabilities'
+import { ApplicationWorkspaceFrame } from '../../components/vyzualz/layout/ApplicationWorkspaceFrame'
 
 let container: HTMLDivElement | null = null
 let root: ReturnType<typeof createRoot> | null = null
@@ -54,6 +60,31 @@ afterEach(() => {
 })
 
 describe('MediaManagerView', () => {
+  it('keeps the real page header out of the workspace body throughout the first commit', async () => {
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+    const inlineHeaders: number[] = []
+    mocks.onBrowserCommit.mockImplementation(() => {
+      inlineHeaders.push(container!.querySelectorAll('.fw-app-content .mmv-header').length)
+    })
+
+    await act(async () => root?.render(
+      <ApplicationWorkspaceFrame appView="media" onAppViewChange={vi.fn()}>
+        <MediaManagerView onOpenLyricManager={vi.fn()} />
+      </ApplicationWorkspaceFrame>,
+    ))
+
+    expect(inlineHeaders.length).toBeGreaterThan(0)
+    expect(inlineHeaders.every(count => count === 0)).toBe(true)
+    expect(container.querySelectorAll('.vz-header-brand-name')).toHaveLength(1)
+    expect(container.querySelectorAll('[data-react-header-status]')).toHaveLength(1)
+    const header = container.querySelector('.fw-app-header-controls > .mmv-header')!
+    expect(header.querySelector('.vz-header-brand-name')?.textContent).toBe('Media Manager')
+    expect(header.querySelector('[aria-label="New Collection"]')).not.toBeNull()
+    expect(header.querySelector('.rv-header-search input')).not.toBeNull()
+  })
+
   it('renders a real management workspace without requiring a loaded track', () => {
     container = document.createElement('div')
     document.body.appendChild(container)

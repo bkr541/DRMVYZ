@@ -1,0 +1,12 @@
+/* Mobile studies (Layout Lab): the notes and the frame arrangement; the phones inside each frame are the app's own components and stylesheets. */
+.ll-mobile { display: grid; gap: 36px; padding: 18px 2px 48px; justify-items: center; }
+.ll-mobile-intro { width: min(100%, 860px); margin: 0; color: rgba(196, 207, 211, .7); font: var(--type-field-label); line-height: 1.55; }
+.ll-mobile-study { width: min(100%, 860px); display: grid; gap: 10px; }
+.ll-mobile-study h2 { margin: 0; color: #e8eef0; font: var(--type-window-heading); letter-spacing: var(--type-window-heading-tracking); text-transform: uppercase; }
+.ll-mobile-study header > p { margin: 6px 0 8px; max-width: 80ch; color: rgba(196, 207, 211, .7); font: var(--type-field-label); line-height: 1.55; }
+.ll-mobile-study dl { margin: 0; display: grid; gap: 3px; font: var(--type-field-label); }
+.ll-mobile-study dl > div { display: grid; grid-template-columns: 74px 1fr; gap: 10px; }
+.ll-mobile-study dt { color: rgba(196, 207, 211, .4); text-transform: uppercase; letter-spacing: .12em; font-size: 9.5px; padding-top: 1px; }
+.ll-mobile-study dd { margin: 0; color: #dbe5e9; }
+.ll-mobile-captions { display: grid; grid-template-columns: 390px 390px; justify-content: space-between; color: rgba(196, 207, 211, .58); font: 500 9px/1.2 var(--font-ui, sans-serif); letter-spacing: .24em; text-transform: uppercase; padding: 0 2px; }
+.ll-mobile-frame { display: block; width: 100%; max-width: 860px; height: 900px; border: 0; background: #060d10; border-radius: 6px; }

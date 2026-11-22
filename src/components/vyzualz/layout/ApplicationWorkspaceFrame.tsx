@@ -1,4 +1,4 @@
-import { createContext, lazy, Suspense, useContext, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useContext, useLayoutEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import type { AppView } from '../appView'
@@ -12,21 +12,10 @@ import { isMobileAppPreviewFrame } from './mobileAppPreview'
 import { LayoutLabModal } from '../react/LayoutLabModal'
 import { VyzualzSidebar } from '../VyzualzSidebar'
 import { FloatingWorkspaceFrame, WorkspaceRegion, WorkspaceSurface } from './FloatingWorkspace'
+import { HeaderSlotContext } from './applicationHeaderSlot'
 
 // Development only: the app-level review notes button in the middle of the header (see docs/review-notes.md). In a production build `import.meta.env.DEV` is false, so this and the module it imports are removed.
 const AppReviewNotes = import.meta.env.DEV ? lazy(() => import('../../../dev/reviewNotes/AppReviewNotes').then(module => ({ default: module.AppReviewNotes }))) : null
-
-/**
- * The frame's header slot. The slot is the same object for the frame's whole life, and a feature finds the header element through it when it mounts,
- * so it does not depend on state that could be stale (a ref callback that was cleared, a context value that did not reach a hidden tree).
- * `occupy` counts the features that have put their header in the slot, so one feature leaving cannot mark the header empty while another is in it.
- */
-interface HeaderSlot {
-  getTarget: () => HTMLDivElement | null
-  occupy: () => () => void
-}
-
-const HeaderSlotContext = createContext<HeaderSlot | null>(null)
 
 /** The page a view reports its status readouts under. */
 const HEADER_PAGE_IDS: Readonly<Record<AppView, AppPageId>> = {
@@ -46,22 +35,15 @@ const HEADER_PAGE_IDS: Readonly<Record<AppView, AppPageId>> = {
  */
 export function ApplicationHeaderControls({ children, fallbackWhenUnavailable = false }: { children: ReactNode; fallbackWhenUnavailable?: boolean }) {
   const slot = useContext(HeaderSlotContext)
-  const [target, setTarget] = useState<HTMLDivElement | null>(() => slot?.getTarget() ?? null)
-
-  // Look the header element up again after every commit: if it was not there at first render, or the element was replaced, the portal follows it.
-  // It only sets state when the element differs, so it settles after at most one extra render.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useLayoutEffect(() => {
-    const current = slot?.getTarget() ?? null
-    if (current !== target) setTarget(current)
-  })
+  const target = slot?.target
+  const occupy = slot?.occupy
 
   useLayoutEffect(() => {
-    if (!slot || !target) return
-    return slot.occupy()
-  }, [slot, target])
+    if (target) return occupy?.()
+  }, [target, occupy])
 
-  return target ? createPortal(children, target) : fallbackWhenUnavailable ? children : null
+  if (slot) return target ? createPortal(children, target) : null
+  return fallbackWhenUnavailable ? children : null
 }
 
 interface ApplicationWorkspaceFrameProps {
@@ -77,12 +59,13 @@ export function ApplicationWorkspaceFrame({
   children,
 }: ApplicationWorkspaceFrameProps) {
   const [layoutLabOpen, setLayoutLabOpen] = useState(false)
-  const headerRef = useRef<HTMLDivElement>(null)
+  const [headerTarget, setHeaderTarget] = useState<HTMLDivElement | null>(null)
   const [occupants, setOccupants] = useState(0)
-  const headerSlot = useMemo<HeaderSlot>(() => ({
-    getTarget: () => headerRef.current,
-    occupy: () => { setOccupants(count => count + 1); return () => setOccupants(count => Math.max(0, count - 1)) },
-  }), [])
+  const occupy = useCallback(() => {
+    setOccupants(count => count + 1)
+    return () => setOccupants(count => Math.max(0, count - 1))
+  }, [])
+  const headerSlot = useMemo(() => ({ target: headerTarget, occupy }), [headerTarget, occupy])
   const headerEmpty = occupants === 0
 
   return (
@@ -100,7 +83,7 @@ export function ApplicationWorkspaceFrame({
                     <VyzualzHeaderActions page={HEADER_PAGE_IDS[appView]} />
                   </div>}
                 </div>
-                <div ref={headerRef} className="fw-app-header-controls" data-app-header-slot="controls" />
+                <div ref={setHeaderTarget} className="fw-app-header-controls" data-app-header-slot="controls" />
                 {AppReviewNotes && <div className="fw-app-header-center"><Suspense fallback={null}><AppReviewNotes page={{ id: appView, label: APP_VIEW_LABELS[appView] }} /></Suspense></div>}
               </div>
             </WorkspaceSurface>

@@ -3,8 +3,9 @@
 The single application shell is `ApplicationWorkspaceFrame` (selected by
 `VyzualzView` and `FLOATING_APP_VIEWS` in `appView.ts`). Its
 `FloatingWorkspaceFrame` marks `[data-workspace-layout="floating"]`, with
-`data-app-workspace` naming the current view. The frame owns **one** 60px
-header, the navigation rail and the content slot.
+`data-app-workspace` naming the current view. The frame owns **one** top
+header, the navigation rail and the content slot. The page name and toolbar
+are on the left of the header, with search and status readouts on the right.
 `ApplicationHeaderControls` portals feature-owned actions into that header;
 it does **not** copy, recreate or rebind those actions.
 
@@ -15,12 +16,12 @@ divider (`HeaderControlGroup`) and the same status readouts
 (`VyzualzHeaderActions`, reported under that page), laid out exactly as the
 page's own header is. It is never a bare text label. It is hidden, and its
 content not rendered, as soon as a page puts its own controls in the slot, so
-the bar holds one header at every moment. The slot is a stable object: a page
-finds the header element through it when it mounts (and again after every
-commit if the element is not there yet), and `occupy()` counts the pages that
-are in the slot, so one page leaving cannot mark the header empty while another
-is still in it. A page that sets `fallbackWhenUnavailable` still renders its
-header inline only when there is no frame at all (a standalone mount).
+the bar holds one header. The frame publishes its portal target through a
+shared context when the DOM node mounts or changes. The context lives in its
+own module, so refreshing the frame does not disconnect a loaded workspace.
+Occupancy is tracked across route changes and Suspense. The frame owns the
+stand-in while a page waits for the target. `fallbackWhenUnavailable` renders
+a header inline only for a standalone mount without a frame.
 
 The production navigation rail is permanently collapsed at 72px and has no
 expand/collapse control or expansion state. It follows Layout Lab's Preview 1

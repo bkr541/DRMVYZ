@@ -81,8 +81,8 @@ describe('persistent Layout Lab tabs', () => {
 
   it('keeps content identity through renaming, switching tabs and reopening', async () => {
     await render()
-    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(7)
-    expect(host.querySelectorAll('[role="tabpanel"]')).toHaveLength(7)
+    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(8)
+    expect(host.querySelectorAll('[role="tabpanel"]')).toHaveLength(8)
     const panel = host.querySelector<HTMLElement>('#layout-lab-tab-01-panel')!
     const studies = panel.querySelector('.ll-pad-studies')
     const rows = [...panel.querySelectorAll('[data-pad-study]')]
@@ -125,18 +125,26 @@ describe('persistent Layout Lab tabs', () => {
     await key('Enter')
     expect(tab(1).textContent).toBe('Tab 1')
     await act(async () => tab(1).dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true })))
-    expect(tab(12).getAttribute('aria-selected')).toBe('true')
-    await act(async () => tab(12).dispatchEvent(new KeyboardEvent('keydown', { key: 'F2', bubbles: true })))
+    expect(tab(13).getAttribute('aria-selected')).toBe('true')
+    await act(async () => tab(13).dispatchEvent(new KeyboardEvent('keydown', { key: 'F2', bubbles: true })))
     await type('Geometry')
     await act(async () => input().blur())
-    expect(tab(12).textContent).toBe('Geometry')
+    expect(tab(13).textContent).toBe('Geometry')
   })
 
-  it('adds the UI Preview tab last, with its own permanent id and one window frame', async () => {
+  it('adds the UI Preview tab, with its own permanent id and one window frame', async () => {
     await render()
     expect(tab(12).textContent).toBe('UI Preview')
-    expect([...host.querySelectorAll('[role="tab"]')].map(item => item.textContent).at(-1)).toBe('UI Preview')
     expect(host.querySelectorAll('#layout-lab-tab-12-panel iframe.ll-ui-preview-frame')).toHaveLength(1)
+  })
+
+  it('adds the Mobile tab last, with three layout studies of a DJ set and a party', async () => {
+    await render()
+    expect(tab(13).textContent).toBe('Mobile')
+    expect([...host.querySelectorAll('[role="tab"]')].map(item => item.textContent).at(-1)).toBe('Mobile')
+    const panel = host.querySelector('#layout-lab-tab-13-panel')!
+    expect([...panel.querySelectorAll('[data-mobile-study]')].map(study => (study as HTMLElement).dataset.mobileStudy)).toEqual(['a', 'b', 'c'])
+    expect(panel.querySelectorAll('iframe.ll-mobile-frame')).toHaveLength(3)
   })
 
   it('has no Nav Bar Icons tab, and a saved selection of it falls back to the first tab', async () => {
@@ -154,7 +162,7 @@ describe('persistent Layout Lab tabs', () => {
     expect([...host.querySelectorAll('[role="tab"]')].map(item => item.textContent)).not.toContain('PixGrid Deck')
     expect(host.querySelector('#layout-lab-tab-10')).toBeNull()
     expect(host.querySelector('[aria-label="PixGrid Deck popover studies"]')).toBeNull()
-    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(7)
+    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(8)
     expect(tab(1).getAttribute('aria-selected')).toBe('true')
   })
 
@@ -180,7 +188,7 @@ describe('persistent Layout Lab tabs', () => {
     window.localStorage.setItem(LAYOUT_LAB_STORAGE_KEY, 'broken json')
     vi.spyOn(window.localStorage, 'setItem').mockImplementation(() => { throw new Error('Storage blocked') })
     await render()
-    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(7)
+    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(8)
     expect(host.querySelector('[role="status"]')?.textContent).toContain('could not be saved')
     await act(async () => tab(3).click())
     expect(tab(3).getAttribute('aria-selected')).toBe('true')
