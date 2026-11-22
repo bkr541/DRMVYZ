@@ -81,22 +81,16 @@ describe('persistent Layout Lab tabs', () => {
 
   it('keeps content identity through renaming, switching tabs and reopening', async () => {
     await render()
-    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(9)
-    expect(host.querySelectorAll('[role="tabpanel"]')).toHaveLength(9)
+    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(8)
+    expect(host.querySelectorAll('[role="tabpanel"]')).toHaveLength(8)
     const panel = host.querySelector<HTMLElement>('#layout-lab-tab-01-panel')!
     const studies = panel.querySelector('.ll-pad-studies')
     const rows = [...panel.querySelectorAll('[data-pad-study]')]
-    expect(rows).toHaveLength(5)
-    expect(rows[0].getAttribute('data-pad-study')).toBe('signal')
-    expect(rows.map(row => row.querySelector('h2')?.textContent)).toEqual(['Full', 'Compact', 'Underline', 'Accent Rail', 'Glow'])
-    for (const row of rows) {
-      expect(row.querySelectorAll('button')).toHaveLength(4)
-      expect(row.querySelectorAll('button:disabled')).toHaveLength(0)
-    }
-    await act(async () => panel.querySelector<HTMLButtonElement>('[data-pad-study-item="signal-drop-cage"]')!.click())
-    expect(panel.querySelector('[data-pad-study-item="signal-drop-cage"]')?.getAttribute('aria-pressed')).toBe('true')
-    expect(panel.querySelector('[data-pad-study-item="signal-reactor"]')?.getAttribute('aria-pressed')).toBe('false')
-    expect(panel.querySelector('[data-pad-study-item="compact-reactor"]')?.getAttribute('aria-pressed')).toBe('true')
+    expect(rows.map(row => row.querySelector('h2')?.textContent)).toEqual(['Full', 'Compact'])
+    for (const row of rows) expect(row.querySelectorAll('button.performance-pad')).toHaveLength(5)
+    await act(async () => panel.querySelector<HTMLButtonElement>('[data-pad-study-item="full-pad-2"]')!.click())
+    expect(panel.querySelector('[data-pad-study-item="full-pad-2"]')?.getAttribute('data-selected')).toBe('true')
+    expect(panel.querySelector('[data-pad-study-item="compact-pad-1"]')?.getAttribute('data-selected')).toBe('true')
     const child = document.createElement('div')
     child.dataset.study = 'retained-element'
     panel.append(child)
@@ -138,11 +132,14 @@ describe('persistent Layout Lab tabs', () => {
     expect(tab(11).textContent).toBe('Geometry')
   })
 
-  it('adds the PixGrid Deck tab with its own permanent id and the popover studies', async () => {
+  it('has no PixGrid Deck tab, and a saved selection of it falls back to the first tab', async () => {
+    window.localStorage.setItem(LAYOUT_LAB_STORAGE_KEY, JSON.stringify({ version: 1, activeTabId: 'layout-lab-tab-10', tabs: [{ id: 'layout-lab-tab-10', name: 'PixGrid Deck' }] }))
     await render()
-    expect(tab(10).textContent).toBe('PixGrid Deck')
-    expect(host.querySelector('#layout-lab-tab-10-panel [aria-label="PixGrid Deck popover studies"]')).not.toBeNull()
-    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(9)
+    expect([...host.querySelectorAll('[role="tab"]')].map(item => item.textContent)).not.toContain('PixGrid Deck')
+    expect(host.querySelector('#layout-lab-tab-10')).toBeNull()
+    expect(host.querySelector('[aria-label="PixGrid Deck popover studies"]')).toBeNull()
+    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(8)
+    expect(tab(1).getAttribute('aria-selected')).toBe('true')
   })
 
   it('adds the Brand Kit tab last, with its own permanent id, and also shows it in an empty slot someone has renamed Brand Kit', async () => {
@@ -165,7 +162,7 @@ describe('persistent Layout Lab tabs', () => {
     window.localStorage.setItem(LAYOUT_LAB_STORAGE_KEY, 'broken json')
     vi.spyOn(window.localStorage, 'setItem').mockImplementation(() => { throw new Error('Storage blocked') })
     await render()
-    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(9)
+    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(8)
     expect(host.querySelector('[role="status"]')?.textContent).toContain('could not be saved')
     await act(async () => tab(3).click())
     expect(tab(3).getAttribute('aria-selected')).toBe('true')
@@ -206,12 +203,18 @@ describe('persistent Layout Lab tabs', () => {
     expect(studies.map(study => (study as HTMLElement).dataset.authStudy)).toEqual(['aperture', 'afterglow', 'broadsheet', 'rack'])
     for (const study of studies) {
       // Every mockup shows both groups at once: Sign in (email, password) and Create account (name, artist name, email, password, confirmation).
-      expect(study.querySelectorAll('[data-auth-state="signin"] input.ll-am-input')).toHaveLength(2)
-      expect(study.querySelectorAll('[data-auth-state="signup"] input.ll-am-input')).toHaveLength(5)
+      expect(study.querySelectorAll('[data-auth-state="signin"] input.dv-text-input')).toHaveLength(2)
+      expect(study.querySelectorAll('[data-auth-state="signup"] input.dv-text-input')).toHaveLength(5)
       expect(study.querySelectorAll('[data-auth-state] canvas')).toHaveLength(2)
+      // The production controls, unchanged: the shared input, the primary action, links and the switch line.
+      expect(study.querySelectorAll('[data-auth-state] .auth-submit')).toHaveLength(2)
+      expect(study.querySelectorAll('[data-auth-state] .auth-switch .auth-link')).toHaveLength(2)
+      expect(study.querySelectorAll('[data-auth-state] .ll-am-input, [data-auth-state] .ll-am-submit')).toHaveLength(0)
       // The brand's mark or wordmark, never an invented logo.
       expect(study.querySelector('img[src$="stageless_logo.png"], img[src$="stageless_wordmark.png"]')).not.toBeNull()
     }
+    // The production form's stylesheet travels with the studies (inline, like every other study's CSS), so the form is styled however the page was loaded.
+    expect(host.querySelectorAll('#layout-lab-tab-08-panel style').length).toBeGreaterThanOrEqual(2)
     // Four different animation languages and four different layouts.
     expect(new Set(studies.map(study => study.querySelector('[data-auth-animation]')!.getAttribute('data-auth-animation'))).size).toBe(4)
     const password = studies[0].querySelector<HTMLInputElement>('[data-auth-state="signin"] input[type="password"]')!

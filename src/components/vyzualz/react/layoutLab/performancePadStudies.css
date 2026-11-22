@@ -1,57 +1,9 @@
-/* Production reference: collapsed 72px nav, expanded side rails, five columns,
-   4px grid gaps and 8px grid inset. 181px includes chrome, borders and padding.
-   Height mirrors the 26% + 48px Configuration split and four 94px-minimum rows. */
-.ll-pad-studies { --ll-reference-rail-width: clamp(210px, 22vw, 354px); --ll-reference-center-height: calc(100vh - 190px); --ll-pad-width: calc((100vw - 181px - 2 * var(--ll-reference-rail-width)) / 5); --ll-pad-height: max(94px, calc((var(--ll-reference-center-height) - max(188px, calc(var(--ll-reference-center-height) * .26 + 48px)) - 107px) / 4)); display: grid; gap: 24px; padding: 16px 2px 12px; }
-.ll-pad-study { width: max-content; justify-self: center; }
-.ll-pad-study-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 10px; }
-.ll-pad-study-heading h2 { display: flex; align-items: center; gap: 8px; margin: 0; color: #d4dfe3; font: var(--type-window-heading); letter-spacing: var(--type-window-heading-tracking); text-transform: uppercase; }
-.ll-pad-study-row { display: grid; grid-template-columns: repeat(4, var(--ll-pad-width)); gap: 4px; }
-.ll-study-pad { container-type: inline-size; box-sizing: border-box; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; padding: 2px 6px; min-width: 0; height: var(--ll-pad-height); border-radius: 8px; overflow: hidden; border: 1px solid #ffffff16; background: #121b20; color: #dbe5e9; cursor: pointer; transition: border-color 60ms, background 60ms, box-shadow 60ms, transform 60ms; }
-.ll-study-pad-label { position: relative; z-index: 1; max-width: calc(100% - 24px); overflow: hidden; text-overflow: ellipsis; white-space: normal; text-align: center; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; font: var(--type-pad-label-expanded); letter-spacing: .035em; text-transform: uppercase; }
-.ll-study-pad-key { position: absolute; z-index: 0; color: #e8f4f8; opacity: .09; pointer-events: none; }
-.ll-study-pad-indicator { display: none; }
-.ll-study-pad:not(:disabled):hover { transform: translateY(-2px); }
-.ll-study-pad:focus-visible { outline: 2px solid #8ef4ff; outline-offset: 2px; }
-/* 02: a horizontal signal below the centered title, with an outlined numeral. */
-.ll-pad-study--signal .ll-study-pad { align-items: center; justify-content: center; padding: 12px 16px; gap: 0; border-radius: 8px; background: #151d22; }
-.ll-pad-study--signal .ll-study-pad-label { max-width: 100%; }
-.ll-pad-study--signal .ll-study-pad-indicator { display: block; position: absolute; left: 50%; top: calc(50% + 16px); transform: translateX(-50%); width: calc(var(--ll-pad-height) - 34px); height: 2px; border-radius: 2px; background: var(--study-pad-color); }
-.ll-pad-study--signal .ll-study-pad[aria-pressed='true'] { background: color-mix(in srgb, var(--study-pad-color) 12%, #151d22); border-color: #ffffff30; }
-.ll-pad-study--signal .ll-study-pad-key { right: 4px; top: 50%; transform: translateY(-50%); color: transparent; -webkit-text-stroke: 1px var(--study-pad-color); opacity: .24; }
-@media (max-width: 1100px) { .ll-pad-studies { --ll-reference-rail-width: clamp(190px, 24vw, 260px); } }
-@media (max-width: 900px) { .ll-pad-studies { --ll-reference-center-height: calc(100vh - 156px); } }
-@media (max-width: 800px) { .ll-pad-studies { --ll-reference-rail-width: clamp(150px, 22vw, 190px); } }
-
-/* React compact footprint: its 8px grid inset is 12px smaller on each
-   side than Full's reference. All variants keep identical outer geometry. */
-.ll-pad-study--compact { --ll-compact-pad-width: calc((100vw - 157px - 2 * var(--ll-reference-rail-width)) / 5); }
-.ll-pad-study--compact .ll-pad-study-row { grid-template-columns: repeat(4, var(--ll-compact-pad-width)); }
-.ll-pad-study--compact .ll-study-pad { height: 40px; padding: 6px 4px 5px; border-radius: 5px; background: #10171b; }
-.ll-pad-study--compact .ll-study-pad-label { max-width: calc(100% - 12px); white-space: nowrap; display: block; }
-.ll-pad-study--compact .ll-study-pad-key { right: 5px; top: 50%; transform: translateY(-50%); color: transparent; -webkit-text-stroke: 1px var(--study-pad-color); opacity: .24; }
-.ll-pad-study--compact .ll-study-pad-indicator { display: block; position: absolute; left: 50%; bottom: 6px; width: 24px; height: 2px; border-radius: 2px; transform: translateX(-50%); background: var(--study-pad-color); }
-.ll-pad-study--compact .ll-study-pad[aria-pressed='true'] { border-color: #ffffff30; background: color-mix(in srgb, var(--study-pad-color) 12%, #10171b); }
-/* Centered Full treatment, scaled to the compact pad. */
-.ll-pad-study--compact .ll-study-pad-label { transform: translateY(-2px); }
-/* A longer recessed signal underneath the centered title. */
-.ll-pad-study--underline .ll-study-pad-indicator { width: calc(100% - 24px); height: 1px; bottom: 7px; box-shadow: 0 2px 0 #0008; }
-.ll-pad-study--underline .ll-study-pad-key { left: 50%; right: auto; top: auto; bottom: -4px; transform: translateX(-50%); opacity: .11; }
-/* Left-aligned title with an inset signal marker and outlined shortcut. */
-.ll-pad-study--accent-rail .ll-study-pad { align-items: flex-start; padding-left: 14px; }
-.ll-pad-study--accent-rail .ll-study-pad-label { text-align: left; transform: none; }
-.ll-pad-study--accent-rail .ll-study-pad-indicator { left: 6px; top: 9px; bottom: 9px; width: 2px; height: auto; transform: none; }
-/* A colored glass wash with a fine lower edge and soft selection glow. */
-.ll-pad-study--glow .ll-study-pad { background: linear-gradient(135deg, color-mix(in srgb, var(--study-pad-color) 14%, #10171b), #10171b); }
-.ll-pad-study--glow .ll-study-pad-indicator { width: calc(100% - 18px); height: 1px; bottom: 4px; opacity: .65; }
-.ll-pad-study--glow .ll-study-pad[aria-pressed='true'] { background: linear-gradient(135deg, color-mix(in srgb, var(--study-pad-color) 24%, #10171b), #10171b); box-shadow: inset 0 0 12px color-mix(in srgb, var(--study-pad-color) 12%, transparent); }
-
-/* Distinct watermark anchors keep the shortcut away from each title. */
-[data-pad-study='compact'] .ll-study-pad-key { left: 50%; right: auto; top: 50%; bottom: auto; transform: translate(-50%, -50%); opacity: .2; }
-.ll-pad-study--accent-rail .ll-study-pad-key { left: auto; right: 4px; top: 50%; bottom: auto; transform: translateY(-50%); opacity: .22; }
-.ll-pad-study--glow .ll-study-pad-key { left: 50%; right: auto; top: -4px; bottom: auto; transform: translateX(-50%); opacity: .12; }
-
-/* Momentary strike feedback is separate from the latched selection outline. */
-.ll-study-pad[data-hit='true'] { transition-duration: 0ms; }
-/* 02: immediate perimeter halo, like a backlit rubber pad. */
-.ll-pad-studies .ll-study-pad[data-hit='true'] { transform: translateY(1px); border-color: #e8f4f8; box-shadow: 0 0 0 1px var(--study-pad-color), 0 0 22px color-mix(in srgb, var(--study-pad-color) 75%, transparent), inset 0 0 32px color-mix(in srgb, var(--study-pad-color) 30%, transparent); }
-@media (prefers-reduced-motion: reduce) { .ll-pad-studies .ll-study-pad { transition: none; } .ll-pad-studies .ll-study-pad[data-hit='true'] { transform: none; } }
+/* Performance pads (Layout Lab): only the headings and the frame are the study's; the pads and their grid are the production component's own styles. */
+.ll-pad-studies { display: grid; gap: 28px; padding: 16px 2px 24px; }
+.ll-pad-study { width: min(100%, 1000px); justify-self: center; }
+.ll-pad-study-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 10px; }
+.ll-pad-study-heading h2 { margin: 0; color: var(--color-text-strong, #d4dfe3); font: var(--type-window-heading); letter-spacing: var(--type-window-heading-tracking); text-transform: uppercase; }
+.ll-pad-study-heading p { margin: 0; color: var(--color-text-muted, rgba(196, 207, 211, .58)); font: var(--type-field-label); }
+/* The production grid: five columns and a 4px gap (src/styles/reactView.css, .rv-pads-grid). The pad itself and its padding come from performancePad.css, imported by the component.
+   Repeated here so the tab shows the real grid even where the React workspace's stylesheet is not loaded. */
+.ll-pad-studies .rv-pads-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }

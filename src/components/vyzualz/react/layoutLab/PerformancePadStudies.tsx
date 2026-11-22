@@ -1,81 +1,43 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { useState } from 'react'
+import { PerformancePad } from '../controls/PerformancePad'
+import { getPerformancePadColor } from '../ReactPerformancePads'
+import { DEFAULT_PERFORMANCE_PADS } from '../ReactTypes'
+import padStyles from '../controls/performancePad.css?inline'
 import studyStyles from './performancePadStudies.css?inline'
 
-const DESIGNS = [
-  { id: 'signal', name: 'Full', compact: false },
-  { id: 'compact', name: 'Compact', compact: true },
-  { id: 'underline', name: 'Underline', compact: true },
-  { id: 'accent-rail', name: 'Accent Rail', compact: true },
-  { id: 'glow', name: 'Glow', compact: true },
+/**
+ * The production performance pad, and only that: the same `PerformancePad` component, in the same `.rv-pads-section` / `.rv-pads-grid` wrappers and with the same
+ * default pads, colours and shortcuts the React workspace uses, at its two sizes: Full (the Performance Manager's expanded pads) and Compact (React's own footprint).
+ * Selection stays local to each size and never triggers a production pad.
+ */
+const SIZES = [
+  { id: 'full', name: 'Full', density: 'expanded', note: 'Expanded: the Performance Manager\'s pads, 94px minimum rows' },
+  { id: 'compact', name: 'Compact', density: 'compact', note: 'Compact: React\'s own footprint, 40px rows' },
 ] as const
-const PADS = [
-  { id: 'reactor', name: 'Reactor', key: '1', color: '#5993e8' },
-  { id: 'drop-cage', name: 'Drop Cage', key: '2', color: '#df706d' },
-  { id: 'infinity', name: 'Infinity', key: '3', color: '#64b98b' },
-  { id: 'tunnel', name: 'Tunnel', key: '4', color: '#d9a35e' },
-] as const
+/** The first row of the production grid: five pads, four with a destination and one empty slot. */
+const ROW = DEFAULT_PERFORMANCE_PADS.slice(0, 5)
 
-/** Visual studies only; selection stays local and never triggers a production pad. */
 export function PerformancePadStudies() {
-  const [selected, setSelected] = useState<Record<string, string>>(Object.fromEntries(DESIGNS.map(design => [design.id, 'reactor'])))
-  const [hits, setHits] = useState<Set<string>>(new Set())
-  const releaseTimers = useRef(new Map<string, number>())
-  const rootRef = useRef<HTMLDivElement>(null)
-  const strike = (id: string) => {
-    window.clearTimeout(releaseTimers.current.get(id))
-    releaseTimers.current.delete(id)
-    setHits(current => new Set(current).add(id))
-  }
-  const release = (id: string) => {
-    window.clearTimeout(releaseTimers.current.get(id))
-    releaseTimers.current.delete(id)
-    setHits(current => { const next = new Set(current); next.delete(id); return next })
-  }
-  useEffect(() => {
-    const timers = releaseTimers.current
-    const popup = rootRef.current?.ownerDocument.defaultView
-    const reset = () => { timers.forEach(timer => window.clearTimeout(timer)); timers.clear(); setHits(new Set()) }
-    popup?.addEventListener('blur', reset)
-    return () => { timers.forEach(timer => window.clearTimeout(timer)); popup?.removeEventListener('blur', reset) }
-  }, [])
-  return <div ref={rootRef} className="ll-pad-studies" aria-label="Performance pad design studies">
+  const [selected, setSelected] = useState<Record<string, string>>({ full: ROW[0]!.id, compact: ROW[0]!.id })
+  return <div className="ll-pad-studies" aria-label="Performance pads, full and compact">
+    {/* Layout Lab is a separate popup window that receives no app stylesheets, so the production pad's own CSS travels with the study. */}
+    <style>{padStyles}</style>
     <style>{studyStyles}</style>
-    {DESIGNS.map(design => <section className={`ll-pad-study ll-pad-study--${design.id}${design.compact ? ' ll-pad-study--compact' : ''}`} key={design.id} data-pad-study={design.id} aria-labelledby={`ll-pad-study-${design.id}`}>
+    {SIZES.map(size => <section className="ll-pad-study" key={size.id} data-pad-study={size.id} aria-labelledby={`ll-pad-study-${size.id}`}>
       <header className="ll-pad-study-heading">
-        <h2 id={`ll-pad-study-${design.id}`}><svg width="14" height="14" viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor"><rect x="2" y="2" width="5" height="5" /><rect x="12" y="2" width="5" height="5" /><rect x="2" y="12" width="5" height="5" /><rect x="12" y="12" width="5" height="5" /></svg>{design.name}</h2>
+        <h2 id={`ll-pad-study-${size.id}`}>{size.name}</h2>
+        <p>{size.note}</p>
       </header>
-      <div className="ll-pad-study-row" role="group" aria-label={`${design.name} performance pads`}>
-        {PADS.map(pad => <button key={pad.id} type="button" className="ll-study-pad" aria-pressed={selected[design.id] === pad.id} aria-label={`${design.name}: ${pad.name}, shortcut ${pad.key}`} style={{ '--study-pad-color': pad.color } as CSSProperties} data-pad-study-item={`${design.id}-${pad.id}`} data-hit={hits.has(`${design.id}-${pad.id}`) || undefined}
-          onPointerDown={event => {
-            if (event.button !== 0) return
-            event.currentTarget.setPointerCapture?.(event.pointerId)
-            strike(`${design.id}-${pad.id}`)
-          }}
-          onPointerUp={() => release(`${design.id}-${pad.id}`)}
-          onPointerCancel={() => release(`${design.id}-${pad.id}`)}
-          onBlur={() => release(`${design.id}-${pad.id}`)}
-          onKeyDown={event => { if (event.key === ' ' || event.key === 'Enter') { event.preventDefault(); strike(`${design.id}-${pad.id}`) } }}
-          onKeyUp={event => {
-            if (event.key === ' ' || event.key === 'Enter') {
-              event.preventDefault()
-              setSelected(current => ({ ...current, [design.id]: pad.id }))
-              release(`${design.id}-${pad.id}`)
-            }
-          }}
-          onClick={event => {
-            setSelected(current => ({ ...current, [design.id]: pad.id }))
-            // Pointer/keyboard release already ended their strike. Only a
-            // standalone assistive click needs its own brief visual pulse.
-            if (event.detail === 0) {
-              const id = `${design.id}-${pad.id}`
-              strike(id)
-              releaseTimers.current.set(id, window.setTimeout(() => release(id), 40))
-            }
-          }}>
-          <span className="ll-study-pad-indicator" aria-hidden="true" />
-          <span className="ll-study-pad-label">{pad.name}</span>
-          <span className="ll-study-pad-key" aria-hidden="true">{pad.key}</span>
-        </button>)}
+      <div className={`rv-pads-section rv-pads-section--embedded${size.density === 'expanded' ? ' rv-pads-section--expanded' : ''}`}>
+        <div className="rv-pads-grid" role="group" aria-label={`${size.name} performance pads`}>
+          {ROW.map((pad, index) => {
+            const hasDestination = Boolean(pad.presetId)
+            return <PerformancePad key={pad.id} density={size.density} label={pad.label} shortcut={pad.keyBinding.toUpperCase()} color={getPerformancePadColor(pad, index)}
+              data-pad-study-item={`${size.id}-${pad.id}`} data-empty={!hasDestination || undefined} className={!hasDestination ? 'rv-pad--empty' : ''}
+              selected={hasDestination && selected[size.id] === pad.id} disabled={!hasDestination} aria-disabled={!hasDestination} title={hasDestination ? `${pad.label} [${pad.keyBinding.toUpperCase()}]` : 'Empty pad'}
+              onActivate={() => setSelected(current => ({ ...current, [size.id]: pad.id }))} />
+          })}
+        </div>
       </div>
     </section>)}
   </div>

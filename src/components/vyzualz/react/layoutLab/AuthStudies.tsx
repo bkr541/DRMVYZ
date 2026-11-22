@@ -1,6 +1,8 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { AppIcon } from '../../../shared/icons/AppIcon'
+import { DreamVizTextInput } from '../controls/DreamVizTextInput'
 import { IconMorphToggle } from '../controls/IconMorphToggle'
+import authStyles from '../../../../styles/auth.css?inline'
 import { AUTH_ENGINES, startAuthAnimation, type AuthAnimationStyle } from './authStudyAnimations'
 import studyStyles from './authStudies.css?inline'
 
@@ -22,19 +24,19 @@ interface Study {
 }
 const STUDIES: readonly Study[] = [
   { id: 'aperture', name: 'Aperture', layout: 'Split screen: animation left, form panel right', animation: 'schematic',
-    summary: 'Precise and technical. A hairline-bordered form panel beside an engineering view of the engines.',
+    summary: 'Precise and technical. The production form panel beside an engineering view of the engines.',
     animationNote: 'Schematic line drawings with callouts: one engine at a time, each drawn as the diagram of what it does.',
     inspiration: [{ label: 'Dribbble · split-screen register', href: 'https://dribbble.com/search/split-screen-register' }, { label: 'Dribbble · dark theme login', href: 'https://dribbble.com/search/dark-theme-login' }] },
   { id: 'afterglow', name: 'Afterglow', layout: 'Full-bleed animation behind one centred glass card', animation: 'glow',
-    summary: 'Immersive and soft. The engines fill the whole screen and the form floats over them as frosted glass with the brand glow.',
+    summary: 'Immersive and soft. The engines fill the whole screen and the production form floats over them on a frosted glass card with the brand glow.',
     animationNote: 'Additive light: luminous ribbons, a star flight, drifting colour, laser haze, glowing pixels and stage cones.',
     inspiration: [{ label: 'Dribbble · glassmorphism sign-up', href: 'https://dribbble.com/search/signup-glassmorphism' }, { label: 'Dribbble · Animated Glassmorphism', href: 'https://dribbble.com/shots/14844902-Animated-Glassmorphism' }] },
   { id: 'broadsheet', name: 'Broadsheet', layout: 'Editorial: narrow form rail, big type, kinetic type wall', animation: 'type',
-    summary: 'Flat and loud. Hard lines, numbered fields and a huge headline; no glass and no glow.',
+    summary: 'Flat and editorial. A square-cornered form rail with a masthead and hard rules beside a wall of kinetic type; no glass and no glow.',
     animationNote: 'Kinetic typography: each engine\'s name moves the way the engine does (level bars, fly-through, colour split, slit scan, pixelation, marquee).',
     inspiration: [{ label: 'Dribbble · neo-brutalism login and sign-up', href: 'https://dribbble.com/shots/20823980-Neo-Brutalism-Login-and-Sign-up-page' }, { label: 'Dribbble · big typography', href: 'https://dribbble.com/search/big-typography' }] },
   { id: 'rack', name: 'Rack', layout: 'Stacked: an engine display rack above a hardware-style form plate', animation: 'matrix',
-    summary: 'Hardware and playful. A plate with LED details, a pill mode switch and two-column fields under a wall of displays.',
+    summary: 'Hardware and playful. A form plate with LED details and two-column fields under a wall of displays.',
     animationNote: 'All six engines at once, each on its own LED dot-matrix display; the one on stage lights up and takes its turn.',
     inspiration: [{ label: 'Dribbble · Synth collection', href: 'https://dribbble.com/paultebbott/collections/98137-Synth' }, { label: 'Dribbble · LED matrix display', href: 'https://dribbble.com/shots/15213693-Matrix-Display-VanMoof-Exploration' }] },
 ]
@@ -45,50 +47,62 @@ function AuthCanvas({ animation }: { animation: AuthAnimationStyle }) {
   return <canvas ref={ref} className="ll-am-canvas" aria-hidden="true" />
 }
 
-function AuthField({ label, type, placeholder }: { label: string; type: 'text' | 'email' | 'password'; placeholder: string }) {
+/**
+ * The form is the production sign-in and sign-up form's own markup, classes and copy (src/components/auth/AuthPage.tsx and src/styles/auth.css): the shared text
+ * input, field labels and icons, the eye toggle, the remember toggle, the checkbox, the primary action, links and the switch line. The four mockups change only what
+ * is around the form (layout, surface, brand lockup, animation), never the controls.
+ */
+function Field({ label, type, placeholder, icon, password }: { label: string; type: string; placeholder: string; icon: 'user' | 'mail' | 'lock' | 'mic'; password?: boolean }) {
   const id = useId()
   const [visible, setVisible] = useState(false)
-  return <div className="ll-am-field">
-    <label htmlFor={id}>{label}</label>
-    <input id={id} className="ll-am-input" type={visible ? 'text' : type} placeholder={placeholder} autoComplete="off" required />
-    {type === 'password' && <button className="ll-am-eye" type="button" aria-label={`${visible ? 'Hide' : 'Show'} ${label.toLowerCase()}`} onClick={() => setVisible(value => !value)}>
-      <AppIcon kind={visible ? 'eye' : 'eyeOff'} size={15} />
-    </button>}
+  return <div className="auth-field">
+    <label className="rv-ctrl-label" htmlFor={id}>{label}</label>
+    <div className="auth-field-wrap">
+      <span className="auth-field-icon"><AppIcon kind={icon} size="15" /></span>
+      <DreamVizTextInput id={id} className="auth-field-input" type={password ? (visible ? 'text' : 'password') : type} placeholder={placeholder} autoComplete="off" />
+      {password && <button className="auth-field-eye" type="button" aria-label={visible ? 'Hide password' : 'Show password'} onClick={() => setVisible(value => !value)}>
+        <AppIcon kind={visible ? 'eye' : 'eyeOff'} size="15" />
+      </button>}
+    </div>
   </div>
 }
 
 function AuthForm({ study, signingUp, other }: { study: Study; signingUp: boolean; other(): void }) {
   const [remember, setRemember] = useState(false)
-  const [submitted, setSubmitted] = useState(false)
-  const title = signingUp ? 'Create account' : 'Sign in'
-  const titleId = useId()
-  return <form className="ll-am-form" aria-labelledby={titleId} autoComplete="off" onSubmit={event => { event.preventDefault(); setSubmitted(true) }}>
+  const [agreed, setAgreed] = useState(false)
+  return <div className="ll-am-panel">
     {study.id === 'aperture' && <img className="ll-am-wordmark" src={asset('stageless_wordmark.png')} alt="STAGELESS" />}
-    {study.id === 'afterglow' && <img className="ll-am-mark" src={asset('stageless_logo.png')} alt="STAGELESS" />}
+    {study.id === 'afterglow' && <div className="auth-logo"><img src={asset('stageless_logo.png')} alt="STAGELESS" className="auth-logo-img" style={{ width: 72, height: 72, objectFit: 'contain' }} /></div>}
     {study.id === 'broadsheet' && <div className="ll-am-masthead"><img className="ll-am-wordmark" src={asset('stageless_wordmark.png')} alt="STAGELESS" /><span>{signingUp ? 'New member' : 'Members'}</span></div>}
-    {study.id === 'rack' && <div className="ll-am-rack-head">
-      <img className="ll-am-mark" src={asset('stageless_logo.png')} alt="STAGELESS" />
-      <div className="ll-am-segment" role="group" aria-label="Mode">
-        <button type="button" aria-pressed={!signingUp} onClick={signingUp ? other : undefined}>Sign in</button>
-        <button type="button" aria-pressed={signingUp} onClick={signingUp ? undefined : other}>Create account</button>
+    {study.id === 'rack' && <div className="ll-am-rack-head"><img className="ll-am-wordmark" src={asset('stageless_wordmark.png')} alt="STAGELESS" /><span className="ll-am-leds" aria-hidden="true"><i /><i /><i /></span></div>}
+    <form className="auth-form" autoComplete="off" onSubmit={event => event.preventDefault()}>
+      <div className="auth-form-heading">
+        <h1 className="auth-form-title">{signingUp ? 'Create Account' : 'Welcome Back'}</h1>
+        <p className="auth-form-sub">{signingUp ? 'Sign up to start your studio experience' : 'Log in to access your studio'}</p>
       </div>
-      <span className="ll-am-leds" aria-hidden="true"><i /><i /><i /></span>
-    </div>}
-    <h3 id={titleId}>{title}{study.id === 'broadsheet' && <b>.</b>}</h3>
-    <div className="ll-am-fields">
-      {signingUp && <>
-        <AuthField label="Full name" type="text" placeholder="Your name" />
-        <AuthField label="Artist name" type="text" placeholder="Your stage name" />
-      </>}
-      <AuthField label="Email" type="email" placeholder="you@example.com" />
-      <AuthField label="Password" type="password" placeholder="••••••••" />
-      {signingUp && <AuthField label="Confirm password" type="password" placeholder="••••••••" />}
-    </div>
-    {!signingUp && <div className="ll-am-remember"><span>Remember me</span><IconMorphToggle checked={remember} onCheckedChange={setRemember} aria-label="Remember me" /></div>}
-    <button className="ll-am-submit" type="submit"><span>{title}</span>{study.id === 'broadsheet' && <span aria-hidden="true">→</span>}</button>
-    {study.id !== 'rack' && <button className="ll-am-mode" type="button" onClick={other}>{signingUp ? 'Have an account? Sign in' : 'New here? Create an account'}</button>}
-    {submitted && <span className="ll-am-status" role="status">Preview submitted.</span>}
-  </form>
+      <div className="ll-am-fields">
+        {signingUp && <>
+          <Field label="Full Name" type="text" placeholder="Your name" icon="user" />
+          <Field label="Artist Name" type="text" placeholder="Your artist / stage name" icon="mic" />
+        </>}
+        <Field label="Email" type="email" placeholder="you@example.com" icon={signingUp ? 'mail' : 'user'} />
+        <Field label="Password" type="password" placeholder="••••••••" icon="lock" password />
+        {signingUp && <Field label="Confirm Password" type="password" placeholder="••••••••" icon="lock" password />}
+      </div>
+      <div className="auth-form-row">
+        {signingUp ? <label className="auth-checkbox">
+          <input type="checkbox" checked={agreed} onChange={event => setAgreed(event.target.checked)} />
+          <span className="auth-checkbox-box" />
+          <span>I agree to the <button type="button" className="auth-link">Terms &amp; Privacy Policy</button></span>
+        </label> : <>
+          <label className="auth-remember"><span>Remember me</span><IconMorphToggle checked={remember} onCheckedChange={setRemember} aria-label="Remember me" /></label>
+          <button type="button" className="auth-link">Forgot password?</button>
+        </>}
+      </div>
+      <button className="auth-submit" type="submit">{signingUp ? 'Sign Up' : 'Log In'}</button>
+      <p className="auth-switch">{signingUp ? 'Already have an account? ' : 'Don\'t have an account? '}<button type="button" className="auth-link" onClick={other}>{signingUp ? 'Log in' : 'Create one'}</button></p>
+    </form>
+  </div>
 }
 
 function AuthStudy({ study }: { study: Study }) {
@@ -121,6 +135,8 @@ function AuthStudy({ study }: { study: Study }) {
 
 export function AuthStudies() {
   return <div className="ll-am" aria-label="Sign in and sign up mockups" data-auth-engines={AUTH_ENGINES.join(',')}>
+    {/* The production form's own stylesheet travels with the studies, like every other study's CSS, so the form never depends on another page having loaded it. */}
+    <style>{authStyles}</style>
     <style>{studyStyles}</style>
     {STUDIES.map(study => <AuthStudy key={study.id} study={study} />)}
   </div>
