@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 ;(globalThis as Record<string, unknown>)['IS_REACT_ACT_ENVIRONMENT'] = true
+import { useHealthStore } from '../../../stores/healthStore'
 import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -32,9 +33,9 @@ describe('Option E React header readouts', () => {
     expect(search?.querySelector('.dv-library-search-icon')).toBeNull()
     expect(search?.nextElementSibling?.matches('[data-react-header-status]')).toBe(true)
   })
-  it.each(['preset-manager', 'show-manager', 'lyric-manager', 'media-manager'] as const)('uses the same three readouts in %s', async page => {
+  it.each(['preset-manager', 'show-manager', 'lyric-manager', 'media-manager'] as const)('uses the same four readouts in %s', async page => {
     await act(async () => root.render(<VyzualzHeaderActions page={page} />))
-    expect([...container.querySelectorAll('.rv-header-status .vz-header-readout-label')].map(el => el.textContent)).toEqual(['LOAD / SAVE', 'RENDER / FPS', 'QUALITY / CPU'])
+    expect([...container.querySelectorAll('.rv-header-status .vz-header-readout-label')].map(el => el.textContent)).toEqual(['LOAD / SAVE', 'RENDER / FPS', 'QUALITY / CPU', 'HEALTH'])
     expect(container.querySelector('[data-performance-metric="fps"]')?.textContent).toBe('—')
     expect(container.querySelector('.vz-header-activity')).toBeNull()
   })
@@ -47,15 +48,24 @@ describe('Option E React header readouts', () => {
     expect(container.querySelector('.vz-header-readout')?.getAttribute('title')).toContain('Loading lyrics')
     expect(container.textContent).not.toContain('React save error')
   })
-  it('groups live values under three captions without header notification/profile actions', async () => {
+  it('groups live values under four captions without header notification/profile actions', async () => {
     await render()
-    expect([...container.querySelectorAll('.rv-header-status .vz-header-readout-label')].map(el => el.textContent)).toEqual(['LOAD / SAVE', 'RENDER / FPS', 'QUALITY / CPU'])
+    expect([...container.querySelectorAll('.rv-header-status .vz-header-readout-label')].map(el => el.textContent)).toEqual(['LOAD / SAVE', 'RENDER / FPS', 'QUALITY / CPU', 'HEALTH'])
     expect(container.querySelector('[data-performance-metric="fps"]')?.textContent).toBe('67')
     expect(container.querySelector('[data-performance-metric="frame-time"]')?.textContent).toBe('15.0ms')
     expect(container.querySelector('[data-performance-metric="quality"]')?.textContent).toBe('High')
     expect(container.querySelector('[data-header-cpu]')?.textContent).toBe('12%')
     expect(container.querySelector('.vz-header-notifications')).toBeNull()
-    expect(container.querySelectorAll('.vz-header-readout')).toHaveLength(3)
+    expect(container.querySelectorAll('.vz-header-readout')).toHaveLength(4)
+  })
+  it('shows a HEALTH chip per system that follows the health store', async () => {
+    await render()
+    const chip = (system: string) => container.querySelector(`[data-health-system="${system}"]`)?.getAttribute('data-health')
+    expect(['cast', 'audio', 'graphics'].map(chip)).toEqual(['idle', 'ok', 'ok'])
+    await act(async () => { useHealthStore.getState().setHealth('audio', 'healing', 'Audio output stopped') })
+    expect(chip('audio')).toBe('healing')
+    expect(container.querySelector('[data-health-readout]')?.getAttribute('aria-label')).toContain('Audio: failed; repairing itself')
+    await act(async () => { useHealthStore.getState().reset() })
   })
   it('keeps the load/save group present through idle, loading and dirty states', async () => {
     await render()

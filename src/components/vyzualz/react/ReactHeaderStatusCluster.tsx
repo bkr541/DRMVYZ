@@ -1,12 +1,13 @@
 import { useAppCpuUsage } from '../../../native/useAppCpuUsage'
 import { HeaderReadout } from '../layout/HeaderReadout'
+import { HealthReadout } from '../layout/HealthReadout'
 import { buildReactHeaderMetrics, type ReactHeaderQualityTier } from './ReactHeaderPerformanceStatus'
 import { HelpSearch } from '../help/HelpSearch'
 import { ReactPersistenceStatus } from './ReactPersistenceStatus'
 import type { AppPageId } from '../../../stores/pageActivityStore'
 import type { HeaderSaveTone } from '../shared/HeaderSaveChip'
 
-/** Live readings arranged as Option E's three paired editorial readouts, preceded by the header search field.
+/** Live readings arranged as Option E's paired editorial readouts (load/save, render, quality, health), preceded by the header search field.
  * The search field looks up help topics (placeholder content for now). */
 export function ReactHeaderStatusCluster({ fps = 0, frameTimeMs, qualityTier, page = 'react', saveStatus }: {
   fps?: number
@@ -31,6 +32,7 @@ export function ReactHeaderStatusCluster({ fps = 0, frameTimeMs, qualityTier, pa
         <strong className="vz-header-readout-primary" data-performance-metric="quality" aria-label={`Quality ${metrics.quality.value}`}>{metrics.quality.value[0].toUpperCase() + metrics.quality.value.slice(1)}</strong>
         <em data-header-cpu aria-label={cpuTitle}>{cpuText}</em>
       </HeaderReadout>
+      <HealthReadout />
     </div>
   </>
 }

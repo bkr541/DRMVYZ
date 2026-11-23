@@ -1,3 +1,4 @@
+import { MediaLoadRetry, watchAudioContext } from '../lib/audioSelfHealing'
 import { useRef, useState, useCallback, useEffect, type MutableRefObject } from 'react'
 import {
   Track, AudioSource, FftSize,
@@ -404,7 +405,9 @@ export function useAudioEngine(): AudioEngine {
     milestones: Set<string>
   } | null>(null)
 
+  const mediaRetryRef = useRef<MediaLoadRetry | null>(null)
   const beginMediaLoadDiagnostics = useCallback((track: Track) => {
+    mediaRetryRef.current?.onTrackChanged()
     mediaLoadDiagnosticRef.current = {
       trackId: track.id,
       startedAt: Date.now(),
@@ -452,6 +455,19 @@ export function useAudioEngine(): AudioEngine {
     const onLoadedMetadata = () => logMediaMilestone('loadedmetadata')
     const onCanPlay = () => logMediaMilestone('canplay')
     const onPlaying = () => logMediaMilestone('playing')
+    mediaRetryRef.current = new MediaLoadRetry({
+      reload: () => {
+        const diagnostic = mediaLoadDiagnosticRef.current
+        if (!diagnostic || !el.src) return
+        audioLog.warn('retrying a failed media load', describeTrackForLog(tracksRef.current.find(track => track.id === diagnostic.trackId), diagnostic.trackId))
+        diagnostic.startedAt = Date.now()
+        diagnostic.milestones.clear()
+        el.load()
+        if (isPlayingRef.current) el.play().catch(() => undefined)
+      },
+    })
+    const onCanPlayHealed = () => { const id = mediaLoadDiagnosticRef.current?.trackId; if (id) mediaRetryRef.current?.onLoaded(id) }
+    el.addEventListener('canplay', onCanPlayHealed)
     const onError = () => {
       const diagnostic = mediaLoadDiagnosticRef.current
       // Name the file (and the browser's own reason: "Format error", "Media load rejected by URL safety check", a demuxer failure...) so a failed load can be traced to its file.
@@ -468,6 +484,8 @@ export function useAudioEngine(): AudioEngine {
       if (!diagnostic || !el.src) return
       const failedTrack = tracksRef.current.find(track => track.id === diagnostic?.trackId)
       const trackLabel = failedTrack ? (failedTrack.title?.trim() || failedTrack.displayName || failedTrack.name) : 'The track'
+      // Self-healing: load the same file once more (a USB drive that blipped usually answers the second time) before showing the failure.
+      if (mediaRetryRef.current?.onFailure(diagnostic.trackId, trackLabel)) return
       setTrackLoadError(`"${trackLabel}" could not be played: ${describeMediaElementError(el.error?.code)}`)
     }
     el.addEventListener('timeupdate',     onTimeUpdate)
@@ -483,6 +501,9 @@ export function useAudioEngine(): AudioEngine {
       el.removeEventListener('canplay', onCanPlay)
       el.removeEventListener('playing', onPlaying)
       el.removeEventListener('error', onError)
+      el.removeEventListener('canplay', onCanPlayHealed)
+      mediaRetryRef.current?.dispose()
+      mediaRetryRef.current = null
       // MediaElementAudioSourceNode stays bound to its original element. Effect
       // restarts retain refs but create a new Audio(), so reusing this node lets
       // the new element play outside the analyser graph while analysis sees silence.
@@ -562,6 +583,8 @@ export function useAudioEngine(): AudioEngine {
       ctx.addEventListener('statechange', () => {
         audioLog.warn(`AudioContext state changed to "${ctx.state}"`, { sampleRate: ctx.sampleRate })
       })
+      // Self-healing: a context that was running and stopped (output device changed, system suspend) is resumed, a few tries, then reported.
+      watchAudioContext(ctx)
     }
 
     // Initialize the centralized music intelligence engine with this context's sample rate

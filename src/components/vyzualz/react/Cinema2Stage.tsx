@@ -1,3 +1,4 @@
+import { GraphicsHealer } from '../../../lib/graphicsSelfHealing'
 import { markCanvasFramePending, markCanvasFrameReady, notifyCanvasFrameRendered } from '../../../lib/canvasFrameReadiness'
 import { recordPerformanceEvent } from '../../../lib/performanceTelemetry'
 import { useEffect, useRef, useState } from 'react'
@@ -83,6 +84,11 @@ export function Cinema2Stage({
   })
   const [activeRuntime, setActiveRuntime] = useState<Cinema2Runtime | null>(null)
   const [runtimeSnapshot, setRuntimeSnapshot] = useState<Cinema2RuntimeSnapshot | null>(null)
+  // Self-healing: a stage that stopped or never started is rebuilt (bumping this key re-runs the stage effect), a few times, then reported.
+  const [healKey, setHealKey] = useState(0)
+  const healerRef = useRef<GraphicsHealer | null>(null)
+  if (!healerRef.current) healerRef.current = new GraphicsHealer(() => setHealKey(key => key + 1))
+  useEffect(() => () => healerRef.current?.dispose(), [])
   transportRef.current = {
     isPlaying: isPlaying ?? true,
     analysisActive: analysisActive ?? true,
@@ -113,6 +119,7 @@ export function Cinema2Stage({
 
     const reportSnapshot = (snapshot: Cinema2RuntimeSnapshot) => {
       if (retired) return
+      healerRef.current?.observe(snapshot.phase)
       if (snapshot.phase === 'unavailable') markCanvasFrameReady(canvas)
       setRuntimeSnapshot(snapshot)
       onRuntimeSnapshotRef.current?.(snapshot)
@@ -241,6 +248,7 @@ export function Cinema2Stage({
       assertDrmvyzWebGLContextOwnershipBoundsForDevelopment('cinema2')
     } catch (error) {
       markCanvasFrameReady(canvas)
+      healerRef.current?.observe('unavailable')
       const message = error instanceof Error ? error.message : String(error)
       setRuntimeSnapshot({
         phase: 'unavailable',
@@ -273,7 +281,7 @@ export function Cinema2Stage({
     }
 
     return () => ownership.retire('unmount')
-  }, [presetId, restoreState])
+  }, [presetId, restoreState, healKey])
 
   const message = statusCopy(runtimeSnapshot)
 

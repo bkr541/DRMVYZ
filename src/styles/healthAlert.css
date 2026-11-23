@@ -1,0 +1,27 @@
+/* The red alert frame: while anything is being repaired or could not be (<html data-health-alert>, set by src/lib/healthAlertFrame.ts) a red line runs around the
+ * visualizer and along the left rail's edge and its curved notch, so a problem is visible without looking at the header. Overlays only: nothing is resized. */
+:root { --health-alert-red: #f2564a; }
+
+:root[data-health-alert] .rv-canvas-wrap::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+  box-sizing: border-box;
+  border: 2px solid var(--health-alert-red);
+  border-radius: inherit;
+  box-shadow: inset 0 0 22px rgba(242, 86, 74, .38);
+  animation: health-alert-pulse 1.6s ease-in-out infinite;
+}
+
+/* The notched rail already draws its right edge and notch as one stroke (::after, cyan); the alert recolours that stroke and adds the rail's other edges. */
+:root[data-health-alert] .az-sidebar--notched::after { background: var(--health-alert-red); animation: health-alert-pulse 1.6s ease-in-out infinite; }
+:root[data-health-alert] .az-sidebar--notched { box-shadow: -1px 0 0 0 var(--health-alert-red), 0 -1px 0 0 var(--health-alert-red), 0 1px 0 0 var(--health-alert-red); }
+:root[data-health-alert] .az-sidebar:not(.az-sidebar--notched) { box-shadow: inset 0 0 0 1px var(--health-alert-red); }
+
+@keyframes health-alert-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
+@media (prefers-reduced-motion: reduce) {
+  :root[data-health-alert] .rv-canvas-wrap::after,
+  :root[data-health-alert] .az-sidebar--notched::after { animation: none; }
+}

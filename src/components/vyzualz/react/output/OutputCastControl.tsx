@@ -5,6 +5,7 @@ import { FrameCadence } from '../../../../lib/frameCadence'
 import { startRelayFramePump } from './relayFramePump'
 import { recordPerformanceEvent, setPerformanceCastActive } from '../../../../lib/performanceTelemetry'
 import { CastLoadShedder, bindCadenceToPressure } from '../../../../lib/castLoadShedding'
+import { CastReconnector } from '../../../../lib/castSelfHealing'
 import { setPerformancePressure } from '../../../../lib/performancePressure'
 import { AppIcon } from '../../../shared/icons/AppIcon'
 import {
@@ -30,6 +31,7 @@ import {
   getNativeOutputBridge,
   type NativeOutputBridge,
   type OutputAspectRatio,
+  type OutputCastRequest,
   type OutputCastSession,
   type OutputProviderId,
   type OutputProviderStatus,
@@ -1004,6 +1006,24 @@ export function OutputCastControl({
   const [previewSessionId, setPreviewSessionId] = useState<string | null>(null)
   const [targets, setTargets] = useState<OutputTarget[]>([])
   const [session, setSession] = useState<OutputCastSession | null>(null)
+  // Self-healing: remembers the cast the user started and brings it back (same target, window and aspect ratio) if the session fails on its own.
+  const bridgeRef = useRef(bridge)
+  bridgeRef.current = bridge
+  const canvasAvailableRef = useRef(false)
+  const reconnectorRef = useRef<CastReconnector<OutputCastRequest> | null>(null)
+  if (!reconnectorRef.current) {
+    reconnectorRef.current = new CastReconnector<OutputCastRequest>({
+      start: async (request) => {
+        const active = bridgeRef.current
+        if (!active || !outputAvailableRef.current || !canvasAvailableRef.current) return false
+        await active.stopCast().catch(() => null)
+        const next = await active.startCast(request)
+        if (!outputAvailableRef.current) { await active.stopCast().catch(() => null); return false }
+        setSession(next)
+        return next !== null && next.state !== 'failed'
+      },
+    })
+  }
   const [providerStatuses, setProviderStatuses] = useState<OutputProviderStatus[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -1012,6 +1032,7 @@ export function OutputCastControl({
   const castState = outputAvailable ? session?.state ?? 'disconnected' : 'unavailable'
   const castId = session?.id ?? null
   const castTransport = session?.transport ?? 'webrtc'
+  useEffect(() => { reconnectorRef.current?.observe(castState) }, [castState, castId])
   useEffect(() => {
     const active = castState === 'connecting' || castState === 'connected'
     setPerformanceCastActive(active)
@@ -1058,6 +1079,7 @@ export function OutputCastControl({
     previewTriggerRef.current?.focus({ preventScroll: true })
   }
 
+  canvasAvailableRef.current = safeCanvas !== null
   useOutputBroadcaster(outputAvailable ? bridge : null, safeCanvas, outputAvailable ? session : null, previewSourceRef)
   useGoogleCastBroadcaster(outputAvailable ? bridge : null, safeCanvas, outputAvailable ? session : null, previewSourceRef)
 
@@ -1071,6 +1093,7 @@ export function OutputCastControl({
     setLoading(false)
     setError(null)
     setSession(null)
+    reconnectorRef.current?.forget()
     if (bridge) void bridge.stopCast().catch(() => null)
   }, [bridge, outputAvailable])
 
@@ -1132,6 +1155,7 @@ export function OutputCastControl({
       refreshGenerationRef.current += 1
       unmountStopTimerRef.current = window.setTimeout(() => {
         unmountStopTimerRef.current = null
+        reconnectorRef.current?.forget()
         void bridge.stopCast().catch(() => null)
       }, 0)
     }
@@ -1158,14 +1182,17 @@ export function OutputCastControl({
   ) => {
     if (!bridge || !outputAvailable || !safeCanvas) return
     setError(null)
+    const request: OutputCastRequest = { targetId: target.id, windowMode, aspectRatio }
+    reconnectorRef.current?.remember(request)
     try {
-      const nextSession = await bridge.startCast({ targetId: target.id, windowMode, aspectRatio })
+      const nextSession = await bridge.startCast(request)
       if (!outputAvailableRef.current) {
         await bridge.stopCast().catch(() => null)
         return
       }
       setSession(nextSession)
     } catch (value) {
+      reconnectorRef.current?.forget()
       if (outputAvailableRef.current) {
         setError(value instanceof Error ? value.message : 'Could not start output')
       }
@@ -1175,6 +1202,7 @@ export function OutputCastControl({
   const stopCast = useCallback(async () => {
     if (!bridge) return
     setError(null)
+    reconnectorRef.current?.forget()
     try {
       await bridge.stopCast()
       setSession(null)

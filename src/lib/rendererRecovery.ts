@@ -16,6 +16,8 @@ import { notify } from '../stores/notificationStore'
 import { useReactStore } from '../stores/reactStore'
 import { writeCinema2LastPresetId } from '../components/vyzualz/react/cinema2WorkspacePreferences'
 import { setPerformancePressure } from './performancePressure'
+import { beginHealing, markHealed } from './selfHealing'
+import { useHealthStore } from '../stores/healthStore'
 import { createLogger } from './logger'
 
 const log = createLogger('system', 'recovery')
@@ -27,6 +29,8 @@ const declarationFor = (id: Cinema2PresetId) => CINEMA2_FIRST_PARTY_PRESET_DECLA
 /** How long a recovery start (and, shorter, a GPU restart) holds reduced quality before the engines are free to go back up. */
 export const RECOVERY_PRESSURE_HOLD_MS = 120_000
 export const GPU_RESTART_PRESSURE_HOLD_MS = 60_000
+const GPU_RESTART_HEAL_MS = 8_000
+let gpuHealTimer: ReturnType<typeof setTimeout> | null = null
 
 /** For tests: whether the light preset still exists in the app's catalog (a rename would silently turn a recovery start into reduced quality only). */
 export function recoverySafePresetIsAvailable(): boolean { return declarationFor(RECOVERY_SAFE_PRESET_ID) !== null }
@@ -121,6 +125,11 @@ export function installRendererRecovery(deps: RecoverySafeStartDeps = defaultDep
     if (event?.kind !== 'gpu-process-gone') return
     log.warn('graphics process restarted; holding reduced quality', { reason: event.reason ?? null })
     setPerformancePressure('gpu', 1, { holdMs: GPU_RESTART_PRESSURE_HOLD_MS })
+    // The engines rebuild their own graphics contexts; show that as a repair, and call it complete once they have had time to (a stage that fails to come back
+    // reports itself through the graphics healer, which then holds the state).
+    beginHealing('graphics', 'The graphics process restarted')
+    if (gpuHealTimer !== null) clearTimeout(gpuHealTimer)
+    gpuHealTimer = setTimeout(() => { gpuHealTimer = null; if (useHealthStore.getState().systems.graphics.detail === 'The graphics process restarted') markHealed('graphics') }, GPU_RESTART_HEAL_MS)
   })
-  return () => { stop?.() }
+  return () => { stop?.(); if (gpuHealTimer !== null) { clearTimeout(gpuHealTimer); gpuHealTimer = null } }
 }

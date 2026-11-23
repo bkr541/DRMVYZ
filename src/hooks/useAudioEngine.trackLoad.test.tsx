@@ -249,10 +249,19 @@ describe('useAudioEngine track loading', () => {
     await act(async () => { await Promise.resolve() })
     expect(engine?.trackLoadError).toBeNull()
 
-    act(() => {
-      ;(fakeAudioInstances[0] as unknown as { error: { code: number } }).error = { code: 4 }
-      fakeAudioInstances[0]?.emit('error')
-    })
+    // Self-healing: the first failure loads the same file once more (a USB drive that blipped usually answers) and holds the message back; the second is real.
+    vi.useFakeTimers()
+    try {
+      const loadsBefore = fakeAudioInstances[0]?.loadMock.mock.calls.length ?? 0
+      act(() => {
+        ;(fakeAudioInstances[0] as unknown as { error: { code: number } }).error = { code: 4 }
+        fakeAudioInstances[0]?.emit('error')
+      })
+      expect(engine?.trackLoadError).toBeNull()
+      act(() => { vi.advanceTimersByTime(2_000) })
+      expect(fakeAudioInstances[0]?.loadMock.mock.calls.length).toBe(loadsBefore + 1)
+      act(() => { fakeAudioInstances[0]?.emit('error') })
+    } finally { vi.useRealTimers() }
     expect(engine?.trackLoadError).toBe('"Night Drive" could not be played: the file is missing or its format is not supported.')
 
     act(() => engine?.selectTrack(1))
