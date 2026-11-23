@@ -11,6 +11,50 @@ export const CINEMA2_SUBMERGE_PATTERNS = [
 ] as const
 export type Cinema2SubmergePattern = typeof CINEMA2_SUBMERGE_PATTERNS[number]['value']
 
+export interface SubmergePerformanceFrame {
+  readonly build: number
+  readonly release: number
+  readonly dropAge: number
+  readonly kickAges: readonly number[]
+}
+
+const REST_PERFORMANCE: SubmergePerformanceFrame = Object.freeze({ build: 0, release: 0, dropAge: -1, kickAges: [] })
+
+/** Retain short, overlapping pressure fronts on the shared beat clock. */
+export class SubmergePerformance {
+  private lastKick: string | null = null
+  private lastDrop: string | null = null
+  private kicks: number[] = []
+  private dropBeat: number | null = null
+
+  reset(): void {
+    this.lastKick = this.lastDrop = null
+    this.kicks = []
+    this.dropBeat = null
+  }
+
+  update(beat: number, build: number, kick: string | null, drop: string | null): SubmergePerformanceFrame {
+    if (kick && kick !== this.lastKick) {
+      this.lastKick = kick
+      this.kicks.unshift(beat)
+      this.kicks.length = Math.min(3, this.kicks.length)
+    }
+    if (drop && drop !== this.lastDrop) {
+      this.lastDrop = drop
+      this.dropBeat = beat
+    }
+    const age = this.dropBeat == null ? -1 : beat - this.dropBeat
+    const dropAge = age >= 0 && age < 4 ? age : -1
+    const release = dropAge < 0 ? 0 : (1 - dropAge / 4) ** 2
+    return {
+      build: Math.max(0, Math.min(1, (build - 0.16) / 0.66)) ** 1.25 * (1 - release),
+      release,
+      dropAge,
+      kickAges: this.kicks.map(start => beat - start).filter(elapsed => elapsed >= 0 && elapsed < 2),
+    }
+  }
+}
+
 // Reuse the established six-pattern controller's shuffled-cycle and musical-event authority.
 export function submergePatternToController(value: unknown): Cinema2SayItPatternId {
   const index = CINEMA2_SUBMERGE_PATTERNS.findIndex(pattern => pattern.value === value)
@@ -42,12 +86,14 @@ export interface Cinema2SubmergeState {
   depth: number
   material: 'ceramic' | 'metal' | 'glass'
   water: readonly [number, number, number]
+  performance: Readonly<SubmergePerformanceFrame>
 }
 export const DEFAULT_SUBMERGE_STATE: Readonly<Cinema2SubmergeState> = Object.freeze({
   beats: 0, amount: 0.65, safety: 'full', reach: 1, period: 8, buoyancy: 0.6,
   bass: 0, mids: 0, highs: 0, energy: 0, caustics: 0.75, haze: 0.055,
   waves: 0.85, sunlight: 1, sun: [0.57, 0.85, 0.94] as const, foam: [0.72, 0.84, 0.86] as const,
   particles: 0.65, bubbles: 0.5, architecture: 1, depth: 1, material: 'ceramic', water: [0.012, 0.11, 0.16] as const,
+  performance: REST_PERFORMANCE,
 })
 export function submergeMotionAmount(state: Readonly<Cinema2SubmergeState>): number {
   return state.amount * (state.safety === 'lockoff' ? 0 : state.safety === 'reduced' ? 0.28 : 1)
@@ -62,6 +108,7 @@ export function resolveSubmergeGlyphPoses(
   if (amount === 0) return poses
   const t = phaseBeats * Math.PI / Math.max(2, state.period)
   const drive = amount * Math.min(1.8, state.reach * (0.7 + state.bass * 0.5 + state.energy * 0.2))
+  const { build, release, kickAges } = state.performance
   return poses.map((pose, index) => {
     const [x, y, z] = pose.position
     const phase = t + index * 0.58
@@ -103,6 +150,18 @@ export function resolveSubmergeGlyphPoses(
         rx = Math.sin(phase * 1.8) * 0.13
         break
     }
-    return { ...pose, position: [x + dx * drive, y + dy * drive, z + dz * drive], rotation: [rx * drive, ry * drive, rz * drive] }
+    const pressure = kickAges.reduce((peak, age) => Math.max(peak,
+      Math.exp(-(((age - (0.06 + Math.abs(x) * 0.13)) * 7) ** 2)),
+    ), 0)
+    const converge = Math.max(-0.42, Math.min(0.42, x * 0.16)) * build
+    const fan = Math.max(-0.24, Math.min(0.24, x * 0.085)) * release
+    const depth = (0.24 + 0.38 * Math.min(1, Math.abs(x) * 0.33)) * release
+      + pressure * (pattern === 'pressure-wave' ? 0.34 : 0.13)
+    const drift = drive * (1 - build * 0.66)
+    return {
+      ...pose,
+      position: [x + dx * drift + (fan - converge) * amount, y + dy * drift, z + dz * drift - depth * amount],
+      rotation: [rx * drift, ry * drift, rz * drift],
+    }
   })
 }

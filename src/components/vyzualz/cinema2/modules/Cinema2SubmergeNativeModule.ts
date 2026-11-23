@@ -2,8 +2,9 @@ import { cinema2StableId, type Cinema2ModuleTypeId } from '../contracts/Cinema2N
 import type { Cinema2ModuleParameterReadFacet, Cinema2ModuleTypeDefinition, Cinema2ModuleUpdateContext } from './Cinema2ModuleContracts'
 import { createCinema2SayItNativeModuleDefinition } from './Cinema2SayItNativeModule'
 import { Cinema2BeatClock } from './Cinema2BeatClock'
+import { resolveCinema2AfterhoursTriggerEventIdentity } from './Cinema2AfterhoursNativeModule'
 import { Cinema2SubmergeBridge } from './submerge/Cinema2SubmergeBridge'
-import { DEFAULT_SUBMERGE_STATE, submergePatternToController, type Cinema2SubmergeState } from './submerge/Cinema2SubmergeMotion'
+import { DEFAULT_SUBMERGE_STATE, SubmergePerformance, submergePatternToController, type Cinema2SubmergeState } from './submerge/Cinema2SubmergeMotion'
 
 export const CINEMA2_SUBMERGE_MODULE_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('submerge-native')
 type GlyphModuleOptions = NonNullable<Parameters<typeof createCinema2SayItNativeModuleDefinition>[0]>
@@ -15,6 +16,7 @@ export function createCinema2SubmergeNativeModuleDefinition(options: GlyphModule
     create(context) {
       let state: Readonly<Cinema2SubmergeState> = DEFAULT_SUBMERGE_STATE
       const clock = new Cinema2BeatClock()
+      const performance = new SubmergePerformance()
       let source = ''
       let generation = -1
       let previousTime: number | null = null
@@ -23,7 +25,7 @@ export function createCinema2SubmergeNativeModuleDefinition(options: GlyphModule
         get: name => {
           // The common controller owns musical selection; SUBMERGE owns all glyph geometry.
           if (name === 'motionAmount') return 0
-          if (name === 'pattern') return submergePatternToController(parameters.get(name))
+          if (name === 'pattern') return submergePatternToController(parameters.get(name) ?? 'pressure-wave')
           if (name === 'materialStyle') return parameters.get(name) === 'metal' ? 'chrome' : 'pearl'
           const value = parameters.get(name)
           if (name === 'line1Text' && !(typeof value === 'string' && value.trim())) {
@@ -46,7 +48,10 @@ export function createCinema2SubmergeNativeModuleDefinition(options: GlyphModule
             const { frame, parameters } = update
             const identity = `${frame.transport?.trackId ?? frame.audio?.upstream.trackId ?? ''}:${frame.audio?.upstream.sourceId ?? ''}:${frame.audio?.upstream.publisherId ?? ''}`
             const time = frame.audio?.upstream.timeSec ?? frame.transport?.timeSec ?? frame.elapsedTimeSec
-            if (identity !== source || generation !== frame.contextGeneration || (previousTime != null && (time < previousTime - 0.05 || time - previousTime > Math.max(1, frame.deltaTimeSec * 6)))) clock.reset()
+            const reset = identity !== source || generation !== frame.contextGeneration
+              || (previousTime != null && (time < previousTime - 0.05 || time - previousTime > Math.max(1, frame.deltaTimeSec * 6)))
+            const lastTime = previousTime
+            if (reset) { clock.reset(); performance.reset() }
             source = identity
             generation = frame.contextGeneration
             previousTime = time
@@ -57,6 +62,14 @@ export function createCinema2SubmergeNativeModuleDefinition(options: GlyphModule
             }
             const audioEnabled = parameters.get('autoPerformance') !== false
             const paused = frame.transport?.paused || frame.transport?.animationActive === false
+            const hasSource = audioEnabled && frame.transport?.sourcePresent === true
+            const playing = hasSource && frame.transport?.playing && !paused
+            if (!hasSource || (!playing && !paused)) performance.reset()
+            const show = paused && hasSource && !reset ? state.performance
+              : playing ? performance.update(beat.beats, number('buildAmount', 0, 0, 1),
+                reset ? null : resolveCinema2AfterhoursTriggerEventIdentity(frame, 'kick', lastTime),
+                reset ? null : resolveCinema2AfterhoursTriggerEventIdentity(frame, 'drop', lastTime))
+                : DEFAULT_SUBMERGE_STATE.performance
             const signal = (key: 'bass' | 'mids' | 'highs' | 'energy') => {
               return audioEnabled ? number(key, 0, 0, 1) : 0
             }
@@ -82,10 +95,11 @@ export function createCinema2SubmergeNativeModuleDefinition(options: GlyphModule
               mids: audioEnabled && paused ? state.mids : signal('mids'),
               highs: audioEnabled && paused ? state.highs : Math.min(1, signal('highs') + (audioEnabled ? number('ledTransient', 0, 0, 1) * 0.5 : 0)),
               energy: audioEnabled && paused ? state.energy : signal('energy'),
+              performance: show,
             }
             core.lifecycle.update({ ...update, parameters: adapt(parameters) })
           },
-          dispose() { clock.reset(); core.lifecycle.dispose() },
+          dispose() { clock.reset(); performance.reset(); core.lifecycle.dispose() },
         },
         getDiagnostics: () => core.getDiagnostics?.().map(diagnostic => ({
           ...diagnostic, code: diagnostic.code.replace('SAY_IT', 'SUBMERGE'),

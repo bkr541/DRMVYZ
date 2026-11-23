@@ -20,8 +20,8 @@ const CASES: readonly MoodMigrationCase[] = [
   {
     name: 'Hypnotize', manifest: CINEMA2_HYPNOTIZE_PRESET_MANIFEST, auto: 'hypnotize-auto-performance', strength: 'hypnotize-reactivity',
     pattern: { patternChange: 'hypnotize-pattern-change', trigger: 'hypnotize-trigger' },
-    up: [['hypnotize-system', 'intensity'], ['hypnotize-system', 'spread'], ['hypnotize-system', 'depthSpread'], ['hypnotize-system', 'burst'], ['hypnotize-system', 'drift'], ['hypnotize-system', 'spin'], ['hypnotize-system', 'edgeGlow'], ['hypnotize-bloom', 'intensity']],
-    down: [['hypnotize-system', 'intensity'], ['hypnotize-system', 'spin'], ['hypnotize-system', 'nodeDensity']],
+    up: [['hypnotize-system', 'intensity'], ['hypnotize-system', 'spread'], ['hypnotize-system', 'drift'], ['hypnotize-system', 'spin'], ['hypnotize-system', 'counterRotation'], ['hypnotize-system', 'edgeGlow'], ['hypnotize-bloom', 'intensity']],
+    down: [['hypnotize-system', 'intensity'], ['hypnotize-system', 'spin'], ['hypnotize-system', 'edgeGlow']],
     // No drop-time drives on purpose: the preset limits flashing (Flash Accents, Drop / Impact LED Gating).
     shock: [],
   },

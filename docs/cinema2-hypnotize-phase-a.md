@@ -1,5 +1,7 @@
 # Cinema 2.0 “Hypnotize” — Phase A analysis and creative direction
 
+> **Superseded.** Hypnotize was redesigned as a spiral ring tunnel (revision 8). This document describes the original design, a black optical mechanism built from the two reference videos, and is kept as history. See `docs/hypnotize-redesign.md` for the current design.
+
 **Status:** Final technical acceptance complete — awaiting owner human visual approval
 **Preset:** `Hypnotize`
 **Planned id:** `drmvyz.cinema2.hypnotize`

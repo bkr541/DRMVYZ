@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CINEMA2_HYPNOTIZE_STATIC_COUNTS } from '../modules/hypnotize/Cinema2HypnotizeGeometry'
+import { CINEMA2_HYPNOTIZE_RING_PARTS, CINEMA2_HYPNOTIZE_TUNNEL } from '../modules/hypnotize/Cinema2HypnotizeTunnel'
 import {
   CINEMA2_HYPNOTIZE_ALTERNATING_LED_PATTERNS,
   CINEMA2_HYPNOTIZE_MAJOR_IMPACT_THRESHOLD,
@@ -30,7 +30,7 @@ import { compileCinema2NativePreset } from '../presets/Cinema2PresetCompiler'
 import { cinema2NativePresetRegistry } from '../presets/Cinema2PresetRegistry'
 import { Cinema2ParameterState } from '../parameters/Cinema2ParameterState'
 
-const CAPABILITIES = Object.freeze(['render.webgl2', 'render.depth', 'render.history', 'scene.3d', 'camera.world'] as const)
+const CAPABILITIES = Object.freeze(['render.webgl2', 'render.depth', 'render.hdr', 'scene.3d', 'camera.world', 'lighting', 'audio.transport', 'audio.features', 'audio.bands', 'music.beat', 'music.rhythm-events', 'music.downbeat', 'music.bar', 'music.phrase', 'music.section', 'music.vocal-presence', 'music.build', 'music.drop', 'visual-director.significance'] as const)
 
 describe('Cinema 2.0 Hypnotize Phase D preset', () => {
   it('ships through the production registry as a native first-party keeper', () => {
@@ -60,45 +60,38 @@ describe('Cinema 2.0 Hypnotize Phase D preset', () => {
       designParentGroup: 'effects',
       label: 'Drop / Impact LED Gating',
     })
-    expect(parameters.find(parameter => parameter.label === 'LED Intensity')).toMatchObject({ defaultValue: 2.1 })
-    expect(parameters.find(parameter => parameter.label === 'LED Bloom')).toMatchObject({ defaultValue: 1.45 })
+    expect(parameters.find(parameter => parameter.label === 'LED Intensity')).toMatchObject({ defaultValue: 1 })
+    expect(parameters.find(parameter => parameter.label === 'Bloom')).toMatchObject({ defaultValue: 0.34 })
     expect(parameters.filter(parameter => parameter.designParentGroup === 'palette' && parameter.type === 'color').map(parameter => parameter.label)).toEqual([
-      'Background', 'Structure', 'Cool Energy', 'Warm Energy', 'Core', 'Spectrum Edge',
+      'Background', 'Structure', 'Light', 'Accent Light', 'Core',
     ])
+    // Trimmed to Depth's size: the old 37 controls are 26 now.
+    expect(parameters.filter(parameter => parameter.exposure !== 'hidden')).toHaveLength(26)
   })
 
-  it('contains the complete optical-engine architecture and shared Phase C choreography', () => {
-    expect(CINEMA2_HYPNOTIZE_STATIC_COUNTS).toEqual({
-      sectors: 12,
-      pairedSectorAssemblies: 6,
-      depthCollars: 8,
-      turbineVanes: 18,
-      conductorStrands: 2,
-      membraneFilaments: 24,
-      spectralGlints: 54,
-      exteriorResonators: 16,
-      addressableLedSegments: 480,
-    })
+  it('is a ring tunnel with the shared music choreography, a three-pass finish and no Three.js scene', () => {
+    expect(CINEMA2_HYPNOTIZE_TUNNEL).toMatchObject({ ringSlots: 28, sectors: 12, segmentsPerSector: 4, layers: 8 })
+    expect(CINEMA2_HYPNOTIZE_RING_PARTS.stripsPerRing).toBe(48)
     expect(CINEMA2_HYPNOTIZE_PRESET_MANIFEST.choreography?.rules).toEqual(expect.arrayContaining([
       expect.objectContaining({ source: expect.objectContaining({ path: 'audio.features.overallEnergy' }), actions: [expect.objectContaining({ target: expect.objectContaining({ property: 'overallEnergy' }) })] }),
       expect.objectContaining({ source: expect.objectContaining({ path: 'audio.bands.bass' }), actions: [expect.objectContaining({ target: expect.objectContaining({ property: 'bassPressure' }) })] }),
       expect.objectContaining({ source: expect.objectContaining({ signal: 'kick' }), actions: [expect.objectContaining({ target: expect.objectContaining({ property: 'kickAccent' }) })] }),
       expect.objectContaining({ source: expect.objectContaining({ path: 'director.build' }), actions: [expect.objectContaining({ target: expect.objectContaining({ property: 'buildAmount' }) })] }),
     ]))
-    expect(CINEMA2_HYPNOTIZE_PRESET_MANIFEST.cameras?.[0]).toMatchObject({ rig: { kind: 'static' }, fovDegrees: 50 })
-    expect(CINEMA2_HYPNOTIZE_PRESET_MANIFEST.lighting?.lights).toEqual(expect.arrayContaining([
-      expect.objectContaining({ type: 'spot', config: expect.objectContaining({ threeShadow: true }) }),
-      expect.objectContaining({ type: 'point' }),
-    ]))
+    expect(CINEMA2_HYPNOTIZE_PRESET_MANIFEST.cameras?.[0]).toMatchObject({ rig: { kind: 'static' }, fovDegrees: 66 })
+    // Cheap lighting, as Depth: an ambient and a point light, and nothing that casts a shadow.
+    expect(CINEMA2_HYPNOTIZE_PRESET_MANIFEST.lighting?.lights?.map(light => light.type).sort()).toEqual(['ambient', 'point'])
+    expect(JSON.stringify(CINEMA2_HYPNOTIZE_PRESET_MANIFEST.lighting)).not.toContain('threeShadow')
+    // Haze, bloom and finish only: no depth of field and no feedback trails.
+    expect(CINEMA2_HYPNOTIZE_PRESET_MANIFEST.effects?.map(effect => effect.typeId)).toEqual(['volumetric-atmosphere', 'hdr-bloom', 'cinematic-finish'])
+    expect(CINEMA2_HYPNOTIZE_PRESET_MANIFEST.modules).toHaveLength(1)
     expect(CINEMA2_HYPNOTIZE_PRESET_MANIFEST.modules?.[0]).toMatchObject({
       typeId: CINEMA2_HYPNOTIZE_NATIVE_MODULE_TYPE_ID,
-      parameters: expect.objectContaining({
-        look: 'mesmericOrbit',
-        nodeDensity: 1,
-        depthSpread: 1.45,
-        spectrumColor: expect.any(Array),
-      }),
+      parameters: expect.objectContaining({ look: 'mesmericOrbit', spread: 1, spin: 0.52, spectrumColor: expect.any(Array) }),
     })
+    // Saved states of the old design belong to an older revision and are dropped, and the preset keeps its ID so pads, cues and shows still point at it.
+    expect(CINEMA2_HYPNOTIZE_PRESET_ID).toBe('drmvyz.cinema2.hypnotize')
+    expect(CINEMA2_HYPNOTIZE_PRESET_MANIFEST.revision).toBeGreaterThan(7)
   })
 
   it('defines six materially distinct authored motion profiles', () => {
@@ -153,7 +146,8 @@ describe('Cinema 2.0 Hypnotize Phase D preset', () => {
       }).flat()).flat(),
       ...Array.from({ length: 16 }, (_, sector) => Array.from({ length: 12 }, (_, segment) => ({ family: 'exterior' as const, layer: 8, sector, segment }))).flat(),
     ]
-    expect(addresses).toHaveLength(CINEMA2_HYPNOTIZE_STATIC_COUNTS.addressableLedSegments)
+    // The pattern engine's own address space (collar and exterior banks) is unchanged and still covered here, even though the tunnel only uses the collar family.
+    expect(addresses).toHaveLength(480)
 
     for (const pattern of CINEMA2_HYPNOTIZE_ALTERNATING_LED_PATTERNS) {
       const profile = CINEMA2_HYPNOTIZE_PATTERN_PROFILES[pattern]

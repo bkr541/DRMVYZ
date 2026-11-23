@@ -74,8 +74,9 @@ const api = {
     await settle(3); return status()
   },
   async advanceBy(seconds: number) { await advance(seconds); return status() },
-  async setMusic(next: typeof music) {
+  async setMusic(next: typeof music, eventDelaySec?: number) {
     musicAnchor = musicTime(); anchorTimestamp = timestampMs; music = { ...music, ...next }
+    if (eventDelaySec !== undefined) music.eventTime = musicAnchor + eventDelaySec
     await settle(3); return status()
   },
   async resize(width: number, height: number) { runtime.resize({ width, height, dpr: 1 }); await settle(3); return status() },

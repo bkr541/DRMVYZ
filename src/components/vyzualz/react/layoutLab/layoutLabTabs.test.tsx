@@ -183,8 +183,47 @@ describe('persistent Layout Lab tabs', () => {
     const menu = document.getElementById(dropdownTrigger.getAttribute('aria-controls')!)
     expect(menu?.classList.contains('drm-dropdown__menu')).toBe(true)
     const option = [...menu!.querySelectorAll<HTMLElement>('[role="option"]')].find(row => row.textContent === 'Architecture')!
+    const groups = [...menu!.querySelectorAll('.drm-dropdown__group-label')].map(group => group.textContent)
+    expect(groups).toEqual([
+      'Search in', 'Engine', 'Source', 'Category', 'Tags', 'Author', 'Visual capabilities', 'Audio capabilities',
+      'Preset type', 'Favorites', 'My tags', 'Collections', 'Preset pack', 'Year added', 'Year updated',
+    ])
     await act(async () => option.click())
     expect(studies[1]!.querySelector('[role="status"]')?.textContent).toBe('4 presets')
+
+    const result = () => studies[2]!.querySelector('[role="status"]')?.textContent
+    await act(async () => popoverTrigger.click())
+    const dialog = document.getElementById(popoverTrigger.getAttribute('aria-controls')!)!
+    expect(dialog.classList.contains('drm-info-popover')).toBe(true)
+    expect([...dialog.querySelectorAll('summary')].map(summary => summary.textContent)).toEqual(groups)
+    const choose = async (group: string, value: string) => {
+      const options = dialog.querySelector(`[role="group"][aria-label="${group}"]`)!
+      const option = [...options.querySelectorAll('label')].find(label => label.textContent === value)!
+      await act(async () => {
+        options.closest('details')!.open = true
+        option.querySelector('input')!.click()
+      })
+    }
+    const apply = () => [...dialog.querySelectorAll('button')].find(button => button.textContent === 'Apply')!
+    await choose('Source', 'User')
+    await choose('Collections', 'Demo Set')
+    await choose('Visual capabilities', 'Camera Motion')
+    expect(result()).toBe('10 presets')
+    await act(async () => apply().click())
+    expect(result()).toBe('1 preset')
+    expect(studies[2]!.querySelector('[aria-label="Select Opening Set"]')).not.toBeNull()
+    const search = studies[2]!.querySelector<HTMLInputElement>('input[aria-label="Search presets"]')!
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(search, 'laser sweeps')
+      search.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    expect(result()).toBe('1 preset')
+    await act(async () => popoverTrigger.click())
+    const searchDialog = document.getElementById(popoverTrigger.getAttribute('aria-controls')!)!
+    const nameOption = [...searchDialog.querySelectorAll('label')].find(label => label.textContent === 'Name')!
+    await act(async () => nameOption.querySelector('input')!.click())
+    await act(async () => [...searchDialog.querySelectorAll('button')].find(button => button.textContent === 'Apply')!.click())
+    expect(result()).toBe('0 presets')
   })
 
   it('shows four static Live Input mockups, including both spectrum disclosure states', async () => {

@@ -33,9 +33,11 @@ Level Meter, Frequency Bars, Live Scope, and Meter with Expandable Detail are fo
 
 ## Preset Filter studies
 
-Five interactive Inspector previews share the React Presets tab’s name search, System and User sources, and two-column Cinema 2.0 posters. Quick Chips select one tag. Inline Dropdown and Filter Popover share the Filters button beside search. Inline Dropdown opens the app’s shared dropdown menu and combines one category with one tag. Filter Popover uses the app’s shared popover and checkboxes to apply several tags together. Expandable Facets show match counts alongside categories and tags. Search Tokens accept expressions such as `tag:laser` and `category:architecture` alongside a name.
+Five interactive Inspector previews start with Cinema 2.0 System presets. Inline Dropdown and Filter Popover share the Filters button beside search. Inline Dropdown uses the searchable shared dropdown and applies one value per group immediately. Filter Popover uses the shared popover to stage multiple selections before Apply. Criteria combine across groups. Categories and tags match any selected value within their group. Visual and audio capabilities require every selected value.
 
-Each preview uses its own local sample data and state. Category and tag assignments are illustrative.
+Both popovers cover search field (name, description, engine, category, tag or author), engine, source, category, tags, author, visual capabilities, audio capabilities, built-in/custom type, favorites, personal tags, collections, preset pack, year added and year updated. Catalog dates appear at year granularity. The studies use local fixtures to represent preset manifests, catalog and library metadata, including records with missing dates. Publication workflow, display order, internal IDs, store artwork and render parameters serve catalog administration or playback.
+
+Quick Chips offer tag shortcuts. Expandable Facets show result counts for categories and tags. Search Tokens accept expressions such as `tag:laser`, `category:architecture` and `engine:laserdmx` alongside free text.
 
 ## Engine Dropdown and AUTH studies
 

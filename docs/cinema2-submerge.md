@@ -10,7 +10,8 @@ reflections and fill light are deliberately restrained.
 
 - **Master Controls** retains Motion Amount, BPM Sync, Auto Performance and Motion
   Safety. The existing shared beat clock owns timing; pause freezes the water,
-  particles, lights and lettering. Lock Off assembles letters and holds water.
+  particles, lights and lettering. Zero Motion Amount and Lock Off hold the water
+  and assemble the letters.
 - **Design** retains editable one/two-line text, alignment, tracking, line spacing,
   scale, letter depth and rusted-metal/clean-metal/frosted-glass finishes. Breaking Waves
   controls crest height/curl; Surface Light controls the actual spotlights and
@@ -18,17 +19,25 @@ reflections and fill light are deliberately restrained.
   `submerge-architecture` for compatibility, but it cannot restore any arches.
   Caustic Light, Depth Haze, Suspended Particles and Bubble Trails remain active.
 - **Design > Pattern** contains Pattern, Pattern Change and the canonical Trigger
-  options. Six patterns move the glyphs: Suspension, Pressure Wave, Undertow,
-  Crosscurrent, Vortex and Upwelling. Pattern Change defaults OFF and uses the
-  existing musical event controller without overwriting authored parameters.
+  options. Pressure Wave is the default. Suspension gives the letters a gentle
+  drift. Undertow draws light back across the seabed. Crosscurrent sweeps the
+  two sides in opposite directions, Vortex rotates the light and sediment, and
+  Upwelling carries light and bubbles toward the surface. Pattern Change defaults
+  OFF and uses the existing musical event controller without overwriting authored
+  parameters.
 - **Palette** offers independent Water Tint, Letter Tint, Edge Glow, Surface Light
   Tint and Wave Foam Tint. Water Tint is attenuated for the deep-water background.
 - Source/Pool use the existing Text Scenes library and migration 0045. New water
   and light parameters are included in saved SUBMERGE Text Scenes.
 
-Bass adds bounded swell and letter displacement; mids drive localized seabed
-caustics; highs accent bubbles and particles. Shared timing drives crest motion
-and slow light modulation. No new analyzer, transport, canvas or context is used.
+Auto Performance uses the shared music intelligence and beat clock. Quiet
+passages narrow the lighting toward the text. A kick starts at the lettering,
+then travels through the seabed lighting and reaches the surface foam. Builds
+gather the letters, light and sediment toward the center while the camera moves
+in. A drop opens the shafts, fans letters in depth, raises a surface crest and
+leaves a bubble wake. The release settles over four beats. Pressure Wave has the
+strongest kick response. Bass adds swell, mids drive seabed caustics and highs
+accent bubbles and particles.
 
 The waves are stylized displaced geometry with procedural crest foam, not a fluid
 simulation or physically simulated breaking-water collision. Light shafts use
@@ -39,14 +48,8 @@ shadow rendering through the existing shared quality profile and reduce particle
 
 `node scripts/verify-cinema2-submerge.mjs` runs the real native WebGL renderer,
 text edits, all six patterns, water/light/environment controls, materials, musical
-response, pause/resume, aspect ratios and context recovery. Captures and results
-are written to `artifacts/cinema2-submerge/`.
-
-This revision passed 6 focused SUBMERGE tests, TypeScript, focused ESLint and
-33 real WebGL checks, including the two new palette consumers, pause/resume,
-portrait/square framing and context restoration. The baseline capture was
-visually reviewed. Changes are uncommitted; no new migration is required.
-The owner's visual/musical acceptance remains separate from automated checks.
+response, pause/resume, aspect ratios and context recovery. It captures the quiet,
+kick, build and drop poses and writes the results to `artifacts/cinema2-submerge/`.
 
 The default Rusted Metal finish uses object-space procedural oxide patches,
 mineral streaks, variable roughness/metalness and derivative-based pitting.

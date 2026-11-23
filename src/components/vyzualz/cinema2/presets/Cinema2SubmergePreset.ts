@@ -25,12 +25,12 @@ const changes: Record<string, Partial<Cinema2ParameterManifest>> = {
   'environment-reflection': { defaultValue: 0.15, description: 'Strength of the reflected environment on the submerged letters.' },
   'led-outline': { label: 'Edge Glow', defaultValue: false, description: 'Illuminate the contours of the submerged letters.' },
   'highlight-sweep': { defaultValue: 0.2, description: 'Speed of the reflected highlights traveling across the letter surfaces.' },
-  'camera-motion': { defaultValue: 0.25 },
+  'camera-motion': { defaultValue: 0.45 },
   trails: { defaultValue: 0 },
   focus: { defaultValue: 0.08 },
   bloom: { defaultValue: 0.55 },
   'pattern-change': { designParentGroup: 'design' },
-  pattern: { designParentGroup: 'design', defaultValue: 'suspension', description: 'Select one of six coordinated letter and environment movement patterns.', options: CINEMA2_SUBMERGE_PATTERNS },
+  pattern: { designParentGroup: 'design', defaultValue: 'pressure-wave', description: 'Select one of six scores for the lettering, currents and light.', options: CINEMA2_SUBMERGE_PATTERNS },
   trigger: { designParentGroup: 'design', description: 'The standard musical event that advances the geometric pattern when Pattern Change is enabled.' },
   background: { label: 'Water Tint', description: 'Color of the water, depth haze and submerged background.', defaultValue: [0.012, 0.11, 0.16, 1] },
   chrome: { label: 'Letter Tint', description: 'Surface color of the extruded lettering.', defaultValue: [0.53, 0.74, 0.81, 1] },
@@ -81,7 +81,7 @@ const waterAudioRules: Cinema2ChoreographyRuleManifest[] = waterAudioRoutes.map(
 
 const CINEMA2_SUBMERGE_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze<Cinema2NativePresetManifest>({
   ...template,
-  revision: 2,
+  revision: 3,
   id: CINEMA2_SUBMERGE_PRESET_ID,
   metadata: { ...template.metadata, name: 'SUBMERGE', description: 'Configurable solid 3D typography floating above a dark ocean floor beneath breaking overhead waves, selective surface light shafts, currents and suspended sediment.', tags: ['3d', 'typography', 'underwater', 'submerge'] },
   capabilities: [
@@ -97,7 +97,7 @@ const CINEMA2_SUBMERGE_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetMan
   ],
   modules: [{ ...sourceModule, typeId: CINEMA2_SUBMERGE_MODULE_TYPE_ID, parameterBindings, parameters: {
     'sun-color': [0.57,0.85,0.94,1], 'foam-color': [0.72,0.84,0.86,1],
-    ...sourceModule.parameters, line1Text: 'SUBMERGE', materialStyle: 'ceramic', pattern: 'suspension', waterColor: [0.012, 0.11, 0.16, 1], bass: 0, mids: 0, highs: 0, energy: 0,
+    ...sourceModule.parameters, line1Text: 'SUBMERGE', materialStyle: 'ceramic', pattern: 'pressure-wave', waterColor: [0.012, 0.11, 0.16, 1], bass: 0, mids: 0, highs: 0, energy: 0,
     ...Object.fromEntries(environmentParameters.map(parameter => [parameter.id.replace('submerge-', ''), parameter.defaultValue])),
   } }],
   lighting: { ...template.lighting, lights: template.lighting!.lights.map(light => ({ ...light,

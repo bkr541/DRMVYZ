@@ -5,7 +5,7 @@ import { CINEMA2_SUBMERGE_PRESET_ID, CINEMA2_SUBMERGE_PRESET_MANIFEST } from '..
 import { CINEMA2_AFTERHOURS_TRIGGER_OPTIONS } from '../presets/Cinema2AfterhoursPreset'
 import { cinema2NativeModuleRegistry } from '../modules/Cinema2ModuleRegistry'
 import { CINEMA2_SUBMERGE_MODULE_TYPE_ID } from '../modules/Cinema2SubmergeNativeModule'
-import { CINEMA2_SUBMERGE_PATTERNS, DEFAULT_SUBMERGE_STATE, resolveSubmergeGlyphPoses, submergePatternFromController, submergePatternToController } from '../modules/submerge/Cinema2SubmergeMotion'
+import { CINEMA2_SUBMERGE_PATTERNS, DEFAULT_SUBMERGE_STATE, SubmergePerformance, resolveSubmergeGlyphPoses, submergePatternFromController, submergePatternToController } from '../modules/submerge/Cinema2SubmergeMotion'
 import { createCinema2SubmergeNativeModuleDefinition } from '../modules/Cinema2SubmergeNativeModule'
 import type { Cinema2SayItModuleInspection } from '../modules/Cinema2SayItNativeModule'
 import type { Cinema2AudioIntelligenceFrame } from '../audio/Cinema2AudioIntelligenceBridge'
@@ -30,7 +30,7 @@ describe('Cinema 2.0 SUBMERGE', () => {
   })
 
   it('uses six native geometric patterns with the standard change toggle and exact trigger options', () => {
-    expect(manifest.parameters!.find(parameter => parameter.id === 'submerge-pattern')).toMatchObject({ defaultValue: 'suspension', options: CINEMA2_SUBMERGE_PATTERNS, designParentGroup: 'design', group: 'Pattern' })
+    expect(manifest.parameters!.find(parameter => parameter.id === 'submerge-pattern')).toMatchObject({ defaultValue: 'pressure-wave', options: CINEMA2_SUBMERGE_PATTERNS, designParentGroup: 'design', group: 'Pattern' })
     expect(manifest.parameters!.find(parameter => parameter.id === 'submerge-pattern-change')).toMatchObject({ type: 'boolean', defaultValue: false })
     expect(manifest.parameters!.find(parameter => parameter.id === 'submerge-trigger')).toMatchObject({ defaultValue: 'bar4', options: CINEMA2_AFTERHOURS_TRIGGER_OPTIONS, visibleWhen: [{ kind: 'parameter-equals', parameterId: 'submerge-pattern-change', value: true }] })
     const signatures = CINEMA2_SUBMERGE_PATTERNS.map(({ value }) => {
@@ -62,6 +62,23 @@ describe('Cinema 2.0 SUBMERGE', () => {
     expect(textContentError('drmvyz.cinema2.submerge', parameters)).toBeNull()
     expect(textContentError('drmvyz.cinema2.submerge', { ...parameters, 'submerge-text': 'A'.repeat(13) })).toContain('12 characters')
     expect(textContentError('drmvyz.cinema2.submerge', { ...parameters, 'submerge-text': '🫧' })).toContain('SUBMERGE')
+  })
+
+  it('advances kick fronts once, converges on builds and relaxes from a four-beat drop', () => {
+    const score = new SubmergePerformance()
+    expect(score.update(0, 0, 'kick-1', null).kickAges).toEqual([0])
+    expect(score.update(0.5, 0, 'kick-1', null).kickAges).toEqual([0.5])
+    expect(score.update(1, 0, 'kick-2', null).kickAges).toEqual([0, 1])
+    const build = score.update(3, 1, null, null)
+    const drop = score.update(4, 1, null, 'drop-1')
+    expect(drop).toMatchObject({ build: 0, dropAge: 0, release: 1 })
+    expect(score.update(5, 0, null, 'drop-1').release).toBeLessThan(1)
+    expect(score.update(8, 0, null, null)).toEqual(DEFAULT_SUBMERGE_STATE.performance)
+    const pose = (performance: typeof build) => resolveSubmergeGlyphPoses(poses, 'pressure-wave', 0, { ...DEFAULT_SUBMERGE_STATE, performance })[0]!
+    expect(Math.abs(pose(build).position[0])).toBeLessThan(Math.abs(pose(drop).position[0]))
+    expect(pose(drop).position[2]).toBeLessThan(pose(build).position[2])
+    score.reset()
+    expect(score.update(0, 0, null, null)).toEqual(DEFAULT_SUBMERGE_STATE.performance)
   })
 
   it('updates the shared glyph lifecycle without loading GPU assets or mutating its manifest', () => {
@@ -96,7 +113,8 @@ describe('Cinema 2.0 SUBMERGE', () => {
     let tick = 0
     const update = (event: string | null, paused = false) => {
       const elapsed = ++tick / 60
-      const audio = { upstream: { timeSec: elapsed, trackId: 'track' }, rhythm: { kick: event ? { id: event } : null }, bands: {}, features: {} } as unknown as Cinema2AudioIntelligenceFrame
+      const audio = { upstream: { timeSec: elapsed, trackId: 'track' }, rhythm: { kick: event ? { id: event } : null }, bands: {}, features: {},
+        structure: { semanticMoments: { available: false, value: null } } } as unknown as Cinema2AudioIntelligenceFrame
       instance.lifecycle.update({ parameters, targets: {} as never, frame: {
         frameId: tick, elapsedTimeSec: elapsed, timestampMs: elapsed * 1000, deltaTimeSec: 1 / 60,
         viewport: { width: 1280, height: 720, dpr: 1 }, contextGeneration: 1, audio, director: null,
