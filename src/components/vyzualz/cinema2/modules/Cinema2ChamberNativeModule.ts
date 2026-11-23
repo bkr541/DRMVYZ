@@ -390,7 +390,7 @@ export class Cinema2ChamberController {
 
   inspect(): Readonly<Record<string, unknown>> {
     const count = (family: ChamberFamily) => this.cells.filter(cell => cell.family === family).length
-    return { source: 'dark-chamber.glb', arms: this.arms.length, modelPlaced: this.userRoot != null, modelPose: this.modelPose, modelLight: this.userLight?.intensity ?? null, ...this.policy.inspect(), performanceOverride: this.overrideReason, pattern: this.pattern, beats: this.beats, cells: { ring: count('ring'), ticks: count('ticks'), beacons: count('beacons'), lamps: count('lamps'), core: count('core'), blades: count('blades'), scan: count('scan') }, fixtures: this.fixtures ? { shaft: this.fixtures.shaft.visible, wash: this.fixtures.wash.map(light => light.intensity) } : null, levels: this.levels }
+    return { source: 'dark-chamber.glb', arms: this.arms.length, modelPlaced: this.userRoot != null, modelPose: this.modelPose, modelLight: this.userLight?.intensity ?? null, ...this.policy.inspect(), performanceOverride: this.overrideReason, pattern: this.pattern, beats: this.beats, cells: { ring: count('ring'), ticks: count('ticks'), beacons: count('beacons'), lamps: count('lamps'), core: count('core'), blades: count('blades'), scan: count('scan') }, fixtures: this.fixtures ? { shaft: this.fixtures.shaft.visible, shaftGlow: ((this.fixtures.shaft.material as THREE.ShaderMaterial).uniforms.uColor!.value as THREE.Color).toArray(), wash: this.fixtures.wash.map(light => light.intensity) } : null, levels: this.levels }
   }
 
   dispose(): void {

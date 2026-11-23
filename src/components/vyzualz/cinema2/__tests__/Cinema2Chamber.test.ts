@@ -372,7 +372,7 @@ describe('CHAMBER device, kick ripple and atmosphere', () => {
     const rings = r.named(/^chamber-scan:\d$/).map(mesh => mesh.getWorldPosition(new THREE.Vector3()).add(OFFSET))
     // The four rings lie flat on the floor round the platform's axis, innermost first and wider each time; the blades stand behind the model (z < 0) in a left-to-right arc; the wash lights are either side, in front.
     const widths = r.named(/^chamber-scan:\d$/).map(mesh => new THREE.Box3().setFromObject(mesh).getSize(new THREE.Vector3()).x)
-    expect(widths).toEqual([...widths].sort((a, b) => a - b)); expect(widths[0]!).toBeGreaterThan(6); expect(widths[3]!).toBeLessThan(13)
+    expect(widths).toEqual([...widths].sort((a, b) => a - b)); expect(widths[0]!).toBeGreaterThan(5); expect(widths[3]!).toBeLessThan(13)
     expect(new Set(rings.map(p => p.y.toFixed(3))).size).toBe(1); expect(rings[0]!.y).toBeLessThan(1); expect(Math.abs(rings[0]!.x)).toBeLessThan(.05); expect(Math.abs(rings[0]!.z)).toBeLessThan(.4) // the platform's own centre is about 0.26 behind the world origin
     expect(at(/^chamber-blade:0$/).x).toBeLessThan(-3); expect(at(/^chamber-blade:6$/).x).toBeGreaterThan(3); expect(at(/^chamber-blade:3$/).z).toBeLessThan(-4)
     expect(at(/^chamber-wash:left$/).x).toBeLessThan(-3); expect(at(/^chamber-wash:right$/).x).toBeGreaterThan(3); expect(at(/^chamber-wash:left$/).z).toBeGreaterThan(1)

@@ -10,7 +10,7 @@ import { CHAMBER_BLADE_CELLS, CHAMBER_SCAN_CELLS, CHAMBER_WASH_CELLS } from './C
 export const CHAMBER_FIXTURES = Object.freeze({
   blades: Object.freeze({ radius: 6, spanDegrees: 62, height: 4.2, thickness: .12, base: .1, emission: 1.8 }),
   // Concentric rings flat on the floor round the platform, innermost first, so a ripple travels outward through them. `floor` is the floor's height relative to the middle of the platform ring.
-  scan: Object.freeze({ radii: Object.freeze([3.4, 4.3, 5.2, 6.1]), width: .09, floor: -.7, emission: 1.5 }),
+  scan: Object.freeze({ radii: Object.freeze([2.8, 3.3, 3.8, 4.3]), width: .08, floor: -.2, emission: 1.5 }),
   shaft: Object.freeze({ top: 4.4, bottom: .1, topRadius: .3, bottomRadius: 2.4, emission: .5 }),
   wash: Object.freeze({ positions: Object.freeze([[-5, 2.4, 3] as const, [5, 2.4, 3] as const]), range: 9, emission: .3 }),
 })
@@ -68,13 +68,13 @@ export function buildChamberFixtures(
   const { top, bottom, topRadius, bottomRadius } = CHAMBER_FIXTURES.shaft, length = top - bottom
   const shaftGeometry = new THREE.CylinderGeometry(topRadius, bottomRadius, length, 64, 1, true)
   const positions = shaftGeometry.getAttribute('position'), fade = new Float32Array(positions.count)
-  for (let i = 0; i < positions.count; i++) { const t = positions.getY(i) / length + .5; fade[i] = .12 + .88 * t ** 1.6 }
+  for (let i = 0; i < positions.count; i++) { const t = Math.min(1, Math.max(0, positions.getY(i) / length + .5)); fade[i] = .12 + .88 * t ** 1.6 }
   shaftGeometry.setAttribute('fade', new THREE.BufferAttribute(fade, 1))
   // Its own small shader (the same way the room's dust is drawn): colour times the fade, added to the picture, never covering it.
   const shaftMaterial = new THREE.ShaderMaterial({
     uniforms: { uColor: { value: new THREE.Color(0, 0, 0) } },
-    vertexShader: 'attribute float fade; varying float vFade; void main() { vFade = fade; gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 ); }',
-    fragmentShader: 'uniform vec3 uColor; varying float vFade; void main() { gl_FragColor = vec4( uColor * vFade, 1.0 ); #include <colorspace_fragment>\n }',
+    vertexShader: ['attribute float fade;', 'varying float vFade;', 'void main() {', '  vFade = fade;', '  gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );', '}'].join('\n'),
+    fragmentShader: ['uniform vec3 uColor;', 'varying float vFade;', 'void main() {', '  gl_FragColor = vec4( uColor * vFade, 1.0 );', '  #include <colorspace_fragment>', '}'].join('\n'),
     transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
   })
   const shaft = own(new THREE.Mesh(shaftGeometry, shaftMaterial))

@@ -66,5 +66,5 @@ Checked in Chromium against the real model: the default matches the original fra
 - **Controls.** Wall Blades, Floor Rings (`scanLight`), Light Shaft and Stage Wash are in the Emission group, with matching palette colours. Intensity scales them with everything else.
 - **Standby.** The fixtures idle faintly in Standby (so Standby is no longer exactly the original room); every other program plays them fully.
 - **Model motion.** The model floats and leans only slightly: about 6 degrees of yaw for a small model, eased to about 2.5 for a wide logo, with roughly a hundredth of the width in drift. Model Tilt and Model Drift scale it (up to 1.5).
-- **Not yet reviewed by eye:** the fixtures' final brightness and height were checked by unit tests only, not in a finished render. Tune the constants in `CHAMBER_FIXTURES` if they read too bright or too dim.
+- **Tuning.** The fixtures' placement, size and brightness are the constants in `CHAMBER_FIXTURES` (heights are metres from the middle of the platform ring; the floor sits about 0.25 below it).
 
