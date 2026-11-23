@@ -59,3 +59,12 @@ One field of 160 very faint dust motes drifts in the room's air (high quality dr
 ## Verified and not verified
 
 Checked in Chromium against the real model: the default matches the original framing and look; every program, a palette change, the manual camera, the arms swinging in Sentinel Sweep, and kick-driven glow through the real Audio Intelligence bridge with a deterministic fixture. Not done: tuning against real music. The audio amounts are set by reasoning and the shared checks, and need listening with real tracks.
+
+## Room fixtures and model motion
+
+- **Added fixtures.** Beside the original glowing elements the module builds four fixture types from code, centred on the platform (`modules/chamber/Cinema2ChamberFixtures.ts`): seven wall blades in an arc behind the model, four concentric rings on the floor (innermost first), a light shaft falling from the lamp under the device, and a stage-wash light either side of the model. Every light program drives them (`Cinema2ChamberPatterns.ts`): a sweep in Ring Chase, a ripple outward in Pulse Ripple, left/right exchange in Sentinel Sweep, a count in Countdown, a breath in Core Breath, a fill in Charge Ring and a flash in Lockdown Flash. The kick ripple reaches them too (blades with the floor ticks, rings with the platform ring, shaft with the core lamp, wash with the arm lamps).
+- **Controls.** Wall Blades, Floor Rings (`scanLight`), Light Shaft and Stage Wash are in the Emission group, with matching palette colours. Intensity scales them with everything else.
+- **Standby.** The fixtures idle faintly in Standby (so Standby is no longer exactly the original room); every other program plays them fully.
+- **Model motion.** The model floats and leans only slightly: about 6 degrees of yaw for a small model, eased to about 2.5 for a wide logo, with roughly a hundredth of the width in drift. Model Tilt and Model Drift scale it (up to 1.5).
+- **Not yet reviewed by eye:** the fixtures' final brightness and height were checked by unit tests only, not in a finished render. Tune the constants in `CHAMBER_FIXTURES` if they read too bright or too dim.
+

@@ -69,7 +69,7 @@ const defaults: Record<string, unknown> = Object.fromEntries(manifest.parameters
 
 describe('CHAMBER controls', () => {
   it('exposes the standard Master Controls, Pattern controls, an Emission and Lights group, a Camera group, effects and a palette', () => {
-    expect(manifest.id).toBe(CINEMA2_CHAMBER_PRESET_ID); expect(manifest.revision).toBe(5)
+    expect(manifest.id).toBe(CINEMA2_CHAMBER_PRESET_ID); expect(manifest.revision).toBe(6)
     expect(byLabel('BPM Sync')).toMatchObject({ type: 'boolean', designParentGroup: 'master-controls', defaultValue: true })
     expect(byLabel('Intensity')).toMatchObject({ designParentGroup: 'master-controls', defaultValue: 1 })
     expect(byLabel('Pattern')).toMatchObject({ type: 'enum', designParentGroup: 'design', group: 'Pattern' })
@@ -146,7 +146,7 @@ describe('CHAMBER native module on the real model', () => {
 
   it('splits the glowing meshes into 12 ring arcs, 8 floor ticks, 4 corner beacons, 6 arm lamps and the core-lamp pieces, and hides the originals', async () => {
     const r = await rig(); r.draw(1)
-    expect(r.controller.inspect().cells).toEqual({ ring: 12, ticks: 8, beacons: 4, lamps: 6, core: 3 })
+    expect(r.controller.inspect().cells).toEqual({ ring: 12, ticks: 8, beacons: 4, lamps: 6, core: 3, blades: 7, scan: 4 })
     expect(Object.fromEntries(Object.entries(r.cells).map(([family, meshes]) => [family, meshes.length]))).toEqual({ ring: 12, ticks: 8, beacons: 4, lamps: 6 })
     for (const name of ['turquoise_glow', 'blue_screen_glow', 'Turquoise']) for (const mesh of r.meshesBy(name)) expect(mesh.visible, name).toBe(false)
     // Every triangle of the originals is still drawn, once.
@@ -363,9 +363,62 @@ describe('CHAMBER device, kick ripple and atmosphere', () => {
     expect(particles).toHaveLength(1); expect(particles[0]!.count).toBeLessThanOrEqual(200); expect(particles[0]!.brightness).toBeLessThan(.5)
   })
 
-  it('restores the original meshes and removes the arm pivots on dispose', async () => {
+  it('adds the room\'s fixtures: seven blades, four scan rings, a light shaft and two wash lights, centred on the platform and standing true whatever the file\'s own transform', async () => {
+    const r = await rig(); r.draw(1)
+    expect(r.named(/^chamber-blade:\d$/)).toHaveLength(7); expect(r.named(/^chamber-scan:\d$/)).toHaveLength(4)
+    expect(r.named(/^chamber-shaft$/)).toHaveLength(1); expect(r.named(/^chamber-wash:(left|right)$/)).toHaveLength(2)
+    // The test scene is the raw model, without the preset's node that cancels the export offset: positions are read relative to it.
+    const OFFSET = new THREE.Vector3(0, 438.02, -446.92), at = (name: RegExp) => r.named(name)[0]!.getWorldPosition(new THREE.Vector3()).add(OFFSET)
+    const rings = r.named(/^chamber-scan:\d$/).map(mesh => mesh.getWorldPosition(new THREE.Vector3()).add(OFFSET))
+    // The four rings lie flat on the floor round the platform's axis, innermost first and wider each time; the blades stand behind the model (z < 0) in a left-to-right arc; the wash lights are either side, in front.
+    const widths = r.named(/^chamber-scan:\d$/).map(mesh => new THREE.Box3().setFromObject(mesh).getSize(new THREE.Vector3()).x)
+    expect(widths).toEqual([...widths].sort((a, b) => a - b)); expect(widths[0]!).toBeGreaterThan(6); expect(widths[3]!).toBeLessThan(13)
+    expect(new Set(rings.map(p => p.y.toFixed(3))).size).toBe(1); expect(rings[0]!.y).toBeLessThan(1); expect(Math.abs(rings[0]!.x)).toBeLessThan(.05); expect(Math.abs(rings[0]!.z)).toBeLessThan(.4) // the platform's own centre is about 0.26 behind the world origin
+    expect(at(/^chamber-blade:0$/).x).toBeLessThan(-3); expect(at(/^chamber-blade:6$/).x).toBeGreaterThan(3); expect(at(/^chamber-blade:3$/).z).toBeLessThan(-4)
+    expect(at(/^chamber-wash:left$/).x).toBeLessThan(-3); expect(at(/^chamber-wash:right$/).x).toBeGreaterThan(3); expect(at(/^chamber-wash:left$/).z).toBeGreaterThan(1)
+    // The shaft hangs from the lamp (about 5.2) to the platform (about 0.8), and the fixtures stand upright in world space.
+    const box = new THREE.Box3().setFromObject(r.named(/^chamber-shaft$/)[0]!).translate(OFFSET); expect(box.max.y).toBeGreaterThan(5); expect(box.min.y).toBeLessThan(1.2)
+    const blade3 = r.named(/^chamber-blade:3$/)[0]!, up = blade3.localToWorld(new THREE.Vector3(0, 1, 0)).sub(blade3.getWorldPosition(new THREE.Vector3())); expect(up.y).toBeCloseTo(1, 5)
+  })
+
+  it('has every program play the fixtures, each differently, and idles them softly in Standby', async () => {
+    const standby = await rig(); standby.draw(3.3)
+    const idle = standby.controller.inspect().levels as { blades: number[]; scan: number[]; shaft: number; wash: number[] }
+    expect(Math.max(...idle.blades, ...idle.scan, idle.shaft, ...idle.wash)).toBeLessThan(.4); expect(Math.min(...idle.blades, ...idle.scan, idle.shaft, ...idle.wash)).toBeGreaterThan(0)
+    const snapshots = new Set<string>()
+    for (const pattern of ['ring-chase', 'pulse-ripple', 'sentinel-sweep', 'countdown', 'core-breath', 'charge-ring', 'lockdown-flash'] as const) {
+      const levels = evaluateChamberPattern(pattern, 2.37)
+      const flat = [...levels.blades, ...levels.scan, levels.shaft, ...levels.wash]
+      expect(flat.every(value => Number.isFinite(value) && value >= 0 && value <= 2.2), pattern).toBe(true)
+      expect(levels.blades).toHaveLength(7); expect(levels.scan).toHaveLength(4); expect(levels.wash).toHaveLength(2)
+      snapshots.add(flat.map(value => value.toFixed(3)).join())
+    }
+    expect(snapshots.size).toBe(7)
+    // Sentinel Sweep trades the wash lights left and right, beat by beat.
+    const a = evaluateChamberPattern('sentinel-sweep', .5).wash, b = evaluateChamberPattern('sentinel-sweep', 1.5).wash
+    expect(a[0]!).toBeGreaterThan(a[1]!); expect(b[1]!).toBeGreaterThan(b[0]!)
+    // Charge Ring fills the scan rings from the bottom up.
+    const early = evaluateChamberPattern('charge-ring', 5).scan, late = evaluateChamberPattern('charge-ring', 14).scan
+    expect(early.filter(value => value > 1).length).toBeLessThan(late.filter(value => value > 1).length)
+  })
+
+  it('drives the shaft, the wash lights and the blades from their own controls, palette and Intensity, and dims them all with Intensity at zero', async () => {
+    const r = await rig({ pattern: 'core-breath' }); r.draw(2)
+    const shaft = r.named(/^chamber-shaft$/)[0] as THREE.Mesh, left = r.named(/^chamber-wash:left$/)[0] as THREE.PointLight, blade = r.named(/^chamber-blade:2$/)[0] as THREE.Mesh
+    const bright = (m: THREE.Mesh) => { const c = (m.material as THREE.ShaderMaterial).uniforms.uColor!.value as THREE.Color; return c.r + c.g + c.b }, glow = (m: THREE.Mesh) => { const material = m.material as THREE.MeshStandardMaterial; return (material.emissive.r + material.emissive.g + material.emissive.b) * material.emissiveIntensity }
+    expect(bright(shaft)).toBeGreaterThan(0); expect(left.intensity).toBeGreaterThan(0); expect(glow(blade)).toBeGreaterThan(0)
+    const before = { shaft: bright(shaft), wash: left.intensity, blade: glow(blade) }
+    r.set('shaftLight', 0); r.set('washLight', 0); r.set('bladeLight', 0); r.draw(2)
+    expect(bright(shaft)).toBe(0); expect(shaft.visible).toBe(false); expect(left.intensity).toBe(0); expect(glow(blade)).toBe(0)
+    r.set('shaftLight', 1); r.set('washLight', 1); r.set('bladeLight', 1); r.set('intensity', 2); r.draw(2)
+    expect(bright(shaft)).toBeCloseTo(before.shaft * 2, 5); expect(left.intensity).toBeCloseTo(before.wash * 2, 5); expect(glow(blade)).toBeCloseTo(before.blade * 2, 5)
+    r.set('intensity', 1); r.set('washColor', [1, 0, 0, 1]); r.draw(2)
+    expect(left.color.r).toBeGreaterThan(.9); expect(left.color.g).toBeLessThan(.01)
+  })
+
+  it('restores the original meshes and removes the arm pivots and fixtures on dispose', async () => {
     const r = await rig(); r.draw(1); r.controller.dispose()
-    expect(r.named(/^chamber-arm:/)).toHaveLength(0)
+    expect(r.named(/^chamber-arm:/)).toHaveLength(0); expect(r.named(/^chamber-(blade|scan|shaft|wash)/)).toHaveLength(0)
     expect(r.named(/^Object_(6|7|10|14|20|21|22)$/).every(mesh => mesh.visible)).toBe(true)
   })
 })
@@ -477,7 +530,7 @@ describe('CHAMBER model slot', () => {
       r.run(beats)
       const pose = r.controller.inspect().modelPose as { position: [number, number, number]; yaw: number; pitch: number; roll: number }
       minYaw = Math.min(minYaw, pose.yaw); maxYaw = Math.max(maxYaw, pose.yaw)
-      expect(Math.abs(pose.pitch)).toBeLessThan(.15); expect(Math.abs(pose.roll)).toBeLessThan(.17)
+      expect(Math.abs(pose.pitch)).toBeLessThan(.03); expect(Math.abs(pose.roll)).toBeLessThan(.04)
       const here = new THREE.Vector3(...pose.position); if (last) travel = Math.max(travel, here.distanceTo(last)); last = here
       for (const corner of r.corners()) {
         expect(corner.y).toBeGreaterThan(platformTop + .05); expect(corner.y).toBeLessThan(lampBottom - .05)
@@ -485,8 +538,8 @@ describe('CHAMBER model slot', () => {
         expect(Math.abs(corner.x)).toBeLessThan(4.2); expect(Math.hypot(corner.x, corner.z)).toBeLessThan(radius * 3)
       }
     }
-    // It leans and turns about 13 degrees either way at this size (eased from 24 for a small model, so a big one's corners do not swing far): it really moves, and never anywhere near a half turn.
-    expect(maxYaw).toBeGreaterThan(.15); expect(minYaw).toBeLessThan(-.15); expect(maxYaw).toBeLessThan(.45); expect(minYaw).toBeGreaterThan(-.45)
+    // It leans and turns only a few degrees (about 6 either way for a small model, eased further for a big one, so a title stays readable): it really moves, but never by much.
+    expect(maxYaw).toBeGreaterThan(.02); expect(minYaw).toBeLessThan(-.02); expect(maxYaw).toBeLessThan(.12); expect(minYaw).toBeGreaterThan(-.12)
     // And it moves smoothly: no jump between quarter-beat frames.
     expect(travel).toBeLessThan(.1)
   })
@@ -507,7 +560,7 @@ describe('CHAMBER model slot', () => {
     r.draw(6); expect(r.controller.inspect().modelPose).toEqual(rest)
     r.set('cueModel', 1); r.draw(6)
     const kicked = r.controller.inspect().modelPose as { position: number[]; pitch: number; scale: number }
-    expect(kicked.position[1]).toBeGreaterThan(rest.position[1]! + .01); expect(kicked.pitch).toBeLessThan(rest.pitch - .02); expect(kicked.scale).toBeGreaterThan(rest.scale)
+    expect(kicked.position[1]).toBeGreaterThan(rest.position[1]! + .01); expect(kicked.pitch).toBeLessThan(rest.pitch - .003); expect(kicked.scale).toBeGreaterThan(rest.scale)
     // Kick Ripple 0 silences the kick's part (the choreography does not set the cue, and the model ignores it).
     r.set('scoreAmount', 0); r.draw(6); expect(r.controller.inspect().modelPose).toEqual(rest)
   })
@@ -523,7 +576,7 @@ describe('CHAMBER model slot', () => {
   })
 
   it('lights the model with a light of its own that stays put while the model moves, and has no light at all with no model', async () => {
-    const lightsIn = (root: THREE.Object3D) => { const found: THREE.PointLight[] = []; root.traverse(object => { if ((object as THREE.PointLight).isPointLight) found.push(object as THREE.PointLight) }); return found }
+    const lightsIn = (root: THREE.Object3D) => { const found: THREE.PointLight[] = []; root.traverse(object => { if ((object as THREE.PointLight).isPointLight && !object.name.startsWith('chamber-wash')) found.push(object as THREE.PointLight) }); return found }
     const none = await rig({}, 'user-model-default'); none.draw(3)
     expect(lightsIn(none.model)).toHaveLength(0); expect(lightsIn(none.scene)).toHaveLength(0); expect(none.controller.inspect().modelLight).toBeNull()
     const r = await rig(); r.run(2)

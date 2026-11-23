@@ -25,7 +25,7 @@ const when = (value: string) => [{ kind: 'parameter-equals' as const, parameterI
 
 /** Authored light levels; the Lights controls start here, so the defaults are the original look. */
 const LIGHTS = { floorPool: .22, deviceGlow: .025, platformGlow: .05, windowSpill: .22, rim: .08, fill: .025, modelLight: .5 } as const
-const PALETTE_LABELS = { ringColor: 'Platform Ring', tickColor: 'Floor Ticks', beaconColor: 'Corner Beacons', lampColor: 'Arm Lamps', coreColor: 'Core Lamp' } as const
+const PALETTE_LABELS = { ringColor: 'Platform Ring', tickColor: 'Floor Ticks', beaconColor: 'Corner Beacons', lampColor: 'Arm Lamps', coreColor: 'Core Lamp', bladeColor: 'Wall Blades', scanColor: 'Scan Rings', shaftColor: 'Light Shaft', washColor: 'Stage Wash' } as const
 const SPILL_COLOR = [0, .65, .9, 1] as const
 const HOME_EYE: Cinema2Vector3 = [0, 3.6, 8], HOME_TARGET: Cinema2Vector3 = [0, 3.8, -.3]
 /** Interior Drift: a slow arc round the platform (about 26 degrees either way, with a little rise and fall), always looking at the centre; it starts and ends on the home view. */
@@ -36,7 +36,7 @@ const DRIFT_POINTS = Array.from({ length: 24 }, (_, i) => {
 
 const PARAMETERS: readonly Cinema2ParameterManifest[] = [
   toggle('bpmSync', 'BPM Sync', 'master-controls', true, 0, 'Locks the camera drift and the light programs to the track tempo. Off, they run at a steady 120 BPM.'),
-  number('intensity', 'Intensity', 'master-controls', 1, 0, 2, 1, undefined, 'Scales every glowing element: the platform ring, floor ticks, corner beacons, arm lamps and the lamp under the device.'),
+  number('intensity', 'Intensity', 'master-controls', 1, 0, 2, 1, undefined, 'Scales every glowing element: the platform ring, floor ticks, corner beacons, arm lamps, the lamp under the device, and the blades, scan rings, light shaft and stage wash.'),
   number('reactivity', 'Audio Reactivity', 'master-controls', .65, 0, 1, 2, undefined, 'How strongly the glow and the lights follow the music. At 0 the music moves nothing.'),
   toggle('zoomOnKick', 'Zoom on Kick', 'master-controls', true, 3, 'On: the lens punches in a little on every kick, then eases back. Only the field of view changes.'),
   toggle('autoPerformance', 'Auto Performance', 'master-controls', false, 4, 'The music runs the show: it moves the controls with the mood of the passage, chooses how often the Pattern changes, and puts Charge Ring on stage for a build and Lockdown Flash for a drop.'),
@@ -51,6 +51,10 @@ const PARAMETERS: readonly Cinema2ParameterManifest[] = [
   number('beaconLight', 'Corner Beacons', 'design', 1, 0, 2, 2, 'Emission', 'Brightness of the four beacons at the corners of the floor.'),
   number('lampLight', 'Arm Lamps', 'design', 1, 0, 2, 3, 'Emission', 'Brightness of the cyan lamps on the device\'s two arms.'),
   number('coreLight', 'Core Lamp', 'design', 1, 0, 2, 4, 'Emission', 'Brightness of the white lamp under the device.'),
+  number('bladeLight', 'Wall Blades', 'design', 1, 0, 2, 5, 'Emission', 'Brightness of the seven slim light blades standing in an arc behind the model.'),
+  number('scanLight', 'Scan Rings', 'design', 1, 0, 2, 6, 'Emission', 'Brightness of the four thin rings stacked round the model.'),
+  number('shaftLight', 'Light Shaft', 'design', 1, 0, 2, 7, 'Emission', 'Brightness of the soft shaft of light falling from the lamp under the device onto the platform.'),
+  number('washLight', 'Stage Wash', 'design', 1, 0, 2, 8, 'Emission', 'Brightness of the two lights either side of the model. They light the model and the room, and the light programs trade them left and right.'),
   number('armMotion', 'Arm Motion', 'design', 1, 0, 1.5, 0, 'Device', 'How far the device\'s two arms swing and turn in the light programs. Standby keeps them still.'),
   number('scoreAmount', 'Kick Ripple', 'design', .5, 0, 1, 1, 'Device', 'How strongly each kick sends a ripple outward through the glowing elements: the core lamp, the arm lamps, the ring, the floor ticks and the beacons.'),
   number('modelTilt', 'Model Tilt', 'design', 1, 0, 1.5, 0, 'Model', 'How far the model leans and turns inside the structure. It never turns right round. At 0 it holds still.'),
@@ -79,7 +83,7 @@ const PARAMETERS: readonly Cinema2ParameterManifest[] = [
   { ...createCinema2UserModelParameter(chamberParameterId('model')), exposure: 'hidden' },
   { ...base, id: chamberParameterId('spillColor'), label: 'Window Spill', type: 'color', defaultValue: SPILL_COLOR, designParentGroup: 'palette', order: CHAMBER_PALETTE_NAMES.length },
 ]
-const MODULE_BINDINGS = ['bpmSync', 'intensity', 'reactivity', 'autoPerformance', 'pattern', 'patternChange', 'trigger', 'ringLight', 'tickLight', 'beaconLight', 'lampLight', 'coreLight', 'armMotion', 'scoreAmount', 'modelSize', 'modelTilt', 'modelDrift', 'modelLight', ...CHAMBER_PALETTE_NAMES] as const
+const MODULE_BINDINGS = ['bpmSync', 'intensity', 'reactivity', 'autoPerformance', 'pattern', 'patternChange', 'trigger', 'ringLight', 'tickLight', 'beaconLight', 'lampLight', 'coreLight', 'bladeLight', 'scanLight', 'shaftLight', 'washLight', 'armMotion', 'scoreAmount', 'modelSize', 'modelTilt', 'modelDrift', 'modelLight', ...CHAMBER_PALETTE_NAMES] as const
 /** Score channels the choreography sets (kick ripple); they are module inputs, not controls. */
 const SCORE_CHANNELS = ['cueModel', 'cueCore', 'cueLamps', 'cueRing', 'cueTicks', 'cueBeacons'] as const
 
@@ -106,10 +110,10 @@ const authored: Readonly<Cinema2NativePresetManifest> = {
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_CHAMBER_PRESET_ID,
-  revision: 5,
+  revision: 6,
   metadata: {
     name: 'CHAMBER',
-    description: 'Rowan Design’s Darkspore Editor Chamber: a glossy interior with a glowing platform ring, floor ticks, corner beacons and an overhead device, with eight light programs and a camera that can drift or be placed by hand.',
+    description: 'Rowan Design’s Darkspore Editor Chamber: a glossy interior with a glowing platform ring, floor ticks, corner beacons and an overhead device, with eight light programs (they also drive wall blades, scan rings, a light shaft and stage-wash lights added to the room) and a camera that can drift or be placed by hand.',
     author: 'STAGELESS. Original model by Rowan Design (CC BY 4.0).',
     tags: ['reference', 'animated', '3d', 'scene-preview'],
   },
@@ -235,13 +239,16 @@ function withChamberPerformance(manifest: Readonly<Cinema2NativePresetManifest>)
     continuous('bass-ring', 'audio.bands', 'audio.bands.bass', 'ringLight', 1.4), continuous('bass-platform', 'audio.bands', 'audio.bands.bass', 'platformGlow', 1.8),
     continuous('mid-lamps', 'audio.bands', 'audio.bands.mid', 'lampLight', 1.3),
     continuous('high-ticks', 'audio.bands', 'audio.bands.high', 'tickLight', 1.3), continuous('high-beacons', 'audio.bands', 'audio.bands.high', 'beaconLight', 1.4),
+    // The room's added fixtures: the shaft breathes with the bass, the blades shimmer with the highs, the wash lights follow the mids, the scan rings the overall energy.
+    continuous('bass-shaft', 'audio.bands', 'audio.bands.bass', 'shaftLight', 1.6), continuous('high-blades', 'audio.bands', 'audio.bands.high', 'bladeLight', 1.4),
+    continuous('mid-wash', 'audio.bands', 'audio.bands.mid', 'washLight', 1.3), continuous('energy-scan', 'audio.features', 'audio.features.overallEnergy', 'scanLight', 1.3),
     continuous('energy-intensity', 'audio.features', 'audio.features.overallEnergy', 'intensity', 1.2),
     continuous('vocal-device', 'music.vocal-presence', 'audio.features.vocalPresence', 'deviceGlow', 2), continuous('vocal-core', 'music.vocal-presence', 'audio.features.vocalPresence', 'coreLight', 1.25),
     // A kick hits the core lamp and sends a pulse through the floor lights, one after another.
     accent('kick', 'core', target('coreLight'), 1.7, .22),
     accent('kick', 'floor-lights', { kind: 'light-group', ref: cinema2Ref(FLOOR_GROUP), property: 'intensity', stagger: { beats: .25, order: 'forward' } }, 2, .3),
     accent('snare', 'beacons', target('beaconLight'), 1.9, .2), accent('snare', 'spill', target('windowSpill'), 2, .25),
-    accent('downbeat', 'rim', target('rim'), 2.2, .3),
+    accent('downbeat', 'rim', target('rim'), 2.2, .3), accent('downbeat', 'wash', target('washLight'), 1.8, .3),
     accent('drop', 'bloom', target('bloom'), 1.7, 1.2), accent('drop', 'intensity', target('intensity'), 1.25, 1.2), accent('drop', 'room', { kind: 'light-group', ref: cinema2Ref(ROOM_GROUP), property: 'intensity', stagger: { beats: .5, order: 'center-out' } }, 2.5, 1.2),
     // Arms: they follow the energy of the music and tap on every kick.
     continuous('energy-arms', 'audio.features', 'audio.features.overallEnergy', 'armMotion', 1.4), accent('kick', 'arms', target('armMotion'), 1.5, .25),
@@ -264,6 +271,7 @@ function withChamberPerformance(manifest: Readonly<Cinema2NativePresetManifest>)
     // A build pulls the floor pool and the core lamp up; a peak lights everything and lifts the bloom; a shock flares the beacons and the rim.
     drive('build-pool', 'floorPool', 'mood.build', 1.5), drive('build-core', 'coreLight', 'mood.build', 1.3),
     drive('peak-ring', 'ringLight', 'mood.peak', 1.25), drive('peak-lamps', 'lampLight', 'mood.peak', 1.25), drive('peak-bloom', 'bloom', 'mood.peak', 1.3),
+    drive('build-shaft', 'shaftLight', 'mood.build', 1.5), drive('peak-wash', 'washLight', 'mood.peak', 1.3), drive('activity-blades', 'bladeLight', 'mood.activity', 1.15), drive('calm-scan', 'scanLight', 'mood.calm', .7),
     drive('shock-beacons', 'beaconLight', 'mood.shock', 1.5), drive('shock-rim', 'rim', 'mood.shock', 1.8),
   ]
   for (const name of ['intensity', 'armMotion', 'modelDrift', 'modelTilt', 'floorPool', 'platformGlow', 'deviceGlow', 'windowSpill', 'rim', 'bloom']) drives.push(drive(`silence-${name.toLowerCase()}`, name, 'mood.silence', .1))

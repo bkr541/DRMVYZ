@@ -11,15 +11,16 @@ import { Cinema2MainframePatternController, resolveCinema2MainframeTriggerEventI
 import { Cinema2MainframeBeatClockResolver } from './mainframe/Cinema2MainframePatternEngine'
 import { connectedPieces, splitGeometryByCell } from './chamber/Cinema2ChamberCells'
 import { CHAMBER_PALETTE_DEFAULTS, CHAMBER_PALETTE_NAMES, type ChamberPaletteName } from './chamber/Cinema2ChamberPalette'
+import { CHAMBER_FIXTURES, buildChamberFixtures, type ChamberFixtureSet } from './chamber/Cinema2ChamberFixtures'
 import {
   CINEMA2_CHAMBER_DEFAULT_PATTERN, CINEMA2_CHAMBER_PATTERN_IDS, CINEMA2_CHAMBER_TRIGGER_IDS, blendChamberLevels, evaluateChamberPattern,
   type ChamberLevels, type Cinema2ChamberPattern,
 } from './chamber/Cinema2ChamberPatterns'
 
 export const CINEMA2_CHAMBER_MODULE_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('chamber-native')
-export type ChamberFamily = 'ring' | 'ticks' | 'beacons' | 'lamps' | 'core'
-const FAMILY_PALETTE: Record<ChamberFamily, ChamberPaletteName> = { ring: 'ringColor', ticks: 'tickColor', beacons: 'beaconColor', lamps: 'lampColor', core: 'coreColor' }
-const FAMILY_GAIN: Record<ChamberFamily, string> = { ring: 'ringLight', ticks: 'tickLight', beacons: 'beaconLight', lamps: 'lampLight', core: 'coreLight' }
+export type ChamberFamily = 'ring' | 'ticks' | 'beacons' | 'lamps' | 'core' | 'blades' | 'scan'
+const FAMILY_PALETTE: Record<ChamberFamily, ChamberPaletteName> = { ring: 'ringColor', ticks: 'tickColor', beacons: 'beaconColor', lamps: 'lampColor', core: 'coreColor', blades: 'bladeColor', scan: 'scanColor' }
+const FAMILY_GAIN: Record<ChamberFamily, string> = { ring: 'ringLight', ticks: 'tickLight', beacons: 'beaconLight', lamps: 'lampLight', core: 'coreLight', blades: 'bladeLight', scan: 'scanLight' }
 const TRANSITION_BEATS = 2
 /** The scene module's neutral stand-in for "no model chosen": with none chosen the middle of the chamber is empty, exactly as the model has it. */
 const DEFAULT_MODEL_ASSET_ID = 'user-model-default'
@@ -36,13 +37,13 @@ const SWING_HALF_EXTENT = 1.7, MIN_SWING = .4
 /** The light on the model: where it stands in the world (in front of and a little above the model), how far it reaches, and its colour. It belongs to the model, so with none chosen there is no light. */
 const MODEL_LIGHT = { position: [.6, 3.6, 3.6] as const, range: 6.5, color: [.78, .92, 1] as const }
 /**
- * How far the model moves inside the chamber, at Model Tilt 1 and Model Drift 1. It floats and leans like something held in the structure: it never turns right
- * round. Periods are in beats and share no common factor, so the motion does not repeat quickly.
+ * How far the model moves inside the chamber, at Model Tilt 1 and Model Drift 1: a slow, small float and a few degrees of lean, like something held still in the
+ * structure (a title that should stay readable, not a toy that swings). It never turns right round. Periods are in beats and share no common factor, so the motion does not repeat quickly.
  */
 export const CHAMBER_MODEL_MOTION = {
-  yaw: .42, pitch: .12, roll: .16, x: .16, y: .14, z: .12,
-  periods: { yaw: 16, pitch: 9, roll: 12, x: 11, y: 7, z: 13 },
-  kickNod: .09, kickLift: .06, kickSwell: .03,
+  yaw: .11, pitch: .03, roll: .04, x: .07, y: .06, z: .05,
+  periods: { yaw: 20, pitch: 11, roll: 14, x: 13, y: 9, z: 15 },
+  kickNod: .02, kickLift: .035, kickSwell: .015,
 } as const
 /** The device's two arms hang from ceiling brackets at about this distance either side of the platform's centre, 7.9 above the ring. Triangles in these boxes (relative to the ring's centre) belong to an arm. */
 const ARM_REGION = { minX: 1.25, maxX: 3.2, minY: 4.85, maxY: 8.05, maxZ: 2.2, pivotX: 1.55, pivotY: 7.9 } as const
@@ -89,6 +90,7 @@ export class Cinema2ChamberController {
   private userRoot: THREE.Object3D | null = null
   private userBase: THREE.Matrix4 | null = null
   private userLight: THREE.PointLight | null = null
+  private fixtures: ChamberFixtureSet | null = null
   private readonly placement: THREE.Matrix4
   private readonly scratch: { position: THREE.Vector3; rotation: THREE.Quaternion; scale: THREE.Vector3; euler: THREE.Euler; light: THREE.Matrix4 }
   private modelPose: { position: [number, number, number]; yaw: number; pitch: number; roll: number; scale: number } | null = null
@@ -211,6 +213,12 @@ export class Cinema2ChamberController {
       if (made) { for (const piece of made) if (piece) this.cells.push(this.makeCell('core', this.cells.length, piece.material as THREE.MeshStandardMaterial, piece)) }
       else this.cells.push(this.makeCell('core', this.cells.length, material, mesh))
     }
+    // The room's added fixtures: blades, scan rings, a light shaft and two wash lights, centred on the platform and driven by the same programs.
+    const colors = { blades: CHAMBER_PALETTE_DEFAULTS.bladeColor, scan: CHAMBER_PALETTE_DEFAULTS.scanColor, shaft: CHAMBER_PALETTE_DEFAULTS.shaftColor, wash: CHAMBER_PALETTE_DEFAULTS.washColor }
+    this.fixtures = buildChamberFixtures(THREE, parent, center, colors)
+    this.ownedGeometry.push(...this.fixtures.geometry); this.ownedMaterial.push(...this.fixtures.materials)
+    this.fixtures.blades.forEach((mesh, index) => this.cells.push(this.makeCell('blades', index, mesh.material as THREE.MeshStandardMaterial, mesh)))
+    this.fixtures.scan.forEach((mesh, index) => this.cells.push(this.makeCell('scan', index, mesh.material as THREE.MeshStandardMaterial, mesh)))
   }
 
   private attachUserModel(model: THREE.Object3D, assetId?: string): void {
@@ -249,7 +257,7 @@ export class Cinema2ChamberController {
     const kick = this.number('scoreAmount', .5, 0, 1) * this.number('cueModel', 0, 0, 1)
     const position: [number, number, number] = [
       MODEL_CENTER[0] + motion.x * drift * wave(motion.periods.x, 0),
-      MODEL_CENTER[1] + motion.y * drift * wave(motion.periods.y, 1.3) + .04 * drift * wave(3.1, 0) + motion.kickLift * drift * kick,
+      MODEL_CENTER[1] + motion.y * drift * wave(motion.periods.y, 1.3) + .015 * drift * wave(3.1, 0) + motion.kickLift * drift * kick,
       MODEL_CENTER[2] + motion.z * drift * wave(motion.periods.z, 2.4),
     ]
     const scale = size * this.modelFit * (1 + motion.kickSwell * kick)
@@ -334,11 +342,13 @@ export class Cinema2ChamberController {
     })
     // A kick sends a ripple outward through the glowing elements (the score channels are set by the choreography, with a delay each); Kick Ripple scales it.
     const score = this.number('scoreAmount', .5, 0, 1)
-    const cue: Record<ChamberFamily, number> = { core: this.number('cueCore', 0, 0, 1), lamps: this.number('cueLamps', 0, 0, 1), ring: this.number('cueRing', 0, 0, 1), ticks: this.number('cueTicks', 0, 0, 1), beacons: this.number('cueBeacons', 0, 0, 1) }
+    // The added fixtures ride the same ripple: the blades with the floor ticks, the scan rings with the platform ring, the shaft with the core lamp and the wash lights with the arm lamps.
+    const cue: Record<ChamberFamily, number> = { core: this.number('cueCore', 0, 0, 1), lamps: this.number('cueLamps', 0, 0, 1), ring: this.number('cueRing', 0, 0, 1), ticks: this.number('cueTicks', 0, 0, 1), beacons: this.number('cueBeacons', 0, 0, 1), blades: 0, scan: 0 }
+    cue.blades = cue.ticks; cue.scan = cue.ring
     const master = this.number('intensity', 1, 0, 2)
     const chosen = {} as Record<ChamberPaletteName, THREE.Color>
     for (const name of CHAMBER_PALETTE_NAMES) { const c = this.color(name); chosen[name] = new THREE.Color().setRGB(c[0], c[1], c[2], THREE.SRGBColorSpace) }
-    const gains: Record<ChamberFamily, number> = { ring: 1, ticks: 1, beacons: 1, lamps: 1, core: 1 }
+    const gains: Record<ChamberFamily, number> = { ring: 1, ticks: 1, beacons: 1, lamps: 1, core: 1, blades: 1, scan: 1 }
     for (const family of Object.keys(gains) as ChamberFamily[]) gains[family] = this.number(FAMILY_GAIN[family], 1, 0, 2)
     for (const cell of this.cells) {
       const level = cell.family === 'core' ? levels.core : (levels[cell.family === 'ring' ? 'ring' : cell.family] as readonly number[])[cell.index] ?? 1
@@ -348,7 +358,24 @@ export class Cinema2ChamberController {
       if (changed) cell.material.color.copy(color).multiplyScalar(cell.colorPeak); else cell.material.color.copy(cell.color)
       cell.material.emissiveIntensity = cell.intensity * master * gains[cell.family] * (level + cue[cell.family] * score * 1.2)
     }
+    this.driveFixtures(levels, master, score, cue)
     this.placeUserModel()
+  }
+
+  /** The light shaft and the two wash lights (the blades and scan rings are cells, driven with the rest). */
+  private driveFixtures(levels: ChamberLevels, master: number, score: number, cue: Record<ChamberFamily, number>): void {
+    const fixtures = this.fixtures
+    if (!fixtures) return
+    const { THREE } = this.library
+    const shaftColor = this.color('shaftColor'), washColor = this.color('washColor')
+    const shaftLevel = levels.shaft + cue.core * score * 1.2, shaftUniform = (fixtures.shaft.material as THREE.ShaderMaterial).uniforms.uColor!.value as THREE.Color
+    shaftUniform.setRGB(shaftColor[0], shaftColor[1], shaftColor[2], THREE.SRGBColorSpace).multiplyScalar(CHAMBER_FIXTURES.shaft.emission * master * this.number('shaftLight', 1, 0, 2) * shaftLevel)
+    fixtures.shaft.visible = shaftUniform.r + shaftUniform.g + shaftUniform.b > 1e-4
+    const range = CHAMBER_FIXTURES.wash.range, gain = this.number('washLight', 1, 0, 2)
+    fixtures.wash.forEach((light, index) => {
+      light.color.setRGB(washColor[0], washColor[1], washColor[2], THREE.SRGBColorSpace)
+      light.intensity = CHAMBER_FIXTURES.wash.emission * Math.PI * (range * .5) ** 2 * master * gain * ((levels.wash[index] ?? 0) + cue.lamps * score * 1.2)
+    })
   }
 
   private number(name: string, fallback: number, min: number, max: number): number {
@@ -363,13 +390,14 @@ export class Cinema2ChamberController {
 
   inspect(): Readonly<Record<string, unknown>> {
     const count = (family: ChamberFamily) => this.cells.filter(cell => cell.family === family).length
-    return { source: 'dark-chamber.glb', arms: this.arms.length, modelPlaced: this.userRoot != null, modelPose: this.modelPose, modelLight: this.userLight?.intensity ?? null, ...this.policy.inspect(), performanceOverride: this.overrideReason, pattern: this.pattern, beats: this.beats, cells: { ring: count('ring'), ticks: count('ticks'), beacons: count('beacons'), lamps: count('lamps'), core: count('core') }, levels: this.levels }
+    return { source: 'dark-chamber.glb', arms: this.arms.length, modelPlaced: this.userRoot != null, modelPose: this.modelPose, modelLight: this.userLight?.intensity ?? null, ...this.policy.inspect(), performanceOverride: this.overrideReason, pattern: this.pattern, beats: this.beats, cells: { ring: count('ring'), ticks: count('ticks'), beacons: count('beacons'), lamps: count('lamps'), core: count('core'), blades: count('blades'), scan: count('scan') }, fixtures: this.fixtures ? { shaft: this.fixtures.shaft.visible, wash: this.fixtures.wash.map(light => light.intensity) } : null, levels: this.levels }
   }
 
   dispose(): void {
     for (const mesh of this.hidden) mesh.visible = true
     for (const arm of this.arms) arm.pivot.removeFromParent()
     this.arms.length = 0
+    this.fixtures?.group.removeFromParent(); this.fixtures = null
     this.userLight?.removeFromParent(); this.userLight = null
     this.userRoot = null; this.userBase = null; this.modelPose = null; this.modelFit = 1; this.modelSpan = 2
     this.ownedGeometry.forEach(geometry => geometry.dispose()); this.ownedMaterial.forEach(material => material.dispose())
