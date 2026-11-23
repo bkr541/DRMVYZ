@@ -81,8 +81,8 @@ describe('persistent Layout Lab tabs', () => {
 
   it('keeps content identity through renaming, switching tabs and reopening', async () => {
     await render()
-    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(9)
-    expect(host.querySelectorAll('[role="tabpanel"]')).toHaveLength(9)
+    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(10)
+    expect(host.querySelectorAll('[role="tabpanel"]')).toHaveLength(10)
     const panel = host.querySelector<HTMLElement>('#layout-lab-tab-01-panel')!
     const studies = panel.querySelector('.ll-pad-studies')
     const rows = [...panel.querySelectorAll('[data-pad-study]')]
@@ -125,11 +125,11 @@ describe('persistent Layout Lab tabs', () => {
     await key('Enter')
     expect(tab(1).textContent).toBe('Tab 1')
     await act(async () => tab(1).dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true })))
-    expect(tab(14).getAttribute('aria-selected')).toBe('true')
-    await act(async () => tab(14).dispatchEvent(new KeyboardEvent('keydown', { key: 'F2', bubbles: true })))
+    expect(tab(15).getAttribute('aria-selected')).toBe('true')
+    await act(async () => tab(15).dispatchEvent(new KeyboardEvent('keydown', { key: 'F2', bubbles: true })))
     await type('Geometry')
     await act(async () => input().blur())
-    expect(tab(14).textContent).toBe('Geometry')
+    expect(tab(15).textContent).toBe('Geometry')
   })
 
   it('adds the UI Preview tab, with its own permanent id and one window frame', async () => {
@@ -191,6 +191,27 @@ describe('persistent Layout Lab tabs', () => {
     expect(button('Tap tempo').disabled).toBe(true)
   })
 
+  it('shows four static Live Input mockups, including both spectrum disclosure states', async () => {
+    await render()
+    expect(tab(15).textContent).toBe('Live Input')
+    await act(async () => tab(15).click())
+    const panel = host.querySelector('#layout-lab-tab-15-panel')!
+    const rows = [...panel.querySelectorAll('[data-live-input-study]')]
+    expect(rows.map(row => row.querySelector('h2')?.textContent)).toEqual([
+      'Level Meter', 'Frequency Bars', 'Live Scope', 'Meter with Expandable Detail',
+    ])
+    const [meter, spectrum, scope, expandable] = rows
+    expect(meter.querySelector('.ll-li-meter')).not.toBeNull()
+    expect(spectrum.querySelector('.ll-li-spectrum')).not.toBeNull()
+    expect(scope.querySelector('.ll-li-scope')).not.toBeNull()
+    const [collapsed, expanded] = expandable.querySelectorAll('.ll-li-detail-state')
+    expect(collapsed.textContent).toContain('Collapsed')
+    expect(collapsed.querySelector('.ll-li-expanded')).toBeNull()
+    expect(expanded.textContent).toContain('Expanded')
+    expect(expanded.querySelector('.ll-li-expanded .ll-li-spectrum')).not.toBeNull()
+    expect(panel.querySelector('button, input, select, canvas, audio')).toBeNull()
+  })
+
   it('has no Nav Bar Icons tab, and a saved selection of it falls back to the first tab', async () => {
     window.localStorage.setItem(LAYOUT_LAB_STORAGE_KEY, JSON.stringify({ version: 1, activeTabId: 'layout-lab-tab-04', tabs: [{ id: 'layout-lab-tab-04', name: 'Nav bar icons' }] }))
     await render()
@@ -206,7 +227,7 @@ describe('persistent Layout Lab tabs', () => {
     expect([...host.querySelectorAll('[role="tab"]')].map(item => item.textContent)).not.toContain('PixGrid Deck')
     expect(host.querySelector('#layout-lab-tab-10')).toBeNull()
     expect(host.querySelector('[aria-label="PixGrid Deck popover studies"]')).toBeNull()
-    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(9)
+    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(10)
     expect(tab(1).getAttribute('aria-selected')).toBe('true')
   })
 
@@ -232,7 +253,7 @@ describe('persistent Layout Lab tabs', () => {
     window.localStorage.setItem(LAYOUT_LAB_STORAGE_KEY, 'broken json')
     vi.spyOn(window.localStorage, 'setItem').mockImplementation(() => { throw new Error('Storage blocked') })
     await render()
-    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(9)
+    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(10)
     expect(host.querySelector('[role="status"]')?.textContent).toContain('could not be saved')
     await act(async () => tab(3).click())
     expect(tab(3).getAttribute('aria-selected')).toBe('true')

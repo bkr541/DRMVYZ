@@ -21,6 +21,7 @@ The former Preset Cards slot (`layout-lab-tab-02`) was retired when Matte Frame 
 | UI Preview | `layout-lab-tab-12` | `layout-lab-tab-12-panel` |
 | Mobile | `layout-lab-tab-13` | `layout-lab-tab-13-panel` |
 | Audio Dock | `layout-lab-tab-14` | `layout-lab-tab-14-panel` |
+| Live Input | `layout-lab-tab-15` | `layout-lab-tab-15-panel` |
 
 Renaming changes only `name`. Future elements must be associated with these permanent IDs, never a label or a slug derived from a label. Tab wrappers and panels expose `data-layout-lab-tab-id`; each tab's `aria-controls` points to its panel. Panels remain mounted while switching tabs. To locate a renamed study in a later session, read its current label and permanent ID from the DOM or the stored mapping above. This storage schema saves tab metadata, not study data.
 
@@ -33,6 +34,10 @@ Slate Rail, Inset Deck, Meter Panel, Split Console, and Signal Glass share one a
 The compact rows use the production dock's typography roles and place volume beside the transport keys. The Rekordbox logo and status sit beside the right-hand tools. The sample queue shows cues and sections, cues only, and no imported data. Layout Lab carries the opener's UI font settings into its popup.
 
 Validation: five focused tab/popup tests, TypeScript and focused ESLint passed. The actual popup browser check verified seven equally sized tabs with shared 11px/700 typography, rename/cancel, focus restoration, saved names and selection after reopening, and permanent panel references. Its screenshot is under ignored `artifacts/layout-lab-tabs/`. No production build was run for this local workspace change.
+
+## Live Input studies
+
+Level Meter, Frequency Bars, Live Scope, and Meter with Expandable Detail are four static dock mockups. Each shows the selected device, live status, signal display, and source control at compact height. The last study shows the collapsed meter and the expanded spectrum together.
 
 ## Engine Dropdown and AUTH studies
 

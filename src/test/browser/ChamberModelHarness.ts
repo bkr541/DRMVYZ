@@ -13,13 +13,15 @@ import { createModelArtifact, createDefaultModelRecipe } from '../../features/mo
 // library (the model repository is stubbed; nothing touches an account). Time moves only when a check advances it.
 const canvas = document.querySelector<HTMLCanvasElement>('#chamber-model')!
 const OWNER = 'a0000000-0000-4000-8000-000000000001'
-const ids = ['c0000000-0000-4000-8000-000000000001', 'c0000000-0000-4000-8000-000000000002']
-const fixtures = ['donut.svg', 'islands.svg']
-const fixture = async (name: string) => (await fetch(`/src/features/models/__tests__/fixtures/${name}`)).blob()
+const ids = ['c0000000-0000-4000-8000-000000000001', 'c0000000-0000-4000-8000-000000000002', 'c0000000-0000-4000-8000-000000000003']
+// Two generated shapes, and a wide logo-like mark (separate rounded blocks and a triangle, 3.2 : 1): a wide logo is the model the chamber is meant to show.
+const WORDMARK = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 100"><path fill="#000" d="M0 0h28a24 50 0 0 1 0 100H0z"/><path fill="#000" d="M60 0h26l22 100H82z"/><path fill="#000" d="M118 0h24l18 70 18-70h24l-30 100h-24z"/><path fill="#000" d="M210 0h26a24 24 0 0 1 0 52h-26z"/><path fill="#000" d="M268 0h52v22h-30v16h30v22h-30v40h-22z"/></svg>'
+const fixtures = ['donut.svg', 'islands.svg', 'wordmark']
+const fixture = async (name: string) => name === 'wordmark' ? new Blob([WORDMARK], { type: 'image/svg+xml' }) : (await fetch(`/src/features/models/__tests__/fixtures/${name}`)).blob()
 const recipe = createDefaultModelRecipe()
 const models = await Promise.all(fixtures.map(async name => createModelArtifact({ source: await fixture(name), recipe })))
 const urls = models.map(model => URL.createObjectURL(model.glb))
-const assets = ids.map((id, index) => ({ id, userId: OWNER, sourceMediaId: null, name: index ? 'Wide model' : 'Cutout model', description: null, favorite: false, status: 'ready' as const, currentVersion: 1, createdAt: '2026-11-12T00:00:00Z', updatedAt: '2026-11-12T00:00:00Z' }))
+const assets = ids.map((id, index) => ({ id, userId: OWNER, sourceMediaId: null, name: ['Cutout model', 'Wide model', 'Wordmark model'][index]!, description: null, favorite: false, status: 'ready' as const, currentVersion: 1, createdAt: '2026-11-12T00:00:00Z', updatedAt: '2026-11-12T00:00:00Z' }))
 repo.get = (async (id: string) => assets.find(asset => asset.id === id)!) as typeof repo.get
 repo.getVersion = (async (id: string, version: number) => ({ modelAssetId: id, version, generatorRecipe: models[ids.indexOf(id)]!.recipe, geometryStats: models[ids.indexOf(id)]!.stats })) as unknown as typeof repo.getVersion
 repo.signedUrl = (async (id: string, _version: number, kind: string) => ({ url: kind === 'thumbnailPath' ? '' : urls[ids.indexOf(id)]!, expiresAt: Date.now() + 60000 })) as unknown as typeof repo.signedUrl

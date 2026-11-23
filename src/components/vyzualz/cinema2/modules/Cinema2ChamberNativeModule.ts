@@ -25,10 +25,14 @@ const TRANSITION_BEATS = 2
 const DEFAULT_MODEL_ASSET_ID = 'user-model-default'
 /**
  * Where the chosen model stands, in world space (the chamber's floor is near y = 0): the middle of the mechanical structure, between the platform (its top is at about
- * y = 0.8) and the lamp under the device (about y = 5.2), clear of the arms. `MODEL_EXTENT` is its longest side at Model Size 1, so it fits between them with room to move.
+ * y = 0.8) and the lamp under the device (about y = 5.2), clear of the arms. `MODEL_BOX` is the space it fills at Model Size 1: as wide as the middle of the structure
+ * allows (from the home view that is about 60% of the picture, the way the chamber is meant to show a title) and as tall as the gap between the platform and the lamp.
+ * Each model is scaled to fit that box by its own shape, so a wide logo fills the width and a tall or square one is limited by the height.
  */
 const MODEL_CENTER = [0, 3.1, 0] as const
-const MODEL_EXTENT = 2.6
+const MODEL_BOX = { width: 8.8, height: 3.2 } as const
+/** A big model swings its corners much further than a small one for the same lean, so the lean and turn are eased by how big the model stands: full at about this half-size and under, down to `MIN_SWING`. */
+const SWING_HALF_EXTENT = 1.7, MIN_SWING = .4
 /** The light on the model: where it stands in the world (in front of and a little above the model), how far it reaches, and its colour. It belongs to the model, so with none chosen there is no light. */
 const MODEL_LIGHT = { position: [.6, 3.6, 3.6] as const, range: 6.5, color: [.78, .92, 1] as const }
 /**
@@ -88,6 +92,10 @@ export class Cinema2ChamberController {
   private readonly placement: THREE.Matrix4
   private readonly scratch: { position: THREE.Vector3; rotation: THREE.Quaternion; scale: THREE.Vector3; euler: THREE.Euler; light: THREE.Matrix4 }
   private modelPose: { position: [number, number, number]; yaw: number; pitch: number; roll: number; scale: number } | null = null
+  /** The scale that makes the model, as the loader normalized it, fill `MODEL_BOX`. */
+  private modelFit = 1
+  /** The longest side of the model's width and height as the loader normalized it. */
+  private modelSpan = 2
 
   constructor(private readonly library: Cinema2ThreeLibrary) {
     const { THREE } = library
@@ -212,6 +220,12 @@ export class Cinema2ChamberController {
     this.userBase = model.matrix.clone()
     model.matrixAutoUpdate = false
     this.userRoot = model
+    // Measure the model as it stands normalized (its width and height) and find the scale that fills the box.
+    const { THREE: three } = this.library
+    model.updateWorldMatrix(true, true)
+    const size = new three.Box3().setFromObject(model).getSize(new three.Vector3()), parentScale = model.parent?.getWorldScale(new three.Vector3()).x || 1
+    this.modelSpan = Math.max(.01, size.x / parentScale, size.y / parentScale)
+    this.modelFit = Math.min(MODEL_BOX.width / Math.max(.01, size.x / parentScale), MODEL_BOX.height / Math.max(.01, size.y / parentScale))
     // The light is the model's own, so the empty chamber is never lit by it; it is positioned in world space (see placeUserModel). Same intensity mapping as the manifest lights.
     const { THREE } = this.library
     const light = new THREE.PointLight(0xffffff, 0, MODEL_LIGHT.range, 2)
@@ -222,7 +236,7 @@ export class Cinema2ChamberController {
   detach(model: THREE.Object3D): void {
     if (this.userRoot !== model) return
     this.userLight?.removeFromParent(); this.userLight = null
-    this.userRoot = null; this.userBase = null; this.modelPose = null
+    this.userRoot = null; this.userBase = null; this.modelPose = null; this.modelFit = 1; this.modelSpan = 2
   }
 
   /** Where the model is now: its place in the middle of the chamber, a slow float about it, a lean and a limited turn, and a small nod and lift on the kick. */
@@ -238,8 +252,9 @@ export class Cinema2ChamberController {
       MODEL_CENTER[1] + motion.y * drift * wave(motion.periods.y, 1.3) + .04 * drift * wave(3.1, 0) + motion.kickLift * drift * kick,
       MODEL_CENTER[2] + motion.z * drift * wave(motion.periods.z, 2.4),
     ]
-    const yaw = motion.yaw * tilt * wave(motion.periods.yaw, 1.1), pitch = motion.pitch * tilt * wave(motion.periods.pitch, .4) - motion.kickNod * tilt * kick, roll = motion.roll * tilt * wave(motion.periods.roll, 2.1)
-    const scale = size * MODEL_EXTENT / 2 * (1 + motion.kickSwell * kick)
+    const scale = size * this.modelFit * (1 + motion.kickSwell * kick)
+    const swing = Math.min(1, Math.max(MIN_SWING, SWING_HALF_EXTENT / Math.max(.01, scale * this.modelSpan / 2)))
+    const yaw = swing * motion.yaw * tilt * wave(motion.periods.yaw, 1.1), pitch = swing * (motion.pitch * tilt * wave(motion.periods.pitch, .4) - motion.kickNod * tilt * kick), roll = swing * motion.roll * tilt * wave(motion.periods.roll, 2.1)
     this.modelPose = { position, yaw, pitch, roll, scale }
     this.placement.compose(
       this.scratch.position.set(...position),
@@ -356,7 +371,7 @@ export class Cinema2ChamberController {
     for (const arm of this.arms) arm.pivot.removeFromParent()
     this.arms.length = 0
     this.userLight?.removeFromParent(); this.userLight = null
-    this.userRoot = null; this.userBase = null; this.modelPose = null
+    this.userRoot = null; this.userBase = null; this.modelPose = null; this.modelFit = 1; this.modelSpan = 2
     this.ownedGeometry.forEach(geometry => geometry.dispose()); this.ownedMaterial.forEach(material => material.dispose())
     this.ownedGeometry.length = 0; this.ownedMaterial.length = 0; this.cells.length = 0; this.hidden.length = 0
     this.clock.reset(); this.selection.reset(); this.policy.reset(); this.performance.reset(); this.triggerClock.reset(); this.params = null

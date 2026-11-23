@@ -4,6 +4,7 @@ export const LAYOUT_LAB_RECORD_LISTING_TAB_ID = 'layout-lab-tab-09'
 export const LAYOUT_LAB_UI_PREVIEW_TAB_ID = 'layout-lab-tab-12'
 export const LAYOUT_LAB_MOBILE_TAB_ID = 'layout-lab-tab-13'
 export const LAYOUT_LAB_AUDIO_DOCK_TAB_ID = 'layout-lab-tab-14'
+export const LAYOUT_LAB_LIVE_INPUT_TAB_ID = 'layout-lab-tab-15'
 /** The dedicated Brand Kit tab (layout-lab-tab-11) and the PixGrid Deck tab (layout-lab-tab-10) were removed; their ids are not reused. Brand Kit is slot 7 by default. */
 /** The empty slots a person may rename "Brand Kit" themselves; a slot with that name shows the Brand Kit too. */
 export const LAYOUT_LAB_BRAND_KIT_PLACEHOLDER_IDS: readonly string[] = ['layout-lab-tab-06', 'layout-lab-tab-07']
@@ -19,6 +20,7 @@ const DEFAULT_TABS = [
   { id: LAYOUT_LAB_UI_PREVIEW_TAB_ID, name: 'UI Preview' },
   { id: LAYOUT_LAB_MOBILE_TAB_ID, name: 'Mobile' },
   { id: LAYOUT_LAB_AUDIO_DOCK_TAB_ID, name: 'Audio Dock' },
+  { id: LAYOUT_LAB_LIVE_INPUT_TAB_ID, name: 'Live Input' },
 ]
 
 export interface LayoutLabTabsState {

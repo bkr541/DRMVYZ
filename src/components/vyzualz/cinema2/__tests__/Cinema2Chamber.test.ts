@@ -376,12 +376,12 @@ describe('CHAMBER model slot', () => {
   const names = ['bpmSync', 'intensity', 'reactivity', 'autoPerformance', 'pattern', 'patternChange', 'trigger', 'armMotion', 'scoreAmount', 'modelSize', 'modelTilt', 'modelDrift', 'modelLight', 'cueModel']
 
   /** The real chamber, plus a stand-in for a normalized user model (centered, longest side 2, like the loader makes it). */
-  async function rig(controls: Record<string, unknown> = {}, assetId = 'user-model:test:1') {
+  async function rig(controls: Record<string, unknown> = {}, assetId = 'user-model:test:1', dims: readonly [number, number, number] = [4, 2, 1]) {
     const scene = await loadChamberScene(), controller = new Cinema2ChamberController(library)
     controller.attach(scene)
     const model = new THREE.Group(); model.name = 'Cinema2UserModel'
-    const box = new THREE.Mesh(new THREE.BoxGeometry(4, 2, 1), new THREE.MeshStandardMaterial()); model.add(box)
-    model.scale.setScalar(.5)
+    const box = new THREE.Mesh(new THREE.BoxGeometry(...dims), new THREE.MeshStandardMaterial()); model.add(box)
+    model.scale.setScalar(2 / Math.max(...dims))
     controller.attach(model, true, [], assetId)
     const values = new Map<string, unknown>([['bpmSync', true], ['intensity', 1], ['armMotion', 1], ['scoreAmount', .5], ['pattern', 'standby'], ['patternChange', false], ['trigger', 'bar4'], ['modelSize', 1], ['modelTilt', 1], ['modelDrift', 1], ['cueModel', 0]])
     for (const [name, value] of Object.entries(controls)) values.set(name, value)
@@ -431,16 +431,38 @@ describe('CHAMBER model slot', () => {
     const box = new THREE.Box3(); for (const corner of r.corners()) box.expandByPoint(corner)
     const center = box.getCenter(new THREE.Vector3())
     expect(Math.abs(center.x)).toBeLessThan(.3); expect(Math.abs(center.z)).toBeLessThan(.3); expect(center.y).toBeGreaterThan(2.8); expect(center.y).toBeLessThan(3.4)
-    // The box is 4 x 2 x 1, normalized to a longest side of 2, then set to 2.6: it stands about 2.6 long at the middle of its sway.
+    // The box is 4 x 2 x 1, normalized to a longest side of 2, then scaled to fill the space in the middle of the chamber (8.8 wide, 3.2 tall): 8.8 wide would be 4.4 tall, so its height limits it.
     r.set('modelTilt', 0); r.set('modelDrift', 0); r.draw(5)
     const still = new THREE.Box3(); for (const corner of r.corners()) still.expandByPoint(corner)
-    expect(still.getSize(new THREE.Vector3()).x).toBeCloseTo(2.6, 3); expect(still.getCenter(new THREE.Vector3()).y).toBeCloseTo(3.1, 3)
+    expect(still.getSize(new THREE.Vector3()).x).toBeCloseTo(6.4, 3); expect(still.getSize(new THREE.Vector3()).y).toBeCloseTo(3.2, 3); expect(still.getCenter(new THREE.Vector3()).y).toBeCloseTo(3.1, 3)
     r.set('modelSize', 1.5); r.draw(5)
     const large = new THREE.Box3(); for (const corner of r.corners()) large.expandByPoint(corner)
-    expect(large.getSize(new THREE.Vector3()).x).toBeCloseTo(3.9, 3)
+    expect(large.getSize(new THREE.Vector3()).x).toBeCloseTo(9.6, 3)
     r.set('modelSize', .5); r.draw(5)
     const small = new THREE.Box3(); for (const corner of r.corners()) small.expandByPoint(corner)
-    expect(small.getSize(new THREE.Vector3()).x).toBeCloseTo(1.3, 3)
+    expect(small.getSize(new THREE.Vector3()).x).toBeCloseTo(3.2, 3)
+  })
+
+  it('fits each model to the space by its own shape: a wide logo fills the width, a tall one is limited by the height', async () => {
+    const extent = async (dims: readonly [number, number, number]) => {
+      const r = await rig({ modelTilt: 0, modelDrift: 0 }, 'user-model:test:1', dims); r.draw(5)
+      const box = new THREE.Box3(); for (const corner of r.corners()) box.expandByPoint(corner)
+      return box.getSize(new THREE.Vector3())
+    }
+    const wordmark = await extent([6.4, 2, .6]), tall = await extent([1, 3, .3]), square = await extent([2, 2, .5])
+    expect(wordmark.x).toBeCloseTo(8.8, 2); expect(wordmark.y).toBeLessThan(3.2)
+    expect(tall.y).toBeCloseTo(3.2, 2); expect(tall.x).toBeLessThan(8.8)
+    expect(square.y).toBeCloseTo(3.2, 2); expect(square.x).toBeCloseTo(3.2, 2)
+  })
+
+  it('eases the lean and turn as a model gets bigger, so its corners do not swing further than a small model\'s', async () => {
+    const swing = async (size: number) => {
+      const r = await rig({ modelSize: size }); let yaw = 0
+      for (let beats = 0; beats <= 40; beats += .5) { r.run(beats); yaw = Math.max(yaw, Math.abs((r.controller.inspect().modelPose as { yaw: number }).yaw)) }
+      return yaw
+    }
+    expect(await swing(.5)).toBeGreaterThan(await swing(1))
+    expect(await swing(1)).toBeGreaterThan(await swing(1.5) - 1e-9)
   })
 
   it('tilts and moves slightly, never turning right round, and stays inside the structure through a long run of beats', async () => {
@@ -458,12 +480,13 @@ describe('CHAMBER model slot', () => {
       expect(Math.abs(pose.pitch)).toBeLessThan(.15); expect(Math.abs(pose.roll)).toBeLessThan(.17)
       const here = new THREE.Vector3(...pose.position); if (last) travel = Math.max(travel, here.distanceTo(last)); last = here
       for (const corner of r.corners()) {
-        expect(corner.y).toBeGreaterThan(platformTop + .3); expect(corner.y).toBeLessThan(lampBottom - .2)
-        expect(Math.hypot(corner.x, corner.z)).toBeLessThan(radius)
+        expect(corner.y).toBeGreaterThan(platformTop + .05); expect(corner.y).toBeLessThan(lampBottom - .05)
+        // Wide as the middle of the structure allows, but clear of the pillars at the sides and well inside the room.
+        expect(Math.abs(corner.x)).toBeLessThan(4.2); expect(Math.hypot(corner.x, corner.z)).toBeLessThan(radius * 3)
       }
     }
-    // It leans and turns about 24 degrees either way (it really moves), and never anywhere near a half turn.
-    expect(maxYaw).toBeGreaterThan(.3); expect(minYaw).toBeLessThan(-.3); expect(maxYaw).toBeLessThan(.45); expect(minYaw).toBeGreaterThan(-.45)
+    // It leans and turns about 13 degrees either way at this size (eased from 24 for a small model, so a big one's corners do not swing far): it really moves, and never anywhere near a half turn.
+    expect(maxYaw).toBeGreaterThan(.15); expect(minYaw).toBeLessThan(-.15); expect(maxYaw).toBeLessThan(.45); expect(minYaw).toBeGreaterThan(-.45)
     // And it moves smoothly: no jump between quarter-beat frames.
     expect(travel).toBeLessThan(.1)
   })

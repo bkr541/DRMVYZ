@@ -11,7 +11,8 @@ import { BrandKitStudies } from './layoutLab/BrandKitStudies'
 import { UiPreviewStudies } from './layoutLab/UiPreviewStudies'
 import { MobileTab } from './layoutLab/MobileTab'
 import { AudioDockStudies } from './layoutLab/AudioDockStudies'
-import { LAYOUT_LAB_AUDIO_DOCK_TAB_ID, LAYOUT_LAB_AUTH_TAB_ID, LAYOUT_LAB_BRAND_KIT_PLACEHOLDER_IDS, isBrandKitTabName, LAYOUT_LAB_RECORD_LISTING_TAB_ID, LAYOUT_LAB_STORAGE_KEY, LAYOUT_LAB_UI_PREVIEW_TAB_ID, LAYOUT_LAB_MOBILE_TAB_ID, readLayoutLabTabs } from './layoutLab/layoutLabTabs'
+import { LiveInputStudies } from './layoutLab/LiveInputStudies'
+import { LAYOUT_LAB_AUDIO_DOCK_TAB_ID, LAYOUT_LAB_AUTH_TAB_ID, LAYOUT_LAB_BRAND_KIT_PLACEHOLDER_IDS, isBrandKitTabName, LAYOUT_LAB_LIVE_INPUT_TAB_ID, LAYOUT_LAB_RECORD_LISTING_TAB_ID, LAYOUT_LAB_STORAGE_KEY, LAYOUT_LAB_UI_PREVIEW_TAB_ID, LAYOUT_LAB_MOBILE_TAB_ID, readLayoutLabTabs } from './layoutLab/layoutLabTabs'
 
 /** Visual workspace. Preview actions remain local; Record Listing reuses production presentation. */
 export function LayoutLabMockup() {
@@ -90,6 +91,7 @@ export function LayoutLabMockup() {
       {tab.id === LAYOUT_LAB_UI_PREVIEW_TAB_ID && <UiPreviewStudies />}
       {tab.id === LAYOUT_LAB_MOBILE_TAB_ID && <MobileTab />}
       {tab.id === LAYOUT_LAB_AUDIO_DOCK_TAB_ID && <AudioDockStudies />}
+      {tab.id === LAYOUT_LAB_LIVE_INPUT_TAB_ID && <LiveInputStudies />}
       {(LAYOUT_LAB_BRAND_KIT_PLACEHOLDER_IDS.includes(tab.id) && isBrandKitTabName(tab.name)) && <BrandKitStudies />}
     </section>)}
   </main>

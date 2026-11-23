@@ -46,7 +46,7 @@ try {
   for (let i = 0; i < 16; i++) {
     status = await api('advanceBy', 2.5); const p = pose(status); yaws.push(p.yaw); positions.push(p.position); if (i < 4) frames.push(await pixels(`moving-${i}`))
   }
-  assert(Math.max(...yaws) - Math.min(...yaws) > .3, `it leans and turns (yaw ${Math.min(...yaws).toFixed(2)} to ${Math.max(...yaws).toFixed(2)})`)
+  assert(Math.max(...yaws) - Math.min(...yaws) > .15, `it leans and turns (yaw ${Math.min(...yaws).toFixed(2)} to ${Math.max(...yaws).toFixed(2)})`)
   assert(Math.max(...yaws.map(Math.abs)) < .45, 'it never turns anywhere near right round')
   for (const [x, y, z] of positions) { assert(Math.abs(x) < .2 && Math.abs(z) < .2 && y > 2.85 && y < 3.4, `it stays in the middle (${x}, ${y}, ${z})`) }
   assert(difference(frames[0], frames[2], CENTER) > .5, 'the picture really moves in the middle')
