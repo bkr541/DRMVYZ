@@ -1517,6 +1517,8 @@ export { CINEMA2_GLASSFALL_PRESET_ID, CINEMA2_GLASSFALL_PRESET_MANIFEST } from '
 
 export { CINEMA2_SUBMERGE_PRESET_ID, CINEMA2_SUBMERGE_PRESET_MANIFEST } from './presets/Cinema2SubmergePreset'
 export { CINEMA2_LIVEWIRE_PRESET_ID, CINEMA2_LIVEWIRE_PRESET_MANIFEST } from './presets/Cinema2LivewirePreset'
+export { CINEMA2_CORRIDOR_PRESET_ID, CINEMA2_CORRIDOR_PRESET_MANIFEST } from './presets/Cinema2CorridorPreset'
+export { CINEMA2_EVERYWHERE_PRESET_ID, CINEMA2_EVERYWHERE_PRESET_MANIFEST, CINEMA2_EVERYWHERE_MEDIA_SLOT } from './presets/Cinema2EverywherePreset'
 export { CINEMA2_SUBMERGE_MODULE_TYPE_ID, cinema2SubmergeNativeModuleDefinition } from './modules/Cinema2SubmergeNativeModule'
 
 export { CINEMA2_ORBITAL_PRESET_ID, CINEMA2_ORBITAL_PRESET_MANIFEST } from './presets/Cinema2OrbitalPreset'

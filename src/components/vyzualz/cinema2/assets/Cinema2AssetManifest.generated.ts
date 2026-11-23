@@ -403,6 +403,26 @@ export const CINEMA2_ASSET_RECORDS = [
     }
   },
   {
+    "id": "cinema2-everywhere-eye",
+    "kind": "texture",
+    "layout": "color",
+    "license": "generated-in-house",
+    "attribution": null,
+    "files": {
+      "high": {
+        "url": "/cinema2/textures/everywhere-eye.webp",
+        "bytes": 291936,
+        "width": 1280,
+        "height": 960
+      }
+    },
+    "gpuBytes": {
+      "high": 6553600,
+      "medium": 6553600,
+      "low": 6553600
+    }
+  },
+  {
     "id": "cinema2-golden-roots",
     "kind": "model",
     "compression": "none",

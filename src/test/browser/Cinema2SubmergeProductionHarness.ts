@@ -3,6 +3,8 @@ import { Cinema2Runtime } from '../../components/vyzualz/cinema2/runtime/Cinema2
 import { CINEMA2_ORBITAL_PRESET_ID } from '../../components/vyzualz/cinema2/presets/Cinema2OrbitalPreset'
 import { CINEMA2_SUBMERGE_PRESET_ID } from '../../components/vyzualz/cinema2/presets/Cinema2SubmergePreset'
 import { CINEMA2_LIVEWIRE_PRESET_ID } from '../../components/vyzualz/cinema2/presets/Cinema2LivewirePreset'
+import { CINEMA2_CORRIDOR_PRESET_ID } from '../../components/vyzualz/cinema2/presets/Cinema2CorridorPreset'
+import { CINEMA2_EVERYWHERE_PRESET_ID } from '../../components/vyzualz/cinema2/presets/Cinema2EverywherePreset'
 import { setAutoPerformanceUserDefault } from '../../lib/autoPerformanceDefault'
 import { Cinema2AudioIntelligenceBridge } from '../../components/vyzualz/cinema2/audio/Cinema2AudioIntelligenceBridge'
 import type { Cinema2ParameterId, Cinema2JsonValue } from '../../components/vyzualz/cinema2/contracts/Cinema2NativePresetManifest'
@@ -11,9 +13,10 @@ import { nightshiftMusicFixture, type NightshiftFixtureOptions } from '../suppor
 
 const canvas = document.querySelector<HTMLCanvasElement>('canvas')!
 const query = new URLSearchParams(location.search)
-const presets = { orbital: CINEMA2_ORBITAL_PRESET_ID, submerge: CINEMA2_SUBMERGE_PRESET_ID, livewire: CINEMA2_LIVEWIRE_PRESET_ID }
-const slug = query.get('preset') === 'livewire' ? 'livewire' : query.get('preset') === 'orbital' ? 'orbital' : 'submerge'
-if (slug === 'livewire') setAutoPerformanceUserDefault(query.get('auto') === 'on')
+const presets = { orbital: CINEMA2_ORBITAL_PRESET_ID, submerge: CINEMA2_SUBMERGE_PRESET_ID, livewire: CINEMA2_LIVEWIRE_PRESET_ID, corridor: CINEMA2_CORRIDOR_PRESET_ID, everywhere: CINEMA2_EVERYWHERE_PRESET_ID }
+const requested = query.get('preset')
+const slug = requested === 'livewire' || requested === 'orbital' || requested === 'corridor' || requested === 'everywhere' ? requested : 'submerge'
+if (slug === 'livewire' || slug === 'corridor' || slug === 'everywhere') setAutoPerformanceUserDefault(query.get('auto') === 'on')
 const quality = query.get('quality') === 'low' ? 'low' : query.get('quality') === 'medium' ? 'medium' : 'high'
 let timestampMs = 0, publication = 0, nextFrameId = 0
 const queuedFrames = new Map<number, FrameRequestCallback>()
@@ -64,7 +67,8 @@ async function advance(seconds: number) {
 function status() {
   return { snapshot: runtime.getSnapshot(), modules: runtime.getModuleRuntimeSnapshot(), effects: runtime.getEffectRuntimeSnapshot(),
     performance: runtime.getPerformanceSnapshot(), camera: runtime.getCameraRuntimeSnapshot().camera,
-    authored: runtime.getParameterState().serialize(), choreography: runtime.getChoreographyRuntimeSnapshot() }
+    authored: runtime.getParameterState().serialize(), choreography: runtime.getChoreographyRuntimeSnapshot(),
+    media: runtime.getMediaSlotRuntime().getSnapshot() }
 }
 const api = {
   async prepare() {
@@ -86,6 +90,12 @@ const api = {
     musicAnchor = musicTime(); anchorTimestamp = timestampMs; music = { ...music, frameId: undefined, ...next }
     if (eventDelaySec !== undefined) music.eventTime = musicAnchor + eventDelaySec
     await settle(3); return status()
+  },
+  async seek(seconds: number) {
+    musicAnchor = seconds
+    anchorTimestamp = timestampMs
+    await settle(3)
+    return status()
   },
   async resize(width: number, height: number) { runtime.resize({ width, height, dpr: 1 }); await settle(3); return status() },
   async restoreContext() {
@@ -112,4 +122,54 @@ const api = {
   status,
 }
 Object.assign(window, { [`__${slug}`]: api })
+if ((slug === 'corridor' || slug === 'everywhere') && query.has('inspector')) {
+  void Promise.all([
+    import('react'), import('react-dom/client'), import('../../components/vyzualz/react/Cinema2InspectorPanel'),
+    import('../../styles/typography.css'), import('../../styles/reactView.css'),
+  ]).then(([{ createElement }, { createRoot }, { Cinema2InspectorPanel }]) => {
+    const element = document.createElement('aside')
+    element.id = `${slug}-inspector`
+    element.style.cssText = 'position:fixed;z-index:10;right:0;top:0;bottom:0;width:365px;overflow:auto;background:#14191f;color:#fff;padding:10px'
+    document.body.append(element)
+    const root = createRoot(element)
+    root.render(createElement(Cinema2InspectorPanel, { runtime, surface: 'design', sharedAudioAnalysis: false }))
+    addEventListener('beforeunload', () => root.unmount(), { once: true })
+  })
+}
+if (slug === 'everywhere' && query.has('source')) {
+  void Promise.all([
+    import('react'), import('react-dom/client'), import('../../components/vyzualz/react/Cinema2MediaSourcePanel'),
+    import('../../context/AudioEngineContext'), import('../../stores/mediaStore'),
+    import('../../styles/typography.css'), import('../../styles/reactView.css'),
+  ]).then(([{ createElement }, { createRoot }, { Cinema2MediaSourcePanel }, { AudioEngineProvider }, { useMediaStore }]) => {
+    const testImage = document.createElement('canvas')
+    testImage.width = 160
+    testImage.height = 120
+    const drawing = testImage.getContext('2d')!
+    drawing.fillStyle = '#eb25d7'
+    drawing.fillRect(0, 0, 160, 120)
+    drawing.fillStyle = '#23eb36'
+    drawing.fillRect(0, 0, 80, 60)
+    const url = testImage.toDataURL()
+    useMediaStore.setState({
+      items: [{
+        id: 'crt-test-image', name: 'CRT test image', type: 'image', url, thumbnailUrl: url,
+        mimeType: 'image/png', mediaRole: 'other', favorite: false, tags: [], collectionIds: [],
+        meta: 'PNG · 160×120', metadata: { width: 160, height: 120 },
+      }],
+      setLibraryQuery: () => {},
+      ensureLibraryLoaded: async () => {},
+      ensureMediaSigned: async () => {},
+    })
+    const element = document.createElement('aside')
+    element.id = 'everywhere-source'
+    element.style.cssText = 'position:fixed;z-index:10;left:0;top:0;bottom:0;width:315px;overflow:auto;background:#14191f;color:#fff;padding:10px'
+    document.body.append(element)
+    const root = createRoot(element)
+    root.render(createElement(AudioEngineProvider, null, createElement(Cinema2MediaSourcePanel, { runtime,
+      onOpenMediaManager: () => { element.dataset.mediaManagerOpened = 'true' },
+    })))
+    addEventListener('beforeunload', () => root.unmount(), { once: true })
+  })
+}
 addEventListener('beforeunload', () => runtime.dispose(), { once: true })

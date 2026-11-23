@@ -1,0 +1,8 @@
+{
+  "id": "cinema2-everywhere-eye",
+  "kind": "texture",
+  "layout": "color",
+  "license": "generated-in-house",
+  "origin": "Original ImageGen macro eye created for EVERYWHERE using the supplied wall of CRTs as art direction.",
+  "files": { "high": "public/cinema2/textures/everywhere-eye.webp" }
+}

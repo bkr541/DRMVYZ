@@ -142,6 +142,13 @@
       "origin": "User-supplied space.glb (a 50,000-point spiral galaxy with per-star colors); original source: https://sketchfab.com/3d-models/need-some-space-d6521362b37b48e3a82bce4911409303. Repacked by scripts/cinema2-assets/pack-event-horizon-space.mjs (same stars, 16-bit positions and 8-bit colors)."
     },
     {
+      "id": "cinema2-everywhere-eye",
+      "kind": "texture",
+      "license": "generated-in-house",
+      "attribution": null,
+      "origin": "Original ImageGen macro eye created for EVERYWHERE using the supplied wall of CRTs as art direction."
+    },
+    {
       "id": "cinema2-golden-roots",
       "kind": "model",
       "license": "generated-in-house",
