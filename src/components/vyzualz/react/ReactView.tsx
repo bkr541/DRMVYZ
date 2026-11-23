@@ -69,7 +69,8 @@ import { RailWindowHeader } from '../layout/RailWindowHeader'
 import { MediaDeckPanel } from '../media/MediaDeckPanel'
 import { FontLibraryPanel } from './FontLibraryPanel'
 import { ReactEngineBrowser } from './ReactEngineBrowser'
-import { useActiveEnginePresetName } from './activeEnginePresetName'
+import { useActiveEnginePresetName, useStageIdentity } from './activeEnginePresetName'
+import { StageTransitionLayer, type StageTransitionTempoHints } from './StageTransitionLayer'
 import { Cinema2InspectorPanel } from './Cinema2InspectorPanel'
 import { Cinema2TextLibraryPanel } from './Cinema2TextLibraryPanel'
 import { Cinema2LayersPanel } from './Cinema2LayersPanel'
@@ -420,6 +421,8 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager, onOpenPreset
   const { startVideoRecording } = recorder
   const { hasActiveProgramAudio, getRecordingStream } = engine
   const [outputCanvas, setOutputCanvas] = useState<HTMLCanvasElement | null>(null)
+  // While a stage transition runs, the cast reads its blend canvas instead of the engine's canvas, so the audience sees what the operator sees.
+  const [transitionCanvas, setTransitionCanvas] = useState<HTMLCanvasElement | null>(null)
 
   useEffect(() => {
     recordPerformanceEvent('engine', 'preset-selected', { engine: activeReactEngineId,
@@ -432,6 +435,11 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager, onOpenPreset
     cinema2Workspace.activationRevision,
   )
   const activeEnginePresetName = useActiveEnginePresetName(activeReactEngineId, cinema2PresetId)
+  // What is on stage (engine + its preset): a change in it starts a transition when Settings > Transitions is on.
+  const stageIdentity = useStageIdentity(activeReactEngineId, cinema2PresetId)
+  const transitionTempoRef = useRef<StageTransitionTempoHints>({ trackBpm: null, liveInput: false })
+  transitionTempoRef.current = { trackBpm: engine.currentEffectiveBpm ?? null, liveInput: engine.source === 'microphone' }
+  const getTransitionTempoHints = useCallback(() => transitionTempoRef.current, [])
   const reviewNotesPresetId = (activeReactEngineId === 'cinema2' ? cinema2PresetId : activeReactEngineId === 'canvas' ? selectedCanvasPresetId : activeReactPresetId) ?? null
   // What the screen is showing when a review note is written; saved with the note so "too bright" has its settings beside it.
   const getReviewNotesContext = useCallback((): Record<string, unknown> => {
@@ -943,6 +951,12 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager, onOpenPreset
                 laserDmxEmptyRuntimeShowDirector={activeReactEngineId === 'laserDmx' ? activeLaserDmxEmptyRuntimeShowDirector : null}
               />
             ) : null}
+            <StageTransitionLayer
+              sourceCanvas={outputCanvas}
+              identity={stageIdentity}
+              onActiveCanvasChange={setTransitionCanvas}
+              getTempoHints={getTransitionTempoHints}
+            />
             {!backgrounded && shouldShowPixGridEditorOverlay(activeReactEngineId, pixGridState.authoringOverlayVisible) && (
               <PixGridEditorOverlay liveCanvas={pixGridOutputCanvas} />
             )}
@@ -1028,7 +1042,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager, onOpenPreset
                         <TrackMapLaneIconsToggleIcon />
                       </button>
                     )}
-                    <OutputCastControl canvas={outputCanvas} capability={outputCapability} />
+                    <OutputCastControl canvas={transitionCanvas ?? outputCanvas} capability={outputCapability} />
                     <button
                       type="button"
                       className={`rv-stage-focus-btn${stageFocus ? ' is-active' : ''}`}

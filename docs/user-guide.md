@@ -166,6 +166,8 @@ The audio engine owns playback identity, time, playing/paused state, decoded wav
 
 Loaded tracks support seeking and whole-track analysis. Live Input supplies real-time sound and available live features, but does not inherently provide a known future arrangement. DJ-software integrations depend on the configured native workflow and authoritative metadata; they are not interchangeable with ordinary microphone capture.
 
+When you select **Live Input** from **Audio Source**, the Audio Dock shows the input device, capture status, and a dBFS level meter with a peak marker. Open **Spectrum** to see the low, mid, and high frequency levels. **Stop Live Input** pauses the analysis signal while keeping the device connected. The **Source** button opens the device picker and lets you switch back to Track Input.
+
 ### Practical transport workflow
 
 1. Confirm the source shown in the dock.

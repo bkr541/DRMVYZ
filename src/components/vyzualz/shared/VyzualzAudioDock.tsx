@@ -1,6 +1,8 @@
 import { AppIcon } from '../../shared/icons/AppIcon'
 import { BubbleRevealSlider } from '../react/controls/BubbleRevealSlider'
 import { IconMorphToggle } from '../react/controls/IconMorphToggle'
+import { IconChipButton } from '../react/controls/IconChipButton'
+import { LiveInputDock } from './LiveInputDock'
 import { isDockBlankSpace } from './dockBlankSpace'
 import { useId, useState, useRef, useEffect, useCallback, useSyncExternalStore, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
@@ -278,7 +280,7 @@ export function VyzualzAudioDock({
   }, [collapsedByUser, expandable])
 
 
-  const track    = engine.currentTrack
+  const track    = liveInputSelected ? null : engine.currentTrack
   const hasTrack = engine.tracks.length > 0
   const hasRekordboxCues = (track?.importedCueMarkers?.length ?? 0) > 0
   const hasRekordboxSections = Boolean(
@@ -311,26 +313,24 @@ export function VyzualzAudioDock({
     || hasRekordboxSections
     || hasRekordboxMetadata
     || hasRekordboxAnalysisData
-  const sourceIndicator = liveInputSelected
-    ? { kind: 'live', name: 'Live Input', tag: 'ACTIVE', description: 'Live Input active' }
-    : hasRekordboxData
-      ? {
-          kind: 'rekordbox',
-          name: 'Rekordbox',
-          tag: hasRekordboxCues && hasRekordboxSections
-            ? 'CUES · SECTIONS'
-            : hasRekordboxCues
-              ? 'CUES'
-              : hasRekordboxSections
-                ? 'SECTIONS'
-                : 'DATA',
-          description: `Rekordbox data loaded${hasRekordboxCues ? ', cues' : ''}${hasRekordboxSections ? ', sections' : ''}`,
-        }
-      : track
-        ? { kind: 'file', name: 'Audio Track', tag: 'FILE', description: 'Audio track loaded without Rekordbox data' }
-        : engine.source === 'demo'
-          ? { kind: 'demo', name: 'Demo Audio', tag: 'DEMO', description: 'Demo audio source active' }
-          : { kind: 'none', name: 'No Source', tag: 'OFFLINE', description: 'No audio source loaded' }
+  const sourceIndicator = hasRekordboxData
+    ? {
+        kind: 'rekordbox',
+        name: 'Rekordbox',
+        tag: hasRekordboxCues && hasRekordboxSections
+          ? 'CUES · SECTIONS'
+          : hasRekordboxCues
+            ? 'CUES'
+            : hasRekordboxSections
+              ? 'SECTIONS'
+              : 'DATA',
+        description: `Rekordbox data loaded${hasRekordboxCues ? ', cues' : ''}${hasRekordboxSections ? ', sections' : ''}`,
+      }
+    : track
+      ? { kind: 'file', name: 'Audio Track', tag: 'FILE', description: 'Audio track loaded without Rekordbox data' }
+      : engine.source === 'demo'
+        ? { kind: 'demo', name: 'Demo Audio', tag: 'DEMO', description: 'Demo audio source active' }
+        : { kind: 'none', name: 'No Source', tag: 'OFFLINE', description: 'No audio source loaded' }
   const transportReady = isShowManagerTransportReady(engine.currentAudioTrackId)
 
   useEffect(() => {
@@ -854,8 +854,8 @@ export function VyzualzAudioDock({
     && transportReady
     && engine.currentIndex >= 0
     && engine.currentIndex < engine.tracks.length - 1
-  const trackLoadActionLabel = trackSourceLocked
-    ? sourceSelectionLocked ? 'Track Locked' : 'Live Input Active'
+  const trackLoadActionLabel = sourceSelectionLocked
+    ? 'Track Locked'
     : hasTrack && playlistLoadMode === 'append'
       ? 'Append Track'
       : hasTrack
@@ -864,7 +864,7 @@ export function VyzualzAudioDock({
 
   // There is no collapse button: clicking empty dock space (padding, the gaps between and inside the cards) toggles the dock.
   const handleDockClick = (event: ReactMouseEvent<HTMLDivElement>) => {
-    if (!expandable || compact) return
+    if (liveInputSelected || !expandable || compact) return
     if (!isDockBlankSpace(event.target, event.currentTarget)) return
     setCollapsedByUser(current => !current)
   }
@@ -873,7 +873,7 @@ export function VyzualzAudioDock({
     'az-dock',
     'vz-transport-dock',
     expandable ? 'vz-transport-dock--expandable' : '',
-    dockCollapsed ? 'vz-transport-dock--collapsed' : '',
+    !liveInputSelected && dockCollapsed ? 'vz-transport-dock--collapsed' : '',
     compact ? 'vz-transport-dock--focus' : '',
     liveInputSelected ? 'vz-transport-dock--live-input' : '',
   ].filter(Boolean).join(' ')
@@ -975,18 +975,91 @@ export function VyzualzAudioDock({
     </div>
   )
 
+  const toggleAudioSourcePopover = () => {
+    setPlaylistPopoverOpen(false)
+    setAudioSourcePopoverOpen(value => !value)
+  }
+
+  const audioSourcePopover = (
+    <InfoPopover
+      open={audioSourcePopoverOpen}
+      anchorRef={audioSourceTriggerRef}
+      onOpenChange={setAudioSourcePopoverOpen}
+      title="Audio Source"
+      headerIcon={(
+        <AppIcon kind="mic" />
+      )}
+      className="vz-dock-source-popover"
+      placement="above"
+      align={liveInputSelected ? 'end' : 'start'}
+      width={280}
+    >
+      <div className="vz-dock-source-popover-body">
+        <div className="mum-field">
+          <label className="mum-field-label" htmlFor={audioSourceSelectId}>INPUT</label>
+          <UnderlineDropdown
+            triggerId={audioSourceSelectId}
+            value={engine.source}
+            onChange={value => engine.setSource(value as typeof engine.source)}
+            options={[
+              { value: 'file', label: 'Track Input' },
+              { value: 'microphone', label: 'Live Input' },
+              { value: 'demo', label: 'Demo Signal' },
+            ]}
+            ariaLabel="Input"
+            menuLabel="Input"
+            menuClassName="vz-dock-source-menu"
+            size="compact"
+            showDescriptions={false}
+          />
+        </div>
+        {liveInputSelected && (
+          <div className="mum-field">
+            <label className="mum-field-label" htmlFor={`${audioSourceSelectId}-device`}>DEVICE</label>
+            <UnderlineDropdown
+              triggerId={`${audioSourceSelectId}-device`}
+              value={engine.liveInputDevices.some(device => device.deviceId === engine.liveInputDeviceId) ? engine.liveInputDeviceId : ''}
+              onChange={value => engine.setLiveInputDevice(value)}
+              options={[
+                { value: '', label: 'System Default' },
+                ...engine.liveInputDevices.map(device => ({ value: device.deviceId, label: device.label })),
+              ]}
+              ariaLabel="Live Input device"
+              menuLabel="Device"
+              menuClassName="vz-dock-source-menu"
+              size="compact"
+              showDescriptions={false}
+            />
+          </div>
+        )}
+        {!liveInputSelected && rekordboxPopoverMenu}
+      </div>
+    </InfoPopover>
+  )
+
   return (
     <>
-    {rekordboxMenuPortalTarget && createPortal(rekordboxMenu, rekordboxMenuPortalTarget)}
+    {!liveInputSelected && rekordboxMenuPortalTarget && createPortal(rekordboxMenu, rekordboxMenuPortalTarget)}
     <div
       className={dockClassName}
-      data-collapsed={dockCollapsed ? 'true' : 'false'}
+      data-collapsed={liveInputSelected ? undefined : dockCollapsed ? 'true' : 'false'}
       data-has-deck-label={deckLabel ? 'true' : undefined}
-      data-live-input-disabled={liveInputSelected ? 'true' : undefined}
-      aria-disabled={liveInputSelected ? 'true' : undefined}
       onClick={handleDockClick}
     >
 
+      {liveInputSelected ? <LiveInputDock
+        active={engine.liveInputActive}
+        deviceLabel={engine.liveInputDeviceLabel ?? 'System Default'}
+        analyser={engine.analyserMaster}
+        fftSize={engine.fftSize}
+        onToggleCapture={handleTogglePlayback}
+        sourceControl={<>
+          <IconChipButton ref={audioSourceTriggerRef} aria-haspopup="dialog" aria-expanded={audioSourcePopoverOpen}
+            aria-label="Audio Source" tone={audioSourcePopoverOpen ? 'primary' : 'default'}
+            icon={<AppIcon kind="sliders" size={14} />} onClick={toggleAudioSourcePopover}>Source</IconChipButton>
+          {audioSourcePopover}
+        </>}
+      /> : <>
       {/* ── LEFT: sidebar + left-inspector footprint ─────────────────── */}
       <div className="vz-dock-region">
       <div className="vz-dock-left vz-dock-card">
@@ -1006,18 +1079,13 @@ export function VyzualzAudioDock({
           <button
             type="button"
             className="az-play-btn"
-            title={liveInputSelected ? (engine.liveInputActive ? 'Stop Live Input' : 'Play Live Input') : engine.isPlaying ? 'Pause' : 'Play'}
-            aria-label={liveInputSelected ? (engine.liveInputActive ? 'Stop Live Input' : 'Play Live Input') : engine.isPlaying ? 'Pause' : 'Play'}
-            disabled={liveInputSelected ? false : !hasTrack || !transportReady}
+            title={engine.isPlaying ? 'Pause' : 'Play'}
+            aria-label={engine.isPlaying ? 'Pause' : 'Play'}
+            disabled={!hasTrack || !transportReady}
             style={{ borderColor: preset.color, color: preset.color, boxShadow: `0 0 12px ${preset.color}30` }}
             onClick={handleTogglePlayback}
           >
-            {liveInputSelected
-              ? (engine.liveInputActive ? <AppIcon kind="stop" size="26" /> : <AppIcon kind="play" size="26" />)
-              : engine.isPlaying
-              ? <AppIcon kind="pause" size="26" />
-              : <AppIcon kind="play" size="26" />
-            }
+            <AppIcon kind={engine.isPlaying ? 'pause' : 'play'} size="26" />
           </button>
           <button
             type="button"
@@ -1054,7 +1122,6 @@ export function VyzualzAudioDock({
               max={1}
               step={0.005}
               value={vol}
-              disabled={liveInputSelected}
               onChange={e => engine.setVolume(parseFloat(e.target.value))}
               style={{ '--pct': volPct } as React.CSSProperties}
             />
@@ -1110,15 +1177,15 @@ export function VyzualzAudioDock({
             followTimelineViewport={unifiedTimeline}
             appearance={waveformAppearance}
             beatGrid={engine.currentEffectiveBeatGrid ?? engine.currentAnalysis?.beatGrid ?? null}
-            onCreateCuePoint={track && !liveInputSelected ? handleCreateCuePoint : undefined}
+            onCreateCuePoint={track ? handleCreateCuePoint : undefined}
             editableCueMarkerIds={activeManualCues.map(marker => marker.id)}
-            onUpdateCuePoint={track && !liveInputSelected ? updateCueMarker : undefined}
-            onDeleteCuePoint={track && !liveInputSelected ? removeCueMarker : undefined}
+            onUpdateCuePoint={track ? updateCueMarker : undefined}
+            onDeleteCuePoint={track ? removeCueMarker : undefined}
           />
         </div>
         <div className="vz-dock-zoom-btns">
-          <button className="vz-dock-zoom-btn" onClick={() => setWaveformZoom(waveformZoom * 2)} disabled={liveInputSelected || waveformZoom >= 16} title={liveInputSelected ? trackSourceLockTitle : 'Zoom in'}><AppIcon kind="plus" size={14} /></button>
-          <button className="vz-dock-zoom-btn" onClick={() => setWaveformZoom(waveformZoom / 2)} disabled={liveInputSelected || waveformZoom <= 1} title={liveInputSelected ? trackSourceLockTitle : 'Zoom out'}><AppIcon kind="minus" size={14} /></button>
+          <button className="vz-dock-zoom-btn" onClick={() => setWaveformZoom(waveformZoom * 2)} disabled={waveformZoom >= 16} title="Zoom in"><AppIcon kind="plus" size={14} /></button>
+          <button className="vz-dock-zoom-btn" onClick={() => setWaveformZoom(waveformZoom / 2)} disabled={waveformZoom <= 1} title="Zoom out"><AppIcon kind="minus" size={14} /></button>
         </div>
       </div>
       </div>
@@ -1303,10 +1370,7 @@ export function VyzualzAudioDock({
               ref={audioSourceTriggerRef}
               type="button"
               className="vz-dock-source-trigger"
-              onClick={() => {
-                setPlaylistPopoverOpen(false)
-                setAudioSourcePopoverOpen(value => !value)
-              }}
+              onClick={toggleAudioSourcePopover}
               aria-haspopup="dialog"
               aria-expanded={audioSourcePopoverOpen}
               aria-label="Audio source & Rekordbox"
@@ -1314,60 +1378,7 @@ export function VyzualzAudioDock({
             >
               <AppIcon kind="sliders" size="16" />
             </button>
-            <InfoPopover
-              open={audioSourcePopoverOpen}
-              anchorRef={audioSourceTriggerRef}
-              onOpenChange={setAudioSourcePopoverOpen}
-              title="Audio Source"
-              headerIcon={(
-                <AppIcon kind="mic" />
-              )}
-              className="vz-dock-source-popover"
-              placement="above"
-              align="start"
-              width={280}
-            >
-              <div className="vz-dock-source-popover-body">
-                <div className="mum-field">
-                  <label className="mum-field-label" htmlFor={audioSourceSelectId}>INPUT</label>
-                  <UnderlineDropdown
-                    triggerId={audioSourceSelectId}
-                    value={engine.source}
-                    onChange={value => engine.setSource(value as typeof engine.source)}
-                    options={[
-                      { value: 'file', label: 'Track Input' },
-                      { value: 'microphone', label: 'Live Input' },
-                      { value: 'demo', label: 'Demo Signal' },
-                    ]}
-                    ariaLabel="Input"
-                    menuLabel="Input"
-                    menuClassName="vz-dock-source-menu"
-                    size="compact"
-                    showDescriptions={false}
-                  />
-                </div>
-                {engine.source === 'microphone' && (
-                  <div className="mum-field">
-                    <label className="mum-field-label" htmlFor={`${audioSourceSelectId}-device`}>DEVICE</label>
-                    <UnderlineDropdown
-                      triggerId={`${audioSourceSelectId}-device`}
-                      value={engine.liveInputDevices.some(device => device.deviceId === engine.liveInputDeviceId) ? engine.liveInputDeviceId : ''}
-                      onChange={value => engine.setLiveInputDevice(value)}
-                      options={[
-                        { value: '', label: 'System Default' },
-                        ...engine.liveInputDevices.map(device => ({ value: device.deviceId, label: device.label })),
-                      ]}
-                      ariaLabel="Live Input device"
-                      menuLabel="Device"
-                      menuClassName="vz-dock-source-menu"
-                      size="compact"
-                      showDescriptions={false}
-                    />
-                  </div>
-                )}
-                {rekordboxPopoverMenu}
-              </div>
-            </InfoPopover>
+            {audioSourcePopover}
           </>
         ) : (
           !rekordboxMenuPortalTarget && rekordboxMenu
@@ -1378,8 +1389,8 @@ export function VyzualzAudioDock({
           <button
             className="vz-dock-cue-btn"
             onClick={handleCue}
-            title={liveInputSelected ? trackSourceLockTitle : engine.isPlaying ? 'Set cue point here' : `Jump to cue (${fmtPlayTime(cuePoint)})`}
-            disabled={!hasTrack || !transportReady || liveInputSelected}
+            title={engine.isPlaying ? 'Set cue point here' : `Jump to cue (${fmtPlayTime(cuePoint)})`}
+            disabled={!hasTrack || !transportReady}
             aria-label={engine.isPlaying ? 'Set cue point here' : `Jump to cue (${fmtPlayTime(cuePoint)})`}
           >
             <span className="vz-dock-action-icon vz-dock-cue-icon" aria-hidden="true"><AppIcon kind="cue" size="100%" /></span>
@@ -1387,9 +1398,8 @@ export function VyzualzAudioDock({
           <button
             className={`vz-dock-sync-master-btn${bpmSync ? ' vz-dock-sync-master-btn--on' : ''}`}
             onClick={toggleBpmSync}
-            title={liveInputSelected ? trackSourceLockTitle : bpmSync ? 'BPM Sync: ON' : 'BPM Sync: OFF'}
+            title={bpmSync ? 'BPM Sync: ON' : 'BPM Sync: OFF'}
             aria-label={bpmSync ? 'BPM Sync: ON' : 'BPM Sync: OFF'}
-            disabled={liveInputSelected}
           >
             {bpmSync && <span className="vz-dock-sync-dot" />}
             <AppIcon kind="sync" className="vz-dock-action-icon" size="16" />
@@ -1502,6 +1512,8 @@ export function VyzualzAudioDock({
       </div>
       </div>
 
+      </>}
+
       {showSourceLockMessage && (
         <DrawerNotice
           className="vz-dock-source-lock-notice"
@@ -1518,9 +1530,9 @@ export function VyzualzAudioDock({
         <DrawerNotice
           className="vz-dock-source-lock-notice"
           tone="info"
-          title="Live Input active"
+          title="Live Input selected"
         >
-          Track and Show controls are unavailable while Live Input analyzes the default microphone. Switch the input back to Track/File to restore them.
+          Choose Track Input to restore track playback and Show Manager controls.
         </DrawerNotice>
       )}
 

@@ -14,6 +14,11 @@ const fixture = vi.hoisted(() => ({
   engine: {
     source: 'file',
     micError: null,
+    liveInputActive: false,
+    liveInputDevices: [],
+    liveInputDeviceId: '',
+    liveInputDeviceLabel: null,
+    setLiveInputGate: vi.fn(),
     trackLoadError: null,
     tracks: [],
     currentIndex: -1,
@@ -209,6 +214,9 @@ beforeEach(() => {
   resetAudioSourcePolicyForTests()
   fixture.engine.source = 'file'
   fixture.engine.micError = null
+  fixture.engine.liveInputActive = false
+  fixture.engine.liveInputDeviceLabel = null
+  vi.mocked(fixture.engine.setLiveInputGate).mockClear()
   fixture.engine.trackLoadError = null
   useNotificationStore.setState({ events: { ...useNotificationStore.getState().events, react: [] } })
   fixture.engine.tracks = []
@@ -314,23 +322,42 @@ describe('Show Manager Audio Dock source lock integration', () => {
     expect(drawer).toContain('React or Media Manager')
   })
 
-  it('disables the real Audio Dock track routes and surfaces capture errors while Live Input is selected', async () => {
+  it('shows a live meter and expandable spectrum in place of the track controls', async () => {
+    await renderView('react')
     fixture.engine.source = 'microphone'
+    fixture.engine.liveInputActive = true
+    fixture.engine.liveInputDeviceLabel = 'USB Audio Interface'
     fixture.engine.micError = 'Live Input access failed: Permission denied'
     fixture.engine.tracks = [{ id: 'loaded-track' }] as unknown as AudioEngine['tracks']
-    await renderView('react')
+    await act(async () => {
+      root?.render(<VyzualzView activeView="vyzualz" onNavigate={() => {}} initialAppView="react" />)
+    })
 
-    const dock = container?.querySelector<HTMLElement>('.vz-transport-dock')
-    expect(dock?.dataset.liveInputDisabled).toBe('true')
-    expect(dock?.getAttribute('aria-disabled')).toBe('true')
-    expect(container?.querySelector('.vz-dock-addtrack-btn')?.textContent).toContain('Live Input Active')
-    expect(container?.querySelector('.vz-dock-addtrack-btn')?.getAttribute('aria-disabled')).toBe('true')
+    const dock = container?.querySelector<HTMLElement>('.vz-transport-dock--live-input')
+    expect(dock?.getAttribute('aria-disabled')).toBeNull()
+    expect(dock?.textContent).toContain('USB Audio Interface')
+    expect(dock?.querySelector('.vz-dock-addtrack-btn')).toBeNull()
+    expect(dock?.querySelector('[data-testid="waveform"]')).toBeNull()
     expect(container?.querySelector<HTMLInputElement>('input[type="file"][accept="audio/*"]')?.disabled).toBe(true)
-    expect(container?.querySelector('.vz-dock-source-inline')?.getAttribute('data-audio-source-kind')).toBe('live')
-    expect(container?.querySelector('.vz-dock-source-inline')?.textContent).toContain('Live Input')
+    expect(dock?.querySelector('[role="meter"]')?.getAttribute('aria-valuenow')).toBe('-48')
+    const spectrum = dock?.querySelector<HTMLButtonElement>('button[aria-controls]')
+    if (!spectrum) throw new Error('Expected the Live Input spectrum button')
+    const spectrumPanel = document.getElementById(spectrum.getAttribute('aria-controls')!)!
+    expect(spectrumPanel.hidden).toBe(true)
+    await act(async () => spectrum.click())
+    expect(spectrum.getAttribute('aria-expanded')).toBe('true')
+    expect(spectrumPanel.textContent).toBe('LowMidHigh')
+    expect(spectrumPanel.querySelectorAll('i')).toHaveLength(36)
+    await act(async () => spectrum.click())
+    expect(spectrumPanel.hidden).toBe(true)
+
+    await act(async () => dock?.querySelector<HTMLButtonElement>('[aria-label="Stop Live Input"]')?.click())
+    expect(fixture.engine.setLiveInputGate).toHaveBeenCalledWith(false)
+    await act(async () => dock?.querySelector<HTMLButtonElement>('[aria-label="Audio Source"]')?.click())
+    expect(dock?.querySelector('[role="dialog"][aria-label="Audio Source"]')).not.toBeNull()
     expect(container?.querySelector('[role="alert"]')).toBeNull()
     const drawer = await drawerText('react')
-    expect(drawer).toContain('Live Input active')
+    expect(drawer).toContain('Live Input selected')
     expect(drawer).toContain('Permission denied')
 
     await dispatchAudioFile('blocked-during-live-input.wav')
@@ -457,7 +484,7 @@ describe('Show Manager Audio Dock source lock integration', () => {
       fixture.nativeRekordbox.scan.mock.invocationCallOrder[0]!,
     )
     expect(fixture.engine.replacePreparedTracks).not.toHaveBeenCalled()
-    expect(container?.querySelector('[role="status"]')?.textContent).toContain('Audio ready · Rekordbox metadata loading')
+    expect(container?.querySelector('.vz-dock-rekordbox-status')?.textContent).toContain('Audio ready · Rekordbox metadata loading')
     expect(container?.querySelector<HTMLInputElement>('input[type="file"][accept="audio/*"]')?.disabled).toBe(false)
     expect(Object.values(usePageActivityStore.getState().pages.react)).toContain('Loading Rekordbox metadata')
 
@@ -488,7 +515,7 @@ describe('Show Manager Audio Dock source lock integration', () => {
 
     expect(fixture.engine.addTracks).toHaveBeenCalledOnce()
     expect(fixture.engine.replacePreparedTracks).not.toHaveBeenCalled()
-    expect(container?.querySelector('[role="status"]')?.textContent).toContain(
+    expect(container?.querySelector('.vz-dock-rekordbox-status')?.textContent).toContain(
       'Audio ready · Rekordbox metadata unavailable: USB unavailable',
     )
     // The failure is also listed in the Notifications drawer, not only in the small status line.

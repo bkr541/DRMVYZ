@@ -122,49 +122,30 @@
 }
 .ll-pf-tokens .ll-pf-chip[aria-pressed='true'] { border-style: solid; }
 
-.ll-pf-selects { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.ll-pf-selects > div { display: grid; gap: 5px; min-width: 0; }
-.ll-pf-selects label { color: var(--pf-muted); font: var(--type-field-label); }
-.ll-pf-selects select {
-  box-sizing: border-box;
-  width: 100%;
-  min-width: 0;
-  height: 29px;
-  padding: 0 5px;
-  border: 1px solid var(--pf-line);
-  border-radius: 4px;
-  background: #20282c;
-  color: var(--pf-ink);
-  font: var(--type-field-value);
+.ll-pf-dropdown-filter { width: auto; flex: none; }
+.ll-pf-dropdown-filter .drm-dropdown__trigger {
+  gap: 6px;
+  padding: 7px 9px !important;
+  border: 1px solid var(--pf-line) !important;
+  border-radius: var(--radius-group) !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+}
+.ll-pf-dropdown-filter .drm-dropdown__eyebrow { display: inline-flex; }
+.ll-pf-dropdown-filter .drm-dropdown__trigger:is(:hover, :focus-visible, [aria-expanded='true']) {
+  border-color: var(--pf-accent) !important;
 }
 
-.ll-pf-popover-anchor { position: relative; flex: none; }
+.ll-pf-filter-trigger { flex: none; }
 .ll-pf-trigger-count { color: var(--pf-accent); }
-.ll-pf-popover {
-  position: absolute;
-  z-index: 5;
-  top: calc(100% + 6px);
-  right: 0;
-  box-sizing: border-box;
-  width: 196px;
-  padding: 12px;
-  border: 1px solid #40545b;
-  border-radius: 6px;
-  background: #1c2529;
-  box-shadow: 0 10px 25px #0009;
-}
-.ll-pf-popover fieldset { margin: 0; padding: 0; border: 0; }
-.ll-pf-popover legend {
+.ll-pf-filter-popover { box-sizing: border-box; }
+.ll-pf-filter-options { display: grid; gap: 8px; padding-top: 4px; }
+.ll-pf-filter-options label {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 0 0 6px;
-  color: var(--pf-ink);
-  font: var(--type-window-heading);
-  letter-spacing: var(--type-window-heading-tracking);
-  text-transform: uppercase;
+  gap: 8px;
+  font: var(--type-field-label);
+  cursor: pointer;
 }
-.ll-pf-popover-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 8px; }
 
 .ll-pf-facets { border: 1px solid var(--pf-line); border-radius: 4px; background: #11171a; }
 .ll-pf-facets details + details { border-top: 1px solid var(--pf-line); }

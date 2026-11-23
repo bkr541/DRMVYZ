@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { supabaseConfigured } from '../lib/supabase'
 import { setAutoPerformanceUserDefault } from '../lib/autoPerformanceDefault'
+import { DEFAULT_PRESET_TRANSITION_CHOICE, isPresetTransitionChoice, type PresetTransitionChoice } from '../lib/presetTransitions'
 import {
   dbCreateSession,
   dbUpdateSession,
@@ -566,6 +567,14 @@ interface VisualState {
   autoPerformanceDefault: boolean
   setAutoPerformanceDefault(v: boolean): void
 
+  // ── Transitions in React ──────────────────────────────────────────────────
+  /** System Settings > Transitions in React: whether a change of preset (or engine) blends instead of cutting. Off by default. */
+  transitionsEnabled: boolean
+  /** The transition style, or Random. Only used while `transitionsEnabled`. */
+  transitionStyle: PresetTransitionChoice
+  setTransitionsEnabled(v: boolean): void
+  setTransitionStyle(v: PresetTransitionChoice): void
+
   // ── Audio reactivity master toggle ────────────────────────────────────────
   // Controls whether beat-driven modulation and scale pulsing affect rendering.
   // Defaults to false so a clean project starts with a visually static canvas.
@@ -672,6 +681,8 @@ export const useVisualStore = create<VisualState>()(
       autoQualityMax:     'High',
       autoQualityReason:  '',
       autoPerformanceDefault: false,
+      transitionsEnabled: false,
+      transitionStyle: DEFAULT_PRESET_TRANSITION_CHOICE,
       audioReactivityEnabled: false,
       videoBaselineMode:      false,   // ephemeral — never persisted
       rendererType:           'canvas2d' as const,  // ephemeral — resolved from gpuPreference
@@ -1484,6 +1495,10 @@ export const useVisualStore = create<VisualState>()(
       // ── Auto Performance default ──────────────────────────────────────────
       setAutoPerformanceDefault(v) { set({ autoPerformanceDefault: v }) },
 
+      // ── Transitions in React ──────────────────────────────────────────────
+      setTransitionsEnabled(v) { set({ transitionsEnabled: v }) },
+      setTransitionStyle(v) { set({ transitionStyle: isPresetTransitionChoice(v) ? v : DEFAULT_PRESET_TRANSITION_CHOICE }) },
+
       // ── Audio reactivity ──────────────────────────────────────────────────
       setAudioReactivityEnabled(v) { set({ audioReactivityEnabled: v }) },
 
@@ -1524,6 +1539,8 @@ export const useVisualStore = create<VisualState>()(
         autoQualityMin:     s.autoQualityMin,
         autoQualityMax:     s.autoQualityMax,
         autoPerformanceDefault: s.autoPerformanceDefault,
+        transitionsEnabled: s.transitionsEnabled,
+        transitionStyle: s.transitionStyle,
         // autoQualityReason is ephemeral — not persisted
         audioReactivityEnabled: s.audioReactivityEnabled,
         gpuPreference:          s.gpuPreference,
@@ -1586,6 +1603,8 @@ export const useVisualStore = create<VisualState>()(
           autoQualityMax:     (p as Partial<VisualState>).autoQualityMax     ?? 'High',
           autoQualityReason:  '',
           autoPerformanceDefault: (p as Partial<VisualState>).autoPerformanceDefault ?? false,
+          transitionsEnabled: (p as Partial<VisualState>).transitionsEnabled === true,
+          transitionStyle: isPresetTransitionChoice((p as Partial<VisualState>).transitionStyle) ? (p as Partial<VisualState>).transitionStyle as PresetTransitionChoice : DEFAULT_PRESET_TRANSITION_CHOICE,
           // Older saves without this field default to false (static canvas until user opts in)
           audioReactivityEnabled: (p as Partial<VisualState>).audioReactivityEnabled ?? false,
           // INTENTIONAL: always reset to blank canvas on launch regardless of what

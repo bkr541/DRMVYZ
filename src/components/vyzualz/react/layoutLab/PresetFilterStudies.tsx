@@ -1,18 +1,23 @@
-import { useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
+import { Dropdown } from '../../../shared/Dropdown'
 import { AppIcon } from '../../../shared/icons/AppIcon'
+import { InfoPopover } from '../../../shared/InfoPopover'
 import { RailWindowHeader } from '../../layout/RailWindowHeader'
 import { ReactPresetCard } from '../ReactPresetCard'
 import { IconChipButton } from '../controls/IconChipButton'
+import { IconMorphCheckbox } from '../controls/IconMorphToggle'
 import { PresetSearchRow } from '../controls/PresetSearchRow'
 import { TagPill } from '../controls/TagPill'
 import railStyles from '../../layout/RailWindowHeader.css?inline'
+import dropdownStyles from '../../../shared/Dropdown/Dropdown.css?inline'
+import popoverStyles from '../../../shared/InfoPopover/InfoPopover.css?inline'
 import reactStyles from '../../../../styles/reactView.css?inline'
 import mediaStyles from '../../../../styles/vyzualz.css?inline'
 import styles from './presetFilterStudies.css?inline'
 
 const STUDIES = [
   { id: 'chips', name: 'Quick Chips', description: 'Switch tags with one click.', icon: 'grid' },
-  { id: 'dropdowns', name: 'Inline Dropdowns', description: 'Keep category and tag visible above the grid.', icon: 'chevronDown' },
+  { id: 'dropdowns', name: 'Inline Dropdown', description: 'Choose a category and a tag from one menu.', icon: 'chevronDown' },
   { id: 'popover', name: 'Filter Popover', description: 'Choose multiple tags and apply them together.', icon: 'sliders' },
   { id: 'facets', name: 'Expandable Facets', description: 'Mix categories and tags with counts as you browse.', icon: 'list' },
   { id: 'tokens', name: 'Search Tokens', description: 'Type a category or tag directly into search.', icon: 'search' },
@@ -57,6 +62,15 @@ const tokenValue = (label: string) => label.toLowerCase().replaceAll(' & ', ' ')
 const presetValues = (preset: SamplePreset, facet: Facet) => facet === 'category' ? [preset.category] : preset.tags
 const toggleValue = (values: string[], value: string) => values.includes(value) ? values.filter(item => item !== value) : [...values, value]
 
+const INLINE_FILTER_GROUPS = [
+  { facet: 'category', group: 'Category', labels: CATEGORIES, resetLabel: 'Any category' },
+  { facet: 'tag', group: 'Tag', labels: TAGS, resetLabel: 'Any tag' },
+] as const
+const INLINE_FILTER_OPTIONS = INLINE_FILTER_GROUPS.flatMap(({ facet, group, labels, resetLabel }) => [
+  { value: `${facet}:`, label: resetLabel, group },
+  ...labels.map(label => ({ value: `${facet}:${tokenValue(label)}`, label, group })),
+])
+
 function parseSearch(query: string, tokensEnabled: boolean) {
   const name: string[] = []
   const tokens: Filters = { category: [], tag: [] }
@@ -93,44 +107,67 @@ function FilterOptions({ options, values, onToggle, count }: {
 function FilterPopover({ value, onChange }: { value: string[]; onChange: (values: string[]) => void }) {
   const id = useId()
   const trigger = useRef<HTMLButtonElement>(null)
+  const firstTag = useRef<HTMLInputElement>(null)
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState(value)
+
+  useEffect(() => {
+    const ownerWindow = trigger.current?.ownerDocument.defaultView
+    if (!open || !ownerWindow) return
+    const frame = ownerWindow.requestAnimationFrame(() => firstTag.current?.focus())
+    return () => ownerWindow.cancelAnimationFrame(frame)
+  }, [open])
 
   const close = () => {
     setOpen(false)
     trigger.current?.focus()
   }
 
-  return <div className="ll-pf-popover-anchor" onBlur={event => {
-    if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false)
-  }} onKeyDown={event => {
-    if (open && event.key === 'Escape') {
-      event.stopPropagation()
-      close()
-    }
-  }}>
+  return <>
     <IconChipButton
       ref={trigger}
       className="ll-pf-filter-trigger"
+      tone={open ? 'primary' : 'default'}
       icon={<AppIcon kind="sliders" size={14} />}
+      aria-haspopup="dialog"
       aria-expanded={open}
-      aria-controls={id}
+      aria-controls={open ? id : undefined}
       onClick={() => {
         setDraft(value)
         setOpen(!open)
       }}
     >Filters{value.length > 0 && <span className="ll-pf-trigger-count">{value.length}</span>}</IconChipButton>
-    <div className="ll-pf-popover" id={id} hidden={!open}>
-      <fieldset>
-        <legend><AppIcon kind="sliders" size={14} /> Filter by tag</legend>
-        <FilterOptions options={TAGS} values={draft} onToggle={tag => setDraft(current => toggleValue(current, tag))} />
-      </fieldset>
-      <div className="ll-pf-popover-actions">
+    <InfoPopover
+      id={id}
+      open={open}
+      anchorRef={trigger}
+      title="Filter Presets"
+      headerIcon={<AppIcon kind="sliders" />}
+      closeLabel="Close filters"
+      placement="below"
+      align="end"
+      width={300}
+      className="ll-pf-filter-popover"
+      onOpenChange={setOpen}
+      sections={[{
+        label: 'Tags',
+        content: <div className="ll-pf-filter-options" role="group" aria-label="Preset tags">
+          {TAGS.map((label, index) => {
+            const tag = tokenValue(label)
+            return <label key={tag}>
+              <IconMorphCheckbox ref={index === 0 ? firstTag : undefined} checked={draft.includes(tag)}
+                onChange={() => setDraft(current => toggleValue(current, tag))} />
+              <span>{label}</span>
+            </label>
+          })}
+        </div>,
+      }]}
+      footer={<>
         <IconChipButton onClick={close}>Cancel</IconChipButton>
         <IconChipButton tone="primary" onClick={() => { onChange(draft); close() }}>Apply</IconChipButton>
-      </div>
-    </div>
-  </div>
+      </>}
+    />
+  </>
 }
 
 function PresetFilterPreview({ study }: { study: (typeof STUDIES)[number] }) {
@@ -172,7 +209,23 @@ function PresetFilterPreview({ study }: { study: (typeof STUDIES)[number] }) {
         </div>
         <div className="ll-pf-controls">
           <PresetSearchRow query={query} onQueryChange={setQuery} placeholder={usesTokens ? 'Search names or type tag:laser…' : undefined}
-            trailing={study.id === 'popover' && <FilterPopover value={filters.tag} onChange={values => setFacet('tag', values)} />} />
+            trailing={study.id === 'popover' ? <FilterPopover value={filters.tag} onChange={values => setFacet('tag', values)} />
+              : study.id === 'dropdowns' && <Dropdown
+                className="ll-pf-dropdown-filter"
+                size="dense"
+                ariaLabel="Filters"
+                menuLabel="Preset filters"
+                menuBoundarySelector=".ll-pf-inspector"
+                menuWidth={216}
+                eyebrow={<AppIcon kind="sliders" size={14} />}
+                placeholder={filterCount ? `Filters · ${filterCount}` : 'Filters'}
+                value={null}
+                options={INLINE_FILTER_OPTIONS}
+                onChange={choice => {
+                  const [field, value] = choice.split(':')
+                  setFacet(field === 'category' ? 'category' : 'tag', value ? [value] : [])
+                }}
+              />} />
           {study.id === 'chips' && <div className="ll-pf-chips" role="group" aria-label="Quick tags">
             <IconChipButton className="ll-pf-chip" aria-pressed={!filters.tag.length} onClick={() => setFacet('tag', [])}>All</IconChipButton>
             {TAGS.map(label => {
@@ -181,17 +234,11 @@ function PresetFilterPreview({ study }: { study: (typeof STUDIES)[number] }) {
                 onClick={() => setFacet('tag', filters.tag.includes(value) ? [] : [value])}>{label}</IconChipButton>
             })}
           </div>}
-          {study.id === 'dropdowns' && <div className="ll-pf-selects">
-            {([{ facet: 'category', label: 'Category', options: CATEGORIES }, { facet: 'tag', label: 'Tag', options: TAGS }] as const).map(({ facet, label, options }) => (
-              <div key={facet}>
-                <label htmlFor={`${titleId}-${facet}`}>{label}</label>
-                <select id={`${titleId}-${facet}`} value={filters[facet][0] ?? ''}
-                  onChange={event => setFacet(facet, event.target.value ? [event.target.value] : [])}>
-                  <option value="">Any {label.toLowerCase()}</option>
-                  {options.map(option => <option value={tokenValue(option)} key={option}>{option}</option>)}
-                </select>
-              </div>
-            ))}
+          {study.id === 'dropdowns' && filterCount > 0 && <div className="ll-pf-chips" role="group" aria-label="Applied filters">
+            {INLINE_FILTER_GROUPS.map(({ facet, labels }) => {
+              const label = labels.find(item => tokenValue(item) === filters[facet][0])
+              return label && <TagPill key={facet} label={label} onRemove={() => setFacet(facet, [])} />
+            })}
           </div>}
           {study.id === 'popover' && filters.tag.length > 0 && <div className="ll-pf-chips" aria-label="Applied tags">
             {TAGS.filter(label => filters.tag.includes(tokenValue(label))).map(label => (
@@ -235,7 +282,7 @@ function PresetFilterPreview({ study }: { study: (typeof STUDIES)[number] }) {
 
 export function PresetFilterStudies() {
   return <div className="ll-pf-studies" aria-label="Preset Filter studies">
-    <style>{`@scope (.ll-pf-studies) { ${railStyles}\n${mediaStyles}\n${reactStyles} }\n${styles}`}</style>
+    <style>{`@scope (.ll-pf-studies) { ${railStyles}\n${mediaStyles}\n${reactStyles} }\n${popoverStyles}\n${dropdownStyles}\n${styles}`}</style>
     {STUDIES.map(study => <PresetFilterPreview key={study.id} study={study} />)}
   </div>
 }

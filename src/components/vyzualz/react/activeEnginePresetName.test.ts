@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { resolveActiveEnginePresetName, type ActiveEnginePresetInput } from './activeEnginePresetName'
+import { resolveActiveEnginePresetName, resolveStageIdentity, type ActiveEnginePresetInput } from './activeEnginePresetName'
 import { LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS } from './LaserDmxShowDirectorPerformancePresets'
 import { LASER_DMX_BEAM_MATRIX_PRESETS } from './laserDmxBeamMatrixPresets'
 import { LASER_DMX_SHOW_DIRECTOR_TEMPLATES } from './laserDmxShowDirectorTemplates'
@@ -45,5 +45,30 @@ describe('active engine preset name (Engine dropdown)', () => {
     expect(name({ ...common, laserDmxMode: 'showDirector', laserDmxPerformancePresetId: null })).toBe(rig.name)
     expect(name({ ...common, laserDmxMode: 'showDirector', laserDmxPerformancePresetId: null, laserDmxRigTemplateId: null })).toBeNull()
     expect(name({ ...common, laserDmxMode: 'manual', activeLaserDmxBeamMatrixPresetId: null })).toBeNull()
+  })
+})
+
+describe('stage identity (what starts a transition)', () => {
+  const id = (patch: Partial<ActiveEnginePresetInput>) => resolveStageIdentity({ ...base, ...patch })
+
+  it('changes when the preset changes inside an engine, for every engine that has presets', () => {
+    expect(id({ engineId: 'cinema2', cinema2PresetId: 'a' as never })).not.toBe(id({ engineId: 'cinema2', cinema2PresetId: 'b' as never }))
+    expect(id({ engineId: 'canvas', selectedCanvasPresetId: 'canvas-bass-bloom' })).not.toBe(id({ engineId: 'canvas', selectedCanvasPresetId: 'canvas-fluidity' as never }))
+    expect(id({ engineId: 'pixGrid', activeReactPresetId: 'pg-1' })).not.toBe(id({ engineId: 'pixGrid', activeReactPresetId: null }))
+    expect(id({ engineId: 'oscilloscope', activeReactPresetId: 'sd-1' })).toBe('oscilloscope:sd-1')
+    expect(id({ engineId: 'laserDmx', laserDmxMode: 'manual', activeLaserDmxBeamMatrixPresetId: 'x' })).not.toBe(id({ engineId: 'laserDmx', laserDmxMode: 'manual', activeLaserDmxBeamMatrixPresetId: 'y' }))
+    expect(id({ engineId: 'laserDmx', laserDmxMode: 'showDirector', laserDmxPerformancePresetId: 'x' })).not.toBe(id({ engineId: 'laserDmx', laserDmxMode: 'manual', activeLaserDmxBeamMatrixPresetId: 'x' }))
+  })
+
+  it('changes when the engine changes, even with the same preset id, and engines without presets are identified by the engine alone', () => {
+    expect(id({ engineId: 'pixGrid', activeReactPresetId: 'pg-1' })).not.toBe(id({ engineId: 'oscilloscope', activeReactPresetId: 'pg-1' }))
+    expect(id({ engineId: 'headliner' })).toBe('headliner:')
+    expect(id({ engineId: 'headliner' })).not.toBe(id({ engineId: 'xyScope' }))
+  })
+
+  it('does not change for selections that belong to another engine, so an unrelated store change never starts a transition', () => {
+    const before = id({ engineId: 'cinema2', cinema2PresetId: 'a' as never })
+    expect(id({ engineId: 'cinema2', cinema2PresetId: 'a' as never, selectedCanvasPresetId: 'canvas-bass-bloom', activeReactPresetId: 'pg-1', activeLaserDmxBeamMatrixPresetId: 'z' })).toBe(before)
+    expect(id({ engineId: 'pixGrid', activeReactPresetId: 'sd-1' })).toBe('pixGrid:')   // an oscilloscope preset is not a PixGrid selection
   })
 })

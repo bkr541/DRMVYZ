@@ -56,8 +56,8 @@ export function resolveActiveEnginePresetName(input: Readonly<ActiveEnginePreset
   }
 }
 
-/** Subscribes to every store the lookup reads, so the Engine dropdown follows the selection live. */
-export function useActiveEnginePresetName(engineId: ReactEngineId, cinema2PresetId: Cinema2PresetId | null): string | null {
+/** Subscribes to every store the lookups read, so the Engine dropdown (and the stage identity below) follow the selection live. */
+export function useActiveEnginePresetInput(engineId: ReactEngineId, cinema2PresetId: Cinema2PresetId | null): ActiveEnginePresetInput {
   const react = useReactStore(useShallow(state => ({
     selectedCanvasPresetId: state.selectedCanvasPresetId,
     activeReactPresetId: state.activeReactPresetId,
@@ -67,5 +67,39 @@ export function useActiveEnginePresetName(engineId: ReactEngineId, cinema2Preset
     laserDmxPerformancePresetId: state.laserDmxShowDirectorPerformance?.activePresetId ?? null,
     laserDmxRigTemplateId: state.laserDmxShowDirector?.sourceTemplateId ?? null,
   })))
-  return resolveActiveEnginePresetName({ engineId, cinema2PresetId, ...react })
+  return { engineId, cinema2PresetId, ...react }
+}
+
+export function useActiveEnginePresetName(engineId: ReactEngineId, cinema2PresetId: Cinema2PresetId | null): string | null {
+  return resolveActiveEnginePresetName(useActiveEnginePresetInput(engineId, cinema2PresetId))
+}
+
+/**
+ * What is on stage, as one comparable value: the engine plus that engine's selected preset (the same selections `resolveActiveEnginePresetName` names). A change in it is a change
+ * of what the audience sees, whether it came from a click, a pad, an automation cue, Show Manager or a switch to another engine, which is what starts a transition.
+ */
+export function resolveStageIdentity(input: Readonly<ActiveEnginePresetInput>): string {
+  switch (input.engineId) {
+    case 'cinema2':
+      return `cinema2:${input.cinema2PresetId ?? ''}`
+    case 'canvas':
+      return `canvas:${input.selectedCanvasPresetId ?? ''}`
+    case 'oscilloscope':
+    case 'pixGrid': {
+      const active = input.activeReactPresetId
+        ? input.reactPresets.find(preset => preset.id === input.activeReactPresetId && preset.engine === input.engineId)
+        : null
+      return `${input.engineId}:${active?.id ?? ''}`
+    }
+    case 'laserDmx': {
+      if (input.laserDmxMode !== 'showDirector') return `laserDmx:beam:${input.activeLaserDmxBeamMatrixPresetId ?? ''}`
+      return `laserDmx:show:${input.laserDmxPerformancePresetId ?? input.laserDmxRigTemplateId ?? ''}`
+    }
+    default:
+      return `${input.engineId}:` // Headliner, XY Scope and the legacy ids have no preset selection: only switching engines changes what is on stage
+  }
+}
+
+export function useStageIdentity(engineId: ReactEngineId, cinema2PresetId: Cinema2PresetId | null): string {
+  return resolveStageIdentity(useActiveEnginePresetInput(engineId, cinema2PresetId))
 }

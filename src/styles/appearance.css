@@ -458,6 +458,11 @@ body,
   gap: 8px;
 }
 
+.vsm-auto-quality-row .vsm-transition-style {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .vsm-auto-quality-row > span:first-child {
   width: 34px;
   flex: 0 0 34px;

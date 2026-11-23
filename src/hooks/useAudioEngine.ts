@@ -136,6 +136,8 @@ export interface AudioEngine {
   liveInputDevices: readonly LiveInputDevice[]
   /** The chosen input's device id, or '' for the system default. */
   liveInputDeviceId: string
+  /** Label of the device currently supplying the captured audio. */
+  liveInputDeviceLabel: string | null
   /** Chooses the Live Input device; while Live Input is active the capture restarts on the new device. */
   setLiveInputDevice: (deviceId: string) => void
   liveInputSensitivity: number
@@ -312,6 +314,7 @@ export function useAudioEngine(): AudioEngine {
   const [liveInputActive, setLiveInputActive] = useState(false)
   const [liveInputDevices, setLiveInputDevices] = useState<readonly LiveInputDevice[]>([])
   const [liveInputDeviceId, setLiveInputDeviceIdState] = useState(readStoredLiveInputDeviceId)
+  const [liveInputDeviceLabel, setLiveInputDeviceLabel] = useState<string | null>(null)
   const liveInputDeviceIdRef = useRef(liveInputDeviceId)
   const [liveInputSensitivity, setLiveInputSensitivityState] = useState(LIVE_INPUT_DEFAULT_SENSITIVITY)
   const [liveInputNoiseGate, setLiveInputNoiseGateState] = useState(LIVE_INPUT_DEFAULT_NOISE_GATE)
@@ -894,6 +897,7 @@ export function useAudioEngine(): AudioEngine {
       // Voice-call processing (echo cancellation, noise suppression, auto gain) flattens and suppresses music.
       const processing = { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
       const chosenDeviceId = liveInputDeviceIdRef.current
+      let usingSystemDefault = !chosenDeviceId
       try {
         stream = await navigator.mediaDevices.getUserMedia({
           audio: chosenDeviceId ? { ...processing, deviceId: { exact: chosenDeviceId } } : processing,
@@ -903,6 +907,7 @@ export function useAudioEngine(): AudioEngine {
         // A remembered device that is no longer connected falls back to the system default instead of failing Live Input.
         if (!chosenDeviceId || !(err instanceof DOMException) || (err.name !== 'OverconstrainedError' && err.name !== 'NotFoundError')) throw err
         stream = await navigator.mediaDevices.getUserMedia({ audio: processing, video: false })
+        usingSystemDefault = true
       }
       if (disposedRef.current || sourceRequestIdRef.current !== requestId) {
         stream.getTracks().forEach(track => track.stop())
@@ -942,6 +947,7 @@ export function useAudioEngine(): AudioEngine {
         if (programOutputGainRef.current) programOutputGainRef.current.gain.value = 1
         sourceRef.current = 'file'
         setLiveInputActive(false)
+        setLiveInputDeviceLabel(null)
         setSourceState('file')
         setIsPlaying(false)
         setMicError('Live Input ended unexpectedly. Re-select Live Input to reconnect.')
@@ -956,6 +962,7 @@ export function useAudioEngine(): AudioEngine {
         handleEnded()
         return false
       }
+      setLiveInputDeviceLabel(tracks[0]?.label || (usingSystemDefault ? 'System Default' : 'Selected device'))
       return true
     } catch (err) {
       micEndedCleanupRef.current?.()
@@ -1016,6 +1023,7 @@ export function useAudioEngine(): AudioEngine {
     const previousTransportPlaying = isPlayingRef.current
     disconnectSource()
     setLiveInputActive(false)
+    setLiveInputDeviceLabel(null)
     if (masterGainRef.current) masterGainRef.current.gain.value = 1
     if (s === 'file') {
       setMicError(null)
@@ -1851,7 +1859,7 @@ export function useAudioEngine(): AudioEngine {
 
   return {
     source, setSource, micError, trackLoadError, liveInputActive, analysisActive,
-    liveInputDevices, liveInputDeviceId, setLiveInputDevice, setLiveInputGate,
+    liveInputDevices, liveInputDeviceId, liveInputDeviceLabel, setLiveInputDevice, setLiveInputGate,
     liveInputSensitivity, setLiveInputSensitivity, liveInputNoiseGate, setLiveInputNoiseGate,
     hasActiveProgramAudio, isActive,
     tracks, currentIndex, isPlaying, autoAdvance, setAutoAdvance, currentTime, getCurrentTime, duration, volume,

@@ -1,6 +1,8 @@
 import { useDeveloperAccess } from '../../../lib/developerAccess'
 import { AppIcon } from '../../shared/icons/AppIcon'
 import { IconMorphToggle } from '../react/controls/IconMorphToggle'
+import { Dropdown, type DropdownOption } from '../../shared/Dropdown/Dropdown'
+import { PRESET_TRANSITION_CHOICES, PRESET_TRANSITION_DESCRIPTIONS, PRESET_TRANSITION_LABELS, isPresetTransitionChoice, type PresetTransitionChoice } from '../../../lib/presetTransitions'
 import { DreamVizTextInput } from '../react/controls/DreamVizTextInput'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useShallow } from 'zustand/react/shallow'
@@ -310,6 +312,7 @@ function SystemSettingsPanel() {
     autoQualityEnabled, autoQualityMin, autoQualityMax, autoQualityReason,
     setAutoQualityEnabled, setAutoQualityMin, setAutoQualityMax,
     autoPerformanceDefault, setAutoPerformanceDefault,
+    transitionsEnabled, setTransitionsEnabled, transitionStyle, setTransitionStyle,
   } = useVisualStore()
   const { storageAvailable, authRequired } = useMediaStore(useShallow(state => ({
     storageAvailable: state.storageAvailable,
@@ -350,6 +353,10 @@ function SystemSettingsPanel() {
       bpmSync={bpmSync}
       onToggleBpmSync={toggleBpmSync}
       bpm={bpm}
+      transitionsEnabled={transitionsEnabled}
+      onTransitionsEnabledChange={setTransitionsEnabled}
+      transitionStyle={transitionStyle}
+      onTransitionStyleChange={setTransitionStyle}
       storageAvailable={storageAvailable}
       authRequired={authRequired}
       onResetEffects={resetEffects}
@@ -362,10 +369,17 @@ function SystemSettingsPanel() {
 
 type QualityLevel = typeof QUALITY_LEVELS[number]
 
+const TRANSITION_DROPDOWN_OPTIONS: readonly DropdownOption[] = PRESET_TRANSITION_CHOICES.map(choice => ({
+  value: choice,
+  label: PRESET_TRANSITION_LABELS[choice],
+  description: PRESET_TRANSITION_DESCRIPTIONS[choice],
+}))
+
 /** The System Settings tab's markup. Layout Lab mounts it with placeholder values instead of the visual and media stores. */
 export function SystemSettingsView({
   quality, onQualityChange, autoQualityEnabled, autoQualityMin, autoQualityMax, autoQualityReason,
   onAutoQualityEnabledChange, onAutoQualityMinChange, onAutoQualityMaxChange, autoPerformanceDefault, onAutoPerformanceDefaultChange, bpmSync, onToggleBpmSync, bpm,
+  transitionsEnabled, onTransitionsEnabledChange, transitionStyle, onTransitionStyleChange,
   storageAvailable, authRequired, onResetEffects, onResetModulation, diagnosticsStatus, onCopyDiagnostics,
 }: {
   quality: QualityLevel
@@ -382,6 +396,10 @@ export function SystemSettingsView({
   bpmSync: boolean
   onToggleBpmSync: () => void
   bpm: number
+  transitionsEnabled: boolean
+  onTransitionsEnabledChange: (enabled: boolean) => void
+  transitionStyle: PresetTransitionChoice
+  onTransitionStyleChange: (style: PresetTransitionChoice) => void
   storageAvailable: boolean
   authRequired: boolean
   onResetEffects: () => void
@@ -488,6 +506,39 @@ export function SystemSettingsView({
           />
           <span>{bpmSync ? `Locked to ${bpm} BPM` : 'Free-running beat phase'}</span>
         </div>
+      </section>
+
+      <section className="vsm-settings-group">
+        <div className="vsm-settings-group-heading">
+          <div>
+            <h2>Transitions</h2>
+            <p>Blend between presets, and between engines, instead of cutting.</p>
+          </div>
+        </div>
+        <div className="vsm-settings-inline-row">
+          <IconMorphToggle
+            checked={transitionsEnabled}
+            onCheckedChange={onTransitionsEnabledChange}
+            className="vz-settings-seg-btn vsm-settings-toggle"
+            aria-label="Transitions in React"
+          />
+          <span>Transitions in React</span>
+        </div>
+        {transitionsEnabled && (
+          <div className="vsm-auto-quality">
+            <div className="vsm-auto-quality-row">
+              <span>Style</span>
+              <Dropdown
+                className="vsm-transition-style"
+                ariaLabel="Transition style"
+                size="compact"
+                value={transitionStyle}
+                options={TRANSITION_DROPDOWN_OPTIONS}
+                onChange={value => { if (isPresetTransitionChoice(value)) onTransitionStyleChange(value) }}
+              />
+            </div>
+          </div>
+        )}
       </section>
 
       <section className="vsm-settings-group">

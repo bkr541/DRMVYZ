@@ -1,3 +1,5 @@
+import { isPresetTransitionChoice, type PresetTransitionChoice } from '../../lib/presetTransitions'
+
 export const SYSTEM_QUALITY_LEVELS = ['Low', 'Medium', 'High'] as const
 export type SystemQualityLevel = typeof SYSTEM_QUALITY_LEVELS[number]
 
@@ -13,9 +15,13 @@ export interface SystemSettings {
   autoQualityMax: SystemQualityLevel
   autoPerformanceDefault: boolean
   bpmSync: boolean
+  /** Settings > System Settings > Transitions in React: blend between presets (and engines) instead of cutting. */
+  transitionsEnabled: boolean
+  /** The style used for those transitions, or Random. A per-pad or per-cue override can replace it later (see lib/presetTransitions.ts). */
+  transitionStyle: PresetTransitionChoice
 }
 
-export const SYSTEM_SETTING_KEYS = ['quality', 'autoQualityEnabled', 'autoQualityMin', 'autoQualityMax', 'autoPerformanceDefault', 'bpmSync'] as const satisfies readonly (keyof SystemSettings)[]
+export const SYSTEM_SETTING_KEYS = ['quality', 'autoQualityEnabled', 'autoQualityMin', 'autoQualityMax', 'autoPerformanceDefault', 'bpmSync', 'transitionsEnabled', 'transitionStyle'] as const satisfies readonly (keyof SystemSettings)[]
 
 export function isSystemQualityLevel(value: unknown): value is SystemQualityLevel {
   return typeof value === 'string' && (SYSTEM_QUALITY_LEVELS as readonly string[]).includes(value)
@@ -28,6 +34,8 @@ const VALIDATORS: { [K in keyof SystemSettings]: (value: unknown) => value is Sy
   autoQualityMax: isSystemQualityLevel,
   autoPerformanceDefault: (value): value is boolean => typeof value === 'boolean',
   bpmSync: (value): value is boolean => typeof value === 'boolean',
+  transitionsEnabled: (value): value is boolean => typeof value === 'boolean',
+  transitionStyle: isPresetTransitionChoice,
 }
 
 /** Keeps only the recognised, valid settings of a stored object. A missing or invalid key simply means "not saved for this account". */

@@ -255,14 +255,15 @@
   user-select: none;
 }
 .vz-header-brand-logo {
-  width: 22px;
-  height: 22px;
+  width: 30px;
+  height: 30px;
   object-fit: contain;
   display: block;
 }
 .vz-header-brand-name {
   position: relative;
-  font: var(--type-page-heading, 200 12px/1.2 sans-serif);
+  font: var(--type-page-heading, 400 16px/1.2 'STAGELESS Modular', sans-serif);
+  -webkit-text-stroke: var(--type-page-heading-stroke, 0) currentColor;
   letter-spacing: var(--type-window-heading-tracking, 0.15em);
   text-transform: uppercase;
   color: #e6eef1;

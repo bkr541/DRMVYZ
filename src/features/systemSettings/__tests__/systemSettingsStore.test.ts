@@ -11,7 +11,7 @@ vi.mock('../systemSettingsDb', () => ({
 import { useVisualStore } from '../../../stores/visualStore'
 import { readLocalSystemSettings, useSystemSettingsStore } from '../systemSettingsStore'
 
-const LOCAL: SystemSettings = { quality: 'High', autoQualityEnabled: false, autoQualityMin: 'Low', autoQualityMax: 'High', autoPerformanceDefault: false, bpmSync: false }
+const LOCAL: SystemSettings = { quality: 'High', autoQualityEnabled: false, autoQualityMin: 'Low', autoQualityMax: 'High', autoPerformanceDefault: false, bpmSync: false, transitionsEnabled: false, transitionStyle: 'dissolve' }
 
 beforeEach(() => {
   vi.useFakeTimers()
@@ -30,7 +30,7 @@ describe('System Settings account sync', () => {
   })
 
   it('applies the account\'s values on sign-in and uploads nothing when every setting is saved', async () => {
-    const remote: SystemSettings = { quality: 'Low', autoQualityEnabled: true, autoQualityMin: 'Medium', autoQualityMax: 'Medium', autoPerformanceDefault: true, bpmSync: true }
+    const remote: SystemSettings = { quality: 'Low', autoQualityEnabled: true, autoQualityMin: 'Medium', autoQualityMax: 'Medium', autoPerformanceDefault: true, bpmSync: true, transitionsEnabled: true, transitionStyle: 'random' }
     readSystemSettings.mockResolvedValue({ settings: remote, error: null })
     await useSystemSettingsStore.getState().initializeForUser('u1')
     expect(readLocalSystemSettings()).toEqual(remote)
@@ -55,6 +55,24 @@ describe('System Settings account sync', () => {
     await vi.advanceTimersByTimeAsync(500)
     expect(saveSystemSettings).toHaveBeenCalledTimes(1)
     expect(saveSystemSettings).toHaveBeenCalledWith('u1', { ...LOCAL, autoPerformanceDefault: true, quality: 'Low' })
+  })
+
+  it('saves the Transitions settings to the account, and an account that never saved them gets this device\'s values', async () => {
+    readSystemSettings.mockResolvedValue({ settings: LOCAL, error: null })
+    await useSystemSettingsStore.getState().initializeForUser('u1')
+    useVisualStore.getState().setTransitionsEnabled(true)
+    useVisualStore.getState().setTransitionStyle('wipe')
+    await vi.advanceTimersByTimeAsync(500)
+    expect(saveSystemSettings).toHaveBeenCalledTimes(1)
+    expect(saveSystemSettings).toHaveBeenCalledWith('u1', { ...LOCAL, transitionsEnabled: true, transitionStyle: 'wipe' })
+
+    useSystemSettingsStore.getState().clearForSignedOut()
+    saveSystemSettings.mockClear()
+    const { transitionsEnabled: _a, transitionStyle: _b, ...older } = LOCAL
+    readSystemSettings.mockResolvedValue({ settings: older, error: null })
+    await useSystemSettingsStore.getState().initializeForUser('u2')
+    expect(useVisualStore.getState().transitionStyle).toBe('wipe')
+    expect(saveSystemSettings).toHaveBeenCalledWith('u2', { ...LOCAL, transitionsEnabled: true, transitionStyle: 'wipe' })
   })
 
   it('does not save changes to other visual state, or while signed out', async () => {

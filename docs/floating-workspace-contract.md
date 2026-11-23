@@ -23,9 +23,9 @@ Occupancy is tracked across route changes and Suspense. The frame owns the
 stand-in while a page waits for the target. `fallbackWhenUnavailable` renders
 a header inline only for a standalone mount without a frame.
 
-STAGELESS Sans Light is the default UI face. The shared header uses
-STAGELESS Modular ExtraLight for the page name in both the workspace and
-fallback headers. Both faces ship with the app via `src/styles/typography.css`.
+The shared brand cluster uses a 30px logo and the 16px, weight 400 page-heading
+role in both workspace and fallback headers. The title uses STAGELESS Modular
+with a thin stroke to add weight to the bundled ExtraLight font.
 
 The production navigation rail is permanently collapsed at 72px and has no
 expand/collapse control or expansion state. It follows Layout Lab's Preview 1

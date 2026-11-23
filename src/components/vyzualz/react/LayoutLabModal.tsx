@@ -29,9 +29,9 @@ export function LayoutLabModal({ onClose }: { onClose: () => void }) {
     popup.document.body.style.height = '100vh'
     popup.document.body.style.overflow = 'hidden'
 
-    const typography = getComputedStyle(document.documentElement)
-    for (const token of ['--font-ui', '--font-mono', '--az-font', '--az-font-data']) {
-      const value = typography.getPropertyValue(token)
+    const appStyles = getComputedStyle(document.documentElement)
+    for (const token of ['--font-ui', '--font-mono', '--az-font', '--az-font-data', '--radius-group', '--az-cyan', '--az-cyan-rgb', '--color-panel-alt']) {
+      const value = appStyles.getPropertyValue(token)
       if (value) popup.document.documentElement.style.setProperty(token, value)
     }
     const fontStylesheet = document.querySelector('link[rel="stylesheet"][href*="fonts.googleapis.com/css2"]')

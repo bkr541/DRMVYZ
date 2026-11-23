@@ -31,6 +31,7 @@ export function AudioEngineProvider({ children }: { children: React.ReactNode })
   // broadcasting unnecessary re-renders to every context consumer.
   const contextRevision = useMemo(() => [
     engine.source, engine.micError, engine.trackLoadError, engine.liveInputActive, engine.analysisActive,
+    engine.liveInputDevices, engine.liveInputDeviceId, engine.liveInputDeviceLabel,
     engine.liveInputSensitivity, engine.liveInputNoiseGate, engine.hasActiveProgramAudio, engine.isActive,
     engine.tracks, engine.currentIndex, engine.isPlaying,
     engine.currentTime, engine.duration, engine.volume,
@@ -48,6 +49,7 @@ export function AudioEngineProvider({ children }: { children: React.ReactNode })
     engine.currentKey,
   ] as const, [
     engine.source, engine.micError, engine.trackLoadError, engine.liveInputActive, engine.analysisActive,
+    engine.liveInputDevices, engine.liveInputDeviceId, engine.liveInputDeviceLabel,
     engine.liveInputSensitivity, engine.liveInputNoiseGate, engine.hasActiveProgramAudio, engine.isActive,
     engine.tracks, engine.currentIndex, engine.isPlaying,
     engine.currentTime, engine.duration, engine.volume,

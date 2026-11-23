@@ -63,6 +63,7 @@ class FakeAudioNode {
 
 class FakeMediaStreamTrack extends EventTarget {
   readyState: MediaStreamTrackState = 'live'
+  readonly label = 'USB Audio Interface'
   readonly stopMock = vi.fn(() => { this.readyState = 'ended' })
 
   stop(): void { this.stopMock() }
@@ -230,6 +231,7 @@ describe('useAudioEngine Live Input lifecycle', () => {
     })
     expect(engine?.source).toBe('microphone')
     expect(engine?.liveInputActive).toBe(true)
+    expect(engine?.liveInputDeviceLabel).toBe('USB Audio Interface')
     expect(engine?.analysisActive).toBe(true)
     expect(engine?.isActive).toBe(true)
     expect(engine?.isPlaying).toBe(false)
@@ -257,6 +259,7 @@ describe('useAudioEngine Live Input lifecycle', () => {
     expect(stream.track.stopMock).toHaveBeenCalledOnce()
     expect(engine?.source).toBe('file')
     expect(engine?.liveInputActive).toBe(false)
+    expect(engine?.liveInputDeviceLabel).toBeNull()
     expect(engine?.currentTrackId).toBe(preservedTrackId)
     expect(engine?.tracks).toHaveLength(1)
     expect(context?.gains[2]?.gain.value).toBe(1)

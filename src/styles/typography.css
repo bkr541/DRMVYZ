@@ -121,7 +121,9 @@
   --type-tab-family: var(--font-ui);
   --type-tab: 700 11px/1 var(--type-tab-family);
   --type-tab-active-nested: 800 11px/1 var(--type-tab-family);
-  --type-page-heading: 200 12px/1.2 'STAGELESS Modular', var(--font-ui);
+  --type-page-heading: 400 16px/1.2 'STAGELESS Modular', var(--font-ui, sans-serif);
+  /* Modular ships in ExtraLight. A small stroke adds weight to page titles. */
+  --type-page-heading-stroke: 0.35px;
   --type-window-heading: 700 12px/1.2 var(--font-ui, 'Space Grotesk', sans-serif);
   --type-group-heading: var(--type-window-heading);
   --type-window-heading-tracking: 0.15em;

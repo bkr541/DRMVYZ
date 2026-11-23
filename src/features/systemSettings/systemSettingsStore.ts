@@ -35,6 +35,8 @@ export function readLocalSystemSettings(): SystemSettings {
     autoQualityMax: state.autoQualityMax,
     autoPerformanceDefault: state.autoPerformanceDefault,
     bpmSync: state.bpmSync,
+    transitionsEnabled: state.transitionsEnabled,
+    transitionStyle: state.transitionStyle,
   }
 }
 
