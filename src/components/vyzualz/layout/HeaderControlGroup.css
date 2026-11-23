@@ -262,7 +262,7 @@
 }
 .vz-header-brand-name {
   position: relative;
-  font: var(--type-window-heading, 700 12px/1.2 sans-serif);
+  font: var(--type-page-heading, 200 12px/1.2 sans-serif);
   letter-spacing: var(--type-window-heading-tracking, 0.15em);
   text-transform: uppercase;
   color: #e6eef1;

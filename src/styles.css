@@ -20,18 +20,18 @@
   --radius-group: 6px;
   --radius:    6px;
   --radius-lg: var(--radius-group);
-  /* App typography: Space Grotesk for UI, Manrope for secondary text. */
+  /* App typography: STAGELESS Sans for UI, Manrope for secondary text. */
   --font-mono: 'Manrope','Helvetica Neue',system-ui,sans-serif;
-  --font-ui:   'Space Grotesk','Helvetica Neue',system-ui,sans-serif;
+  --font-ui:   'STAGELESS Sans','Space Grotesk','Helvetica Neue',system-ui,sans-serif;
   --font-scale:1;
   font-size:   calc(13px * var(--font-scale));
 }
 
 html,body,#root { width:100%; height:100%; overflow:hidden; }
-body { background:#090d0f; color:var(--text); font-family:var(--font-ui);
+body { background:#090d0f; color:var(--text); font-family:var(--font-ui); font-weight:300;
        -webkit-font-smoothing:antialiased; }
 canvas { display:block; }
-button, input, select, textarea { font-family:var(--font-ui); }
+button, input, select, textarea { font-family:var(--font-ui); font-weight:inherit; }
 
 /* ── App Root ───────────────────────────────────────────────────────────────── */
 .app-root {

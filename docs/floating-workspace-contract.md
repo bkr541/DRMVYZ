@@ -23,6 +23,10 @@ Occupancy is tracked across route changes and Suspense. The frame owns the
 stand-in while a page waits for the target. `fallbackWhenUnavailable` renders
 a header inline only for a standalone mount without a frame.
 
+STAGELESS Sans Light is the default UI face. The shared header uses
+STAGELESS Modular ExtraLight for the page name in both the workspace and
+fallback headers. Both faces ship with the app via `src/styles/typography.css`.
+
 The production navigation rail is permanently collapsed at 72px and has no
 expand/collapse control or expansion state. It follows Layout Lab's Preview 1
 Notch design: bare 40px icons, a 52px active icon, and a 44px × 64px cutout

@@ -1,3 +1,53 @@
+/* Bundled app typography. */
+@font-face {
+  font-family: 'STAGELESS Sans';
+  src: url('../assets/fonts/STAGELESS_Sans-Thin.otf') format('opentype');
+  font-weight: 100;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'STAGELESS Sans';
+  src: url('../assets/fonts/STAGELESS_Sans-ExtraLight.otf') format('opentype');
+  font-weight: 200;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'STAGELESS Sans';
+  src: url('../assets/fonts/STAGELESS_Sans-Light.otf') format('opentype');
+  font-weight: 300;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'STAGELESS Sans';
+  src: url('../assets/fonts/STAGELESS_Sans-Regular.otf') format('opentype');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'STAGELESS Sans';
+  src: url('../assets/fonts/STAGELESS_Sans-Medium.otf') format('opentype');
+  font-weight: 500;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'STAGELESS Sans';
+  src: url('../assets/fonts/STAGELESS_Sans-SemiBold.otf') format('opentype');
+  font-weight: 600;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'STAGELESS Sans';
+  src: url('../assets/fonts/STAGELESS_Sans-Bold.otf') format('opentype');
+  font-weight: 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'STAGELESS Modular';
+  src: url('../assets/fonts/STAGELESS_Modular-ExtraLight.woff2') format('woff2');
+  font-weight: 200;
+  font-display: swap;
+}
+
 /* Bundled font used by font-picker specimens; shared UI roles keep their own family. */
 @font-face {
   font-family: 'DRMVYZ Anton';
@@ -62,15 +112,16 @@
   --type-notice-title-size: 12px;
   /* A field's value is set in exactly its label's face, size and weight (only line height differs, so
      multi-line values stay readable). Both roles are built from these three tokens. */
-  --type-field-family: var(--font-mono, 'Manrope', sans-serif);
+  --type-field-family: var(--font-ui);
   --type-field-size: 11px;
-  --type-field-weight: 600;
+  --type-field-weight: 300;
   --type-field-label: var(--type-field-weight) var(--type-field-size)/1 var(--type-field-family);
   --type-field-value: var(--type-field-weight) var(--type-field-size)/1.2 var(--type-field-family);
   --type-field-placeholder: var(--type-field-value);
-  --type-tab: 700 11px/1 var(--font-mono, 'Manrope', sans-serif);
-  --type-tab-family: var(--font-mono, 'Manrope', sans-serif);
-  --type-tab-active-nested: 800 11px/1 var(--font-mono, 'Manrope', sans-serif);
+  --type-tab-family: var(--font-ui);
+  --type-tab: 700 11px/1 var(--type-tab-family);
+  --type-tab-active-nested: 800 11px/1 var(--type-tab-family);
+  --type-page-heading: 200 12px/1.2 'STAGELESS Modular', var(--font-ui);
   --type-window-heading: 700 12px/1.2 var(--font-ui, 'Space Grotesk', sans-serif);
   --type-group-heading: var(--type-window-heading);
   --type-window-heading-tracking: 0.15em;
