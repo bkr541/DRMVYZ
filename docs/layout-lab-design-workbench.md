@@ -33,7 +33,7 @@ Level Meter, Frequency Bars, Live Scope, and Meter with Expandable Detail are fo
 
 ## Preset Filter studies
 
-Five interactive Inspector previews share the React Presets tab’s name search, System and User sources, and two-column Cinema 2.0 posters. Quick Chips select one tag. Inline Dropdown uses a Filters button beside search to open the app’s shared dropdown menu and combine one category with one tag. Filter Popover uses the app’s shared popover and checkboxes to apply several tags together. Expandable Facets show match counts alongside categories and tags. Search Tokens accept expressions such as `tag:laser` and `category:architecture` alongside a name.
+Five interactive Inspector previews share the React Presets tab’s name search, System and User sources, and two-column Cinema 2.0 posters. Quick Chips select one tag. Inline Dropdown and Filter Popover share the Filters button beside search. Inline Dropdown opens the app’s shared dropdown menu and combines one category with one tag. Filter Popover uses the app’s shared popover and checkboxes to apply several tags together. Expandable Facets show match counts alongside categories and tags. Search Tokens accept expressions such as `tag:laser` and `category:architecture` alongside a name.
 
 Each preview uses its own local sample data and state. Category and tag assignments are illustrative.
 

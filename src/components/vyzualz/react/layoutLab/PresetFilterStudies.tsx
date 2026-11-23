@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState, type ComponentPropsWithRef } from 'react'
 import { Dropdown } from '../../../shared/Dropdown'
 import { AppIcon } from '../../../shared/icons/AppIcon'
 import { InfoPopover } from '../../../shared/InfoPopover'
@@ -104,6 +104,15 @@ function FilterOptions({ options, values, onToggle, count }: {
   </div>
 }
 
+function renderFiltersButton(props: ComponentPropsWithRef<'button'>, count: number) {
+  return <IconChipButton
+    {...props}
+    className="ll-pf-filter-trigger"
+    tone={props['aria-expanded'] ? 'primary' : 'default'}
+    icon={<AppIcon kind="sliders" size={14} />}
+  >Filters{count > 0 && <span className="ll-pf-trigger-count">{count}</span>}</IconChipButton>
+}
+
 function FilterPopover({ value, onChange }: { value: string[]; onChange: (values: string[]) => void }) {
   const id = useId()
   const trigger = useRef<HTMLButtonElement>(null)
@@ -124,19 +133,16 @@ function FilterPopover({ value, onChange }: { value: string[]; onChange: (values
   }
 
   return <>
-    <IconChipButton
-      ref={trigger}
-      className="ll-pf-filter-trigger"
-      tone={open ? 'primary' : 'default'}
-      icon={<AppIcon kind="sliders" size={14} />}
-      aria-haspopup="dialog"
-      aria-expanded={open}
-      aria-controls={open ? id : undefined}
-      onClick={() => {
+    {renderFiltersButton({
+      ref: trigger,
+      'aria-haspopup': 'dialog',
+      'aria-expanded': open,
+      'aria-controls': open ? id : undefined,
+      onClick: () => {
         setDraft(value)
         setOpen(!open)
-      }}
-    >Filters{value.length > 0 && <span className="ll-pf-trigger-count">{value.length}</span>}</IconChipButton>
+      },
+    }, value.length)}
     <InfoPopover
       id={id}
       open={open}
@@ -215,10 +221,9 @@ function PresetFilterPreview({ study }: { study: (typeof STUDIES)[number] }) {
                 size="dense"
                 ariaLabel="Filters"
                 menuLabel="Preset filters"
-                menuBoundarySelector=".ll-pf-inspector"
+                menuAlign="end"
                 menuWidth={216}
-                eyebrow={<AppIcon kind="sliders" size={14} />}
-                placeholder={filterCount ? `Filters · ${filterCount}` : 'Filters'}
+                renderTrigger={props => renderFiltersButton(props, filterCount)}
                 value={null}
                 options={INLINE_FILTER_OPTIONS}
                 onChange={choice => {

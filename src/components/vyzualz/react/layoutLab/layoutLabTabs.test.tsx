@@ -173,6 +173,18 @@ describe('persistent Layout Lab tabs', () => {
     await act(async () => laser.click())
     expect(studies[0]!.querySelector('[role="status"]')?.textContent).toBe('2 presets')
     expect(studies[1]!.querySelector('[role="status"]')?.textContent).toBe('10 presets')
+
+    const [dropdownTrigger, popoverTrigger] = studies.slice(1, 3).map(study =>
+      study.querySelector<HTMLButtonElement>('button.ll-pf-filter-trigger')!,
+    )
+    expect(dropdownTrigger.className).toBe(popoverTrigger.className)
+    expect(dropdownTrigger.innerHTML).toBe(popoverTrigger.innerHTML)
+    await act(async () => dropdownTrigger.click())
+    const menu = document.getElementById(dropdownTrigger.getAttribute('aria-controls')!)
+    expect(menu?.classList.contains('drm-dropdown__menu')).toBe(true)
+    const option = [...menu!.querySelectorAll<HTMLElement>('[role="option"]')].find(row => row.textContent === 'Architecture')!
+    await act(async () => option.click())
+    expect(studies[1]!.querySelector('[role="status"]')?.textContent).toBe('4 presets')
   })
 
   it('shows four static Live Input mockups, including both spectrum disclosure states', async () => {

@@ -10,6 +10,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ComponentPropsWithRef,
   type CSSProperties,
   type ChangeEvent,
   type KeyboardEvent as ReactKeyboardEvent,
@@ -64,6 +65,7 @@ export interface DropdownProps {
   placement?: DropdownPlacement
   /** Optional ancestor whose bounds constrain the portaled menu. */
   menuBoundarySelector?: string
+  menuAlign?: 'start' | 'end'
   menuWidth?: 'trigger' | number
   maxMenuHeight?: number
   size?: DropdownSize
@@ -71,6 +73,8 @@ export interface DropdownProps {
   name?: string
   className?: string
   triggerClassName?: string
+  /** Render a custom button with the dropdown's ref, keyboard handling and ARIA attributes. */
+  renderTrigger?: (props: ComponentPropsWithRef<'button'>) => ReactNode
   menuClassName?: string
   searchable?: boolean
   searchValue?: string
@@ -187,6 +191,7 @@ export function Dropdown({
   defaultOpen = false,
   onOpenChange,
   placement = 'auto',
+  menuAlign = 'start',
   menuWidth = 'trigger',
   menuBoundarySelector,
   maxMenuHeight = 420,
@@ -195,6 +200,7 @@ export function Dropdown({
   name,
   className = '',
   triggerClassName = '',
+  renderTrigger,
   menuClassName = '',
   searchable = false,
   searchValue,
@@ -328,7 +334,7 @@ export function Dropdown({
       Math.min(maxMenuHeight, availableHeight || maxMenuHeight),
     )
     const renderedHeight = Math.min(menuRect.height || maxHeight, maxHeight)
-    const preferredLeft = triggerRect.left
+    const preferredLeft = menuAlign === 'end' ? triggerRect.right - width : triggerRect.left
     const left = Math.round(Math.max(
       bounds.left,
       Math.min(preferredLeft, bounds.right - width),
@@ -364,7 +370,7 @@ export function Dropdown({
       }
       return nextPosition
     })
-  }, [maxMenuHeight, menuWidth, menuBoundarySelector, placement, searchable])
+  }, [maxMenuHeight, menuAlign, menuWidth, menuBoundarySelector, placement, searchable])
 
   useLayoutEffect(() => {
     if (!isOpen) {
@@ -581,9 +587,32 @@ export function Dropdown({
     className,
   ].filter(Boolean).join(' ')
 
-  const triggerClassNames = ['drm-dropdown__trigger', triggerClassName]
+  const triggerClassNames = [searchable || !renderTrigger ? 'drm-dropdown__trigger' : '', triggerClassName]
     .filter(Boolean)
     .join(' ')
+  const buttonTriggerProps: ComponentPropsWithRef<'button'> = {
+    ref: triggerRef,
+    id: triggerId,
+    type: 'button',
+    className: triggerClassNames || undefined,
+    role: 'combobox',
+    'aria-label': ariaLabel,
+    'aria-labelledby': ariaLabelledBy ?? (!ariaLabel && label != null ? labelId : undefined),
+    'aria-describedby': ariaDescribedBy,
+    'aria-controls': listboxId,
+    'aria-expanded': isOpen,
+    'aria-haspopup': 'listbox',
+    'aria-activedescendant': isOpen ? activeOptionId : undefined,
+    'aria-required': required || undefined,
+    'aria-invalid': invalid || undefined,
+    disabled,
+    title,
+    onClick: () => {
+      if (isOpen) closeMenu(false)
+      else openMenu()
+    },
+    onKeyDown: handleKeyDown,
+  }
   const menuClassNames = [
     'drm-dropdown__menu',
     `drm-dropdown__menu--${size}`,
@@ -711,30 +740,8 @@ export function Dropdown({
           />
           <AppIcon kind="chevronDown" className="drm-dropdown__chevron" />
         </div>
-      ) : (
-        <button
-          ref={triggerRef}
-          id={triggerId}
-          type="button"
-          className={triggerClassNames}
-          role="combobox"
-          aria-label={ariaLabel}
-          aria-labelledby={ariaLabelledBy ?? (!ariaLabel && label != null ? labelId : undefined)}
-          aria-describedby={ariaDescribedBy}
-          aria-controls={listboxId}
-          aria-expanded={isOpen}
-          aria-haspopup="listbox"
-          aria-activedescendant={isOpen ? activeOptionId : undefined}
-          aria-required={required || undefined}
-          aria-invalid={invalid || undefined}
-          disabled={disabled}
-          title={title}
-          onClick={() => {
-            if (isOpen) closeMenu(false)
-            else openMenu()
-          }}
-          onKeyDown={handleKeyDown}
-        >
+      ) : renderTrigger ? renderTrigger(buttonTriggerProps) : (
+        <button {...buttonTriggerProps}>
           {eyebrow != null && <span className="drm-dropdown__eyebrow">{eyebrow}</span>}
           <span
             className={selectedOption ? 'drm-dropdown__value' : 'drm-dropdown__value drm-dropdown__value--placeholder'}

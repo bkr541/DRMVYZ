@@ -10,6 +10,9 @@ contextBridge.exposeInMainWorld('drmvyzNative', Object.freeze({
     isElectron: true,
     platform: process.platform,
   }),
+  ...(process.argv.includes('--stageless-review-notes') ? {
+    reviewNotes: Object.freeze({ capturePage: () => ipcRenderer.invoke('drmvyz:review-notes:capture') }),
+  } : {}),
   files: Object.freeze({
     getPathForFile: file => {
       try {

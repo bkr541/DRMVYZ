@@ -166,6 +166,7 @@ function createMainWindow() {
       nodeIntegration: false,
       sandbox: true,
       webSecurity: true,
+      additionalArguments: useDevServer ? ['--stageless-review-notes'] : [],
     },
   })
 
@@ -276,6 +277,15 @@ if (!app.requestSingleInstanceLock()) {
     installDiagnosticsBridge({ ipcMain, log, app })
     installSystemMetricsBridge({ app, ipcMain, log })
     installCameraAccessBridge({ ipcMain, shell, systemPreferences, log })
+    if (useDevServer) {
+      ipcMain.handle('drmvyz:review-notes:capture', async event => {
+        if (event.sender !== mainWindow?.webContents || !event.senderFrame || event.senderFrame !== event.sender.mainFrame
+          || !isTrustedAppUrl(event.senderFrame.url)) return null
+        const frame = await event.sender.capturePage()
+        if (frame.isEmpty()) return null
+        return (frame.getSize().width > 1600 ? frame.resize({ width: 1600 }) : frame).toDataURL()
+      })
+    }
     createMainWindow()
 
     app.on('activate', () => {

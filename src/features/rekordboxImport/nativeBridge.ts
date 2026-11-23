@@ -76,6 +76,7 @@ export interface DrmvyzNativeBridge {
   system?: NativeSystemBridge
   camera?: NativeCameraBridge
   recovery?: NativeRecoveryBridge
+  reviewNotes?: { capturePage: () => Promise<string | null> }
 }
 
 declare global {

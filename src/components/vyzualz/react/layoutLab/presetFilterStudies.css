@@ -123,18 +123,6 @@
 .ll-pf-tokens .ll-pf-chip[aria-pressed='true'] { border-style: solid; }
 
 .ll-pf-dropdown-filter { width: auto; flex: none; }
-.ll-pf-dropdown-filter .drm-dropdown__trigger {
-  gap: 6px;
-  padding: 7px 9px !important;
-  border: 1px solid var(--pf-line) !important;
-  border-radius: var(--radius-group) !important;
-  background: rgba(255, 255, 255, 0.04) !important;
-}
-.ll-pf-dropdown-filter .drm-dropdown__eyebrow { display: inline-flex; }
-.ll-pf-dropdown-filter .drm-dropdown__trigger:is(:hover, :focus-visible, [aria-expanded='true']) {
-  border-color: var(--pf-accent) !important;
-}
-
 .ll-pf-filter-trigger { flex: none; }
 .ll-pf-trigger-count { color: var(--pf-accent); }
 .ll-pf-filter-popover { box-sizing: border-box; }
