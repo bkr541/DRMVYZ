@@ -147,6 +147,8 @@ export interface Cinema2RuntimeCreateOptions {
   onSnapshot?: (snapshot: Cinema2RuntimeSnapshot) => void
   /** Presentation-only notification; no parameter or transport ownership. */
   onFirstFrame?: () => void
+  /** Presentation-only: called in the same task, right after each frame is drawn into the canvas, while the picture is still intact (see lib/canvasFrameReadiness.ts). */
+  onFrameRendered?: () => void
   presetId?: Cinema2PresetId
   presetRegistry?: Cinema2PresetRegistry
   moduleRegistry?: Cinema2ModuleRegistry
@@ -395,6 +397,7 @@ export class Cinema2Runtime {
   private readonly cancelFrame: typeof cancelAnimationFrame
   private readonly onSnapshot: ((snapshot: Cinema2RuntimeSnapshot) => void) | null
   private readonly onFirstFrame: (() => void) | undefined
+  private readonly onFrameRendered: (() => void) | undefined
   private readonly contextHandle: WebGLContextDiagnosticHandle | null
   private readonly onContextLostHandler: (event: Event) => void
   private readonly onContextRestoredHandler: () => void
@@ -457,6 +460,7 @@ export class Cinema2Runtime {
     this.cancelFrame = options.cancelAnimationFrame ?? (handle => window.cancelAnimationFrame(handle))
     this.onSnapshot = options.onSnapshot ?? null
     this.onFirstFrame = options.onFirstFrame
+    this.onFrameRendered = options.onFrameRendered
     this.audioIntelligenceBridge = options.audioIntelligenceBridge ?? new Cinema2AudioIntelligenceBridge()
     this.transportSource = options.transportSource ?? null
     this.visualDirector = new Cinema2VisualDirector()
@@ -959,6 +963,8 @@ export class Cinema2Runtime {
       } finally {
         this.performanceDiagnostics.endGpuFrame()
       }
+      // The picture is complete and still intact (a WebGL canvas is cleared once presented): anything that copies this canvas, such as the cast relay, copies it now.
+      try { this.onFrameRendered?.() } catch { /* Presentation notifications never stop the renderer. */ }
       const budgetDiagnostic = this.renderGraphExecutor.getSnapshot().diagnostics.find(
         diagnostic => diagnostic.code === 'CINEMA2_RENDER_RESOURCE_BUDGET_EXCEEDED',
       )

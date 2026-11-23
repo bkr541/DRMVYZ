@@ -2,6 +2,7 @@ import { CastPreviewWindow } from './CastPreviewWindow'
 import { BRAND_RECEIVERS } from '../../../../brand'
 import { isCanvasFrameReady } from '../../../../lib/canvasFrameReadiness'
 import { FrameCadence } from '../../../../lib/frameCadence'
+import { startRelayFramePump } from './relayFramePump'
 import { recordPerformanceEvent, setPerformanceCastActive } from '../../../../lib/performanceTelemetry'
 import { CastLoadShedder, bindCadenceToPressure } from '../../../../lib/castLoadShedding'
 import { setPerformancePressure } from '../../../../lib/performancePressure'
@@ -142,42 +143,24 @@ function createRelayCapture(sourceRef: MutableRefObject<HTMLCanvasElement | null
     throw new Error('Canvas streaming is unavailable in this runtime')
   }
 
-  let stopped = false
-  let frameId = 0
   const cadence = new FrameCadence(RECEIVER_MAX_FPS)
   // At severe overload (a cast that cannot keep up, a GPU that just restarted) the relay copies and encodes half as many frames until it passes.
   const unbindPressure = bindCadenceToPressure(cadence, RECEIVER_MAX_FPS)
-  const render = (now = performance.now()) => {
-    if (stopped) return
-    if (!cadence.due(now)) {
-      frameId = window.requestAnimationFrame(render)
-      return
-    }
-    try {
-      const source = sourceRef.current
-      if (source && source.width > 0 && source.height > 0) {
-        if (!isCanvasFrameReady(source)) {
-          frameId = window.requestAnimationFrame(render)
-          return
-        }
-        const next = fitRelaySize(source.width, source.height)
-        if (relay.width !== next.width || relay.height !== next.height) {
-          relay.width = next.width
-          relay.height = next.height
-        }
-        context.drawImage(source, 0, 0, relay.width, relay.height)
-      } else {
-        context.fillStyle = '#000'
-        context.fillRect(0, 0, relay.width, relay.height)
+  const copyFrame = (source: HTMLCanvasElement | null) => {
+    if (source && source.width > 0 && source.height > 0) {
+      if (!isCanvasFrameReady(source)) return
+      const next = fitRelaySize(source.width, source.height)
+      if (relay.width !== next.width || relay.height !== next.height) {
+        relay.width = next.width
+        relay.height = next.height
       }
-    } catch (error) {
-      // A nonzero canvas can still be undrawable during renderer teardown.
-      if (!(error instanceof DOMException && error.name === 'InvalidStateError')) throw error
+      context.drawImage(source, 0, 0, relay.width, relay.height)
+    } else {
+      context.fillStyle = '#000'
+      context.fillRect(0, 0, relay.width, relay.height)
     }
-    // Retry transient copy failures without restarting the capture or receiver.
-    frameId = window.requestAnimationFrame(render)
   }
-  render()
+  const stopPump = startRelayFramePump({ sourceRef, cadence, copy: copyFrame, onError: error => console.warn('[cast] relay frame copy failed', error) })
   const stream = relay.captureStream(RECEIVER_MAX_FPS)
   for (const track of stream.getVideoTracks()) {
     try { track.contentHint = 'motion' } catch { /* Older Chromium may reject contentHint. */ }
@@ -188,9 +171,8 @@ function createRelayCapture(sourceRef: MutableRefObject<HTMLCanvasElement | null
     canvas: relay,
     stream,
     stop: () => {
-      stopped = true
+      stopPump()
       unbindPressure()
-      window.cancelAnimationFrame(frameId)
       for (const track of stream.getTracks()) track.stop()
     },
   }
@@ -392,40 +374,22 @@ function createGoogleCastRelayCapture(sourceRef: MutableRefObject<HTMLCanvasElem
   const context = relay.getContext('2d', { alpha: false })
   if (!context || typeof relay.captureStream !== 'function') throw new Error('Canvas capture is unavailable for Google Cast in this runtime')
 
-  let stopped = false
-  let frameId = 0
   const cadence = new FrameCadence(GOOGLE_CAST_MAX_FPS)
-  const render = (now = performance.now()) => {
-    if (stopped) return
-    if (!cadence.due(now)) {
-      frameId = window.requestAnimationFrame(render)
-      return
-    }
-    try {
-      const source = sourceRef.current
-      if (source && source.width > 0 && source.height > 0) {
-        if (!isCanvasFrameReady(source)) {
-          frameId = window.requestAnimationFrame(render)
-          return
-        }
-        const next = fitGoogleCastRelaySize(source.width, source.height)
-        if (relay.width !== next.width || relay.height !== next.height) {
-          relay.width = next.width
-          relay.height = next.height
-        }
-        context.drawImage(source, 0, 0, relay.width, relay.height)
-      } else {
-        context.fillStyle = '#000'
-        context.fillRect(0, 0, relay.width, relay.height)
+  const copyFrame = (source: HTMLCanvasElement | null) => {
+    if (source && source.width > 0 && source.height > 0) {
+      if (!isCanvasFrameReady(source)) return
+      const next = fitGoogleCastRelaySize(source.width, source.height)
+      if (relay.width !== next.width || relay.height !== next.height) {
+        relay.width = next.width
+        relay.height = next.height
       }
-    } catch (error) {
-      // A nonzero canvas can still be undrawable during renderer teardown.
-      if (!(error instanceof DOMException && error.name === 'InvalidStateError')) throw error
+      context.drawImage(source, 0, 0, relay.width, relay.height)
+    } else {
+      context.fillStyle = '#000'
+      context.fillRect(0, 0, relay.width, relay.height)
     }
-    // Retry transient copy failures without restarting the capture or receiver.
-    frameId = window.requestAnimationFrame(render)
   }
-  render()
+  const stopPump = startRelayFramePump({ sourceRef, cadence, copy: copyFrame, onError: error => console.warn('[cast] Google Cast relay frame copy failed', error) })
   const stream = relay.captureStream(GOOGLE_CAST_MAX_FPS)
   for (const track of stream.getVideoTracks()) {
     try { track.contentHint = 'motion' } catch { /* Chromium versions differ here. */ }
@@ -435,8 +399,7 @@ function createGoogleCastRelayCapture(sourceRef: MutableRefObject<HTMLCanvasElem
     canvas: relay,
     stream,
     stop: () => {
-      stopped = true
-      window.cancelAnimationFrame(frameId)
+      stopPump()
       for (const track of stream.getTracks()) track.stop()
     },
   }

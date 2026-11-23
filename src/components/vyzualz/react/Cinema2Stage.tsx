@@ -1,4 +1,4 @@
-import { markCanvasFramePending, markCanvasFrameReady } from '../../../lib/canvasFrameReadiness'
+import { markCanvasFramePending, markCanvasFrameReady, notifyCanvasFrameRendered } from '../../../lib/canvasFrameReadiness'
 import { recordPerformanceEvent } from '../../../lib/performanceTelemetry'
 import { useEffect, useRef, useState } from 'react'
 import { MusicIntelligenceAnalyserFramePump } from '../../../features/musicIntelligence/MusicIntelligenceAnalyserFramePump'
@@ -197,6 +197,7 @@ export function Cinema2Stage({
       let created = Cinema2Runtime.create(canvas, {
         onSnapshot: reportSnapshot,
         onFirstFrame: () => markCanvasFrameReady(canvas),
+        onFrameRendered: () => notifyCanvasFrameRendered(canvas),
         presetId,
         serializedParameterState: restoreState?.serializedParameterState,
         transportSource,
@@ -208,7 +209,7 @@ export function Cinema2Stage({
         if (import.meta.env.DEV) {
           console.warn('[Cinema2Stage] discarding incompatible session parameter state and retrying with defaults:', created.error)
         }
-        created = Cinema2Runtime.create(canvas, { onSnapshot: reportSnapshot, onFirstFrame: () => markCanvasFrameReady(canvas), presetId, transportSource })
+        created = Cinema2Runtime.create(canvas, { onSnapshot: reportSnapshot, onFirstFrame: () => markCanvasFrameReady(canvas), onFrameRendered: () => notifyCanvasFrameRendered(canvas), presetId, transportSource })
       }
       reportSnapshot(created.snapshot)
       if (!created.runtime) {
