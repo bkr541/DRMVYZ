@@ -23614,11 +23614,13 @@ button.llhr-chip { cursor: pointer; }
 /* Phase 03 — React-only floating composition. The application frame owns outer
    chrome; React keeps the same rails, renderer and timeline. This block follows
    all historical React dock/card overrides. */
-[data-workspace-layout='floating']:is([data-app-workspace='react'], [data-app-workspace='performanceManager']) .fw-app-content > .vz-main {
+[data-workspace-layout='floating']:is([data-app-workspace='react'], [data-app-workspace='performanceManager']) .fw-app-content > .vz-main,
+[data-workspace-layout='floating']:is([data-app-workspace='react'], [data-app-workspace='performanceManager']) .fw-app-content > .vz-react-host > .vz-main {
   min-height: 0;
 }
 
-[data-workspace-layout='floating']:is([data-app-workspace='react'], [data-app-workspace='performanceManager']) .fw-app-content > .vz-main > div {
+[data-workspace-layout='floating']:is([data-app-workspace='react'], [data-app-workspace='performanceManager']) .fw-app-content > .vz-main > div,
+[data-workspace-layout='floating']:is([data-app-workspace='react'], [data-app-workspace='performanceManager']) .fw-app-content > .vz-react-host > .vz-main > div {
   min-height: 0;
 }
 

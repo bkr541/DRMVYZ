@@ -22,6 +22,8 @@ export class CastReconnector<Request> {
   private timer: Timer | null = null
   private running = false
   private lastState = 'none'
+  /** The current request has been connected at least once, so a later plain end is the session finishing, not a failure to start. */
+  private seenConnected = false
   private readonly start: CastReconnectorOptions<Request>['start']
   private readonly setTimer: NonNullable<CastReconnectorOptions<Request>['setTimer']>
   private readonly clearTimer: NonNullable<CastReconnectorOptions<Request>['clearTimer']>
@@ -39,6 +41,7 @@ export class CastReconnector<Request> {
     this.cancel()
     this.request = request
     this.attempts = 0
+    this.seenConnected = false
     useHealthStore.getState().setHealth('cast', 'ok', 'Starting the cast')
   }
 
@@ -59,11 +62,14 @@ export class CastReconnector<Request> {
     if (state === 'connected') {
       this.cancel()
       this.attempts = 0
+      this.seenConnected = true
       // Posts "complete" only when a repair was in progress (or had given up); a normal first connection is silent.
       markHealed('cast', 'Casting')
       return
     }
-    if (state === 'failed') this.schedule()
+    if (state === 'failed') { this.schedule(); return }
+    // A cast that was working and simply ended (its output window was closed): nothing is wanted any more, so there is nothing to repair and nothing to keep alive.
+    if (state === 'disconnected' && this.seenConnected && this.attempts === 0 && this.timer === null && !this.running) this.forget()
   }
 
   /** Free the timer when the component goes away. */

@@ -6,6 +6,7 @@ import { startRelayFramePump } from './relayFramePump'
 import { recordPerformanceEvent, setPerformanceCastActive } from '../../../../lib/performanceTelemetry'
 import { CastLoadShedder, bindCadenceToPressure } from '../../../../lib/castLoadShedding'
 import { CastReconnector } from '../../../../lib/castSelfHealing'
+import { useReactBackgrounded } from '../reactBackground'
 import { setPerformancePressure } from '../../../../lib/performancePressure'
 import { AppIcon } from '../../../shared/icons/AppIcon'
 import {
@@ -992,6 +993,7 @@ export function OutputCastControl({
   canvas,
   capability = CANVAS_OUTPUT_AVAILABLE,
 }: OutputCastControlProps) {
+  const backgrounded = useReactBackgrounded()
   const bridge = useMemo(() => getNativeOutputBridge(), [])
   const outputAvailable = isCanvasOutputAvailable(capability)
   const safeCanvas = outputAvailable ? canvas : null
@@ -1251,11 +1253,11 @@ export function OutputCastControl({
           <AppIcon kind="eye" />
         </button>
       )}
-      {previewOpen && (
+      {previewOpen && !backgrounded && (
         <CastPreviewWindow key={session.id} id={previewId} anchor={previewTriggerRef.current}
           sourceRef={previewSourceRef} onClose={closePreview} />
       )}
-      {open && (
+      {open && !backgrounded && (
         <OutputCastPopover
           anchor={triggerRef.current}
           bridge={bridge}

@@ -62,6 +62,7 @@ import { HeaderControlGroup } from '../layout/HeaderControlGroup'
 import { TopEdgeResizeHandle } from '../../shared/TopEdgeResizeHandle/TopEdgeResizeHandle'
 import type { RailTabOption } from '../layout/RailTabs'
 import { ApplicationHeaderControls } from '../layout/ApplicationWorkspaceFrame'
+import { useReactBackgrounded } from './reactBackground'
 import { WorkspaceRail } from '../layout/WorkspaceRail'
 import { RailWindowHeader } from '../layout/RailWindowHeader'
 
@@ -195,6 +196,8 @@ const MAX_LOWER_SURFACE_HEIGHT = 640
 const MIN_STAGE_HEIGHT = 180
 
 export function ReactView({ onOpenMediaManager, onOpenLyricManager, onOpenPresetManager }: ReactViewProps) {
+  // Running hidden on another page to keep a cast alive: the header controls (which belong to the visible page) are not rendered.
+  const backgrounded = useReactBackgrounded()
   useSharedDataActivity('react', ['media', 'audio', 'persistence'])
   const engine   = useSharedAudio()
   const analyser = engine.analyserMaster
@@ -694,7 +697,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager, onOpenPreset
   return (
     <div className="rv-shell rv-shell--floating" data-help-engine={activeReactEngineId} data-stage-focus={stageFocus ? 'true' : undefined}>
       {activeReactEngineId === 'laserDmx' && <LaserDmxRendererNotice />}
-      <ApplicationHeaderControls>
+      {!backgrounded && <ApplicationHeaderControls>
         <div className="vz-header" data-react-header-controls>
           <HeaderControlGroup label="React controls">
             <ReactGlobalOutputControls />
@@ -706,7 +709,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager, onOpenPreset
             status={<ReactHeaderStatusCluster fps={headerFps} frameTimeMs={cinema2FrameTimeMs} qualityTier={headerQualityTier} />}
           />
         </div>
-      </ApplicationHeaderControls>
+      </ApplicationHeaderControls>}
       {trackTimelineOpen
         && trackTimelineAvailability.enabled
         && effectiveTrackAnalysis

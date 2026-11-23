@@ -1,7 +1,8 @@
+import { useReactBackgrounded } from './reactBackground'
 import type { ReactPerformancePad } from './ReactTypes'
 import { PerformancePad } from './controls/PerformancePad'
 import { AppIcon } from '../../shared/icons/AppIcon'
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { DualRailCollapsible } from './DualRailCollapsible'
 import { resolveActivePerformanceActionTarget, useReactStore } from '../../../stores/reactStore'
@@ -133,8 +134,12 @@ export function ReactPerformancePads({ embedded = false, mirror = false, present
     triggerPerformanceAction(action.id)
   }, [target, triggerPerformanceAction])
 
+  // Hidden on another page (keeping a cast alive): the pad hotkeys must not fire from keystrokes meant for the page in front.
+  const backgrounded = useReactBackgrounded()
+  const backgroundedRef = useRef(backgrounded)
+  backgroundedRef.current = backgrounded
   const handleKey = useCallback((event: KeyboardEvent) => {
-    if (isFormFieldKeyboardTarget(event.target) || event.repeat) return
+    if (backgroundedRef.current || isFormFieldKeyboardTarget(event.target) || event.repeat) return
     const route = resolvePerformancePadKeyboardRoute(event.key, contextualActions)
     if (!route) return
     if (route.kind === 'preset' && isPadUsable) {

@@ -95,6 +95,28 @@ describe('cast reconnect', () => {
     expect(isCriticalHealth(health())).toBe(false)
   })
 
+  it('treats a connected cast that simply ends as finished: nothing to repair, and the cast is no longer "in use"', async () => {
+    const start = vi.fn(async () => true)
+    const cast = new CastReconnector({ start })
+    cast.remember(request)
+    cast.observe('connected')
+    expect(health().cast.state).toBe('ok')
+    cast.observe('disconnected')
+    expect(health().cast.state).toBe('idle')
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(start).not.toHaveBeenCalled()
+  })
+
+  it('does not drop a new request when the previous session winds down, nor during a repair', async () => {
+    const cast = new CastReconnector({ start: async () => true })
+    cast.remember(request)
+    cast.observe('disconnecting'); cast.observe('disconnected')   // an older session ending while the new one is starting
+    expect(health().cast.state).toBe('ok')
+    cast.observe('connected'); cast.observe('failed')
+    cast.observe('disconnected')                                   // the repair stops the failed session first
+    expect(health().cast.state).toBe('healing')
+  })
+
   it('retries again when the restarted session fails straight away', async () => {
     const start = vi.fn(async () => true)
     const cast = new CastReconnector({ start })

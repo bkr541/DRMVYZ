@@ -1,3 +1,5 @@
+import { useHealthStore } from '../../stores/healthStore'
+import { ReactViewKeepAlive } from './react/ReactViewKeepAlive'
 import { requestPixGridDeckBuilderOpen } from './react/pixGrid/PixGridDeckBuilderRequest'
 import { selectModelEditorNeedsGuard, useModelEditorStore } from '../../features/models/state/modelEditorStore'
 import { UnsavedModelChangesDialog } from './media/UnsavedModelChangesDialog'
@@ -45,19 +47,23 @@ const LyricManagerView = lazy(() =>
 function ManagedWorkspaceShell({
   appView,
   onAppViewChange,
+  reactHost,
   children,
 }: {
   appView: AppView
   onAppViewChange: (view: AppView) => void
-  children: React.ReactNode
+  /** The React view, hosted here so it can keep running behind another page while a cast is live (see ReactViewKeepAlive). Always the first child, at the same place, on every page. */
+  reactHost?: React.ReactNode
+  children?: React.ReactNode
 }) {
+  const content = <>{reactHost}{appView === 'react' ? null : children}</>
   if (FLOATING_APP_VIEWS[appView]) {
     return (
       <ApplicationWorkspaceFrame
         appView={appView}
         onAppViewChange={onAppViewChange}
       >
-        {children}
+        {content}
       </ApplicationWorkspaceFrame>
     )
   }
@@ -66,7 +72,7 @@ function ManagedWorkspaceShell({
     <div className="az-root">
       <div className="az-shell">
         <VyzualzSidebar appView={appView} onAppViewChange={onAppViewChange} />
-        {children}
+        {content}
       </div>
     </div>
   )
@@ -128,14 +134,17 @@ export function VyzualzView({ initialAppView = DEFAULT_PERFORMANCE_VIEW }: Props
     if (next) commitAppViewChange(next)
   }, [commitAppViewChange])
 
+  const castKeepsReactAlive = useHealthStore(state => state.systems.cast.state === 'ok' || state.systems.cast.state === 'healing')
   const openLyricManager = useCallback((intent: LyricManagerNavigationIntent) => {
     setLyricNavigationIntent(intent)
     requestAppViewChange('lyrics')
   }, [requestAppViewChange])
 
-  if (appView === 'react') {
-    return (
-      <ManagedWorkspaceShell appView={appView} onAppViewChange={requestAppViewChange}>
+  // While a cast is running (or being repaired) the React view stays mounted behind whatever page is open: it owns the visualizer the cast copies, so leaving it ended the cast.
+  // It is unmounted once the cast ends, so nothing keeps rendering for no reason.
+  const reactHost = (appView === 'react' || castKeepsReactAlive)
+    ? (
+      <ReactViewKeepAlive foreground={appView === 'react'}>
         <main className="vz-main" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <LyricRuntimePreviewIndicator />
           <div style={{ flex: 1, overflow: 'hidden' }}>
@@ -150,13 +159,17 @@ export function VyzualzView({ initialAppView = DEFAULT_PERFORMANCE_VIEW }: Props
             </Suspense>
           </div>
         </main>
-      </ManagedWorkspaceShell>
+      </ReactViewKeepAlive>
     )
+    : null
+
+  if (appView === 'react') {
+    return <ManagedWorkspaceShell appView={appView} onAppViewChange={requestAppViewChange} reactHost={reactHost} />
   }
 
   if (appView === 'showManager') {
     return (
-      <ManagedWorkspaceShell appView={appView} onAppViewChange={requestAppViewChange}>
+      <ManagedWorkspaceShell appView={appView} onAppViewChange={requestAppViewChange} reactHost={reactHost}>
         <main className="vz-main" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <LyricRuntimePreviewIndicator />
           <div style={{ flex: 1, overflow: 'hidden' }}>
@@ -172,7 +185,7 @@ export function VyzualzView({ initialAppView = DEFAULT_PERFORMANCE_VIEW }: Props
   }
 
   if (appView === 'performanceManager') {
-    return <ManagedWorkspaceShell appView={appView} onAppViewChange={requestAppViewChange}>
+    return <ManagedWorkspaceShell appView={appView} onAppViewChange={requestAppViewChange} reactHost={reactHost}>
       <Suspense fallback={<WorkspaceLoader label="Performance Manager" />}>
         <NotificationPageProvider value="performance-manager"><PerformanceManagerView /></NotificationPageProvider>
       </Suspense>
@@ -181,7 +194,7 @@ export function VyzualzView({ initialAppView = DEFAULT_PERFORMANCE_VIEW }: Props
 
   if (appView === 'presetManager') {
     return (
-      <ManagedWorkspaceShell appView={appView} onAppViewChange={requestAppViewChange}>
+      <ManagedWorkspaceShell appView={appView} onAppViewChange={requestAppViewChange} reactHost={reactHost}>
         <Suspense fallback={<WorkspaceLoader label="Preset Manager" />}>
           <NotificationPageProvider value="preset-manager">
             <PresetManagerView />
@@ -193,7 +206,7 @@ export function VyzualzView({ initialAppView = DEFAULT_PERFORMANCE_VIEW }: Props
 
   if (appView === 'admin') {
     return (
-      <ManagedWorkspaceShell appView={appView} onAppViewChange={requestAppViewChange}>
+      <ManagedWorkspaceShell appView={appView} onAppViewChange={requestAppViewChange} reactHost={reactHost}>
         <Suspense fallback={<WorkspaceLoader label="Admin" />}>
           <NotificationPageProvider value="admin">
             <AdminView />
@@ -206,7 +219,7 @@ export function VyzualzView({ initialAppView = DEFAULT_PERFORMANCE_VIEW }: Props
   if (appView === 'media') {
     return (
       <>
-        <ManagedWorkspaceShell appView={appView} onAppViewChange={requestAppViewChange}>
+        <ManagedWorkspaceShell appView={appView} onAppViewChange={requestAppViewChange} reactHost={reactHost}>
           <Suspense fallback={<WorkspaceLoader label="Media Manager" />}>
             <NotificationPageProvider value="media-manager">
               <MediaManagerView
@@ -226,7 +239,7 @@ export function VyzualzView({ initialAppView = DEFAULT_PERFORMANCE_VIEW }: Props
 
   return (
     <>
-      <ManagedWorkspaceShell appView={appView} onAppViewChange={requestAppViewChange}>
+      <ManagedWorkspaceShell appView={appView} onAppViewChange={requestAppViewChange} reactHost={reactHost}>
         <Suspense fallback={<WorkspaceLoader label="Lyric Manager" />}>
           <NotificationPageProvider value="lyric-manager">
             <LyricManagerView
