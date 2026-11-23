@@ -1,0 +1,8 @@
+/* Hidden behind another page, the React view shows only its visualizer (the panels are not rendered), which would otherwise grow into the freed space. The visualizer panel keeps the
+   exact size it had on its own page, so the picture sent to the cast does not change shape when the user leaves. */
+.vz-react-host[data-backgrounded='true'][data-stage-locked='true'] .rv-canvas-wrap {
+  box-sizing: border-box;
+  flex: none;
+  width: var(--rv-hidden-stage-width);
+  height: var(--rv-hidden-stage-height);
+}

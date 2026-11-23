@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { isCanvasFramePublisher, notifyCanvasFrameRendered, onCanvasFrameRendered } from './canvasFrameReadiness'
+import { hasCanvasFrameListeners, isCanvasFramePublisher, notifyCanvasFrameRendered, onCanvasFrameRendered } from './canvasFrameReadiness'
 
 const canvas = () => ({}) as HTMLCanvasElement
 
@@ -25,5 +25,14 @@ describe('canvas frame announcements', () => {
     notifyCanvasFrameRendered(c, 1_000)
     expect(isCanvasFramePublisher(c, 250, 1_100)).toBe(true)
     expect(isCanvasFramePublisher(c, 250, 1_400)).toBe(false)   // the renderer stopped (another engine took over): consumers go back to their own timer
+  })
+
+  it('reports whether anything is waiting for a canvas\'s frames, so an idle renderer knows to keep drawing', () => {
+    const c = canvas()
+    expect(hasCanvasFrameListeners(c)).toBe(false)
+    const stop = onCanvasFrameRendered(c, () => {})
+    expect(hasCanvasFrameListeners(c)).toBe(true)
+    stop()
+    expect(hasCanvasFrameListeners(c)).toBe(false)
   })
 })

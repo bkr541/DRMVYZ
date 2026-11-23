@@ -710,7 +710,8 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager, onOpenPreset
           />
         </div>
       </ApplicationHeaderControls>}
-      {trackTimelineOpen
+      {!backgrounded
+        && trackTimelineOpen
         && trackTimelineAvailability.enabled
         && effectiveTrackAnalysis
         && trackTimelineWaveformEntry?.analysis && (
@@ -744,6 +745,8 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager, onOpenPreset
           onToggleCollapsed={() => setLeftCollapsed((v) => !v)}
           className="rw-frame--left"
         >
+          {/* Hidden behind another page to keep a cast alive: only the visualizer runs; the panels are not rendered (see ReactViewKeepAlive). */}
+          {!backgrounded && <>
           <RailWindowHeader
             side="left"
             icon={<AppIcon kind="grid" size={15} color="currentColor" aria-hidden="true" />}
@@ -803,6 +806,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager, onOpenPreset
               </div>
             </section>
           </div>
+          </>}
         </WorkspaceRail>
 
         {/* Center — canvas + pads + track map */}
@@ -939,10 +943,10 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager, onOpenPreset
                 laserDmxEmptyRuntimeShowDirector={activeReactEngineId === 'laserDmx' ? activeLaserDmxEmptyRuntimeShowDirector : null}
               />
             ) : null}
-            {shouldShowPixGridEditorOverlay(activeReactEngineId, pixGridState.authoringOverlayVisible) && (
+            {!backgrounded && shouldShowPixGridEditorOverlay(activeReactEngineId, pixGridState.authoringOverlayVisible) && (
               <PixGridEditorOverlay liveCanvas={pixGridOutputCanvas} />
             )}
-            {showDirectorStageEditorVisible && (
+            {!backgrounded && showDirectorStageEditorVisible && (
               <div className="rv-show-director-stage-overlay" aria-label="Show Director center visualizer editor">
                 <LaserDmxShowDirectorCanvas
                   fixtures={laserDmxShowDirector.fixtures}
@@ -953,8 +957,8 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager, onOpenPreset
                 />
               </div>
             )}
-            {laserDmxAuthoringOverlayVisibility.showBeamMatrixEditor && <LaserDmxBeamMatrixEditorOverlay />}
-            {ReviewNotesScene && (
+            {!backgrounded && laserDmxAuthoringOverlayVisibility.showBeamMatrixEditor && <LaserDmxBeamMatrixEditorOverlay />}
+            {!backgrounded && ReviewNotesScene && (
               <Suspense fallback={null}>
                 <ReviewNotesScene engine={activeReactEngineId} presetId={reviewNotesPresetId} presetName={activeEnginePresetName ?? reviewNotesPresetId ?? ''} getContext={getReviewNotesContext} />
               </Suspense>
@@ -969,7 +973,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager, onOpenPreset
               style={lowerSurfaceHeight != null ? ({ '--rv-lower-surface-height': `${lowerSurfaceHeight}px` } as CSSProperties) : undefined}
               aria-label="Performance timeline workspace"
             >
-              {!lowerWorkspaceCollapsed && !stageFocus && (
+              {!backgrounded && !lowerWorkspaceCollapsed && !stageFocus && (
                 <TopEdgeResizeHandle
                   label="Resize timeline workspace"
                   value={lowerSurfaceHeight ?? DEFAULT_LOWER_SURFACE_HEIGHT}
@@ -991,7 +995,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager, onOpenPreset
                   }
                   onClick={() => setLowerWorkspaceCollapsed((value) => !value)}
                 />
-                <div className="rv-lower-workspace-tabs dv-underline-tabs" role="tablist" aria-label="Timeline surfaces">
+                {!backgrounded && <div className="rv-lower-workspace-tabs dv-underline-tabs" role="tablist" aria-label="Timeline surfaces">
                   {lowerSurfaces.map((surface) => (
                     <span key={surface} className="rv-lower-workspace-tab-wrap">
                       <button
@@ -1008,7 +1012,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager, onOpenPreset
                       </button>
                     </span>
                   ))}
-                </div>
+                </div>}
                 <div className="rv-lower-workspace-actions">
                   <div className="rv-lower-workspace-output-actions">
                     {activeLowerSurface === 'trackMap' && engine.currentTrack != null && (
@@ -1042,6 +1046,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager, onOpenPreset
                 </div>
               </div>
 
+              {!backgrounded && <>
               <div
                 hidden={activeLowerSurface !== 'trackMap' || lowerWorkspaceCollapsed || stageFocus}
                 className="rv-lower-workspace-surface rv-lower-workspace-surface--track-map"
@@ -1079,6 +1084,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager, onOpenPreset
                   <ReactPerformancePads embedded />
                 </div>
               )}
+              </>}
             </section>
           )}
         </div>
@@ -1091,6 +1097,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager, onOpenPreset
           onToggleCollapsed={() => setRightCollapsed((v) => !v)}
           className="rw-frame--right"
         >
+          {!backgrounded && <>
           <RailWindowHeader
             side="right"
             icon={<AppIcon kind="settings" size={15} color="currentColor" aria-hidden="true" />}
@@ -1148,11 +1155,12 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager, onOpenPreset
               />
             )}
           </div>
+          </>}
         </WorkspaceRail>
       </div>
 
       {/* Bottom dock — outside the grid, full width */}
-      <VyzualzAudioDock
+      {!backgrounded && <VyzualzAudioDock
         compact={stageFocus}
         expandable
         unifiedTimeline={
@@ -1176,7 +1184,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager, onOpenPreset
             <TrackTimelineIcon />
           </button>
         )}
-      />
+      />}
     </div>
   )
 }

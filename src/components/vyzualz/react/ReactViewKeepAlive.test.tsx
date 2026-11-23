@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 import React, { act, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ReactViewKeepAlive } from './ReactViewKeepAlive'
 import { useReactBackgrounded } from './reactBackground'
 
@@ -68,6 +68,33 @@ describe('React view keep-alive', () => {
     expect(host().style.display).toBe('contents')
     expect(host().hasAttribute('inert')).toBe(false)
     expect(latestBackgrounded).toBe(false)
+  })
+
+  it('keeps the visualizer panel at the size it had on its own page while hidden, so the cast does not change shape', async () => {
+    class FakeObserver {
+      constructor(private readonly callback: (entries: Array<{ target: Element }>) => void) {}
+      observe(target: Element) { this.callback([{ target }]) }
+      disconnect() {}
+    }
+    const original = globalThis.ResizeObserver
+    globalThis.ResizeObserver = FakeObserver as unknown as typeof ResizeObserver
+    const rect = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+      const size = this.classList.contains('rv-canvas-wrap') ? { width: 717, height: 650 } : { width: 1000, height: 700 }
+      return { ...size, x: 0, y: 0, top: 0, left: 0, right: size.width, bottom: size.height, toJSON() {} } as DOMRect
+    })
+    try {
+      const Stage = () => <main><div className="rv-canvas-wrap" /></main>
+      const App = ({ foreground }: { foreground: boolean }) => <ReactViewKeepAlive foreground={foreground}><Stage /></ReactViewKeepAlive>
+      await act(async () => { root.render(<App foreground />) })
+      const host = () => container.querySelector<HTMLElement>('.vz-react-host')!
+      expect(host().dataset.stageLocked).toBeUndefined()
+      await act(async () => { root.render(<App foreground={false} />) })
+      expect(host().dataset.backgrounded).toBe('true')
+      expect(host().dataset.stageLocked).toBe('true')
+      expect(host().style.getPropertyValue('--rv-hidden-stage-width')).toBe('717px')
+      expect(host().style.getPropertyValue('--rv-hidden-stage-height')).toBe('650px')
+      expect(host().style.width).toBe('1000px')
+    } finally { rect.mockRestore(); globalThis.ResizeObserver = original }
   })
 
   it('is not mounted behind another page when nothing is casting, and goes away when the cast ends', async () => {

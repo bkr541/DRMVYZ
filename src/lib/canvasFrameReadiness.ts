@@ -29,6 +29,12 @@ export function onCanvasFrameRendered(canvas: HTMLCanvasElement, listener: () =>
   return () => { value.listeners.delete(listener) }
 }
 
+/** True while something (a cast relay) is waiting for this canvas's frames. A renderer that stops drawing when idle or paused should keep producing frames while this is true: a WebGL canvas cannot be read back between frames. */
+export function hasCanvasFrameListeners(canvas: HTMLCanvasElement): boolean {
+  const value = rendered.get(canvas)
+  return value != null && value.listeners.size > 0
+}
+
 /** True while the canvas's renderer announces its frames (it did within `withinMs`), so consumers should copy on the announcement instead of on their own timer. */
 export function isCanvasFramePublisher(canvas: HTMLCanvasElement, withinMs = 250, now: number = performance.now()): boolean {
   const value = rendered.get(canvas)

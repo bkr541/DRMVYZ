@@ -6,7 +6,7 @@ Click a tab to select it. Click the selected tab again, double-click a tab, or p
 
 Names and the selected slot persist in localStorage under `drmvyz.layoutLab.tabs.v1`, as `{ version: 1, tabs: [{ id, name }], activeTabId }`. Storage belongs to this browser/application origin; clearing its data removes saved names. If saving fails, Layout Lab displays a session-only message.
 
-The former Preset Cards slot (`layout-lab-tab-02`) was retired when Matte Frame became the [production poster style](react-preset-thumbnails.md). Saved workspaces keep the names and IDs of the remaining slots. The Left nav bar slot (`layout-lab-tab-05`) and its mockups are also retired after promotion to the production sidebar. A workspace last opened on either retired slot defaults to Tab 1.
+The former Preset Cards slot (`layout-lab-tab-02`) was retired when Matte Frame became the [production poster style](react-preset-thumbnails.md). Saved workspaces keep the names and IDs of the remaining slots. The Left nav bar slot (`layout-lab-tab-05`) and its mockups are also retired after promotion to the production sidebar. The Audio Dock slot (`layout-lab-tab-14`) and its mockups are retired. A workspace last opened on a retired slot defaults to Tab 1.
 
 ## Permanent content references
 
@@ -20,24 +20,22 @@ The former Preset Cards slot (`layout-lab-tab-02`) was retired when Matte Frame 
 | Record Listing | `layout-lab-tab-09` | `layout-lab-tab-09-panel` |
 | UI Preview | `layout-lab-tab-12` | `layout-lab-tab-12-panel` |
 | Mobile | `layout-lab-tab-13` | `layout-lab-tab-13-panel` |
-| Audio Dock | `layout-lab-tab-14` | `layout-lab-tab-14-panel` |
 | Live Input | `layout-lab-tab-15` | `layout-lab-tab-15-panel` |
+| Preset Filter | `layout-lab-tab-16` | `layout-lab-tab-16-panel` |
 
 Renaming changes only `name`. Future elements must be associated with these permanent IDs, never a label or a slug derived from a label. Tab wrappers and panels expose `data-layout-lab-tab-id`; each tab's `aria-controls` points to its panel. Panels remain mounted while switching tabs. To locate a renamed study in a later session, read its current label and permanent ID from the DOM or the stored mapping above. This storage schema saves tab metadata, not study data.
 
 The `layoutLab/` directory contains the tab metadata, study components, styles and tests. Other `layout-lab-*.md` documents describe archived studies.
 
-## Audio Dock studies
-
-Slate Rail, Inset Deck, Meter Panel, Split Console, and Signal Glass share one arrangement. The playlist sits beside playback and Add Track to the left of the waveform. Tap Tempo sits inside the BPM readout on the right. Track Input, Live Input, and Demo Signal use the same readout format within each study, with distinct tints and a separate Audio Source button. Each row has an independent sample queue, simulated transport, cue, and tempo controls.
-
-The compact rows use the production dock's typography roles and place volume beside the transport keys. The Rekordbox logo and status sit beside the right-hand tools. The sample queue shows cues and sections, cues only, and no imported data. Layout Lab carries the opener's UI font settings into its popup.
-
-Validation: five focused tab/popup tests, TypeScript and focused ESLint passed. The actual popup browser check verified seven equally sized tabs with shared 11px/700 typography, rename/cancel, focus restoration, saved names and selection after reopening, and permanent panel references. Its screenshot is under ignored `artifacts/layout-lab-tabs/`. No production build was run for this local workspace change.
-
 ## Live Input studies
 
 Level Meter, Frequency Bars, Live Scope, and Meter with Expandable Detail are four static dock mockups. Each shows the selected device, live status, signal display, and source control at compact height. The last study shows the collapsed meter and the expanded spectrum together.
+
+## Preset Filter studies
+
+Five interactive Inspector previews share the React Presets tab’s name search, System and User sources, and two-column Cinema 2.0 posters. Quick Chips select one tag, Inline Dropdowns combine one category with one tag, and Filter Popover applies several tags together. Expandable Facets show match counts alongside categories and tags. Search Tokens accept expressions such as `tag:laser` and `category:architecture` alongside a name.
+
+Each preview uses its own local sample data and state. Category and tag assignments are illustrative.
 
 ## Engine Dropdown and AUTH studies
 

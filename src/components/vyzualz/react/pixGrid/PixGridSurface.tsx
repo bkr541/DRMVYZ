@@ -1,3 +1,4 @@
+import { hasCanvasFrameListeners, notifyCanvasFrameRendered } from '../../../../lib/canvasFrameReadiness'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactPreset, ReactTrackSection } from '../ReactTypes'
 import { useMediaStore } from '../../../../stores/mediaStore'
@@ -104,6 +105,9 @@ function activeDeckSourceId(state: PixGridState, sceneId?: string | null): strin
     .map(resolvePixGridLayerFrameSource)
     .find(source => source.kind === 'deck')?.deckId ?? null
 }
+
+/** How often a watched, otherwise idle PixGrid canvas redraws so the cast keeps receiving frames. */
+const WATCHED_REFRESH_MS = 66
 
 export interface PixGridSurfaceProps {
   analyser: AnalyserNode | null
@@ -1379,6 +1383,8 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
             reactionRuntime: unifiedReactionRuntime,
             deckFrameSource: input.deckFrameSource,
           })
+          // A WebGL canvas can only be read back in the task that drew it: announce the frame so a cast relay copies it now instead of reading a cleared picture later.
+          if (rendered) notifyCanvasFrameRendered(gpuCanvas)
           if (rendered) {
             const gpuDiagnostics = gpuRenderer.diagnostics
             if (latestRuntimeDiagnostics) {
@@ -1515,8 +1521,18 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
       requestRender(true)
     }
 
+    // While a cast relay is watching the GPU canvas, keep producing frames when nothing else would (paused, or no audio playing): the relay can only copy a frame the
+    // renderer announces, and without one the output goes black. Light (about 15 fps); the normal loop takes over as soon as playback is live.
+    let watchTimer: number | null = window.setInterval(() => {
+      if (lifecycle.disposed || !ownership.isCurrent() || animationFrame || activePath !== 'webgl2' || !hasCanvasFrameListeners(gpuCanvas)) return
+      const current = propsRef.current
+      const live = (current.analysisActive ?? current.isPlaying) && !current.isPaused
+      if (!live) requestRender(true)
+    }, WATCHED_REFRESH_MS)
+
     const lifecycle = createPixGridRendererLifecycle(() => {
       mounted = false
+      if (watchTimer !== null) { window.clearInterval(watchTimer); watchTimer = null }
       clearGpuRetry()
       gpuRenderer?.dispose()
       gpuRenderer = null
