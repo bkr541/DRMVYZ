@@ -1,6 +1,6 @@
 /**
- * Auto Performance for presets that run on the shared pattern controller (the Mainframe family and the 3D model previews). It follows BWC's
- * established rules (see Cinema2BwcAutoPerformance) with the two programs supplied by the preset, and owns exactly one thing: which pattern is
+ * Auto Performance for presets that run on the shared pattern controller (the Mainframe family and the 3D model previews). It implements the
+ * rules first written for the BWC preset (since removed) with the two programs supplied by the preset, and owns exactly one thing: which pattern is
  * on stage during a build or a drop. Colours, intensity, speed and the authored Pattern, Pattern Change and Trigger values stay the user's.
  *
  * Precedence: the user's Pattern is the base; the Trigger may advance the base while Pattern Change is on; Auto Performance may then substitute

@@ -2,7 +2,7 @@
 
 Audit of every first-party preset (50 declarations: 4 internal references with no Auto Performance, 4 already migrated, 8 deliberately skipped, 34 to migrate). Produced by reading each manifest and its module code; no preset was changed. The contract is `DRMVYZ_Cinema_2_0_Preset_Creation_Contract.md`.
 
-**Skipped by decision:** War Of Worlds (a preview), Open Decks (a preview, added after the migration plan), the six 3D model previews (Form, Shatter, Dust, Hologram, Slices, Voxel) and BWC (it may be removed). They keep their current Auto Performance unchanged. If BWC is kept, it joins Batch 2 (it uses the Mainframe pattern controller); the previews, if ever wanted, are one code path (`Cinema2ThreeSceneModule`).
+**Skipped by decision:** War Of Worlds (a preview), Open Decks (a preview, added after the migration plan), the six 3D model previews (Form, Shatter, Dust, Hologram, Slices, Voxel) and BWC (since removed). They keep their current Auto Performance unchanged. If BWC is kept, it joins Batch 2 (it uses the Mainframe pattern controller); the previews, if ever wanted, are one code path (`Cinema2ThreeSceneModule`).
 
 ## Findings that affect the plan
 

@@ -41,7 +41,6 @@ import { cinema2ConstellationNativeModuleDefinition } from './Cinema2Constellati
 import { cinema2SixfoldNativeModuleDefinition } from './Cinema2SixfoldNativeModule'
 import { cinema2HypnotizeNativeModuleDefinition } from './Cinema2HypnotizeNativeModule'
 import { cinema2StartersNativeModuleDefinition } from './Cinema2StartersNativeModule'
-import { cinema2BwcNativeModuleDefinition } from './Cinema2BwcNativeModule'
 import { cinema2MarqueeNativeModuleDefinition } from './Cinema2MarqueeNativeModule'
 import { cinema2CanopyNativeModuleDefinition } from './Cinema2CanopyNativeModule'
 import { cinema2VacancyNativeModuleDefinition } from './Cinema2VacancyNativeModule'
@@ -267,11 +266,6 @@ if (!hypnotizeRegistration.ok) {
 const startersRegistration = cinema2NativeModuleRegistry.register(cinema2StartersNativeModuleDefinition)
 if (!startersRegistration.ok) {
   throw new Error(`Cinema 2.0 Starters native module registration failed: ${startersRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
-}
-
-const bwcRegistration = cinema2NativeModuleRegistry.register(cinema2BwcNativeModuleDefinition)
-if (!bwcRegistration.ok) {
-  throw new Error(`Cinema 2.0 BWC native module registration failed: ${bwcRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
 }
 
 const canopyRegistration = cinema2NativeModuleRegistry.register(cinema2CanopyNativeModuleDefinition)

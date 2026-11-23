@@ -138,7 +138,7 @@ It does not substitute a temporary pattern; the UI makes no such promise.
 ## Differences from the plan
 
 - **Camera Motion is a 0–1 amount (default 0 = locked off), not a boolean.** The engine's camera takes a numeric `motionAmount`; a boolean there would be read as "always on". 0 is the same hard lock the plan wanted.
-- **Continuous bands are read from the shared Audio Intelligence frame** (through the shared Mainframe reactivity engine, as BWC and Backstreet do), not routed through manifest `continuous` rules. Events are delivered by manifest choreography cues; the one Auto Performance effect rule is a manifest rule.
+- **Continuous bands are read from the shared Audio Intelligence frame** (through the shared Mainframe reactivity engine, as Backstreet does), not routed through manifest `continuous` rules. Events are delivered by manifest choreography cues; the one Auto Performance effect rule is a manifest rule.
 - **No idle drift.** The plan proposed free-running idle motion; the host freezes visual time with no track, so it could never have run.
 - **Browser capture** is `scripts/cinema2-assets/capture-canopy.mjs` on the Marquee/Mainframe style harness (real runtime, Vite, headless Chrome) rather than a `run-cinema2-canopy-browser.mjs` Playwright suite.
 - **Fit scale** keeps large arrays framed; the plan left over-large arrays to the camera.

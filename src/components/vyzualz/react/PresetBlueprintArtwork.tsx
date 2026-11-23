@@ -14,7 +14,6 @@ export const PRESET_BLUEPRINT_MOTIFS = {
   'drmvyz.cinema2.atl-hoe': ['Tiled marquee', 'Raised letterforms', 'Atlanta skyline', 'Roadside foreground'],
   'drmvyz.cinema2.atmosphere-reference': ['Floating crystal', 'Cracked monoliths', 'Spotlight shafts', 'Wet reflections'],
   'drmvyz.cinema2.blockshift': ['Foreground hollow cubes', 'Suspended cube field', 'LED edges', 'Spatial depth'],
-  'drmvyz.cinema2.bwc': ['Twin conveyors', 'Cans and creatures', 'Energy reactor', 'Industrial hall'],
   'drmvyz.cinema2.canopy': ['Overhead lattice', 'Suspension cables', 'Waterfall rods', 'Light field'],
   'drmvyz.cinema2.cathedral': ['Pointed arches', 'Gothic ribs', 'Volumetric shafts', 'Nave reflections'],
   'drmvyz.cinema2.constellation': ['Faceted elements', 'Depth clusters', 'Drift trails', 'Spatial volume'],
@@ -234,44 +233,6 @@ function Blockshift() {
   </>
 }
 
-function ProductionCan({ x, y, scale, creature = false }: { x: number; y: number; scale: number; creature?: boolean }) {
-  return <g transform={`translate(${x} ${y}) scale(${scale})`}>
-    <ellipse rx="5" ry="2" fill="currentColor" fillOpacity=".065" />
-    <path d="M-5 0V13Q0 17 5 13V0M-5 11Q0 15 5 11" fill="currentColor" fillOpacity=".09" />
-    {creature && <>
-      <circle cx="-2" cy="6" r=".65" /><circle cx="2" cy="6" r=".65" />
-      <path d="M-2 10H2M-5 9-8 12M5 9 8 12M-2 15V19H-5M2 15V19H5" />
-    </>}
-  </g>
-}
-
-function Bwc() {
-  const words = PRESET_BLUEPRINT_MOTIFS['drmvyz.cinema2.bwc']
-  return <>
-    <g data-art-motif={words[3]} transform="rotate(-2 150 70)" opacity=".5">
-      <path d="M0 18 159-4 240 13M0 43 145 15 240 34M0 48 145 20 240 39M0 67 137 38M0 80 137 51M10 45V65M41 39V59M73 33V53M103 27V47" />
-      <path d="M9 11 213-5M42 25 233 3M83 36 240 14M9 13 213-3M42 27 233 5M83 38 240 16M8 77V104M44 66V90M80 56V78M224 30V131M228 29V131" />
-      <path d="M15 23V35Q15 43 28 43H127Q136 43 136 51M19 23V34Q19 39 30 39H129Q140 39 140 51M187 11V27Q187 35 199 35H238M191 11V25Q191 31 201 31H238" />
-    </g>
-    <g data-art-motif={words[0]} transform="rotate(2 151 108)">
-      <path d="M-8 121 143 76 158 82 23 149ZM103 150 167 82 182 83 157 150Z" fill="currentColor" fillOpacity=".045" />
-      <path d="M-8 128 143 80 154 85M113 150 170 86M160 150 182 87M2 111 138 72M2 115 138 76M187 83 218 145M181 83 208 145" opacity=".55" />
-    </g>
-    <g data-art-motif={words[1]} transform="rotate(2 151 108)">
-      {Array.from({ length: 8 }, (_, index) => <ProductionCan key={index} x={15 + index * 17} y={112 - index * 4.7} scale={1.1 - index * .095} />)}
-      {Array.from({ length: 8 }, (_, index) => <ProductionCan key={index} x={141 + index * 4} y={135 - index * 7} scale={1.2 - index * .095} creature />)}
-    </g>
-    <g data-art-motif={words[2]} transform="rotate(-3 163 62)">
-      <circle cx="163" cy="62" r="36" fill="currentColor" fillOpacity=".05" />
-      <circle cx="163" cy="62" r="31" />
-      <circle cx="163" cy="62" r="25" fill="currentColor" fillOpacity=".12" />
-      <path d="M142 37 137 32M132 50 126 48M130 67 123 68M141 86 136 92M160 97V104M181 91 185 97M196 74 203 77M199 53 206 51M186 32 190 27M164 25V18" opacity=".6" />
-      <path d="M143 64Q151 48 161 63T183 61M150 74Q163 81 178 69" opacity=".4" />
-      <circle cx="156" cy="51" r="2" opacity=".4" /><circle cx="174" cy="73" r="2.5" opacity=".4" />
-    </g>
-  </>
-}
-
 function canopyRods() {
   return Array.from({ length: 64 }, (_, index) => {
     const row = Math.floor(index / 8), column = index % 8
@@ -396,7 +357,6 @@ const ILLUSTRATIONS = {
   'drmvyz.cinema2.atl-hoe': AtlHoe,
   'drmvyz.cinema2.atmosphere-reference': Crystalized,
   'drmvyz.cinema2.blockshift': Blockshift,
-  'drmvyz.cinema2.bwc': Bwc,
   'drmvyz.cinema2.canopy': Canopy,
   'drmvyz.cinema2.cathedral': Cathedral,
   'drmvyz.cinema2.constellation': Constellation,
@@ -412,7 +372,6 @@ const ARTWORK_FRAMING = {
   'drmvyz.cinema2.atl-hoe': 'translate(123 86) rotate(-5) scale(1.02) translate(-120 -75)',
   'drmvyz.cinema2.atmosphere-reference': 'translate(117 81) rotate(-7) scale(1.08) translate(-120 -75)',
   'drmvyz.cinema2.blockshift': 'translate(111 81) rotate(-8) scale(1.07) translate(-120 -75)',
-  'drmvyz.cinema2.bwc': 'translate(108 83) rotate(-6) scale(1.08) translate(-120 -75)',
   'drmvyz.cinema2.canopy': 'translate(117 70) rotate(-8) scale(1.08) translate(-120 -75)',
   'drmvyz.cinema2.cathedral': 'translate(109 83) rotate(-7) scale(1.1) translate(-120 -75)',
   'drmvyz.cinema2.constellation': 'translate(102 78) rotate(-13) scale(1.03) translate(-120 -75)',

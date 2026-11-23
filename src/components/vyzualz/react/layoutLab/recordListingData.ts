@@ -5,7 +5,6 @@ import { PRESET_MANAGER_PRESETS } from '../../presetManager/presetManagerCatalog
 const RECORDS = [
   { id: 'drmvyz.cinema2.reactor', name: 'Reactor' },
   { id: 'drmvyz.cinema2.glassfall', name: 'GLASSFALL' },
-  { id: 'drmvyz.cinema2.bwc', name: 'BWC' },
   { id: 'drmvyz.cinema2.chamber', name: 'CHAMBER' },
 ]
 export const LIBRARY_PRESETS = ['Afterhours', 'Ancient Machine', 'ATL HOE', 'Crystalized'].map(name => PRESET_MANAGER_PRESETS.find(preset => preset.name === name)!).filter(Boolean)
@@ -16,4 +15,4 @@ export const TRACKS: SavedAudioTrack[] = ['Afterhours', 'Midnight Circuit', 'Sig
   transcriptionAssets: null, genre: 'Electronic', bpm: 124 + index * 2,
   musicalKey: ['Am', 'Fm', 'Cm', 'Dm'][index], createdAt: '2026-01-01T00:00:00Z',
 }))
-export const MODELS = [RECORDS[3], { ...RECORDS[0], name: 'Reactor Assembly' }, { id: 'drmvyz.cinema2.crate-moire-orb', name: 'Moire Orb' }, { ...RECORDS[1], name: 'Glass Sculpture' }]
+export const MODELS = [RECORDS[2], { ...RECORDS[0], name: 'Reactor Assembly' }, { id: 'drmvyz.cinema2.crate-moire-orb', name: 'Moire Orb' }, { ...RECORDS[1], name: 'Glass Sculpture' }]

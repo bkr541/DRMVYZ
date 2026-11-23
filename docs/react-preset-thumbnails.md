@@ -8,7 +8,7 @@ Posters use generated production frames or a supplied renderer backdrop without 
 
 The blueprint catalog below documents the separate illustrations used by those other consumers.
 
-All 37 public Cinema 2.0 presets use composed SVG drawings, built from four defining motifs per preset. The original ten are:
+All 36 public Cinema 2.0 presets use composed SVG drawings, built from four defining motifs per preset. The original ten were (BWC has since been removed, leaving nine):
 
 | Preset | Four primary motifs |
 | --- | --- |
@@ -17,7 +17,6 @@ All 37 public Cinema 2.0 presets use composed SVG drawings, built from four defi
 | ATL HOE | Tiled marquee · raised letterforms · Atlanta skyline · roadside foreground |
 | Crystalized | Floating crystal · cracked monoliths · spotlight shafts · wet reflections |
 | Blockshift | Foreground hollow cubes · suspended cube field · LED edges · spatial depth |
-| BWC | Twin conveyors · cans and creatures · energy reactor · industrial hall |
 | Canopy | Overhead lattice · suspension cables · Waterfall rods · light field |
 | Cathedral | Pointed arches · Gothic ribs · volumetric shafts · nave reflections |
 | Constellation | Faceted elements · depth clusters · drift trails · spatial volume |
@@ -89,4 +88,4 @@ ATL HOE’s towers are individually stretched upward from their bases, with smal
 | war-of-worlds | Tripod invaders · Articulated legs · City blocks · Searchlight beams |
 | open-decks | Raised screen housing · Jog wheel ring · Pad buttons · Side shoulders |
 
-`node scripts/verify-preset-thumbnails.mjs` derives the review catalog from the public native registry and checks all 37 unique IDs at 240px and 160px widths. It verifies four motif groups per scene, the shared Engine line weight, translucent surfaces, clipping, title typography and centering, and unchanged background lighting. Review sheets are written to `/tmp/drmvyz-preset-review/cinema2-catalog-1.png` and `cinema2-catalog-2.png`.
+`node scripts/verify-preset-thumbnails.mjs` derives the review catalog from the public native registry and checks all 36 unique IDs at 240px and 160px widths. It verifies four motif groups per scene, the shared Engine line weight, translucent surfaces, clipping, title typography and centering, and unchanged background lighting. Review sheets are written to `/tmp/drmvyz-preset-review/cinema2-catalog-1.png` and `cinema2-catalog-2.png`.

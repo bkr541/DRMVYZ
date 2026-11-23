@@ -26,7 +26,7 @@ changed or rerun. No production build was run for this ordering-only change.
 
 ## Inventory
 
-**Already had the toggle (each keeps its own implementation, unchanged):** Submerge, Orbital, PSYLO, Glassfall, Ifrit, Inertia, Trippy Bro, Switch It, Nightshift, Blockshift, Atmosphere Reference (Crystalized), Afterhours, HUM:N, SAY IT, Depth, Conduit, ATL HOE, Marquee, Echoform, Echowave, Cathedral, Ancient Machine, Event Horizon, Constellation, Sixfold, Hypnotize, Starters, BWC, Canopy, Vacancy, Elevhate, Neon Forest.
+**Already had the toggle (each keeps its own implementation, unchanged):** Submerge, Orbital, PSYLO, Glassfall, Ifrit, Inertia, Trippy Bro, Switch It, Nightshift, Blockshift, Atmosphere Reference (Crystalized), Afterhours, HUM:N, SAY IT, Depth, Conduit, ATL HOE, Marquee, Echoform, Echowave, Cathedral, Ancient Machine, Event Horizon, Constellation, Sixfold, Hypnotize, Starters, Canopy, Vacancy, Elevhate, Neon Forest.
 
 **Received the toggle with this work (off by default):** Mainframe, Backstreet, the six 3D model previews (Form, Shatter, Dust, Hologram, Slices, Voxel), Electric Storm, Reactor, Threshold, GO-TO, Reliquary, War Of Worlds.
 
@@ -34,7 +34,7 @@ changed or rerun. No production build was run for this ordering-only change.
 
 ### Pattern substitution (Mainframe, Backstreet, the 3D model previews)
 
-These presets run on the shared pattern controller (`Cinema2MainframePatternController`) with Pattern, Pattern Change and Trigger. Reference implementation: **BWC** (`Cinema2BwcAutoPerformance`). The shared `Cinema2PatternAutoPerformance` generalises its rules with two programs supplied by the preset:
+These presets run on the shared pattern controller (`Cinema2MainframePatternController`) with Pattern, Pattern Change and Trigger. The shared `Cinema2PatternAutoPerformance` implements the rules (originally written for the BWC preset, since removed) with two programs supplied by the preset:
 
 | Preset | Build program | Drop program |
 | --- | --- | --- |
