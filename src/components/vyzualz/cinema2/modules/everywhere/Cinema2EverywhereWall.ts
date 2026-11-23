@@ -40,10 +40,10 @@ export interface EverywhereLook {
   drop: number
 }
 
-interface Cabinet {
+export interface EverywhereCabinet {
   x: number; y: number; z: number; scale: number; roll: number; yaw: number; seed: number
 }
-const MAIN: readonly Cabinet[] = [
+const MAIN: readonly EverywhereCabinet[] = [
   {x:0,y:-.20,z:.87,scale:2.75,roll:-.064,yaw:0,seed:.34},
   {x:-4.27,y:2.05,z:.51,scale:1.91,roll:-.24,yaw:.17,seed:.22},
   {x:4.50,y:1.96,z:.40,scale:1.92,roll:.25,yaw:-.18,seed:.78},
@@ -51,7 +51,7 @@ const MAIN: readonly Cabinet[] = [
   {x:4.67,y:-2.52,z:.48,scale:1.79,roll:.26,yaw:-.18,seed:.84},
 ]
 
-function cabinetMap(): Cabinet[] {
+export function buildEverywhereCabinetLayout(): EverywhereCabinet[] {
   const sets = [...MAIN]
   const random = (i: number) => (Math.sin(i*127.1+17.7)*43758.5453)%1 + (Math.sin(i*127.1+17.7)<0 ? 1 : 0)
   for (let row=0;row<7;row++) {
@@ -79,7 +79,7 @@ function roundedPath(path: Three.Path, x: number, y: number, w: number, h: numbe
   path.lineTo(x,y+r); path.quadraticCurveTo(x,y,x+r,y); path.closePath()
 }
 
-export function everywhereScreenGain(item: Readonly<Cabinet>, index: number, look: Readonly<EverywhereLook>): number {
+export function everywhereScreenGain(item: Readonly<EverywhereCabinet>, index: number, look: Readonly<EverywhereLook>): number {
   const phase = look.phase
   const gaussian = (distance: number, width: number) => Math.exp(-((distance / width) ** 2))
   const radius = Math.hypot(item.x,item.y*.87)
@@ -103,7 +103,7 @@ type Merge = typeof import('three/examples/jsm/utils/BufferGeometryUtils.js')['m
 
 export class Cinema2EverywhereWall {
   private readonly group: Three.Group
-  private readonly sets = cabinetMap()
+  private readonly sets = buildEverywhereCabinetLayout()
   private readonly instances: Three.InstancedMesh[] = []
   private readonly screen: Three.InstancedMesh
   private readonly screenMaterial: Three.ShaderMaterial
@@ -177,7 +177,8 @@ export class Cinema2EverywhereWall {
     this.eyeTexture = new T.Texture()
     this.mediaTexture = new T.Texture()
     this.screenMaterial = new T.ShaderMaterial({
-      vertexShader:EVERYWHERE_SCREEN_VERTEX,fragmentShader:EVERYWHERE_SCREEN_FRAGMENT,toneMapped:false,
+      vertexShader:EVERYWHERE_SCREEN_VERTEX,fragmentShader:EVERYWHERE_SCREEN_FRAGMENT,
+      toneMapped:false,transparent:true,depthWrite:true,
       uniforms:{
         uEye:{value:this.eyeTexture},uMedia:{value:this.mediaTexture},uHasEye:{value:0},uHasMedia:{value:0},
         uLayout:{value:0},uMediaAspect:{value:1},uMediaFit:{value:1},uMediaOpacity:{value:1},uMediaRotation:{value:0},
@@ -198,7 +199,7 @@ export class Cinema2EverywhereWall {
     this.warmLight = new T.DirectionalLight(0xffffff,3.1)
     this.warmLight.position.set(6,1.7,1.65)
     this.group.add(this.coolLight,this.warmLight,new T.HemisphereLight(0xc5d4da,0x100b0c,.37))
-    this.place(.67)
+    this.place(.84)
   }
 
   apply(look: Readonly<EverywhereLook>, eye: WebGLTexture | null, media: Readonly<Cinema2ManagedMediaResource> | null) {

@@ -99,6 +99,8 @@
     "test:e2e:cinema2-afterhours": "node scripts/run-cinema2-afterhours-browser.mjs",
     "test:e2e:cinema2-ifrit": "node scripts/run-cinema2-ifrit-browser.mjs",
     "test:e2e:cinema2-vacancy": "node scripts/run-cinema2-vacancy-browser.mjs",
+    "test:cinema2-everywhere": "vitest run src/components/vyzualz/cinema2/__tests__/Cinema2EverywherePreset.test.ts",
+    "test:e2e:cinema2-everywhere": "node scripts/verify-cinema2-everywhere.mjs",
     "test:e2e:cinema2-atl-hoe": "node scripts/run-cinema2-atl-hoe-browser.mjs",
     "visual:render-upgrade": "node scripts/cinema2-assets/accept-render-upgrade.mjs",
     "visual:compare-captures": "node scripts/cinema2-assets/compare-capture-runs.mjs",

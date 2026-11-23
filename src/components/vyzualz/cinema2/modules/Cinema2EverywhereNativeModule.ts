@@ -19,7 +19,8 @@ const DEFAULT_LOOK: Readonly<EverywhereLook> = {
 }
 type Merge = typeof import('three/examples/jsm/utils/BufferGeometryUtils.js')['mergeGeometries']
 
-class EverywherePerformance {
+/** Runtime-only musical state. Authored values are owned by Cinema2ParameterState. */
+export class Cinema2EverywherePerformance {
   private readonly clock = new Cinema2BeatClock()
   private readonly policy = new Cinema2PatternControlResolver<Cinema2AfterhoursTriggerId>()
   private readonly controller: Cinema2MainframePatternController<EverywherePattern>
@@ -39,7 +40,8 @@ class EverywherePerformance {
   update({frame,parameters}: Cinema2ModuleUpdateContext) {
     const time = frame.transport?.timeSec ?? frame.audio?.upstream.timeSec ?? frame.elapsedTimeSec
     const identity = JSON.stringify([frame.contextGeneration,frame.transport?.trackId,frame.audio?.upstream.sourceId,
-      frame.audio?.upstream.publisherId,frame.audio?.discontinuity.generation,frame.audio?.upstream.analysisRevision])
+      frame.audio?.upstream.publisherId,frame.audio?.discontinuity.generation,frame.audio?.upstream.analysisRevision,
+      frame.audio?.upstream.timelineRevision])
     const reset = identity!==this.identity || (this.lastTime!=null && (time<this.lastTime-.035 || time-this.lastTime>Math.max(1,frame.deltaTimeSec*6)))
     if (reset) {
       this.clock.reset(); this.policy.reset(); this.controller.reset()
@@ -95,7 +97,7 @@ class EverywherePerformance {
 export const cinema2EverywhereNativeModuleDefinition: Readonly<Cinema2ModuleTypeDefinition> = {
   typeId:CINEMA2_EVERYWHERE_MODULE_TYPE_ID,version:1,
   create(context: Cinema2ModuleCreateContext) {
-    const performance=new EverywherePerformance(index=>context.randomness.sample('everywhere-pattern-order',index))
+    const performance=new Cinema2EverywherePerformance(index=>context.randomness.sample('everywhere-pattern-order',index))
     let setup: {library:Cinema2ThreeLibrary;merge:Merge} | null = null
     let eye: Cinema2TextureHandle | null = null
     let wall: Cinema2EverywhereWall | null = null

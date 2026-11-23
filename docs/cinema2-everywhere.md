@@ -33,3 +33,11 @@ BPM Sync uses the shared beat clock when host and preset sync are enabled. With 
 The shared Mood Conductor increases Screen Coverage by up to 0.18 on activity and reduces it by up to 0.47 in silence (baseline 0.86, range 0.18–1). Brightness can gain 0.20 on activity (baseline 1.06, range 0–1.8). Peak adds up to 0.22 Bloom, silence subtracts up to 0.20 (baseline 0.34, range 0–1.2). All drives scale with Motion Amount. Shared Audio Intelligence publishes signals, Visual Director publishes build/drop meaning, Choreography routes bounded contributions, and the native renderer consumes them. Parameter State and the workspace session own authored state.
 
 The left Source tab uses the existing Cinema 2.0 Media Source panel and Media Library browser. It accepts images, video and SVG. Selecting an item replaces the default eye feed through the existing media slot. The same media library supports search, collection/library navigation, and opening Media Manager. The native CRT material borrows the shared GPU texture and preserves its presentation. With an unassigned or cleared slot the packaged eye feed returns.
+
+## Continuation / integration details
+
+EVERYWHERE owns its own stable scene graph and capabilities. It does not inherit the Corridor preset's schema or rendering descriptions. The manifest IDs (`everywhere-root`, `everywhere-passage`, `everywhere-aim`, `everywhere-world`, `everywhere-camera`, `everywhere-cassettes`) are unchanged for saved presets.
+
+The CRT screen shader alpha-blends transparent image/video pixels over the packaged eye, respecting the standard Source panel opacity and fit. Glass edges are anti-aliased with transparent depth-tested planes. The performance controller treats audio timeline revisions as discontinuities, resetting its phase and transient pattern state without editing saved controls.
+
+The preset stays classified as a **reference** in the first-party catalog until a human approves its actual visual output. The existing `scripts/verify-cinema2-everywhere.mjs` is the intended browser/WebGL acceptance check; run `npm run test:cinema2-everywhere` and `npm run test:e2e:cinema2-everywhere` in the application repository with installed dependencies and a Playwright browser. Its output captures the six screen programs, playback and drop behavior, portrait framing, Inspector and Source library selection.

@@ -42,7 +42,9 @@ void main() {
   vec2 p = vUv*2.0-1.0;
   vec2 edge = abs(p)-vec2(.81,.79);
   float mask = length(max(edge,0.0))+min(max(edge.x,edge.y),0.0)-.19;
-  if (mask > .004) discard;
+  // Anti-alias the glass edge instead of discarding entire pixels at oblique angles.
+  float glassAlpha = 1.0 - smoothstep(-.008, max(.005, fwidth(mask)), mask);
+  if (glassAlpha <= .001) discard;
   float seed = vProgram.y;
   float r2 = dot(p,p);
   vec2 curved = .5 + p*(.50 - .048*r2);
@@ -70,8 +72,9 @@ void main() {
     source = mat2(c,-s,s,c)*q + uMediaTransform.xy;
     vec4 media = texture2D(uMedia,clamp(vec2(source.x,1.0-source.y),0.0,1.0));
     float inside = step(0.0,source.x)*step(source.x,1.0)*step(0.0,source.y)*step(source.y,1.0);
-    // Contain leaves dark letterbox bars and authored opacity crossfades with the idle picture.
-    picture = mix(picture,linearColor(media.rgb)*inside*media.a,uMediaOpacity);
+    // The media alpha and fit mask determine the blend. Transparent pixels must
+    // reveal the original eye feed, not punch black holes into it.
+    picture = mix(picture,linearColor(media.rgb),clamp(media.a * inside * uMediaOpacity,0.0,1.0));
   }
   float edgeFalloff = 1.0-.26*dot(p*vec2(.82,1.0),p*vec2(.82,1.0));
   float rim = exp(-abs(mask+.055)*28.0);
@@ -79,6 +82,6 @@ void main() {
   vec3 glass = (uCool*(.21*glint + rim*.043*max(0.0,-p.x)) + uWarm * rim*.067*max(0.0,p.x))*uLook.w;
   float breakUp = 1.0-uReaction.y*line*.38;
   vec3 rgb = picture*uTint*detail*edgeFalloff*breakUp*uLook.y*vProgram.x + glass;
-  gl_FragColor=vec4(rgb,1.0);
+  gl_FragColor=vec4(rgb,glassAlpha);
   #include <colorspace_fragment>
 }`

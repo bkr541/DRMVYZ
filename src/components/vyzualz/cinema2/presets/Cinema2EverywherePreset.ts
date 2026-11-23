@@ -1,16 +1,19 @@
 import {
+  CINEMA2_NATIVE_PRESET_SCHEMA_ID, CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   cinema2NamespacedId, cinema2Ref, cinema2StableId,
   type Cinema2ChoreographyActionId, type Cinema2ChoreographyContinuousSourcePath,
   type Cinema2ChoreographyRuleId, type Cinema2ChoreographyRuleManifest, type Cinema2DesignParentGroup,
-  type Cinema2EffectId, type Cinema2MediaSlotId, type Cinema2NativePresetManifest, type Cinema2ParameterId,
-  type Cinema2ParameterManifest, type Cinema2PresetId,
+  type Cinema2CameraId, type Cinema2EffectId, type Cinema2LayerId, type Cinema2MediaSlotId, type Cinema2ModuleId,
+  type Cinema2NativePresetManifest, type Cinema2ParameterId, type Cinema2ParameterManifest, type Cinema2PresetId,
+  type Cinema2SceneNodeId,
 } from '../contracts/Cinema2NativePresetManifest'
+import { CINEMA2_CINEMATIC_FINISH_EFFECT_TYPE_ID } from '../effects/Cinema2CinematicFinishEffect'
+import { CINEMA2_HDR_BLOOM_EFFECT_TYPE_ID } from '../effects/Cinema2HdrBloomEffect'
 import { CINEMA2_EVERYWHERE_MODULE_TYPE_ID } from '../modules/Cinema2EverywhereNativeModule'
 import { EVERYWHERE_COLORS, EVERYWHERE_PATTERNS } from '../modules/everywhere/Cinema2EverywhereWall'
 import { CINEMA2_QUALITY_MODE_PARAMETER } from '../parameters/Cinema2PerformanceParameters'
 import { CINEMA2_AFTERHOURS_TRIGGER_OPTIONS } from './Cinema2AfterhoursPreset'
 import { cinema2AutoTargets } from './Cinema2AutoPerformanceAuthoring'
-import { CINEMA2_CORRIDOR_PRESET_MANIFEST } from './Cinema2CorridorPreset'
 import { withCinema2MoodDrives } from './Cinema2MoodConductorAuthoring'
 
 export const CINEMA2_EVERYWHERE_PRESET_ID = cinema2NamespacedId<Cinema2PresetId>('drmvyz.cinema2.everywhere')
@@ -20,9 +23,15 @@ const ref = (name: string) => cinema2Ref(id(name))
 const auto = ref('auto-performance')
 const bloom = cinema2StableId<Cinema2EffectId>('everywhere-bloom')
 
-const template = JSON.parse(JSON.stringify(CINEMA2_CORRIDOR_PRESET_MANIFEST)
-  .replaceAll('corridor','everywhere').replaceAll('Corridor','EVERYWHERE')) as Cinema2NativePresetManifest
-const moduleId = template.modules![0]!.id
+// All IDs are explicit to keep saved parameter values and scene bindings stable.
+// The preset must not inherit Corridor's graph, capabilities or effect defaults.
+const root = cinema2StableId<Cinema2SceneNodeId>('everywhere-root')
+const wall = cinema2StableId<Cinema2SceneNodeId>('everywhere-passage')
+const aim = cinema2StableId<Cinema2SceneNodeId>('everywhere-aim')
+const layer = cinema2StableId<Cinema2LayerId>('everywhere-world')
+const camera = cinema2StableId<Cinema2CameraId>('everywhere-camera')
+const moduleId = cinema2StableId<Cinema2ModuleId>('everywhere-cassettes')
+const finish = cinema2StableId<Cinema2EffectId>('everywhere-finish')
 
 const base = (name: string,label: string,parent: Cinema2DesignParentGroup,group: string,order: number,description: string) => ({
   id:id(name),label,description,section:'Design' as const,designParentGroup:parent,group,order,
@@ -79,37 +88,67 @@ const event = (name: 'kick'|'snare'|'drop',hold: number,release: number):Cinema2
 })
 
 const manifest: Cinema2NativePresetManifest = {
-  ...template,id:CINEMA2_EVERYWHERE_PRESET_ID,revision:1,
-  metadata:{name:'EVERYWHERE',author:'STAGELESS',category:'Architecture',
-    description:'An edge-to-edge wall of modeled CRTs with an eye feed, replaceable user media and six musical screen programs.',
-    tags:['3d','televisions','media-wall','screens','audio-reactive']},
-  capabilities:[
-    ...template.capabilities!,
-    ...(['media.image','media.video','media.svg'] as const).map(media=>({id:media,requirement:'optional' as const,purpose:'Shared Image, Video and SVG Media Library assignment.'})),
+  schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
+  schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
+  id: CINEMA2_EVERYWHERE_PRESET_ID,
+  revision: 1,
+  metadata: {
+    name: 'EVERYWHERE', author: 'STAGELESS', category: 'Architecture',
+    description: 'An edge-to-edge wall of modeled CRTs with an eye feed, replaceable user media and six musical screen programs.',
+    tags: ['3d', 'televisions', 'media-wall', 'screens', 'audio-reactive'],
+  },
+  capabilities: [
+    { id: 'render.webgl2', requirement: 'required', purpose: 'Instanced 3D television cabinets and per-screen CRT shaders.' },
+    { id: 'render.depth', requirement: 'required', purpose: 'Correct occlusion between the staggered television cabinets.' },
+    { id: 'camera.world', requirement: 'required', purpose: 'Frontal perspective with depth and parallax across the CRT wall.' },
+    { id: 'scene.3d', requirement: 'required', purpose: 'Independent cabinets, screen surfaces and colored rim lights.' },
+    { id: 'audio.bands', requirement: 'optional', purpose: 'Bass and highs drive screen displacement and interference.' },
+    { id: 'audio.features', requirement: 'optional', purpose: 'Energy and vocal presence control exposure and hero focus.' },
+    { id: 'music.beat', requirement: 'optional', purpose: 'Beat-synchronized channel patterns and screen motion.' },
+    { id: 'music.rhythm-events', requirement: 'optional', purpose: 'Kick and snare accents on the television screens.' },
+    { id: 'music.drop', requirement: 'optional', purpose: 'Drop events send a radial burst across the wall.' },
+    { id: 'visual-director.significance', requirement: 'optional', purpose: 'Build sections pull attention toward the center screen.' },
+    { id: 'media.image', requirement: 'optional', purpose: 'Images from the shared Media Library.' },
+    { id: 'media.video', requirement: 'optional', purpose: 'Video from the shared Media Library.' },
+    { id: 'media.svg', requirement: 'optional', purpose: 'SVG from the shared Media Library.' },
   ],
   parameters,
-  mediaSlots:[{id:CINEMA2_EVERYWHERE_MEDIA_SLOT,label:'Screen Media',accepts:['image','video','svg']}],
-  modules:[{id:moduleId,typeId:CINEMA2_EVERYWHERE_MODULE_TYPE_ID,version:1,
-    parameters:{...defaults,energy:0,bass:0,high:0,vocal:0,build:0,kick:0,snare:0,drop:0},
-    parameterBindings:bindings,media:{screenMedia:cinema2Ref(CINEMA2_EVERYWHERE_MEDIA_SLOT)},
+  mediaSlots: [{ id: CINEMA2_EVERYWHERE_MEDIA_SLOT, label: 'Screen Media', accepts: ['image', 'video', 'svg'] }],
+  modules: [{
+    id: moduleId, typeId: CINEMA2_EVERYWHERE_MODULE_TYPE_ID, version: 1,
+    parameters: { ...defaults, energy: 0, bass: 0, high: 0, vocal: 0, build: 0, kick: 0, snare: 0, drop: 0 },
+    parameterBindings: bindings, media: { screenMedia: cinema2Ref(CINEMA2_EVERYWHERE_MEDIA_SLOT) },
   }],
-  cameras:template.cameras!.map(camera=>({...camera,label:'Front Wall',fovDegrees:40,minAspect:1.50,near:.2,far:40,
-    transform:{position:[0,0,10.8]},rig:{kind:'static'}})),
-  scene:{...template.scene!,nodes:template.scene!.nodes.map(node=>node.id==='everywhere-aim'
-    ? {...node,transform:{position:[0,0,0]}}
-    : node)},
-  environment:{backgroundColor:EVERYWHERE_COLORS.background,exposure:1,controls:{backgroundColor:ref('background')}},
-  effects:template.effects!.map(effect=>effect.id===bloom ? {...effect,parameterBindings:{intensity:ref('bloom')},
-    parameters:{...effect.parameters,threshold:1.25,intensity:.34,spread:.32,tint:[1,.91,.81,1]}}
-    : {...effect,parameters:{...effect.parameters,mix:.46,exposure:1.02,contrast:1.08,vignette:.22}}),
-  choreography:{tempoSyncParameter:ref('bpm-sync'),rules:[
-    route('energy','audio.features.overallEnergy','audio.features',145),
-    route('bass','audio.bands.bass','audio.bands',95),
-    route('high','audio.bands.high','audio.bands',70),
-    route('vocal','audio.features.vocalPresence','audio.features',207),
-    route('build','director.build','visual-director.significance',140),
-    event('kick',.04,.24),event('snare',.018,.21),event('drop',.17,1.02),
-  ]},
+  scene: {
+    nodes: [
+      { id: root, kind: 'group', coordinateSpace: 'world' },
+      { id: wall, kind: 'module', parent: cinema2Ref(root), module: cinema2Ref(moduleId) },
+      { id: aim, kind: 'group', parent: cinema2Ref(root), transform: { position: [0, 0, 0] } },
+    ],
+    roots: [cinema2Ref(root)],
+  },
+  layers: [{ id: layer, label: 'CRT Wall', source: cinema2Ref(root), role: 'world', depthPolicy: 'read-write', order: 0 }],
+  cameras: [{
+    id: camera, label: 'Front Wall', projection: 'perspective', fovDegrees: 40,
+    minAspect: 1.5, near: 0.2, far: 40, transform: { position: [0, 0, 10.8] },
+    targetNode: cinema2Ref(aim), rig: { kind: 'static' },
+  }],
+  environment: { backgroundColor: EVERYWHERE_COLORS.background, exposure: 1, controls: { backgroundColor: ref('background') } },
+  effects: [
+    { id: bloom, typeId: CINEMA2_HDR_BLOOM_EFFECT_TYPE_ID, version: 1, enabled: true, order: 0, scope: 'output',
+      parameters: { mix: 1, threshold: 1.25, knee: 0.29, intensity: 0.34, spread: 0.32, levels: 5, clampMax: 12, tint: [1, 0.91, 0.81, 1] },
+      parameterBindings: { intensity: ref('bloom') } },
+    { id: finish, typeId: CINEMA2_CINEMATIC_FINISH_EFFECT_TYPE_ID, version: 1, enabled: true, order: 1, scope: 'output',
+      parameters: { mix: 0.46, exposure: 1.02, contrast: 1.08, saturation: 1.05, vignette: 0.22, grain: 0, aberration: 0 } },
+  ],
+  choreography: { tempoSyncParameter: ref('bpm-sync'), rules: [
+    route('energy', 'audio.features.overallEnergy', 'audio.features', 145),
+    route('bass', 'audio.bands.bass', 'audio.bands', 95),
+    route('high', 'audio.bands.high', 'audio.bands', 70),
+    route('vocal', 'audio.features.vocalPresence', 'audio.features', 207),
+    route('build', 'director.build', 'visual-director.significance', 140),
+    event('kick', 0.04, 0.24), event('snare', 0.018, 0.21), event('drop', 0.17, 1.02),
+  ] },
 }
 
 export const CINEMA2_EVERYWHERE_PRESET_MANIFEST = withCinema2MoodDrives(manifest,{
