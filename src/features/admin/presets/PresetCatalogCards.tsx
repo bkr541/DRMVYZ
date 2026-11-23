@@ -1,7 +1,7 @@
 import { AppIcon } from '../../../components/shared/icons/AppIcon'
-import { PresetLibraryArtwork, presetArtworkBackdrop } from '../../../components/vyzualz/presetManager/PresetLibraryCard'
+import { presetArtworkBackdrop } from '../../../components/vyzualz/presetManager/PresetLibraryCard'
 import type { PresetManagerRecord } from '../../../components/vyzualz/presetManager/presetManagerCatalog'
-import { ReactPresetCard } from '../../../components/vyzualz/react/ReactPresetCard'
+import { ReactPresetArtwork, ReactPresetCard } from '../../../components/vyzualz/react/ReactPresetCard'
 import { STATUS_LABELS, type AdminPreset } from './presetAdmin'
 
 /** The status as a small chip, in the status's own colour (and always in words, never colour alone). */
@@ -50,25 +50,30 @@ export function AdminPresetTile({ preset, shown, active, checked, changed, onSel
   )
 }
 
-/** The compact row: Preset Manager's own library card (artwork on the right, name, engine) with the status beside the engine and a select button. */
-export function AdminPresetRow({ preset, shown, active, checked, changed, onSelect, onToggleChecked }: CardProps) {
+/**
+ * A preset as a table row, like a user in the User Accounts table: the first cell is the round select button for the bulk selection, then the preset's
+ * artwork and name ("Modified" while it has unsaved changes), its engine, category and status. Clicking anywhere on the row opens it in the detail panel.
+ */
+export function AdminPresetTableRow({ preset, shown, active, checked, changed, onSelect, onToggleChecked }: CardProps) {
   const record = shown.record
   return (
-    <article className={`pmv-card adm-row${active ? ' is-active' : ''}`} data-checked={checked || undefined} data-status={preset.status ?? 'unset'} data-preset-id={preset.record.id}>
-      <button className="pmv-card-main" type="button" onClick={onSelect} aria-label={`Select ${shown.name}`} aria-pressed={active}>
-        <PresetLibraryArtwork preset={record} className="pmv-thumbnail" />
-        <span className="pmv-card-copy">
-          <strong>{shown.name}{changed ? <span className="adm-edited" title="Has changes that are not saved yet"> •</span> : null}</strong>
-          <span className="pmv-card-meta">
-            <span className="pmv-card-type">{record.engineName}</span>
-            <StatusBadge status={preset.status} />
-          </span>
-        </span>
-      </button>
-      <button className={`vz-media-star${checked ? ' vz-media-star--active' : ''}`} type="button" aria-pressed={checked} onClick={onToggleChecked}
-        aria-label={`${checked ? 'Deselect' : 'Select'} ${shown.name} for bulk actions`} title={checked ? 'Remove from the selection' : 'Add to the selection'}>
-        <AppIcon kind={checked ? 'check' : 'plus'} size={13} color="currentColor" />
-      </button>
-    </article>
+    <tr className={active ? 'is-selected' : undefined} data-checked={checked || undefined} data-status={preset.status ?? 'unset'} data-preset-id={preset.record.id} onClick={onSelect}>
+      <td className="adm-cell-check">
+        <button className="adm-check" type="button" aria-pressed={checked} onClick={event => { event.stopPropagation(); onToggleChecked() }}
+          aria-label={`${checked ? 'Deselect' : 'Select'} ${shown.name} for bulk actions`} title={checked ? 'Remove from the selection' : 'Add to the selection'}>
+          <AppIcon kind={checked ? 'check' : 'plus'} size={13} color="currentColor" />
+        </button>
+      </td>
+      <td>
+        <button type="button" className="adm-row-button" aria-pressed={active} aria-label={`Select ${shown.name}`} onClick={event => { event.stopPropagation(); onSelect() }}>
+          <ReactPresetArtwork appearance="frame" id={record.sourceId} backdrop={presetArtworkBackdrop(record)} className="adm-thumb" />
+          <span className="adm-row-name">{shown.name}</span>
+          {changed && <span className="adm-modified" title="Has changes that are not saved yet">Modified</span>}
+        </button>
+      </td>
+      <td>{record.engineName}</td>
+      <td className="adm-ellipsis" title={preset.category}>{shown.record.category}</td>
+      <td><StatusBadge status={preset.status} /></td>
+    </tr>
   )
 }

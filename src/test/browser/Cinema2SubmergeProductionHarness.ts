@@ -2,6 +2,8 @@
 import { Cinema2Runtime } from '../../components/vyzualz/cinema2/runtime/Cinema2Runtime'
 import { CINEMA2_ORBITAL_PRESET_ID } from '../../components/vyzualz/cinema2/presets/Cinema2OrbitalPreset'
 import { CINEMA2_SUBMERGE_PRESET_ID } from '../../components/vyzualz/cinema2/presets/Cinema2SubmergePreset'
+import { CINEMA2_LIVEWIRE_PRESET_ID } from '../../components/vyzualz/cinema2/presets/Cinema2LivewirePreset'
+import { setAutoPerformanceUserDefault } from '../../lib/autoPerformanceDefault'
 import { Cinema2AudioIntelligenceBridge } from '../../components/vyzualz/cinema2/audio/Cinema2AudioIntelligenceBridge'
 import type { Cinema2ParameterId, Cinema2JsonValue } from '../../components/vyzualz/cinema2/contracts/Cinema2NativePresetManifest'
 import { DEFAULT_MI_FRAME } from '../../features/musicIntelligence/constants'
@@ -9,20 +11,26 @@ import { nightshiftMusicFixture, type NightshiftFixtureOptions } from '../suppor
 
 const canvas = document.querySelector<HTMLCanvasElement>('canvas')!
 const query = new URLSearchParams(location.search)
-const orbital = query.get('preset') === 'orbital'
-const slug = orbital ? 'orbital' : 'submerge'
+const presets = { orbital: CINEMA2_ORBITAL_PRESET_ID, submerge: CINEMA2_SUBMERGE_PRESET_ID, livewire: CINEMA2_LIVEWIRE_PRESET_ID }
+const slug = query.get('preset') === 'livewire' ? 'livewire' : query.get('preset') === 'orbital' ? 'orbital' : 'submerge'
+if (slug === 'livewire') setAutoPerformanceUserDefault(query.get('auto') === 'on')
 const quality = query.get('quality') === 'low' ? 'low' : query.get('quality') === 'medium' ? 'medium' : 'high'
 let timestampMs = 0, publication = 0, nextFrameId = 0
 const queuedFrames = new Map<number, FrameRequestCallback>()
-let music: Partial<NightshiftFixtureOptions> & { active?: boolean; paused?: boolean; bpm?: number } = {}
+let music: Partial<NightshiftFixtureOptions> & { active?: boolean; paused?: boolean } = {}
 let musicAnchor = 0, anchorTimestamp = 0
 const musicTime = () => musicAnchor + (music.paused ? 0 : (timestampMs - anchorTimestamp) / 1000)
 const bridge = new Cinema2AudioIntelligenceBridge({
-  getFrame: () => music.active ? nightshiftMusicFixture({ ...music, frameId: ++publication, timeSec: musicTime(), advanceBeatGrid: true }) : DEFAULT_MI_FRAME,
+  getFrame: () => {
+    publication += 1
+    return music.active
+      ? nightshiftMusicFixture({ ...music, frameId: music.frameId ?? publication, timeSec: musicTime(), advanceBeatGrid: true })
+      : DEFAULT_MI_FRAME
+  },
   getPublicationMeta: () => ({ sequence: publication, publisherId: `${slug}-production-review`, kind: 'frame', publishedAtMs: timestampMs }),
 })
 const created = Cinema2Runtime.create(canvas, {
-  presetId: orbital ? CINEMA2_ORBITAL_PRESET_ID : CINEMA2_SUBMERGE_PRESET_ID, renderQuality: quality, diagnosticsEnabled: true,
+  presetId: presets[slug], renderQuality: quality, diagnosticsEnabled: true,
   randomness: { mode: 'deterministic', seed: `${slug}-review` }, audioIntelligenceBridge: bridge,
   requestAnimationFrame(callback) {
     const id = ++nextFrameId
@@ -75,7 +83,7 @@ const api = {
   },
   async advanceBy(seconds: number) { await advance(seconds); return status() },
   async setMusic(next: typeof music, eventDelaySec?: number) {
-    musicAnchor = musicTime(); anchorTimestamp = timestampMs; music = { ...music, ...next }
+    musicAnchor = musicTime(); anchorTimestamp = timestampMs; music = { ...music, frameId: undefined, ...next }
     if (eventDelaySec !== undefined) music.eventTime = musicAnchor + eventDelaySec
     await settle(3); return status()
   },
@@ -103,5 +111,5 @@ const api = {
   },
   status,
 }
-Object.assign(window, { [orbital ? '__orbital' : '__submerge']: api })
+Object.assign(window, { [`__${slug}`]: api })
 addEventListener('beforeunload', () => runtime.dispose(), { once: true })

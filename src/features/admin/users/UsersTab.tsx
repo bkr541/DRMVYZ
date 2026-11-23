@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { LibrarySearchRow } from '../../../components/vyzualz/react/controls/LibrarySearchRow'
-import { DreamVizTextInput } from '../../../components/vyzualz/react/controls/DreamVizTextInput'
+import { DatePicker } from '../../../components/shared/DatePicker'
 import { NoticeCard } from '../../../components/vyzualz/react/controls/NoticeCard'
 import { Collapsible, TextInputRow } from '../../../components/vyzualz/react/ReactControlRows'
 import { formatDate, formatDateTime } from '../formatting'
@@ -78,8 +78,8 @@ export function UsersTab() {
       <section className="adm-main" aria-label="Registered users">
         <div className="adm-toolbar">
           <LibrarySearchRow value={query} onChange={setQuery} placeholder="Search name or email" label="Search users" clearable className="adm-search" />
-          <label className="adm-date"><span>Registered from</span><DreamVizTextInput type="date" value={from} max={to || undefined} onChange={event => setFrom(event.target.value)} aria-label="Registered from" /></label>
-          <label className="adm-date"><span>to</span><DreamVizTextInput type="date" value={to} min={from || undefined} onChange={event => setTo(event.target.value)} aria-label="Registered to" /></label>
+          <div className="adm-date"><span id="adm-registered-from-label">Registered from</span><DatePicker value={from} max={to || undefined} onChange={setFrom} ariaLabelledBy="adm-registered-from-label" placeholder="Any date" size="dense" className="adm-date-picker" /></div>
+          <div className="adm-date"><span id="adm-registered-to-label">to</span><DatePicker value={to} min={from || undefined} onChange={setTo} ariaLabelledBy="adm-registered-to-label" placeholder="Any date" size="dense" menuAlign="end" className="adm-date-picker" /></div>
           <span className="adm-count" role="status" aria-live="polite">
             <strong>{users.length.toLocaleString()}</strong> registered{visible.length !== users.length ? ` · ${visible.length.toLocaleString()} shown` : ''}
           </span>

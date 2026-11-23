@@ -7,6 +7,7 @@ import { CARBON_GLYPHS, type CarbonGlyphKind } from './carbonGlyphs'
 const DRAWINGS = {
   clearAll: ['M4 6h24M4 14h14M4 22h10', 'M21 19l8 8M29 19l-8 8'],
   clock: ['M16 3a13 13 0 1 0 0 26 13 13 0 1 0 0-26', 'M16 8v8l5 3'],
+  calendar: ['M4 7h24v21H4ZM4 13h24M10 3v6M22 3v6', 'M9 18h3M15 18h3M21 18h3M9 23h3M15 23h3'],
   audioTrack: [
     'M10 4H4.25v26.5h23.5V4H22M10 1.5h12V6H10Z',
     'M16 22V10c2.5 3 7.5 3 7.5 7.5 0 1.5-1.4 2.6-3.1 3.2 3.3-3-1.5-5.7-4.4-6.1M16 18h-2.7a5 5 0 0 0-5 5c0 2 1.5 3.4 3.4 3.4 2.4 0 4.3-2 4.3-4.4',

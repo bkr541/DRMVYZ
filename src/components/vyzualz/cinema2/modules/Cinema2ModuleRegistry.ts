@@ -9,6 +9,7 @@ import { cinema2OpenDecksClubModuleDefinition } from './Cinema2OpenDecksClubModu
 import { cinema2NeonForestNativeModuleDefinition } from './Cinema2NeonForestNativeModule'
 import { cinema2OrbitalNativeModuleDefinition } from './Cinema2OrbitalNativeModule'
 import { cinema2SubmergeNativeModuleDefinition } from './Cinema2SubmergeNativeModule'
+import { cinema2LivewireNativeModuleDefinition } from './Cinema2LivewireNativeModule'
 import { cinema2PsyloNativeModuleDefinition } from './Cinema2PsyloNativeModule'
 import { cinema2GlassfallNativeModule } from './glassfall/Cinema2GlassfallNativeModule'
 import { cinema2SwitchItNativeModuleDefinition } from './switchIt/Cinema2SwitchItPhase1Module'
@@ -196,6 +197,8 @@ const orbitalRegistration = cinema2NativeModuleRegistry.register(cinema2OrbitalN
 if (!orbitalRegistration.ok) throw new Error('Cinema 2.0 ORBITAL module registration failed.')
 const submergeRegistration = cinema2NativeModuleRegistry.register(cinema2SubmergeNativeModuleDefinition)
 if (!submergeRegistration.ok) throw new Error('Cinema 2.0 SUBMERGE module registration failed.')
+const livewireRegistration = cinema2NativeModuleRegistry.register(cinema2LivewireNativeModuleDefinition)
+if (!livewireRegistration.ok) throw new Error('Cinema 2.0 LIVEWIRE module registration failed.')
 const sayItRegistration = cinema2NativeModuleRegistry.register(cinema2SayItNativeModuleDefinition)
 if (!sayItRegistration.ok) {
   throw new Error(`Cinema 2.0 SAY IT native module registration failed: ${sayItRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)

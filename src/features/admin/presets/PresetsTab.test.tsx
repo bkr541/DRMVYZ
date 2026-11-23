@@ -112,9 +112,12 @@ describe('Admin Preset Catalog inside the real Admin page', () => {
     expect(q('[data-preset-id="cinema2:charlie"]')!.getAttribute('data-status')).toBe('unset')
   })
 
-  it('keeps the same three windows on the Packs tab, with the same tabs, search row and header', async () => {
+  it('lays the Presets tab out like User Accounts, and keeps the three windows on the Packs tab, with the same tabs, search row and header', async () => {
     const windows = () => qa('.adm-pane:not([hidden]) .pmv-content > .fw-surface').length
-    expect(windows()).toBeGreaterThanOrEqual(3)
+    expect(q('.adm-pane:not([hidden]) .adm-split--catalog > .adm-main')).not.toBeNull()
+    expect(q('.adm-pane:not([hidden]) .adm-split--catalog > .adm-detail')).not.toBeNull()
+    expect(windows()).toBe(0)
+    expect(qa('.adm-pane:not([hidden]) > .adm-pc > [role="tablist"] [role="tab"]').map(tab => tab.textContent)).toEqual(['Presets', 'Packs'])
     await click(qa('.adm-pane:not([hidden]) [role="tab"]').find(tab => tab.textContent === 'Packs')!)
     expect(q('.adm-pane:not([hidden]) [aria-label="Preset packs"]')).not.toBeNull()
     expect(windows()).toBeGreaterThanOrEqual(3)
@@ -122,7 +125,7 @@ describe('Admin Preset Catalog inside the real Admin page', () => {
     expect(qa('.adm-pane:not([hidden]) .rw-frame--left [role="tab"]').map(tab => tab.textContent)).toEqual(['Presets', 'Packs'])
     expect(q('.adm-pane:not([hidden]) .adm-browser .vz-md-search-row')).not.toBeNull()
     // The old two-column pack layout is gone.
-    expect(q('.adm-split')).toBeNull()
+    expect(q('.adm-pane:not([hidden]) .adm-split')).toBeNull()
     expect(qa('.adm-pane:not([hidden]) .adm-card').map(card => card.textContent)).toEqual([expect.stringContaining('Starters')])
   })
 

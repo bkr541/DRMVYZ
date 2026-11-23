@@ -21,6 +21,7 @@
 .adm-filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; }
 .adm-filters .rv-ctrl-row { min-width: 128px; }
 .adm-date { display: flex; align-items: center; gap: 6px; white-space: nowrap; color: var(--color-text-muted, rgba(196, 212, 220, 0.66)); font: var(--type-field-label); }
+.adm-date .adm-date-picker { width: 140px; }
 .adm-count { margin-left: auto; color: var(--color-text-muted, rgba(196, 212, 220, 0.66)); font: var(--type-field-value); white-space: nowrap; }
 .adm-count strong { color: var(--color-text-strong, #e8f4f8); }
 
@@ -107,7 +108,7 @@
 .adm-list-head .adm-count { margin-left: 0; }
 .adm-list-head .adm-link:disabled { opacity: 0.4; cursor: default; }
 .adm-list { flex: 1; min-height: 0; padding: 0 12px 12px; }
-.adm-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.adm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
 .adm-tile { min-width: 0; }
 .adm-tile .rv-preset-card-shell { height: 100%; }
 /* The status is the poster's chip, in the status's colour; a card in the bulk selection carries a cyan edge and its round button lights. */
@@ -137,7 +138,7 @@
 /* Centre window. */
 .adm-stage-empty { align-items: center; justify-content: center; }
 .adm-stage-preview { overflow: auto; }
-.adm-preview-visual { position: relative; flex: 1 1 260px; min-height: 220px; border-radius: var(--radius-group, 8px); overflow: hidden; background: #020506; }
+.adm-preview-visual { position: relative; flex: 0 0 auto; aspect-ratio: 16 / 9; border-radius: var(--radius-group, 8px); overflow: hidden; background: #020506; }
 .adm-preview-visual .rv-preset-spotlight-thumb--frame { position: absolute; inset: 0; width: 100%; height: 100%; }
 .adm-preview-visual .rv-preset-blueprint-image { object-fit: cover; }
 .pmv-preview-live { position: absolute; inset: 0; }
@@ -166,7 +167,33 @@
 .adm-inspector-notice:empty { display: none; }
 .adm-inspector-empty { padding: 16px 12px; }
 
-@media (max-width: 900px) { .adm-pc > .pmv-content { grid-template-columns: minmax(0, 1fr); } .adm-pc .pmv-stage { display: none; } }
+/* Presets tab: the User Accounts layout (table on the left, the open preset on the right). */
+.adm-pc > .adm-subtabs { padding: 8px 16px 0; max-width: 300px; }
+.adm-split--catalog { grid-template-columns: minmax(0, 1fr) 420px; }
+.adm-split--catalog .adm-toolbar { gap: 12px; }
+.adm-split--catalog .adm-filter-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 0; }
+.adm-split--catalog .adm-status-chips { padding: 0; }
+.adm-status-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 12px; flex: 0 0 auto; }
+.adm-status-row .adm-link:disabled { opacity: 0.4; cursor: default; }
+.adm-split--catalog .adm-list { padding: 0; }
+.adm-split--catalog .adm-bulk { border: 1px solid var(--color-border-subtle, rgba(154, 178, 188, 0.18)); border-radius: var(--radius-group, 8px); }
+.adm-preset-table td { vertical-align: middle; }
+.adm-preset-table .adm-cell-check { width: 40px; padding-inline: 8px 0; }
+.adm-preset-table tbody tr[data-checked] { box-shadow: inset 3px 0 0 var(--color-primary, #4ac7db); }
+.adm-check { all: unset; box-sizing: border-box; display: grid; place-items: center; width: 22px; height: 22px; border: 1px solid var(--color-border-subtle, rgba(154, 178, 188, 0.3)); border-radius: 999px; color: var(--color-text-muted, rgba(196, 212, 220, 0.66)); cursor: pointer; }
+.adm-check:hover { border-color: var(--color-primary, #4ac7db); color: var(--color-text-strong, #e8f4f8); }
+.adm-check[aria-pressed='true'] { background: var(--color-primary, #4ac7db); border-color: var(--color-primary, #4ac7db); color: var(--color-text-on-primary, #081014); }
+.adm-check:focus-visible { outline: 2px solid var(--color-primary, #4ac7db); outline-offset: 2px; }
+.adm-thumb.rv-preset-spotlight-thumb { position: relative; flex: 0 0 auto; width: 56px; height: 32px; border-radius: 4px; overflow: hidden; background: #020506; }
+.adm-thumb .rv-preset-blueprint-image { object-fit: cover; }
+.adm-row-name { overflow: hidden; text-overflow: ellipsis; }
+.adm-modified { padding: 0 6px; border: 1px solid currentColor; border-radius: 999px; color: var(--adm-draft); font: var(--type-record-meta); text-transform: uppercase; letter-spacing: 0.06em; }
+.adm-visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.adm-summary { display: grid; gap: 12px; padding: 12px; }
+.adm-detail--preset > .adm-inspector-notice { position: sticky; top: 0; z-index: 3; padding: 8px 12px; background: var(--color-panel-alt, #0b1115); }
+.adm-detail--preset .adm-inspector-body { flex: 0 0 auto; }
+
+@media (max-width: 900px) { .adm-pc > .pmv-content { grid-template-columns: minmax(0, 1fr); } .adm-pc .pmv-stage { display: none; } .adm-split--catalog { grid-template-columns: minmax(0, 1fr); } .adm-split--catalog .adm-filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
 /* Packs tab */
 .adm-browser > .adm-new-pack { flex: 0 0 auto; max-width: none; padding: 10px 12px 0; }

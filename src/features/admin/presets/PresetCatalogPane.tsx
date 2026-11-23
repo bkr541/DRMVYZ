@@ -2,18 +2,17 @@ import { useCallback, useMemo, useState, type KeyboardEvent, type ReactNode } fr
 import { AppIcon } from '../../../components/shared/icons/AppIcon'
 import { HeaderActionIcon } from '../../../components/vyzualz/layout/HeaderActionIcon'
 import { HeaderIconKey } from '../../../components/vyzualz/layout/HeaderIconKey'
-import { RailWindowHeader } from '../../../components/vyzualz/layout/RailWindowHeader'
-import { WorkspaceRail } from '../../../components/vyzualz/layout/WorkspaceRail'
+import { WorkspaceSurface } from '../../../components/vyzualz/layout/FloatingWorkspace'
 import { ConfirmDialog } from '../../../components/vyzualz/react/controls/ConfirmDialog'
 import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
 import { LibraryViewToggle, type LibraryView } from '../../../components/vyzualz/react/controls/LibraryViewToggle'
-import { PresetSearchRow } from '../../../components/vyzualz/react/controls/PresetSearchRow'
+import { LibrarySearchRow } from '../../../components/vyzualz/react/controls/LibrarySearchRow'
 import { UnderlineDropdown } from '../../../components/vyzualz/react/controls/UnderlineDropdown'
 import type { PresetMetadataRow } from '../../presetCatalog/presetMetadata'
 import { AdminHeaderActions } from '../AdminHeaderActions'
-import { AdminPresetRow, AdminPresetTile, type ShownPreset } from './PresetCatalogCards'
+import { AdminPresetTableRow, AdminPresetTile, type ShownPreset } from './PresetCatalogCards'
 import { InspectorNotice, PresetCatalogInspector } from './PresetCatalogInspector'
-import { PresetCatalogStage } from './PresetCatalogStage'
+import { PresetCatalogSummary } from './PresetCatalogSummary'
 import {
   ALL, NO_PACK, STATUS_LABELS, STATUS_ORDER, currentEdit, filterAdminPresets, isEditChanged, parseTags, rowFromEdit, rowWithStatus, sortAdminPresets, statusCounts, validateEdit,
   type AdminPreset, type CatalogPack, type PresetEdit, type PresetFilter, type PresetSortKey, type PublicationStatus,
@@ -46,16 +45,15 @@ interface PendingConfirm { status: PublicationStatus; targets: readonly AdminPre
 const errorText = (reason: unknown) => (reason instanceof Error ? reason.message : 'That did not work.')
 
 /**
- * The Preset Catalog: the same three windows as Preset Manager. The library (left) shows every shipped preset as a card with its artwork and status, with
- * search, filters, status chips, a grid or list view and a multi-select with bulk Publish, Draft and Archive; the preview (centre) shows the selected preset
- * and how users will see it; the inspector (right) edits it. Edits are kept as drafts per preset until saved, so the admin can move around and push
- * everything at once from the header.
+ * The Preset Catalog, laid out like the User Accounts tab: a table of every shipped preset on the left (search, filters, status chips, a table or a poster
+ * grid, and a multi-select with bulk Publish, Draft and Archive) and, on the right, the open preset: its thumbnail and facts, then its editable details.
+ * Edits are kept as drafts per preset until saved, so the admin can move around and push everything at once from the header.
  */
 export function PresetCatalogPane({ presets, packs, section, active = true, onSave, onSaveMany, onAddToPack, onRemoveFromPack }: Props) {
   const [filter, setFilter] = useState<PresetFilter>({ query: '', engine: ALL, category: ALL, packId: ALL, status: ALL })
   const [sort, setSort] = useState<PresetSortKey>('name')
-  const [view, setView] = useState<LibraryView>('grid')
-  // Opens on the first preset (by name), so the preview and the inspector are never empty on arrival.
+  const [view, setView] = useState<LibraryView>('list')
+  // Opens on the first preset (by name), so the detail panel is never empty on arrival.
   const [selectedId, setSelectedId] = useState<string | null>(() => sortAdminPresets(presets, 'name')[0]?.record.id ?? null)
   const [checked, setChecked] = useState<ReadonlySet<string>>(() => new Set())
   const [drafts, setDrafts] = useState<Readonly<Record<string, PresetEdit>>>({})
@@ -63,8 +61,6 @@ export function PresetCatalogPane({ presets, packs, section, active = true, onSa
   const [notice, setNotice] = useState<string | null>(null)
   const [saved, setSaved] = useState<string | null>(null)
   const [confirm, setConfirm] = useState<PendingConfirm | null>(null)
-  const [leftCollapsed, setLeftCollapsed] = useState(false)
-  const [rightCollapsed, setRightCollapsed] = useState(false)
   const patchFilter = (value: Partial<PresetFilter>) => setFilter(current => ({ ...current, ...value }))
 
   const engines = useMemo(() => [...new Set(presets.map(preset => preset.record.engineName))].sort(), [presets])
@@ -159,28 +155,31 @@ export function PresetCatalogPane({ presets, packs, section, active = true, onSa
   const publishCount = targets.length
 
   return (
-    <section className="pmv-workspace adm-pc" aria-label="Preset catalog" onKeyDown={onRootKeyDown}>
+    <WorkspaceSurface className="adm-surface adm-pc" role="region" aria-label="Preset catalog" onKeyDown={onRootKeyDown}>
       {active && <AdminHeaderActions>
         <HeaderIconKey label={`Save changes${changedPresets.length > 0 ? ` (${changedPresets.length})` : ''}`} icon={<HeaderActionIcon action="save" />} disabled={busy || changedPresets.length === 0} onClick={() => void saveAll()} />
         <HeaderIconKey label={publishCount > 1 ? `Publish ${publishCount} presets` : 'Publish preset'} icon={<AppIcon kind="upload" size={16} color="currentColor" aria-hidden="true" />} disabled={busy || publishCount === 0} onClick={() => requestStatus(targets, 'published')} />
         <HeaderIconKey label="Reset to shipped" title="Remove every saved change to the open preset and show what the app ships" icon={<HeaderActionIcon action="restore" />} disabled={busy || !selected?.row} onClick={resetSelectedToShipped} />
         <HeaderIconKey label="Discard unsaved changes" icon={<HeaderActionIcon action="reset" />} danger disabled={busy || changedPresets.length === 0} onClick={discardAll} />
       </AdminHeaderActions>}
-      <div className="vz-content pmv-content adm-pc-content" data-left-collapsed={leftCollapsed ? 'true' : 'false'} data-right-collapsed={rightCollapsed ? 'true' : 'false'}>
-        <WorkspaceRail side="left" label="Preset Catalog" collapsed={leftCollapsed} onToggleCollapsed={() => setLeftCollapsed(value => !value)} className="rw-frame--left fw-surface">
-          <RailWindowHeader side="left" icon={<AppIcon kind="layers" size={15} color="currentColor" aria-hidden="true" />} label="Preset Catalog" />
-          <div className="vz-panel vz-media-browser vz-media-browser--manager pmv-browser adm-browser">
-            {section}
-            <PresetSearchRow query={filter.query} onQueryChange={value => patchFilter({ query: value })} className="pmv-search" trailing={<LibraryViewToggle view={view} onChange={setView} />} />
-            <div className="adm-filter-grid">
-              <UnderlineDropdown id="adm-engine" value={filter.engine} onChange={value => patchFilter({ engine: value })} ariaLabel="Filter by engine" menuLabel="Engine" title="Engine" size="dense" menuWidth={190} showDescriptions={false}
-                options={[{ value: ALL, label: 'All Engines' }, ...engines.map(engine => ({ value: engine, label: engine }))]} />
-              <UnderlineDropdown id="adm-category" value={filter.category} onChange={value => patchFilter({ category: value })} ariaLabel="Filter by category" menuLabel="Category" title="Category" size="dense" menuWidth={190} showDescriptions={false}
-                options={[{ value: ALL, label: 'All Categories' }, ...categories.map(category => ({ value: category, label: category }))]} />
-              <UnderlineDropdown id="adm-pack" value={filter.packId} onChange={value => patchFilter({ packId: value })} ariaLabel="Filter by pack" menuLabel="Pack" title="Pack" size="dense" menuWidth={190} showDescriptions={false}
-                options={[{ value: ALL, label: 'All Packs' }, { value: NO_PACK, label: 'No Pack' }, ...packs.map(pack => ({ value: pack.id, label: pack.name }))]} />
-              <UnderlineDropdown id="adm-sort" value={sort} onChange={value => setSort(value as PresetSortKey)} ariaLabel="Sort presets" menuLabel="Sort" title="Sort" size="dense" menuWidth={190} showDescriptions={false} options={SORTS} />
-            </div>
+      {section}
+      <div className="adm-split adm-split--catalog">
+        <section className="adm-main adm-browser" aria-label="Presets">
+          <div className="adm-toolbar">
+            <LibrarySearchRow value={filter.query} onChange={value => patchFilter({ query: value })} placeholder="Search presets" label="Search presets" clearable className="adm-search" />
+            <span className="adm-count" role="status" aria-live="polite"><strong>{visible.length.toLocaleString()}</strong> of {presets.length.toLocaleString()} presets</span>
+            <LibraryViewToggle view={view} onChange={setView} />
+          </div>
+          <div className="adm-filter-grid">
+            <UnderlineDropdown id="adm-engine" value={filter.engine} onChange={value => patchFilter({ engine: value })} ariaLabel="Filter by engine" menuLabel="Engine" title="Engine" size="dense" menuWidth={190} showDescriptions={false}
+              options={[{ value: ALL, label: 'All Engines' }, ...engines.map(engine => ({ value: engine, label: engine }))]} />
+            <UnderlineDropdown id="adm-category" value={filter.category} onChange={value => patchFilter({ category: value })} ariaLabel="Filter by category" menuLabel="Category" title="Category" size="dense" menuWidth={190} showDescriptions={false}
+              options={[{ value: ALL, label: 'All Categories' }, ...categories.map(category => ({ value: category, label: category }))]} />
+            <UnderlineDropdown id="adm-pack" value={filter.packId} onChange={value => patchFilter({ packId: value })} ariaLabel="Filter by pack" menuLabel="Pack" title="Pack" size="dense" menuWidth={190} showDescriptions={false}
+              options={[{ value: ALL, label: 'All Packs' }, { value: NO_PACK, label: 'No Pack' }, ...packs.map(pack => ({ value: pack.id, label: pack.name }))]} />
+            <UnderlineDropdown id="adm-sort" value={sort} onChange={value => setSort(value as PresetSortKey)} ariaLabel="Sort presets" menuLabel="Sort" title="Sort" size="dense" menuWidth={190} showDescriptions={false} options={SORTS} />
+          </div>
+          <div className="adm-status-row">
             <div className="adm-status-chips" role="group" aria-label="Filter by status">
               {STATUS_CHIPS.map(chip => (
                 <button key={chip.value} type="button" className="adm-status-chip" data-status={chip.value} aria-pressed={filter.status === chip.value} onClick={() => patchFilter({ status: chip.value })}>
@@ -188,47 +187,46 @@ export function PresetCatalogPane({ presets, packs, section, active = true, onSa
                 </button>
               ))}
             </div>
-            <div className="adm-list-head">
-              <span className="adm-count" role="status" aria-live="polite"><strong>{visible.length.toLocaleString()}</strong> of {presets.length.toLocaleString()} presets</span>
-              <button type="button" className="adm-link" disabled={visible.length === 0}
-                onClick={() => setChecked(current => { const next = new Set(current); for (const preset of visible) { if (allVisibleChecked) next.delete(preset.record.id); else next.add(preset.record.id) } return next })}>
-                {allVisibleChecked ? 'Clear selection' : 'Select all shown'}
-              </button>
-            </div>
-            <div className="vz-media-scroll pmv-list adm-list" aria-live="polite" onKeyDown={moveSelection}>
-              {visible.length === 0 ? <div className="pmv-empty">No presets match.</div> : view === 'grid'
-                ? <div className="adm-grid">{visible.map(preset => <AdminPresetTile key={preset.record.id} {...cardProps(preset)} />)}</div>
-                : <div className="pmv-card-list">{visible.map(preset => <AdminPresetRow key={preset.record.id} {...cardProps(preset)} />)}</div>}
-            </div>
-            {checkedPresets.length > 0 && (
-              <div className="adm-bulk" role="region" aria-label="Bulk actions">
-                <span className="adm-bulk-count"><strong>{checkedPresets.length}</strong> selected <button type="button" className="adm-link" onClick={() => setChecked(new Set())}>Clear</button></span>
-                <IconChipButton tone="primary" disabled={busy} onClick={() => requestStatus(checkedPresets, 'published')}>Publish</IconChipButton>
-                <IconChipButton disabled={busy} onClick={() => requestStatus(checkedPresets, 'designing')}>Designing</IconChipButton>
-                <IconChipButton disabled={busy} onClick={() => requestStatus(checkedPresets, 'draft')}>Draft</IconChipButton>
-                <IconChipButton disabled={busy} onClick={() => requestStatus(checkedPresets, 'archived')}>Archive</IconChipButton>
-              </div>
-            )}
+            <button type="button" className="adm-link" disabled={visible.length === 0}
+              onClick={() => setChecked(current => { const next = new Set(current); for (const preset of visible) { if (allVisibleChecked) next.delete(preset.record.id); else next.add(preset.record.id) } return next })}>
+              {allVisibleChecked ? 'Clear selection' : 'Select all shown'}
+            </button>
           </div>
-        </WorkspaceRail>
-
-        <PresetCatalogStage preset={selected} shown={selected ? shownFor(selected) : null} packs={packs} changed={selected ? changedIds.has(selected.record.id) : false} />
-
-        <WorkspaceRail side="right" label="Preset Inspector" collapsed={rightCollapsed} onToggleCollapsed={() => setRightCollapsed(value => !value)} className="rw-frame--right pmv-inspector fw-surface">
-          <RailWindowHeader side="right" icon={<AppIcon kind="settings" size={15} color="currentColor" aria-hidden="true" />} label="Inspector" />
+          <div className="adm-table-wrap adm-list" aria-live="polite" onKeyDown={moveSelection}>
+            {visible.length === 0 ? <div className="pmv-empty">No presets match.</div> : view === 'grid'
+              ? <div className="adm-grid">{visible.map(preset => <AdminPresetTile key={preset.record.id} {...cardProps(preset)} />)}</div>
+              : (
+                <table className="adm-table adm-preset-table">
+                  <thead>
+                    <tr><th scope="col" className="adm-cell-check"><span className="adm-visually-hidden">Select</span></th><th scope="col">Preset</th><th scope="col">Engine</th><th scope="col">Category</th><th scope="col">Status</th></tr>
+                  </thead>
+                  <tbody>{visible.map(preset => <AdminPresetTableRow key={preset.record.id} {...cardProps(preset)} />)}</tbody>
+                </table>
+              )}
+          </div>
+          {checkedPresets.length > 0 && (
+            <div className="adm-bulk" role="region" aria-label="Bulk actions">
+              <span className="adm-bulk-count"><strong>{checkedPresets.length}</strong> selected <button type="button" className="adm-link" onClick={() => setChecked(new Set())}>Clear</button></span>
+              <IconChipButton tone="primary" disabled={busy} onClick={() => requestStatus(checkedPresets, 'published')}>Publish</IconChipButton>
+              <IconChipButton disabled={busy} onClick={() => requestStatus(checkedPresets, 'designing')}>Designing</IconChipButton>
+              <IconChipButton disabled={busy} onClick={() => requestStatus(checkedPresets, 'draft')}>Draft</IconChipButton>
+              <IconChipButton disabled={busy} onClick={() => requestStatus(checkedPresets, 'archived')}>Archive</IconChipButton>
+            </div>
+          )}
+        </section>
+        <aside className="adm-detail adm-detail--preset" aria-label="Preset details">
+          <div className="adm-inspector-notice"><InspectorNotice notice={notice} saved={saved} /></div>
           {selected && edit ? (
             <>
+              <PresetCatalogSummary key={`summary:${selected.record.id}`} preset={selected} shown={shownFor(selected)} packs={packs} changed={changedIds.has(selected.record.id)} />
               <PresetCatalogInspector
-                key={selected.record.id} preset={selected} edit={edit} problems={problems} changed={changedIds.has(selected.record.id)} busy={busy} packs={packs}
+                key={`inspector:${selected.record.id}`} preset={selected} shown={shownFor(selected)} edit={edit} problems={problems} changed={changedIds.has(selected.record.id)} busy={busy} packs={packs}
                 onPatch={patchEdit} onPublish={() => requestStatus([selected], 'published')}
                 onAddToPack={packId => void run(() => onAddToPack(selected, packId))} onRemoveFromPack={packId => void run(() => onRemoveFromPack(selected, packId))}
               />
-              <div className="adm-inspector-notice"><InspectorNotice notice={notice} saved={saved} /></div>
             </>
-          ) : (
-            <div className="vz-panel-body pmv-inspector-body"><p className="adm-empty adm-inspector-empty">Select a preset to see and edit its details.</p><div className="adm-inspector-notice"><InspectorNotice notice={notice} saved={saved} /></div></div>
-          )}
-        </WorkspaceRail>
+          ) : <p className="adm-empty adm-inspector-empty">Select a preset to see it and edit its details.</p>}
+        </aside>
       </div>
       {confirm && (
         <ConfirmDialog
@@ -238,6 +236,6 @@ export function PresetCatalogPane({ presets, packs, section, active = true, onSa
           busy={busy} onCancel={() => setConfirm(null)} onConfirm={() => { const pending = confirm; setConfirm(null); void applyStatus(pending.targets, pending.status) }}
         />
       )}
-    </section>
+    </WorkspaceSurface>
   )
 }

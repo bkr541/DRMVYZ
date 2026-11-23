@@ -4,7 +4,7 @@ import type { MusicIntelligenceFrame } from '../../features/musicIntelligence/ty
 
 export interface NightshiftFixtureOptions {
   timeSec: number; frameId: number; trackId?: string; energy?: number; bass?: number
-  high?: number; vocal?: number; build?: number; beatIndex?: number; eventId?: number
+  high?: number; vocal?: number; build?: number; beatIndex?: number; eventId?: number; bpm?: number
   sectionIntensity?: number; sectionBuild?: boolean; sectionProgress?: number; spectralFlux?: number; tension?: number
   event?: 'beat' | 'kick' | 'snare' | 'downbeat' | 'bar' | 'phrase' | 'drop' | 'impact' | null
   eventTime?: number; featuresAvailable?: boolean
@@ -12,7 +12,9 @@ export interface NightshiftFixtureOptions {
 }
 export function nightshiftMusicFixture(o: NightshiftFixtureOptions): MusicIntelligenceFrame {
   const enabled = o.featuresAvailable !== false
-  const energy = o.energy ?? .5, beat = o.beatIndex ?? (o.advanceBeatGrid ? Math.floor(o.timeSec * 2) : 8), eventTime = o.eventTime ?? o.timeSec
+  const bpm = o.bpm ?? 120
+  const musicalPosition = o.timeSec * bpm / 60
+  const energy = o.energy ?? .5, beat = o.beatIndex ?? (o.advanceBeatGrid ? Math.floor(musicalPosition) : 8), eventTime = o.eventTime ?? o.timeSec
   const eventNow = Math.abs(o.timeSec - eventTime) < .0001
   const hit = (kind: NightshiftFixtureOptions['event']) => eventNow && o.event === kind
   const beatHit = hit('beat') || hit('downbeat') || hit('bar')
@@ -22,8 +24,8 @@ export function nightshiftMusicFixture(o: NightshiftFixtureOptions): MusicIntell
     analysisSource: 'bar_self_similarity', analysisRevision: 'nightshift-audio-v1', timelineRevision: 'nightshift-timeline-v1',
     bands: { ...DEFAULT_MI_FRAME.bands, normalizedBass: o.bass ?? 0, normalizedHigh: o.high ?? 0 },
     energy: { ...DEFAULT_MI_FRAME.energy, instant: energy, rms: energy, buildProgress: o.build ?? 0, spectralFlux: o.spectralFlux ?? 0, tension: o.tension ?? 0 },
-    rhythm: { ...DEFAULT_MI_FRAME.rhythm, bpm: 120, bpmConfidence: .95, bpmSource: 'offline_analysis',
-      beatIndex: beat, beatPhase: o.advanceBeatGrid ? (o.timeSec * 2) % 1 : 0, beatInBar: beat % 4, barIndex: Math.floor(beat / 4), beatHit,
+    rhythm: { ...DEFAULT_MI_FRAME.rhythm, bpm, bpmConfidence: .95, bpmSource: 'offline_analysis',
+      beatIndex: beat, beatPhase: o.advanceBeatGrid ? musicalPosition % 1 : 0, beatInBar: beat % 4, barIndex: Math.floor(beat / 4), beatHit,
       beatEventId: o.eventId ?? beat, beatEventTimeSec: eventTime, downbeatHit: hit('downbeat') || hit('bar'),
       phrase4Hit: hit('bar'), phrase8Hit: false, phrase16Hit: false, phrase32Hit: false,
       kickHit: hit('kick'), kickStrength: hit('kick') ? 1 : 0,

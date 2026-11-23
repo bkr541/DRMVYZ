@@ -10,6 +10,7 @@ import { CINEMA2_USER_MODEL_SLICES_PRESET_MANIFEST } from './Cinema2UserModelSli
 import { CINEMA2_USER_MODEL_VOXEL_PRESET_MANIFEST } from './Cinema2UserModelVoxelPreset'
 import { CINEMA2_ORBITAL_PRESET_MANIFEST } from './Cinema2OrbitalPreset'
 import { CINEMA2_SUBMERGE_PRESET_MANIFEST } from './Cinema2SubmergePreset'
+import { CINEMA2_LIVEWIRE_PRESET_MANIFEST } from './Cinema2LivewirePreset'
 import { CINEMA2_PSYLO_PRESET_MANIFEST } from './Cinema2PsyloPreset'
 import { CINEMA2_WAR_OF_WORLDS_PRESET_MANIFEST } from './Cinema2WarOfWorldsPreset'
 import { CINEMA2_OPEN_DECKS_PRESET_MANIFEST } from './Cinema2OpenDecksPreset'
@@ -74,6 +75,8 @@ const AUTHORED_PRESET_DECLARATIONS = Object.freeze([
   defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_USER_MODEL_VOXEL_PRESET_MANIFEST }),
   // Native text/environment implementation; musical review remains available in-app.
   defineCinema2FirstPartyPreset({ role: 'keeper', manifest: CINEMA2_SUBMERGE_PRESET_MANIFEST }),
+  // Native production entry pending human visual acceptance.
+  defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_LIVEWIRE_PRESET_MANIFEST }),
   defineCinema2FirstPartyPreset({ role: 'keeper', manifest: CINEMA2_ORBITAL_PRESET_MANIFEST }),
   // Complete native implementation; human visual acceptance pending.
   defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_NEON_FOREST_PRESET_MANIFEST }),

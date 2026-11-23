@@ -47,6 +47,7 @@ import {
   CINEMA2_SAY_IT_DEFAULT_TEXT,
   resolveCinema2SayItTextLayout,
   type Cinema2SayItAlignment,
+  type Cinema2GlyphMetrics,
   type Cinema2SayItTextLayout,
 } from './sayIt/Cinema2SayItTextLayout'
 import { Cinema2ThreeAssetCache, Cinema2ThreeAssetError, type Cinema2ThreeLoadedAsset } from './three/Cinema2ThreeAssetCache'
@@ -119,6 +120,9 @@ const defaultAssetCache = new Cinema2ThreeAssetCache(cinema2ThreeAssetRegistry)
  */
 export function createCinema2SayItNativeModuleDefinition(options: {
   displayName?: string
+  glyphAssetId?: string
+  glyphMetrics?: Readonly<Cinema2GlyphMetrics>
+  defaultText?: string
   companionAssetId?: string
   /** Further assets the preset can run without: each is loaded if it can be, and released with the others. */
   optionalAssetIds?: readonly string[]
@@ -128,6 +132,7 @@ export function createCinema2SayItNativeModuleDefinition(options: {
   now?: () => number
 } = {}): Readonly<Cinema2ModuleTypeDefinition> {
   const displayName = options.displayName ?? 'SAY IT'
+  const defaultText = options.defaultText ?? CINEMA2_SAY_IT_DEFAULT_TEXT
   const assets = options.assets ?? defaultAssetCache
   const loadLibrary = options.loadLibrary ?? loadCinema2ThreeLibrary
   const createBridge = options.createBridge ?? ((gl, library, asset) => new Cinema2SayItBridge(gl, library, asset))
@@ -164,9 +169,9 @@ export function createCinema2SayItNativeModuleDefinition(options: {
       let motionProgram: Cinema2SayItMotionProgram = 'tumble'
       let motionSafety: Cinema2SayItMotionSafety = 'full'
       let materialStyle: Cinema2SayItMaterialStyle = 'chrome'
-      let layout: Readonly<Cinema2SayItTextLayout> = resolveCinema2SayItTextLayout({ line1: CINEMA2_SAY_IT_DEFAULT_TEXT, line2: '' }, {
+      let layout: Readonly<Cinema2SayItTextLayout> = resolveCinema2SayItTextLayout({ line1: defaultText, line2: '' }, {
         alignment: 'center', lineMode: 'two', tracking: 0.06, lineSpacing: 0.7, glyphScale: 1,
-      })
+      }, options.glyphMetrics)
       let layoutKey = ''
       const patternControls = new Cinema2PatternControlResolver<Cinema2AfterhoursTriggerId>()
       const patternController = new Cinema2SayItPatternController(
@@ -219,7 +224,7 @@ export function createCinema2SayItNativeModuleDefinition(options: {
             library = await loadLibrary()
             libraryLoadMs = elapsedMilliseconds(libraryStartedAt, now())
             const assetStartedAt = now()
-            const loaded = await assets.acquire(library, CINEMA2_SAY_IT_GLYPH_ASSET_ID, quality)
+            const loaded = await assets.acquire(library, options.glyphAssetId ?? CINEMA2_SAY_IT_GLYPH_ASSET_ID, quality)
             if (disposed) { assets.release(loaded); return }
             asset = loaded
             if (options.companionAssetId) {
@@ -390,7 +395,7 @@ export function createCinema2SayItNativeModuleDefinition(options: {
             const spread = Math.min(3, authoredSpread * (1 + buildAmount * 0.12 + dropAccent * 0.24))
             const authoredLine1 = parameters.get('line1Text')
             const authoredLine2 = parameters.get('line2Text')
-            const line1Text = typeof authoredLine1 === 'string' ? authoredLine1 : CINEMA2_SAY_IT_DEFAULT_TEXT
+            const line1Text = typeof authoredLine1 === 'string' ? authoredLine1 : defaultText
             const line2Text = typeof authoredLine2 === 'string' ? authoredLine2 : ''
             const alignment = readAlignment(parameters.get('alignment'))
             const lineMode = parameters.get('lineMode') === 'one' ? 'one' as const : 'two' as const
@@ -400,7 +405,7 @@ export function createCinema2SayItNativeModuleDefinition(options: {
             const nextLayoutKey = JSON.stringify([line1Text, line2Text, alignment, lineMode, tracking, lineSpacing, glyphScale])
             if (nextLayoutKey !== layoutKey) {
               layoutKey = nextLayoutKey
-              layout = resolveCinema2SayItTextLayout({ line1: line1Text, line2: line2Text }, { alignment, lineMode, tracking, lineSpacing, glyphScale })
+              layout = resolveCinema2SayItTextLayout({ line1: line1Text, line2: line2Text }, { alignment, lineMode, tracking, lineSpacing, glyphScale }, options.glyphMetrics)
               contentDiagnostics = []
               if (layout.truncated) contentDiagnostics.push({
                 code: 'CINEMA2_SAY_IT_TEXT_TRUNCATED',

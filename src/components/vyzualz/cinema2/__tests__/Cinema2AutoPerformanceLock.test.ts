@@ -8,6 +8,7 @@ import { CINEMA2_DEPTH_PRESET_MANIFEST } from '../presets/Cinema2DepthPreset'
 import { CINEMA2_ELECTRIC_STORM_PRESET_MANIFEST } from '../presets/Cinema2ElectricStormPreset'
 import { CINEMA2_IFRIT_PRESET_MANIFEST } from '../presets/Cinema2IfritPreset'
 import { CINEMA2_MAINFRAME_PRESET_MANIFEST } from '../presets/Cinema2MainframePreset'
+import { CINEMA2_LIVEWIRE_PRESET_MANIFEST } from '../presets/Cinema2LivewirePreset'
 import { CINEMA2_REACTOR_PRESET_MANIFEST } from '../presets/Cinema2ReactorPreset'
 import { CINEMA2_THRESHOLD_PRESET_MANIFEST } from '../presets/Cinema2ThresholdPreset'
 import { compileCinema2NativePreset } from '../presets/Cinema2PresetCompiler'
@@ -26,6 +27,7 @@ const autoId = (manifest: Readonly<Cinema2NativePresetManifest>) => String(manif
 const TAGGED = [
   ['Ifrit', CINEMA2_IFRIT_PRESET_MANIFEST], ['Depth', CINEMA2_DEPTH_PRESET_MANIFEST], ['Mainframe', CINEMA2_MAINFRAME_PRESET_MANIFEST],
   ['Electric Storm', CINEMA2_ELECTRIC_STORM_PRESET_MANIFEST], ['Reactor', CINEMA2_REACTOR_PRESET_MANIFEST], ['Threshold', CINEMA2_THRESHOLD_PRESET_MANIFEST],
+  ['LIVEWIRE', CINEMA2_LIVEWIRE_PRESET_MANIFEST],
 ] as const
 
 describe.each(TAGGED)('the Auto Performance lock: %s', (_name, manifest) => {

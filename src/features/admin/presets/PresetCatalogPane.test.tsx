@@ -93,9 +93,10 @@ const headerKey = (label: RegExp) => qa<HTMLButtonElement>('[data-testid="header
 const chip = (label: string) => qa<HTMLButtonElement>('.adm-status-chip').find(entry => entry.textContent?.startsWith(label))!
 
 describe('Preset Catalog: library', () => {
-  it('shows every preset as a card with its artwork, name and status, and counts each status on its chip', () => {
+  it('shows every preset as a table row with its artwork, name and status, and counts each status on its chip', () => {
     expect(names()).toEqual(['alpha', 'bravo', 'charlie', 'delta'])
-    expect(qa('[data-preset-id]').every(card => card.querySelector('img.rv-preset-blueprint-image'))).toBe(true)
+    expect(qa('[data-preset-id]').every(row => row.tagName === 'TR' && row.querySelector('img.rv-preset-blueprint-image'))).toBe(true)
+    expect(qa('th').map(cell => cell.textContent)).toEqual(['Select', 'Preset', 'Engine', 'Category', 'Status'])
     expect(q('[data-preset-id="cinema2:alpha"]')!.getAttribute('data-status')).toBe('published')
     expect(q('[data-preset-id="cinema2:bravo"]')!.getAttribute('data-status')).toBe('draft')
     expect(q('[data-preset-id="cinema2:charlie"]')!.getAttribute('data-status')).toBe('unset')
@@ -103,28 +104,50 @@ describe('Preset Catalog: library', () => {
     expect(q('.adm-count')!.textContent).toBe('4 of 4 presets')
   })
 
-  it('opens with the first preset selected, so the preview and the inspector are never empty', () => {
+  it('opens with the first preset selected, so the detail panel is never empty', () => {
     expect(q('.adm-preview-title h2')!.textContent).toBe('Alpha')
     expect(field('Name').value).toBe('Alpha')
+    expect(q('tr[data-preset-id="cinema2:alpha"]')!.classList.contains('is-selected')).toBe(true)
+  })
+
+  it('lays out like User Accounts: the table on the left and the open preset, with its thumbnail and facts, in the detail panel on the right', async () => {
+    const split = q('.adm-split')!
+    expect([...split.children].map(child => child.tagName)).toEqual(['SECTION', 'ASIDE'])
+    const detail = q('aside.adm-detail')!
+    expect(detail.querySelector('.adm-preview-art')).not.toBeNull()
+    expect(detail.querySelector('.adm-facts')!.textContent).toContain('Cinema 2.0')
+    expect(detail.querySelector('.adm-preview-description')!.textContent).toBe('Alpha description')
+    expect(q('.pmv-stage')).toBeNull()
+    expect(q('.rw-frame--left')).toBeNull()
+    await click(byLabel('Select Bravo'))
+    expect(detail.querySelector('.adm-preview-title h2')!.textContent).toBe('Bravo')
+    expect(q('tr[data-preset-id="cinema2:bravo"]')!.classList.contains('is-selected')).toBe(true)
+    // Clicking anywhere on the row opens the preset, not only its name.
+    await click(q('tr[data-preset-id="cinema2:charlie"] td:nth-child(3)'))
+    expect(detail.querySelector('.adm-preview-title h2')!.textContent).toBe('Charlie')
   })
 
   it('filters by status chip and by search, and the chips count what clicking them shows', async () => {
     await click(chip('Draft')); expect(names()).toEqual(['bravo'])
     await click(chip('All'))
-    await type(q<HTMLInputElement>('.vz-md-search-input')!, 'cha')
+    await type(q<HTMLInputElement>('.dv-library-search-input')!, 'cha')
     expect(names()).toEqual(['charlie'])
     // With a search active, the chips count only what matches it.
     expect(qa('.adm-status-chip').map(entry => entry.textContent)).toEqual(['All1', 'Not set1', 'Designing0', 'Draft0', 'Published0', 'Archived0'])
-    await type(q<HTMLInputElement>('.vz-md-search-input')!, 'zzz')
+    await type(q<HTMLInputElement>('.dv-library-search-input')!, 'zzz')
     expect(q('.pmv-empty')!.textContent).toBe('No presets match.')
   })
 
-  it('switches between the grid and the compact list, with the same presets and statuses', async () => {
-    expect(q('.adm-grid')).not.toBeNull()
-    await click(byLabel('List view'))
+  it('switches between the table and the poster grid, with the same presets and statuses', async () => {
     expect(q('.adm-grid')).toBeNull()
-    expect(names()).toEqual(['alpha', 'bravo', 'charlie', 'delta'])
     expect(q('[data-preset-id="cinema2:bravo"] .adm-status')!.textContent).toBe('Draft')
+    await click(byLabel('Grid view'))
+    expect(q('.adm-grid')).not.toBeNull()
+    expect(q('table')).toBeNull()
+    expect(names()).toEqual(['alpha', 'bravo', 'charlie', 'delta'])
+    expect(q('[data-preset-id="cinema2:bravo"] .rv-preset-poster-chip')!.textContent).toBe('Draft')
+    await click(byLabel('Select Charlie'))
+    expect(q('.adm-preview-title h2')!.textContent).toBe('Charlie')
   })
 
   it('moves the selection with the arrow keys', async () => {
@@ -141,7 +164,7 @@ describe('Preset Catalog: preview and inspector', () => {
     await click(byLabel('Select Charlie'))
     expect(q('.adm-preview-title h2')!.textContent).toBe('Charlie')
     expect(q('.adm-facts')!.textContent).toContain('Cinema 2.0')
-    expect(q('.adm-stage-preview .adm-preview-art')).not.toBeNull()
+    expect(q('.adm-summary .adm-preview-art')).not.toBeNull()
   })
 
   it('shows how users will see it, with an unsaved name applied', async () => {
@@ -188,7 +211,7 @@ describe('Preset Catalog: preview and inspector', () => {
 
   it('has no Save, Discard or Reset buttons in the inspector: they are icons in the page header', async () => {
     await type(field('Name'), 'Alpha Two')
-    const inspector = q('.pmv-inspector')!
+    const inspector = q('.adm-detail')!
     expect([...inspector.querySelectorAll('button')].map(button => button.textContent).filter(text => /^(Save|Discard|Reset to Shipped)$/.test(text ?? ''))).toEqual([])
     expect(inspector.querySelector('.adm-form-actions')).toBeNull()
     for (const button of qa<HTMLButtonElement>('[data-testid="header-actions"] button')) { expect(button.textContent).toBe(''); expect(button.querySelector('svg')).not.toBeNull() }
@@ -241,12 +264,12 @@ describe('Preset Catalog: publishing', () => {
     await click(headerKey(/Save changes/))
     expect(calls.saveMany[0]!.map(change => change.row?.publication_status)).toEqual(['designing'])
     expect(q('[data-preset-id="cinema2:alpha"]')!.getAttribute('data-status')).toBe('designing')
-    expect(q('[data-preset-id="cinema2:alpha"] .rv-preset-poster-chip')!.textContent).toBe('Designing')
+    expect(q('[data-preset-id="cinema2:alpha"] .adm-status')!.textContent).toBe('Designing')
   })
 
   it('no longer shows the note about when edits appear in the app', () => {
-    expect(q('.pmv-inspector')!.textContent).not.toContain('show in the app as soon as they are saved')
-    expect(q('.pmv-inspector')!.textContent).not.toContain('recorded for the store')
+    expect(q('.adm-detail')!.textContent).not.toContain('show in the app as soon as they are saved')
+    expect(q('.adm-detail')!.textContent).not.toContain('recorded for the store')
   })
 
   it('sets several presets to Designing from the bulk bar, after a confirmation', async () => {

@@ -66,6 +66,7 @@ export class Cinema2SayItBridge {
     private readonly gl: WebGL2RenderingContext,
     protected readonly library: Cinema2ThreeLibrary,
     asset: Readonly<Cinema2ThreeLoadedAsset>,
+    requiredMeshes?: ReadonlySet<string>,
   ) {
     const { THREE } = library
     const host = getCinema2ThreeRenderer(library, gl)
@@ -91,8 +92,11 @@ export class Cinema2SayItBridge {
     })
     const baseGlyphCount = [...this.sourceMeshes.keys()].filter(name => !name.endsWith('-led')).length
     const ledGlyphCount = [...this.sourceMeshes.keys()].filter(name => name.endsWith('-led')).length
-    if (baseGlyphCount < 94 || ledGlyphCount < 94) {
-      throw new Error('The SAY IT production asset does not contain the complete printable Basic Latin glyph and LED contour sets.')
+    const complete = requiredMeshes
+      ? [...requiredMeshes].every(name => this.sourceMeshes.has(name) && this.sourceMeshes.has(`${name}-led`))
+      : baseGlyphCount >= 94 && ledGlyphCount >= 94
+    if (!complete) {
+      throw new Error('The typography asset does not contain its complete glyph and LED mesh sets.')
     }
   }
 

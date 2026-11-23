@@ -7,16 +7,20 @@ import { NoticeCard } from '../../../components/vyzualz/react/controls/NoticeCar
 import { TagPill } from '../../../components/vyzualz/react/controls/TagPill'
 import { Collapsible, SelectRow, TextAreaRow, TextInputRow } from '../../../components/vyzualz/react/ReactControlRows'
 import { parseTags, STATUS_DESCRIPTIONS, STATUS_LABELS, STATUS_ORDER, type AdminPreset, type CatalogPack, type EditProblems, type PresetEdit, type PublicationStatus } from './presetAdmin'
+import type { ShownPreset } from './PresetCatalogCards'
+import { PresetInAppCards } from './PresetCatalogSummary'
 import { activationLabel, presetVersionInfo } from './presetTechnical'
 
 const NOOP = () => undefined
-type InspectorTab = 'info' | 'store' | 'technical'
-const TABS = [{ id: 'info', label: 'INFO' }, { id: 'store', label: 'STORE' }, { id: 'technical', label: 'TECHNICAL' }] as const
+type InspectorTab = 'info' | 'store' | 'technical' | 'inapp'
+const TABS = [{ id: 'info', label: 'INFO' }, { id: 'store', label: 'STORE' }, { id: 'technical', label: 'TECHNICAL' }, { id: 'inapp', label: 'IN THE APP' }] as const
 /** The status dropdown's options: each status with the sentence that says what it means. The empty status (nothing recorded) is `unset`. */
 const STATUS_OPTIONS = STATUS_ORDER.map(value => ({ value: value || 'unset', label: STATUS_LABELS[value || 'unset'], description: STATUS_DESCRIPTIONS[value || 'unset'] }))
 
 interface Props {
   preset: AdminPreset
+  /** The preset as users will see it with the unsaved edit applied (the IN THE APP tab). */
+  shown: ShownPreset
   edit: PresetEdit
   problems: EditProblems
   /** The edit differs from what is stored. */
@@ -61,10 +65,10 @@ function TagEditor({ tagsText, onChange, error }: { tagsText: string; onChange: 
 }
 
 /**
- * The right window: one preset's details, with publishing first. Everything here edits an unsaved draft (so the admin can move to another preset and come
+ * The editing half of the detail panel: one preset's details, with publishing first. Everything here edits an unsaved draft (so the admin can move to another preset and come
  * back); Save writes it, Publish sets the status to Published and writes the draft in one step.
  */
-export function PresetCatalogInspector({ preset, edit, problems, changed, busy, packs, onPatch, onPublish, onAddToPack, onRemoveFromPack }: Props) {
+export function PresetCatalogInspector({ preset, shown, edit, problems, changed, busy, packs, onPatch, onPublish, onAddToPack, onRemoveFromPack }: Props) {
   const [tab, setTab] = useState<InspectorTab>('info')
   const [addPack, setAddPack] = useState('')
   const record = preset.record
@@ -77,8 +81,8 @@ export function PresetCatalogInspector({ preset, edit, problems, changed, busy, 
   return (
     <>
       <RailTabs tabs={[...TABS]} activeTab={tab} onChange={setTab} ariaLabel="Preset inspector panels" className="rv-main-workspace-tabs" variant="underline" />
-      <div className="vz-panel-body pmv-inspector-body adm-inspector-body" data-selected-preset={record.sourceId}>
-        <div className="rv-inspector rv-inspector-scroll">
+      <div className="adm-inspector-body" data-selected-preset={record.sourceId}>
+        <div className="rv-inspector">
           <div className="rv-ctrl-group">
             {tab === 'info' && (
               <>
@@ -124,6 +128,7 @@ export function PresetCatalogInspector({ preset, edit, problems, changed, busy, 
                 <TextInputRow label="Preview Reference" value={edit.storePreview} onChange={value => onPatch({ storePreview: value })} maxLength={500} />
               </Collapsible>
             )}
+            {tab === 'inapp' && <PresetInAppCards shown={shown} />}
             {tab === 'technical' && (
               <Collapsible label="Technical">
                 <TextInputRow label="Preset ID" value={record.id} onChange={NOOP} readOnly maxLength={400} />
