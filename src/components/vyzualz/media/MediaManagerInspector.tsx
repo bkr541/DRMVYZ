@@ -626,7 +626,6 @@ export function MediaManagerInspector({
   track,
   font = null,
   onMediaCreated,
-  onCreateModel,
   onFontRenamed,
   onHeaderActions,
 }: {
@@ -635,8 +634,6 @@ export function MediaManagerInspector({
   font?: OscillatorFontAsset | null
   /** Save As created a new media item; the view selects it. */
   onMediaCreated?: (mediaId: string) => void
-  /** The Edit tab's Create 3D Model button: continues into 3D model generation for this image. */
-  onCreateModel?: (media: UploadedMedia) => void
   /** A persisted rename updates the selected record used by the stage and inspector. */
   onFontRenamed?: (font: OscillatorFontAsset) => void
   /** Receives Save Changes / Delete Media for the page header while the Info tab is showing. */
@@ -655,7 +652,7 @@ export function MediaManagerInspector({
       )}
       {activeTab === 'edit' && (
         media ? (
-          <MediaEditPanel key={media.id} media={media} onCreateModel={onCreateModel} />
+          <MediaEditPanel key={media.id} media={media} />
         ) : (
           <div className="mmi-empty">
             <p>{track ? 'Audio tracks are edited from the Info tab.' : font ? 'Fonts are viewed from the Info tab.' : 'Select an image or video to edit it.'}</p>

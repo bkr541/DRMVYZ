@@ -4,15 +4,15 @@ import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('../models/domain/builtinModels', () => ({ BUILTIN_MODELS: [{ id: 'builtin-test-model', name: 'Test Model', description: 'A shipped model used by these tests.', url: '/cinema2/models/test-model.glb', thumbnailUrl: '/cinema2/models/test-model-thumbnail.webp' }] }))
-const mocks = vi.hoisted(() => ({ browser: {} as Record<string, unknown>, actions: { onSave: vi.fn(), onDelete: vi.fn(), saving: false, deleting: false }, import: vi.fn(), collections: [] }))
-vi.mock('../../stores/mediaStore', () => ({ useMediaStore: Object.assign((selector: (state: unknown) => unknown) => selector({ items: [{ id: 'image-1', dbId: 'image-1', type: 'image', name: 'Logo' }], openImportMediaModal: mocks.import, openCollectionEditor: vi.fn(), collections: mocks.collections }), { getState: () => ({ items: [], ensureMediaSigned: vi.fn() }) }) }))
+const mocks = vi.hoisted(() => ({ browser: {} as Record<string, unknown>, actions: { onSave: vi.fn(), onDelete: vi.fn(), saving: false, deleting: false }, import: vi.fn(), collections: [], items: [] as Array<Record<string, unknown>> }))
+vi.mock('../../stores/mediaStore', () => ({ useMediaStore: Object.assign((selector: (state: unknown) => unknown) => selector({ items: mocks.items, openImportMediaModal: mocks.import, openCollectionEditor: vi.fn(), collections: mocks.collections }), { getState: () => ({ items: mocks.items, ensureMediaSigned: vi.fn() }) }) }))
 vi.mock('../../stores/audioStore', () => ({ useAudioStore: (selector: (state: unknown) => unknown) => selector({ savedTracks: [{ id: 'track-1' }] }) }))
 vi.mock('../../components/vyzualz/media/MediaLibraryBrowser', () => ({ MediaLibraryBrowser: (props: Record<string, unknown>) => { mocks.browser = props; return <div /> } }))
 vi.mock('../../components/vyzualz/media/MediaManagerStage', () => ({ MediaManagerStage: () => <div data-testid="image-stage" /> }))
 vi.mock('../../components/vyzualz/media/ModelEditorStage', () => ({ ModelEditorStage: () => <div data-testid="model-stage" /> }))
 vi.mock('../../components/vyzualz/media/MediaManagerInspector', async importOriginal => ({
   ...await importOriginal<typeof import('../../components/vyzualz/media/MediaManagerInspector')>(),
-  MediaManagerInspector: ({ media, onHeaderActions, onCreateModel }: { media: { id: string } | null; onHeaderActions(actions: typeof mocks.actions): void; onCreateModel(media: { id: string }): void }) => { React.useEffect(() => onHeaderActions(mocks.actions), [onHeaderActions]); return media ? <button type="button" aria-label="Create 3D Model" onClick={() => onCreateModel(media)} /> : <div /> },
+  MediaManagerInspector: ({ onHeaderActions }: { onHeaderActions(actions: typeof mocks.actions): void }) => { React.useEffect(() => onHeaderActions(mocks.actions), [onHeaderActions]); return <div data-testid="inspector" /> },
 }))
 import { MediaManagerView } from './MediaManagerView'
 import { useModelEditorStore } from '../models/state/modelEditorStore'
@@ -27,7 +27,7 @@ let container: HTMLDivElement, root: ReturnType<typeof createRoot>
 const button = (label: string) => [...document.querySelectorAll<HTMLButtonElement>('button')].find(b => b.getAttribute('aria-label') === label || b.textContent?.trim() === label)!
 async function invoke(name: string, value: unknown) { await act(async () => { (mocks.browser[name] as (value: unknown) => void)(value) }) }
 beforeEach(async () => {
-  vi.clearAllMocks(); useMediaEditStore.getState().endSession(); useModelEditorStore.getState().reset()
+  vi.clearAllMocks(); mocks.items = [{ id: 'image-1', dbId: 'image-1', type: 'image', name: 'Logo.png', mimeType: 'image/png' }]; useMediaEditStore.getState().endSession(); useModelEditorStore.getState().reset()
   vi.spyOn(useModelEditorStore.getState(), 'begin').mockImplementation(media => { useModelEditorStore.setState({ id: 'draft-test', dirty: true, name: media.name }); return 'draft-test' })
   container = document.createElement('div'); document.body.append(container); root = createRoot(container)
   await act(async () => root.render(<MediaManagerView onOpenLyricManager={() => {}} />))
@@ -149,12 +149,54 @@ describe('model mode selection and guards', () => {
     expect(mocks.browser.onVisualUploaded).toBeUndefined()
     expect(useModelEditorStore.getState().begin).not.toHaveBeenCalled()
   })
-  it('starts model creation only from an image already in the library, via the Edit tab\u2019s Create 3D Model', async () => {
+  it('starts model creation only from an image already in the library, via the header toolbar', async () => {
     expect(button('Create 3D Model')).toBeUndefined()
     await invoke('onSelect', 'image-1')
-    await act(async () => button('Create 3D Model').click())
+    const create = button('Create 3D Model')
+    const toolbar = container.querySelector('[role="toolbar"][aria-label="Media Manager controls"]')
+    expect(toolbar?.contains(create)).toBe(true)
+    expect(create.textContent).toBe('')
+    expect(create.querySelector('svg')).not.toBeNull()
+    expect(create.title).toBe('Create a 3D model from this image')
+    expect(create.disabled).toBe(false)
+    expect(container.querySelector('[data-testid="inspector"] [aria-label="Create 3D Model"]')).toBeNull()
+    await act(async () => create.click())
     expect(useModelEditorStore.getState().begin).toHaveBeenCalledWith(expect.objectContaining({ id: 'image-1' }))
     expect(container.querySelector('[data-testid="model-stage"]')).not.toBeNull()
+  })
+
+  it.each([
+    ['PNG', { name: 'logo.png', mimeType: 'image/png' }],
+    ['JPEG', { name: 'logo.jpg', mimeType: 'image/jpeg' }],
+    ['WebP', { name: 'logo.webp', mimeType: 'image/webp' }],
+    ['SVG', { name: 'logo.svg', mimeType: 'image/svg+xml' }],
+  ])('offers the header action for saved %s images', async (_format, fields) => {
+    mocks.items = [{ id: 'image-1', dbId: 'image-1', type: 'image', ...fields }]
+    await invoke('onSelect', 'image-1')
+    expect(button('Create 3D Model').disabled).toBe(false)
+  })
+
+  it.each([
+    ['uploading', { dbId: 'image-1', uploading: true }],
+    ['failed upload', { dbId: 'image-1', uploadError: 'Failed' }],
+    ['no saved record', { dbId: undefined }],
+  ])('disables creation for an image with %s', async (_reason, fields) => {
+    mocks.items = [{ id: 'image-1', type: 'image', name: 'Logo.png', mimeType: 'image/png', ...fields }]
+    await invoke('onSelect', 'image-1')
+    const create = button('Create 3D Model')
+    expect(create.disabled).toBe(true)
+    expect(create.title).toBe('Available once the image has finished uploading')
+    await act(async () => create.click())
+    expect(useModelEditorStore.getState().begin).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['GIF', { type: 'image', name: 'animation.gif', mimeType: 'image/gif' }],
+    ['video', { type: 'video', name: 'clip.mp4', mimeType: 'video/mp4' }],
+  ])('does not offer model creation for a %s', async (_kind, fields) => {
+    mocks.items = [{ id: 'image-1', dbId: 'image-1', ...fields }]
+    await invoke('onSelect', 'image-1')
+    expect(button('Create 3D Model')).toBeUndefined()
   })
 })
 

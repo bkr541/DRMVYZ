@@ -1017,17 +1017,6 @@
   font-size: 11px;
 }
 
-/* Save · Save As (· Reset) sit side by side under the Edit groups. */
-.mmi-actions--row {
-  flex-direction: row;
-  flex-wrap: wrap;
-}
-
-.mmi-actions--row .dv-icon-chip {
-  width: auto;
-  flex: 1 1 0;
-}
-
 /* ── Drop Point preview (Media Manager video stage) ─────────────────────────────────────────────────────────────────────────── */
 
 /* Marker on the video timeline: a warm flag on the ruler and a line through the frames, distinct from the cyan playhead. */

@@ -14,6 +14,7 @@ import { MediaManagerInspector, type MediaHeaderActions } from '../../components
 import { UnsavedMediaChangesDialog } from '../../components/vyzualz/media/UnsavedMediaChangesDialog'
 import { selectMediaEditNeedsGuard, useMediaEditStore } from '../../stores/mediaEditStore'
 import { MEDIA_MANAGER_CAPABILITIES } from '../../components/vyzualz/media/mediaLibraryCapabilities'
+import { isModelSourceImage } from '../models/domain/modelSourceTypes'
 import { HeaderControlGroup } from '../../components/vyzualz/layout/HeaderControlGroup'
 import { HeaderIconKey } from '../../components/vyzualz/layout/HeaderIconKey'
 import { HeaderActionIcon } from '../../components/vyzualz/layout/HeaderActionIcon'
@@ -158,6 +159,15 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
               icon={<HeaderActionIcon action="create" />}
               onClick={() => openImportMediaModal()}
             />
+            {selectedMedia && isModelSourceImage(selectedMedia) && <HeaderIconKey
+              label="Create 3D Model"
+              title={!selectedMedia.dbId || selectedMedia.uploading || selectedMedia.uploadError
+                ? 'Available once the image has finished uploading'
+                : 'Create a 3D model from this image'}
+              icon={<AppIcon kind="layers" size={15} />}
+              disabled={!selectedMedia.dbId || !!selectedMedia.uploading || !!selectedMedia.uploadError}
+              onClick={() => createFromImage(selectedMedia)}
+            />}
             {modelSelected && <>
               {!builtinModel && <HeaderIconKey label={modelLoaded ? 'Regenerate 3D Model' : 'Generate 3D Model'} title={modelCanGenerate ? undefined : 'Available once the source is prepared (and its foreground confirmed)'} icon={<AppIcon kind="wand" size={15} />} disabled={!modelCanGenerate} onClick={() => { void useModelEditorStore.getState().generate() }} />}
               <HeaderIconKey label="Fit Model" title="Fit the model in the viewport" icon={<AppIcon kind="cameraFocus" size={15} />} disabled={!modelLoaded} onClick={fitModelViewport} />
@@ -290,7 +300,6 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
               track={selectedTrack}
               font={selectedFont}
               onMediaCreated={id => commitSelection({ kind: 'media', id })}
-              onCreateModel={createFromImage}
               onFontRenamed={setSelectedFont}
               onHeaderActions={receiveHeaderActions}
             />}
