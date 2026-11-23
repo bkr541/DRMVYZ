@@ -65,6 +65,14 @@ contextBridge.exposeInMainWorld('drmvyzNative', Object.freeze({
   system: Object.freeze({
     getCpuUsage: () => ipcRenderer.invoke('drmvyz:system:get-cpu-usage'),
   }),
+  recovery: Object.freeze({
+    // Main tells the renderer when the GPU process died while it was still running, so it can shed load.
+    onEvent: callback => {
+      const listener = (_event, payload) => callback(payload)
+      ipcRenderer.on('drmvyz:recovery:event', listener)
+      return () => ipcRenderer.removeListener('drmvyz:recovery:event', listener)
+    },
+  }),
   camera: Object.freeze({
     getAccessStatus: () => ipcRenderer.invoke('drmvyz:camera:get-access'),
     requestAccess: () => ipcRenderer.invoke('drmvyz:camera:request-access'),

@@ -26,6 +26,7 @@ const { installDiagnosticsBridge } = require('../native/diagnostics/diagnosticsB
 const { redactUrlForLog } = require('../native/diagnostics/redactUrl.cjs')
 const { installSystemMetricsBridge } = require('../native/system/systemMetricsBridge.cjs')
 const { installCameraAccessBridge, readCameraAccessStatus } = require('../native/system/cameraAccessBridge.cjs')
+const { createRendererRecovery } = require('../native/system/rendererRecovery.cjs')
 
 const DEV_SERVER_URL = process.env.DRMVYZ_VITE_DEV_SERVER_URL || 'http://127.0.0.1:5173'
 const forceBuiltRenderer = process.argv.includes('--production')
@@ -43,6 +44,15 @@ const APP_ORIGIN = `${APP_SCHEME}://app`
 const DIST_DIR = path.join(app.getAppPath(), 'dist')
 const APP_ICON = path.join(__dirname, 'assets', 'app-icon.png')
 let mainWindow = null
+// Reloads the main window if its renderer stops (see native/system/rendererRecovery.cjs).
+let mainRecovery = null
+
+/** The page the window loads: the dev server or the built app. A recovery load adds `?recovery=<reason>`, which the renderer reads once and removes. */
+function pageUrl(recoveryReason) {
+  const url = new URL(useDevServer ? DEV_SERVER_URL : `${APP_ORIGIN}/index.html`)
+  if (recoveryReason) url.searchParams.set('recovery', recoveryReason)
+  return url.toString()
+}
 
 // The development profile (and its single-instance lock) stays separate from
 // both the packaged application and unrelated Electron projects; the folder
@@ -169,6 +179,9 @@ function createMainWindow() {
   })
   wc.on('render-process-gone', (_event, details) => windowLog.error('render-process-gone', details))
   wc.on('unresponsive', () => windowLog.warn('renderer unresponsive'))
+  mainRecovery?.dispose()
+  mainRecovery = createRendererRecovery({ log: log.scope('system:recovery'), buildUrl: pageUrl })
+  mainRecovery.attach(wc)
 
   window.webContents.setWindowOpenHandler(({ url, frameName }) => {
     // The renderer fills a named blank window with the running app in a 393 × 852 phone frame.
@@ -220,11 +233,7 @@ function createMainWindow() {
     openExternalUrl(url)
   })
 
-  if (useDevServer) {
-    void window.loadURL(DEV_SERVER_URL)
-  } else {
-    void window.loadURL(`${APP_ORIGIN}/index.html`)
-  }
+  void window.loadURL(pageUrl())
 
   window.on('closed', () => {
     if (mainWindow === window) mainWindow = null
@@ -238,7 +247,7 @@ if (!app.requestSingleInstanceLock()) {
   log.scope('system:app').warn('another STAGELESS instance owns the development profile; focusing it instead')
   app.quit()
 } else {
-  app.on('before-quit', () => log.scope('system:app').info('before-quit'))
+  app.on('before-quit', () => { mainRecovery?.setQuitting(); log.scope('system:app').info('before-quit') })
   app.on('will-quit', () => log.scope('system:app').info('will-quit'))
   app.on('quit', (_event, exitCode) => log.scope('system:app').info('quit', { exitCode }))
   process.on('exit', exitCode => log.scope('system:app').info('main process exit', { exitCode }))
@@ -252,7 +261,10 @@ if (!app.requestSingleInstanceLock()) {
     mainWindow.focus()
   })
 
-  app.on('child-process-gone', (_event, details) => log.scope('system:process').error('child-process-gone', details))
+  app.on('child-process-gone', (_event, details) => {
+    log.scope('system:process').error('child-process-gone', details)
+    mainRecovery?.handleChildProcessGone(details)
+  })
 
   app.whenReady().then(() => {
     if (process.platform === 'darwin') app.dock.setIcon(APP_ICON)

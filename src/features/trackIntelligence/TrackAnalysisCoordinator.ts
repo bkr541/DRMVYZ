@@ -11,6 +11,10 @@ import {
   isCurrentAnalysisVersion,
 } from '../musicIntelligence/analysisVersion'
 import { isUsableTrackAnalysis } from '../musicIntelligence/analysisValidation'
+import { createLogger } from '../../lib/logger'
+import { describeTrackForLog } from '../../audio/trackLogContext'
+
+const analysisLog = createLogger('react', 'TrackAnalysis')
 
 // ── Schema version ────────────────────────────────────────────────────────────
 // Bump this string whenever the analysis schema changes incompatibly.
@@ -422,7 +426,7 @@ export class TrackAnalysisCoordinator {
       // AbortError means the job was cancelled — do not report as failure
       if (err instanceof Error && err.name === 'AbortError') return
       const msg = err instanceof Error ? err.message : String(err)
-      console.warn(`[TrackAnalysis] ${trackId}: decode failed — ${msg}`)
+      analysisLog.warn('track decode failed', { ...describeTrackForLog({ id: trackId, name: job.sourceFile?.name, sourceFile: job.sourceFile, url: job.url }), reason: msg })
       this.callbacks.onRuntimeUpdate(trackId, {
         status: 'failed',
         error:  `Decode error: ${msg}`,
@@ -458,7 +462,7 @@ export class TrackAnalysisCoordinator {
       if (this.isStale(trackId, generation)) return
       if (err instanceof Error && err.name === 'AbortError') return
       const msg = err instanceof Error ? err.message : String(err)
-      console.warn(`[TrackAnalysis] ${trackId}: analysis failed — ${msg}`)
+      analysisLog.warn('track analysis failed', { ...describeTrackForLog({ id: trackId, name: job.sourceFile?.name, sourceFile: job.sourceFile, url: job.url }), reason: msg })
       this.callbacks.onRuntimeUpdate(trackId, {
         status: 'failed',
         error:  `Analysis error: ${msg}`,

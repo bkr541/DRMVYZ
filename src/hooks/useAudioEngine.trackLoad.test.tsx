@@ -67,6 +67,7 @@ vi.mock('meyda', () => ({
 }))
 
 import { useAudioEngine, type AudioEngine } from './useAudioEngine'
+import { clearLogRingBuffer, getRecentLogEntries } from '../lib/logger'
 
 class FakeAudioNode {
   gain = { value: 0, setTargetAtTime: vi.fn() }
@@ -257,6 +258,27 @@ describe('useAudioEngine track loading', () => {
     act(() => engine?.selectTrack(1))
     await act(async () => { await Promise.resolve() })
     expect(engine?.trackLoadError).toBeNull()
+  })
+
+  it('logs the file name, size and the browser\'s own reason when a track fails to load, without logging its URL', async () => {
+    clearLogRingBuffer()
+    const file = new File([new Uint8Array(4096)], '._Sidecar Track.wav', { type: 'audio/wav' })
+    act(() => { engine?.replaceTracks([file]) })
+    await act(async () => { await Promise.resolve() })
+
+    act(() => {
+      ;(fakeAudioInstances[0] as unknown as { error: { code: number; message: string } }).error = { code: 4, message: 'MEDIA_ELEMENT_ERROR: Format error' }
+      fakeAudioInstances[0]?.emit('error')
+    })
+
+    const entry = getRecentLogEntries().find(item => item.message === 'media element load failed')
+    expect(entry?.level).toBe('error')
+    expect(entry?.context).toMatchObject({
+      fileName: '._Sidecar Track.wav', fileSizeBytes: 4096, fileType: 'audio/wav', sourceKind: 'file', urlScheme: 'blob', looksLikeSidecarStub: true,
+      mediaErrorCode: 4, mediaErrorMessage: 'MEDIA_ELEMENT_ERROR: Format error',
+    })
+    expect(JSON.stringify(entry?.context)).not.toContain('track-load-regression')
+    expect(entry?.message).not.toContain('Sidecar')
   })
 
   it('does not report an error when the media element only complains about a cleared source', async () => {

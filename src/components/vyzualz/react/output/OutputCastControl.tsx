@@ -3,6 +3,8 @@ import { BRAND_RECEIVERS } from '../../../../brand'
 import { isCanvasFrameReady } from '../../../../lib/canvasFrameReadiness'
 import { FrameCadence } from '../../../../lib/frameCadence'
 import { recordPerformanceEvent, setPerformanceCastActive } from '../../../../lib/performanceTelemetry'
+import { CastLoadShedder, bindCadenceToPressure } from '../../../../lib/castLoadShedding'
+import { setPerformancePressure } from '../../../../lib/performancePressure'
 import { AppIcon } from '../../../shared/icons/AppIcon'
 import {
   useCallback,
@@ -143,6 +145,8 @@ function createRelayCapture(sourceRef: MutableRefObject<HTMLCanvasElement | null
   let stopped = false
   let frameId = 0
   const cadence = new FrameCadence(RECEIVER_MAX_FPS)
+  // At severe overload (a cast that cannot keep up, a GPU that just restarted) the relay copies and encodes half as many frames until it passes.
+  const unbindPressure = bindCadenceToPressure(cadence, RECEIVER_MAX_FPS)
   const render = (now = performance.now()) => {
     if (stopped) return
     if (!cadence.due(now)) {
@@ -185,6 +189,7 @@ function createRelayCapture(sourceRef: MutableRefObject<HTMLCanvasElement | null
     stream,
     stop: () => {
       stopped = true
+      unbindPressure()
       window.cancelAnimationFrame(frameId)
       for (const track of stream.getTracks()) track.stop()
     },
@@ -1057,6 +1062,28 @@ export function OutputCastControl({
       width: session.stats.width, height: session.stats.height, fps: session.stats.framesPerSecond,
       bitrateKbps: session.stats.bitrateKbps, packetsLost: session.stats.packetsLost })
   }, [session, castTransport])
+
+  // A cast whose frame rate collapses means the GPU is doing too much at once (rendering, copying, encoding). Report it, so every renderer sheds load and the relay
+  // halves its rate until the stream keeps up again. WebRTC only: the Google Cast stream's reported rate is the configured one, not a measurement.
+  const loadShedderRef = useRef<CastLoadShedder | null>(null)
+  const lastShedStatsRef = useRef<unknown>(null)
+  useEffect(() => {
+    const shedder = loadShedderRef.current ?? (loadShedderRef.current = new CastLoadShedder())
+    const stats = session?.stats ?? null
+    if (castTransport !== 'webrtc' || session?.state !== 'connected') {
+      lastShedStatsRef.current = null
+      if (shedder.reset().changed) { setPerformancePressure('cast', 0); recordPerformanceEvent('cast', 'load-shedding', { level: 0, reason: 'cast-ended' }) }
+      return
+    }
+    // One reading per stats report, however many times the session object changes in between.
+    if (!stats || stats === lastShedStatsRef.current) return
+    lastShedStatsRef.current = stats
+    const state = shedder.observe({ fps: stats.framesPerSecond, connected: true, visible: typeof document === 'undefined' || document.visibilityState !== 'hidden' })
+    if (!state.changed) return
+    setPerformancePressure('cast', state.level)
+    recordPerformanceEvent('cast', 'load-shedding', { level: state.level, relayFps: state.targetFps, measuredFps: stats.framesPerSecond })
+  }, [session, castTransport])
+  useEffect(() => () => { loadShedderRef.current?.reset(); setPerformancePressure('cast', 0) }, [])
 
   const castConnected = outputAvailable && session?.state === 'connected'
   const previewOpen = castConnected && previewSessionId === session.id

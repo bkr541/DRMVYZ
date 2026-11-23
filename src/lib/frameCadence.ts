@@ -2,7 +2,12 @@
 export class FrameCadence {
   private lastFrameAt: number | null = null
 
-  constructor(private readonly fps: number) {}
+  constructor(private fps: number) {}
+
+  /** Changes the rate for later frames (the producer's clock is untouched). Ignores a rate that is not a positive number. */
+  setFps(fps: number): void {
+    if (Number.isFinite(fps) && fps > 0) this.fps = fps
+  }
 
   due(timestamp: number): boolean {
     if (!Number.isFinite(timestamp)) return false

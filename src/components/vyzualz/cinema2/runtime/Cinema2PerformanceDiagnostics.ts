@@ -1,5 +1,6 @@
 import type { Cinema2RenderQualityLevel } from '../contracts/Cinema2NativePresetManifest'
 import type { Cinema2QualityMode } from '../parameters/Cinema2PerformanceParameters'
+import { getPerformancePressure, type PerformancePressureLevel } from '../../../../lib/performancePressure'
 
 export interface Cinema2QualityPolicy {
   resolvedQuality: Cinema2RenderQualityLevel
@@ -28,6 +29,15 @@ const POLICIES: Readonly<Record<Exclude<Cinema2QualityMode, 'auto'>, Readonly<Ci
 })
 
 const AUTO_LEVELS: readonly Cinema2RenderQualityLevel[] = Object.freeze(['low', 'medium', 'high'])
+
+/**
+ * Outside overload (a cast stream that cannot keep up, a GPU process that just died, a window recovered from a freeze; see lib/performancePressure.ts) caps what
+ * Auto may choose: elevated pressure allows at most Medium, severe pressure only Low. It never raises quality and never touches an explicit Quality choice.
+ */
+export function limitQualityForPressure(quality: Cinema2RenderQualityLevel, pressure: PerformancePressureLevel): Cinema2RenderQualityLevel {
+  const ceiling: Cinema2RenderQualityLevel = pressure >= 2 ? 'low' : pressure === 1 ? 'medium' : 'high'
+  return AUTO_LEVELS.indexOf(quality) <= AUTO_LEVELS.indexOf(ceiling) ? quality : ceiling
+}
 
 export function cinema2QualityPolicy(mode: Cinema2QualityMode, autoQuality: Cinema2RenderQualityLevel = 'high'): Readonly<Cinema2QualityPolicy> {
   if (mode !== 'auto') return POLICIES[mode]
@@ -91,7 +101,7 @@ export class Cinema2PerformanceDiagnostics {
   }
 
   getPolicy(): Readonly<Cinema2QualityPolicy> {
-    return cinema2QualityPolicy(this.requestedMode, this.autoQuality)
+    return cinema2QualityPolicy(this.requestedMode, limitQualityForPressure(this.autoQuality, getPerformancePressure()))
   }
 
   beginGpuFrame(): void {

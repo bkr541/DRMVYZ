@@ -46,9 +46,11 @@ import { PixGridFrameGroupCompiler } from './PixGridGroupCompiler'
 import { resolvePixGridMatrixDimensions } from './PixGridDefaults'
 import {
   PixGridAdaptiveQualityController,
+  pixGridPressureFloorStage,
   resolvePixGridAdaptiveQualityProfile,
   type PixGridAdaptiveQualityProfile,
 } from './PixGridAdaptiveQuality'
+import { getPerformancePressure } from '../../../../lib/performancePressure'
 import { validatePixGridState } from './PixGridValidationAudit'
 import {
   PixGridPerceptualResponseTracker,
@@ -341,7 +343,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
   const retryGpuRef = useRef<() => void>(() => {})
   const resizeRef = useRef<() => void>(() => {})
   const adaptiveControllerRef = useRef(new PixGridAdaptiveQualityController())
-  const initialProfile = resolvePixGridAdaptiveQualityProfile(props.pixGridState.quality, props.pixGridState.qualityMode, 0)
+  const initialProfile = resolvePixGridAdaptiveQualityProfile(props.pixGridState.quality, props.pixGridState.qualityMode, pixGridPressureFloorStage(getPerformancePressure()))
   const adaptiveProfileRef = useRef<PixGridAdaptiveQualityProfile>(initialProfile)
   const runtimeQualityRef = useRef<PixGridQualityTier>(initialProfile.logicalQuality)
   const [runtimeQuality, setRuntimeQuality] = useState<PixGridQualityTier>(initialProfile.logicalQuality)
@@ -1426,6 +1428,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
             nowMs: now,
             requestedQuality: current.pixGridState.quality,
             mode: current.pixGridState.qualityMode,
+            pressure: getPerformancePressure(),
           })
           if (nextProfile.stage !== previousProfile.stage || nextProfile.logicalQuality !== previousProfile.logicalQuality) {
             adaptiveProfileRef.current = nextProfile

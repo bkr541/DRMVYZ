@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createCinemaMockWebGL } from '../../../../test/support/CinemaWebGLTestUtils'
+import { resetPerformancePressureForTests, setPerformancePressure } from '../../../../lib/performancePressure'
+import { limitQualityForPressure } from '../runtime/Cinema2PerformanceDiagnostics'
 import {
   CINEMA2_ELECTRIC_STORM_PRESET_ID,
   CINEMA2_QUALITY_MODE_PARAMETER_ID,
@@ -36,6 +38,28 @@ describe('Cinema2 performance quality and diagnostics', () => {
       cpuFrameTimeAverageMs: null,
     })
     disabled.dispose()
+  })
+
+  it('caps Auto quality while outside pressure is reported (cast collapse, GPU restart, freeze recovery), and leaves explicit modes alone', () => {
+    const gl = createCinemaMockWebGL()
+    const auto = new Cinema2PerformanceDiagnostics(gl, 'auto')
+    const quality = new Cinema2PerformanceDiagnostics(gl, 'quality')
+    expect(auto.getSnapshot().resolvedQuality).toBe('high')
+    try {
+      setPerformancePressure('cast', 1)
+      expect(auto.getSnapshot()).toMatchObject({ resolvedQuality: 'medium', renderTargetScale: 0.82 })
+      setPerformancePressure('gpu', 2)
+      expect(auto.getSnapshot()).toMatchObject({ resolvedQuality: 'low', renderTargetScale: 0.67 })
+      // The user's explicit choice is respected, whatever the pressure.
+      expect(quality.getSnapshot().resolvedQuality).toBe('high')
+      setPerformancePressure('gpu', 0); setPerformancePressure('cast', 0)
+      expect(auto.getSnapshot().resolvedQuality).toBe('high')
+    } finally { resetPerformancePressureForTests() }
+    // Pressure only lowers: an Auto already at Low stays at Low.
+    expect(limitQualityForPressure('low', 1)).toBe('low')
+    expect(limitQualityForPressure('medium', 2)).toBe('low')
+    expect(limitQualityForPressure('high', 0)).toBe('high')
+    auto.dispose(); quality.dispose()
   })
 
   it('adapts to frame pacing and reserves casting headroom without changing explicit modes', () => {

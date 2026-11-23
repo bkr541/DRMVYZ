@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   PixGridAdaptiveQualityController,
+  pixGridPressureFloorStage,
   resolvePixGridAdaptiveQualityProfile,
 } from '../PixGridAdaptiveQuality'
 
@@ -72,5 +73,29 @@ describe('PixGrid adaptive quality', () => {
 
     expect(thumbnail.stage).toBe(0)
     expect(controller.currentStage).toBe(0)
+  })
+
+  it('lifts the stage while outside pressure lasts (cast collapse, GPU restart, freeze recovery), then returns to where the frame rate alone has it', () => {
+    const healthy = (nowMs: number, pressure: 0 | 1 | 2) => ({ fps: 60, nowMs, requestedQuality: 'high' as const, mode: 'adaptive' as const, pressure })
+    const controller = new PixGridAdaptiveQualityController()
+    expect(pixGridPressureFloorStage(0)).toBe(0)
+    expect(pixGridPressureFloorStage(1)).toBe(1)
+    expect(pixGridPressureFloorStage(2)).toBe(3)
+
+    expect(controller.sample(healthy(1_000, 0)).stage).toBe(0)
+    expect(controller.sample(healthy(2_000, 1)).stage).toBe(1)
+    const severe = controller.sample(healthy(3_000, 2))
+    expect(severe.stage).toBe(3)
+    expect(severe.reason).toBe('logical-resolution-reduced')
+    // The frame rate alone never degraded, so the picture comes straight back when the pressure ends.
+    expect(controller.sample(healthy(4_000, 0)).stage).toBe(0)
+    expect(controller.currentStage).toBe(0)
+  })
+
+  it('never overrides a Fixed quality choice with pressure', () => {
+    const controller = new PixGridAdaptiveQualityController()
+    const profile = controller.sample({ fps: 10, nowMs: 1, requestedQuality: 'high', mode: 'fixed', pressure: 2 })
+    expect(profile.stage).toBe(0)
+    expect(profile.reason).toBe('fixed')
   })
 })

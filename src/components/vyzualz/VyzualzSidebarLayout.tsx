@@ -26,6 +26,7 @@ export function VyzualzSidebarLayout({
   isCollapsed, floating, appView, onAppViewChange, toggleCollapsed, showManagerUnavailable = false,
   isAdmin = false, asideRef, utilityControls, notifications, profile, notched = false,
 }: SidebarLayoutProps) {
+  const performanceManagerActive = appView === 'performanceManager'
   return (
     <aside ref={asideRef} className={`az-sidebar${isCollapsed ? ' az-sidebar--collapsed' : ''}${floating ? ' az-sidebar--floating' : ''}${notched ? ' az-sidebar--notched' : ''}`}>
       {!floating && toggleCollapsed && (
@@ -49,9 +50,17 @@ export function VyzualzSidebarLayout({
 
         <div className="az-nav-section-label">Managers</div>
 
-        <button type="button" className={`az-nav-item${appView === 'performanceManager' ? ' az-nav-item--active' : ''}`}
-          onClick={() => onAppViewChange?.('performanceManager')} title="Performance Manager" aria-label="Performance Manager" aria-current={appView === 'performanceManager' ? 'page' : undefined}>
-          <span className="az-nav-fill" aria-hidden="true" /><NavMedallionIcon kind="navPerformance" size={NAV_ICON_SIZE} /><span className="az-nav-label">Performance Manager</span>
+        <button
+          type="button"
+          className={`az-nav-item${performanceManagerActive ? ' az-nav-item--active' : ''}`}
+          onClick={() => onAppViewChange?.('performanceManager')}
+          title="Performance Manager"
+          aria-label="Performance Manager"
+          aria-current={performanceManagerActive ? 'page' : undefined}
+        >
+          <span className="az-nav-fill" aria-hidden="true" />
+          <NavMedallionIcon kind="navPerformance" size={NAV_ICON_SIZE} active={performanceManagerActive} />
+          <span className="az-nav-label">Performance Manager</span>
         </button>
 
         {/* Preset Manager icon */}

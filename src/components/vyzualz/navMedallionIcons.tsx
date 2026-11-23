@@ -1,7 +1,11 @@
 import { useId, type ReactElement } from 'react'
 import reactNavIcon from '../../assets/navigation/react.svg'
+import performanceManagerNavIcon from '../../assets/navigation/performance-manager.svg'
+import performanceManagerActiveNavIcon from '../../assets/navigation/performance-manager-active.svg'
 import presetManagerNavIcon from '../../assets/navigation/preset-manager.svg'
-import lyricManagerNavIcon from '../../assets/navigation/lyric-manager.png'
+import showManagerNavIcon from '../../assets/navigation/show-manager.svg'
+import lyricManagerNavIcon from '../../assets/navigation/lyric-manager.svg'
+import mediaManagerNavIcon from '../../assets/navigation/media-manager.svg'
 import './navMedallionIcons.css'
 
 /**
@@ -82,15 +86,18 @@ export const NAV_MEDALLION_ARTWORK: Record<NavMedallionKind, () => ReactElement[
 
 const SIDEBAR_ICON_ASSETS: Partial<Record<NavMedallionKind, string>> = {
   navReact: reactNavIcon,
+  navPerformance: performanceManagerNavIcon,
   navPreset: presetManagerNavIcon,
+  navShow: showManagerNavIcon,
   navLyrics: lyricManagerNavIcon,
+  navMedia: mediaManagerNavIcon,
 }
 
 /** `size` is the symbol's scale (px per 32 grid); the svg is 38/32 larger so the wider ring fits. */
-export function NavMedallionIcon({ kind, size = 36 }: { kind: NavMedallionKind; size?: number }) {
+export function NavMedallionIcon({ kind, size = 36, active = false }: { kind: NavMedallionKind; size?: number; active?: boolean }) {
   const box = size * 38 / 32
   const maskId = useId()
-  const asset = SIDEBAR_ICON_ASSETS[kind]
+  const asset = kind === 'navPerformance' && active ? performanceManagerActiveNavIcon : SIDEBAR_ICON_ASSETS[kind]
   return (
     <svg className="app-icon nav-medallion" data-app-icon={kind} viewBox="-3 -3 38 38" width={box} height={box} aria-hidden="true">
       {asset ? (

@@ -1,5 +1,6 @@
 import { resolvePixGridMatrixDimensions } from './PixGridDefaults'
 import type { PixGridQualityMode, PixGridQualityTier } from './PixGridTypes'
+import type { PerformancePressureLevel } from '../../../../lib/performancePressure'
 
 export type PixGridAdaptiveStage = 0 | 1 | 2 | 3
 
@@ -21,6 +22,8 @@ export interface PixGridAdaptiveQualitySample {
   requestedQuality: PixGridQualityTier
   mode: PixGridQualityMode
   thumbnail?: boolean
+  /** Outside overload (see lib/performancePressure.ts): the controller never goes below this stage's savings while it lasts. Ignored in Fixed mode. */
+  pressure?: PerformancePressureLevel
 }
 
 export interface PixGridAdaptiveQualityOptions {
@@ -35,6 +38,11 @@ function reducedLogicalQuality(requested: PixGridQualityTier): PixGridQualityTie
   if (requested === 'ultra') return 'high'
   if (requested === 'high') return 'low'
   return 'low'
+}
+
+/** The least saving an outside overload asks for: elevated pressure reduces effects (stage 1), severe pressure also lowers the logical resolution (stage 3). */
+export function pixGridPressureFloorStage(pressure: PerformancePressureLevel | undefined): PixGridAdaptiveStage {
+  return pressure === 2 ? 3 : pressure === 1 ? 1 : 0
 }
 
 export function resolvePixGridAdaptiveQualityProfile(
@@ -177,6 +185,8 @@ export class PixGridAdaptiveQualityController {
       this.lastTransitionMs = input.nowMs
     }
 
-    return resolvePixGridAdaptiveQualityProfile(input.requestedQuality, input.mode, this.stage)
+    // The organic stage keeps evolving on its own; the pressure floor only lifts what is shown, so when the pressure ends the picture returns to where the frame rate alone would have it.
+    const shown = Math.max(this.stage, pixGridPressureFloorStage(input.pressure)) as PixGridAdaptiveStage
+    return resolvePixGridAdaptiveQualityProfile(input.requestedQuality, input.mode, shown)
   }
 }

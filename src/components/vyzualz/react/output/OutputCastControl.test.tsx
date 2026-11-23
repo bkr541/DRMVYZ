@@ -9,6 +9,7 @@ import type { NativeOutputBridge, OutputCastRequest, OutputCastSession, OutputRe
 import { CANVAS_FRACTURES_OUTPUT_DEFERRED } from '../canvasFracturesOutputContract'
 import { drawerText, WithNotificationDrawer } from '../../../../test/WithNotificationDrawer'
 import { OutputCastControl } from './OutputCastControl'
+import { getPerformancePressure, resetPerformancePressureForTests } from '../../../../lib/performancePressure'
 
 const targets: OutputTarget[] = [
   {
@@ -141,6 +142,26 @@ afterEach(async () => {
 })
 
 describe('OutputCastControl', () => {
+  it('reports performance pressure when the WebRTC stream\'s frame rate collapses, and clears it when the cast ends', async () => {
+    resetPerformancePressureForTests()
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
+    const connected = (framesPerSecond: number): OutputCastSession => ({
+      id: 'shed-session', targetId: 'display:2', targetName: 'Stage Screen', windowMode: 'fullscreen', aspectRatio: '16:9', state: 'connected', error: null, transport: 'webrtc',
+      stats: { timestampMs: Date.now(), width: 1280, height: 720, framesPerSecond, bitrateKbps: 900, roundTripTimeMs: 4, packetsLost: 0 },
+    })
+    try {
+      await act(async () => { sessionChanged?.(connected(58)) })
+      expect(getPerformancePressure()).toBe(0)
+      // Two collapsed readings in a row (each a fresh stats report) raise the pressure; a repeat of the same report does not count twice.
+      await act(async () => { sessionChanged?.(connected(20)) })
+      expect(getPerformancePressure()).toBe(0)
+      await act(async () => { sessionChanged?.(connected(2)) })
+      expect(getPerformancePressure()).toBeGreaterThanOrEqual(1)
+      await act(async () => { sessionChanged?.(null) })
+      expect(getPerformancePressure()).toBe(0)
+    } finally { resetPerformancePressureForTests() }
+  })
+
   it('shows a preview toggle immediately after Cast only while connected and removes it on stop', async () => {
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
     const session: OutputCastSession = { id: 'preview-session', targetId: 'display:2', targetName: 'Stage Screen',

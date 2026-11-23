@@ -46,6 +46,7 @@ import {
   computeImportedGridRevision,
 } from '../features/trackIntelligence/TrackAnalysisCoordinator'
 import { createLogger } from '../lib/logger'
+import { describeTrackForLog } from '../audio/trackLogContext'
 
 const audioLog = createLogger('react', 'AudioEngine')
 
@@ -453,10 +454,15 @@ export function useAudioEngine(): AudioEngine {
     const onPlaying = () => logMediaMilestone('playing')
     const onError = () => {
       const diagnostic = mediaLoadDiagnosticRef.current
+      // Name the file (and the browser's own reason: "Format error", "Media load rejected by URL safety check", a demuxer failure...) so a failed load can be traced to its file.
+      const failingTrack = tracksRef.current.find(track => track.id === diagnostic?.trackId)
       audioLog.error('media element load failed', {
-        trackId: diagnostic?.trackId ?? null,
+        ...describeTrackForLog(failingTrack, diagnostic?.trackId ?? null),
         elapsedMs: diagnostic ? Date.now() - diagnostic.startedAt : null,
         mediaErrorCode: el.error?.code ?? null,
+        mediaErrorMessage: el.error?.message || null,
+        networkState: el.networkState,
+        readyState: el.readyState,
       })
       // Clearing the source (stop, removing the last track) also raises an error event; only a load we asked for is a failure.
       if (!diagnostic || !el.src) return

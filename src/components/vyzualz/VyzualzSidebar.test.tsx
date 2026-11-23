@@ -5,8 +5,12 @@ import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import reactNavIcon from '../../assets/navigation/react.svg'
+import performanceManagerNavIcon from '../../assets/navigation/performance-manager.svg'
+import performanceManagerActiveNavIcon from '../../assets/navigation/performance-manager-active.svg'
 import presetManagerNavIcon from '../../assets/navigation/preset-manager.svg'
-import lyricManagerNavIcon from '../../assets/navigation/lyric-manager.png'
+import showManagerNavIcon from '../../assets/navigation/show-manager.svg'
+import lyricManagerNavIcon from '../../assets/navigation/lyric-manager.svg'
+import mediaManagerNavIcon from '../../assets/navigation/media-manager.svg'
 const fixture = vi.hoisted(() => ({ source: 'file' as 'file' | 'microphone' | 'demo' }))
 
 vi.mock('../../context/AudioEngineContext', () => ({
@@ -101,8 +105,11 @@ describe('VyzualzSidebar workspace navigation', () => {
     ])
     const iconAsset = (kind: string) => container?.querySelector(`[data-app-icon="${kind}"] image`)?.getAttribute('href')
     expect(iconAsset('navReact')).toBe(reactNavIcon)
+    expect(iconAsset('navPerformance')).toBe(performanceManagerNavIcon)
     expect(iconAsset('navPreset')).toBe(presetManagerNavIcon)
+    expect(iconAsset('navShow')).toBe(showManagerNavIcon)
     expect(iconAsset('navLyrics')).toBe(lyricManagerNavIcon)
+    expect(iconAsset('navMedia')).toBe(mediaManagerNavIcon)
     expect(labels.indexOf('Media Manager')).toBe(labels.indexOf('Lyric Manager') + 1)
 
     const presetManagerItem = navItems.find(item => item.getAttribute('aria-label') === 'Preset Manager')
@@ -123,5 +130,8 @@ describe('VyzualzSidebar workspace navigation', () => {
     expect(lyricItem?.getAttribute('aria-current')).toBe('page')
     act(() => mediaItem?.click())
     expect(onAppViewChange).toHaveBeenCalledWith('media')
+
+    act(() => root?.render(<VyzualzSidebar appView="performanceManager" />))
+    expect(iconAsset('navPerformance')).toBe(performanceManagerActiveNavIcon)
   })
 })
