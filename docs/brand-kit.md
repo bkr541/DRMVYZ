@@ -25,9 +25,9 @@ Brand Kit is the shared personalization system for palettes, logos, image assets
 
 ## Settings interface
 
-Brand Kit follows the Tracks / Document Workspace layout: `RailWindowHeader` title bars, `RailTabs` workspace tabs, a fixed kit list and a separately scrolling inspector. Asset roles and engine settings use disclosure groups rather than boxed cards; forms use `TextInputRow`, `ToggleRow`, `SelectRow`, and `SliderRow`, including underline dropdowns. Brand Kit uses the canonical `DualRailCollapsible` groups, `IconChipButton` actions, `LayerRow` kit selection, `StatusBadge`, and `PaletteColorRow` editor alongside shared text inputs, sliders, toggles and dropdowns. Brand-specific CSS owns layout and media previews; it does not replace shared control styling. Surfaces and text use the application theme tokens.
+Brand Kit uses the Settings popup's shared panels and scrolling content area. The Brand Kit group contains kit selection, creation, renaming, activation, deletion, and cloud sync status. Personalization, Brand assets, Palette, and Engine personalization use `DualRailCollapsible` groups in a single column. Asset roles and engine settings use nested disclosures. The panel uses shared form rows, underline dropdowns, icon chip actions, and palette rows.
 
-The Settings panel and kit column remain fixed. Only the right-hand Brand Kit editor scrolls, including at compact widths. The kit column pages according to its available height so large collections stay accessible without adding a second scrollbar. Changing pages does not activate or edit a kit; selecting a row chooses the editor, and Activate remains explicit.
+The kit selector supports search. Selecting a saved kit opens it for editing, and Activate applies it. Creating a kit makes it active.
 
 ## Data model
 

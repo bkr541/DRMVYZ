@@ -358,7 +358,8 @@ body,
 /* Settings modal layout */
 .vsm-system-settings,
 .vsm-appearance,
-.vsm-dj-software {
+.vsm-dj-software,
+.bk-settings {
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -406,6 +407,12 @@ body,
   font: 700 12px/1.2 var(--az-font);
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.vsm-settings-group-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .vsm-settings-group-heading p {

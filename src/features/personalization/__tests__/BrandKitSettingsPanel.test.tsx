@@ -47,6 +47,11 @@ async function render(element: React.ReactNode) {
   await act(async () => root.render(element))
 }
 
+async function openGroup(label: string) {
+  const header = [...container.querySelectorAll<HTMLButtonElement>('.drc-header')].find(button => button.textContent === label)!
+  await act(async () => header.click())
+}
+
 beforeEach(() => {
   container = document.createElement('div')
   document.body.appendChild(container)
@@ -68,13 +73,13 @@ describe('Brand Kit Settings states and accessibility', () => {
     useBrandKitStore.setState({ currentUserId: 'user-a', kits: [], activeKit: null, loading: true, syncing: true, error: null })
     await render(<BrandKitSettingsPanel />)
     expect(container.textContent).toContain('Loading from cloud')
-    expect(container.textContent).toContain('Loading…')
+    expect(container.querySelector('#bk-first-name')).toBeNull()
   })
 
   it('renders empty-state onboarding with a labeled name field', async () => {
     useBrandKitStore.setState({ currentUserId: 'user-a', kits: [], activeKit: null, loading: false, syncing: false, error: null })
     await render(<BrandKitSettingsPanel />)
-    expect(container.textContent).toContain('Make STAGELESS feel like your booth')
+    expect(container.querySelector('.vsm-settings-group h2')?.textContent).toContain('Brand Kit')
     const label = [...container.querySelectorAll('label')].find(candidate => candidate.textContent === 'Brand Kit name') as HTMLLabelElement
     expect(label).toBeTruthy()
     expect(label.control).toBeInstanceOf(HTMLInputElement)
@@ -92,7 +97,7 @@ describe('Brand Kit Settings states and accessibility', () => {
     await render(<BrandKitSettingsPanel />)
 
     expect(container.textContent).toContain('Using cached Brand Kit')
-    expect(container.textContent).toContain('ACTIVE KIT')
+    expect(container.textContent).toContain('Active kit')
     expect(container.textContent).toContain('Cloud refresh failed')
     expect([...container.querySelectorAll('button')].some(button => button.textContent === 'Retry')).toBe(true)
 
@@ -104,6 +109,7 @@ describe('Brand Kit Settings states and accessibility', () => {
     expect(updateKit).toHaveBeenCalledWith(kit.id, { autoApply: false })
 
     expect(container.querySelector('label[for]')?.textContent).toBeTruthy()
+    await openGroup('Engine personalization')
     expect(container.querySelector('.bk-engine-list .dv-underline-dropdown')).toBeTruthy()
     const triggerSemantics = [...container.querySelectorAll('label')].find(label => label.textContent?.includes('Preserve trigger semantics'))
     expect(triggerSemantics?.querySelector('input[type="checkbox"]')).toBeInstanceOf(HTMLInputElement)
@@ -113,40 +119,47 @@ describe('Brand Kit Settings states and accessibility', () => {
     expect(container.textContent).toContain('Personalization diagnostics')
   })
 
-  it('keeps every kit reachable through paging and edits the selected kit', async () => {
+  it('opens a saved kit for editing and activates it only on request', async () => {
     const kits = Array.from({ length: 10 }, (_, index) => ({ ...makeKit(), id: `kit-${index}`, name: `Brand ${index + 1}` }))
     const updateKit = vi.fn(async (id: string, patch: Partial<BrandKit>) => ({ ...kits.find(kit => kit.id === id)!, ...patch }))
+    const activateKit = vi.fn(async () => true)
     useBrandKitStore.setState({
       currentUserId: 'user-a', kits, activeKit: kits[0], activeAssets: [], assetsByKitId: {},
-      loading: false, syncing: false, error: null, updateKit, loadAssetsForKit: vi.fn(async () => []),
+      loading: false, syncing: false, error: null, updateKit, activateKit, loadAssetsForKit: vi.fn(async () => []),
     })
     await render(<BrandKitSettingsPanel />)
-    const next = container.querySelector<HTMLButtonElement>('[aria-label="Next Brand Kits"]')!
-    await act(async () => next.click())
-    const row = container.querySelector<HTMLButtonElement>('.bk-kit-list .dv-layer-row')!
-    expect(row.textContent).toContain('Brand 5')
-    await act(async () => row.click())
-    expect(container.querySelector<HTMLInputElement>('#bk-kit-name')?.value).toBe('Brand 5')
+    const selector = container.querySelector<HTMLButtonElement>('#bk-selected-kit')!
+    await act(async () => selector.click())
+    expect(document.body.querySelector('[placeholder="Search Brand Kits"]')).toBeTruthy()
+    const option = [...document.body.querySelectorAll<HTMLElement>('[role="option"]')].find(row => row.textContent === 'Brand 10')!
+    await act(async () => option.click())
+    expect(container.querySelector<HTMLInputElement>('#bk-kit-name')?.value).toBe('Brand 10')
+    expect(activateKit).not.toHaveBeenCalled()
+
+    await openGroup('Palette')
     const reset = container.querySelector<HTMLButtonElement>('[aria-label="Reset Primary color"]')!
     await act(async () => reset.click())
-    expect(updateKit).toHaveBeenCalledWith('kit-4', { palette: { ...BRAND, primary: expect.any(String) } })
-    await act(async () => next.click())
-    expect(container.querySelector('.bk-kit-list')?.textContent).toContain('Brand 9')
-    expect(next.disabled).toBe(true)
+    expect(updateKit).toHaveBeenCalledWith('kit-9', { palette: { ...BRAND, primary: expect.any(String) } })
+    const activate = [...container.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === 'Activate')!
+    await act(async () => activate.click())
+    expect(activateKit).toHaveBeenCalledWith('kit-9')
   })
 
-  it('uses workspace headers, tabs, shared form rows and unboxed asset disclosures', async () => {
+  it('uses shared Settings groups with nested asset disclosures', async () => {
     const kit = makeKit()
     useBrandKitStore.setState({ currentUserId: 'user-a', kits: [kit], activeKit: kit, assetsByKitId: { [kit.id]: [] }, loading: false, syncing: false, loadAssetsForKit: vi.fn(async () => []) })
     await render(<BrandKitSettingsPanel />)
-    expect(container.querySelectorAll('.rw-window-header')).toHaveLength(2)
-    expect(container.querySelectorAll('[aria-label="Brand Kit workspace"] .dv-underline-tab')).toHaveLength(4)
-    const assetsTab = [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find(tab => tab.textContent === 'Assets')!
-    await act(async () => assetsTab.click())
-    expect(container.querySelector('[aria-label="Assets"][role="tabpanel"]')?.hasAttribute('hidden')).toBe(false)
-    expect(container.querySelectorAll('.bk-assets-editor > .drc-group')).toHaveLength(10)
+    expect(container.querySelectorAll('.bk-settings > .vsm-settings-group')).toHaveLength(5)
+    expect(container.querySelector('.rw-window-header, [role="tablist"]')).toBeNull()
+    const editor = container.querySelector('.bk-assets-editor')!
+    expect(editor.closest('[hidden]')).toBeTruthy()
+    await openGroup('Brand assets')
+    expect(editor.closest('[hidden]')).toBeNull()
+    expect(editor.querySelectorAll(':scope > .drc-group[data-drc-depth="1"]')).toHaveLength(10)
     expect(container.querySelectorAll('.bk-assets-editor .bk-asset-role')).toHaveLength(0)
     expect(container.querySelector('#bk-display-asset')?.closest('.dv-underline-dropdown')).toBeTruthy()
+    await openGroup('Brand assets')
+    expect(editor.closest('[hidden]')).toBeTruthy()
   })
 
   it('keeps Settings navigation keyboard accessible and preserves Escape closing', async () => {
@@ -157,6 +170,7 @@ describe('Brand Kit Settings states and accessibility', () => {
     const brand = container.querySelector('#vsm-tab-brand') as HTMLButtonElement
     const system = container.querySelector('#vsm-tab-system') as HTMLButtonElement
     const modal = container.querySelector('.vsm-modal') as HTMLDivElement
+    const contentClassName = container.querySelector('.vsm-content')?.className
     const initialModalClassName = modal.className
     expect(account.getAttribute('aria-selected')).toBe('true')
     expect(container.querySelector('#vsm-tab-shortcuts')).toBeNull()
@@ -168,6 +182,7 @@ describe('Brand Kit Settings states and accessibility', () => {
     await act(async () => appearance.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })))
     expect(brand.getAttribute('aria-selected')).toBe('true')
     expect(container.querySelector('[role="tabpanel"]')?.getAttribute('aria-labelledby')).toBe('vsm-tab-brand')
+    expect(container.querySelector('[role="tabpanel"]')?.className).toBe(contentClassName)
     expect(modal.className).toBe(initialModalClassName)
 
     await act(async () => system.click())

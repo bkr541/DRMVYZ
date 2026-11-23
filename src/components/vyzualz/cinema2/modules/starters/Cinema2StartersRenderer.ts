@@ -104,6 +104,26 @@ float fbm(vec2 p) {
   return value;
 }
 
+// A cheaper noise for the tiny edge displacement of foliage: the two finest octaves of fbm move a surface by well under half a pixel. The mean is kept
+// (0.455 instead of 0.504) so leaves are neither fatter nor thinner than before.
+float fbm3(vec2 p) {
+  float value = 0.0;
+  float amplitude = 0.52;
+  for (int i = 0; i < 3; i++) {
+    value += valueNoise(p) * amplitude;
+    p = mat2(1.63, 1.21, -1.21, 1.63) * p;
+    amplitude *= 0.5;
+  }
+  return value;
+}
+
+// A lower bound on the distance from p to an axis-aligned box (0 inside it). If a box holds every surface of a group of objects, then no object in the group can
+// be nearer than this, so a group whose box is already farther than the best distance found so far cannot change the result and is skipped entirely.
+float boxBound(vec3 p, vec3 center, vec3 halfSize) {
+  vec3 q = abs(p - center) - halfSize;
+  return length(max(q, 0.0));
+}
+
 float sdRoundBox(vec3 p, vec3 halfSize, float radius) {
   vec3 q = abs(p) - halfSize + radius;
   return min(max(q.x, max(q.y, q.z)), 0.0) + length(max(q, 0.0)) - radius;
@@ -147,13 +167,21 @@ vec3 rotateZ(vec3 p, float angle) {
 
 vec2 nearest(vec2 a, vec2 b) { return a.x < b.x ? a : b; }
 
+// Everything below that depends only on the controls (never on the point being measured) is worked out once per pixel by prepareScene(), not on every
+// step of every ray: the lid's angle, each ball's position and its two rotations, and the box that holds the case and balls.
+float gLidCos = 1.0;
+float gLidSin = 0.0;
+vec3 gBallCenter[3];
+float gBallRadius[3];
+mat3 gBallShell[3];
+mat3 gBallButton[3];
+vec3 gHeroCenter = vec3(0.0, 1.9, 0.0);
+vec3 gHeroHalf = vec3(4.6, 2.2, 3.9);
+
 vec3 lidPoint(vec3 p) {
   vec3 pivot = vec3(0.0, 1.43, -2.05);
   vec3 q = p - pivot;
-  float angle = clamp(u_caseOpen + u_build * 0.08, 0.0, 1.0) * 1.18;
-  float c = cos(angle);
-  float s = sin(angle);
-  q.yz = mat2(c, s, -s, c) * q.yz;
+  q.yz = mat2(gLidCos, gLidSin, -gLidSin, gLidCos) * q.yz;
   return q - vec3(0.0, 0.42, 0.76);
 }
 
@@ -169,7 +197,20 @@ vec3 ballCenter(int index) {
   return vec3(1.72 * u_ballSpread * dropSpread, 0.69 + ballBounce(4.2), 1.03);
 }
 
-vec2 ballField(vec3 p, vec3 center, int index) {
+// How each ball is turned this frame: a rock about z and x, a bounded turn about y, and the (smaller) turn the mounting bezel follows.
+vec3 ballShellTurn(vec3 v, float rock, float turn) {
+  v = rotateZ(v, -rock);
+  v = rotateX(v, -rock * 0.28);
+  return rotateY(v, -turn);
+}
+
+vec3 ballButtonTurn(vec3 v, float rock, float turn) {
+  v = rotateZ(v, -rock * 0.58);
+  v = rotateX(v, -rock * 0.16);
+  return rotateY(v, -turn * 0.30);
+}
+
+void prepareBall(int index) {
   float indexPhase = float(index) * 2.17;
   float direction = index == 1 ? -1.0 : 1.0;
   float musicalDrive = 0.18 + u_energy * 0.46 + u_bass * 0.36;
@@ -182,19 +223,18 @@ vec2 ballField(vec3 p, vec3 center, int index) {
   float turn = direction * sin(u_time * 0.48 + indexPhase) * 0.34 * u_ballRotation;
   turn += sin(u_time * 0.785398 + indexPhase) * 0.15 * u_ballWiggle * (0.3 + u_energy * 0.7);
   turn += direction * u_drop * 0.20 * u_ballRotation;
+  gBallCenter[index] = ballCenter(index);
+  gBallRadius[index] = 0.66 * u_ballScale * (1.0 + u_drop * 0.045 + u_kick * 0.018);
+  // Both rotations are linear, so each is one matrix: its columns are where the three axes end up.
+  gBallShell[index] = mat3(ballShellTurn(vec3(1.0, 0.0, 0.0), rock, turn), ballShellTurn(vec3(0.0, 1.0, 0.0), rock, turn), ballShellTurn(vec3(0.0, 0.0, 1.0), rock, turn));
+  gBallButton[index] = mat3(ballButtonTurn(vec3(1.0, 0.0, 0.0), rock, turn), ballButtonTurn(vec3(0.0, 1.0, 0.0), rock, turn), ballButtonTurn(vec3(0.0, 0.0, 1.0), rock, turn));
+}
 
-  float radius = 0.66 * u_ballScale * (1.0 + u_drop * 0.045 + u_kick * 0.018);
-  vec3 originalLocal = p - center;
-  vec3 local = originalLocal;
-  local = rotateZ(local, -rock);
-  local = rotateX(local, -rock * 0.28);
-  local = rotateY(local, -turn);
-
-  // The mounting bezel follows only part of the shell's turn. This keeps it
-  // attached to the rocking gesture while retaining a visible circular face.
-  vec3 buttonLocal = rotateZ(originalLocal, -rock * 0.58);
-  buttonLocal = rotateX(buttonLocal, -rock * 0.16);
-  buttonLocal = rotateY(buttonLocal, -turn * 0.30);
+vec2 ballField(vec3 p, int index) {
+  float radius = gBallRadius[index];
+  vec3 originalLocal = p - gBallCenter[index];
+  vec3 local = gBallShell[index] * originalLocal;
+  vec3 buttonLocal = gBallButton[index] * originalLocal;
 
   // Proportions measured from the supplied Blender collection: independent
   // lacquered shells float over a slightly smaller black core, leaving a
@@ -216,58 +256,64 @@ vec2 ballField(vec3 p, vec3 center, int index) {
   return nearest(result, vec2(button, 9.0));
 }
 
-vec2 forestField(vec3 p) {
-  // Repeated but irregular tree cells create a continuous rear woodland. All
-  // trunks and shrubs begin at y=0, so they visibly emerge from the same 3D
-  // grass plane as the hero objects instead of floating in a backdrop layer.
-  float treeCell = floor((p.x + 1.7) / 3.4);
-  float treeRandom = hash21(vec2(treeCell, 4.7));
-  float rearArc = min(p.x * p.x, 30.0);
-  float leftWing = smoothstep(2.5, 10.5, -p.x);
-  vec3 treePoint = p;
-  treePoint.x = mod(p.x + 1.7, 3.4) - 1.7;
-  // The woodland occupies a shallow rear arc: the center of the tree line is
-  // nearest and its outer edges recede, following the grass horizon instead
-  // of reading as a straight row pasted behind the hero composition.
-  float treeDepth = 14.40 + rearArc * 0.025 - leftWing * (6.35 + rearArc * 0.012);
-  treePoint.z += treeDepth + (treeRandom - 0.5) * 0.50;
-  float treeHeight = mix(3.70, 5.15, treeRandom);
-  float treeSway = sin(u_time * 0.22 + treeCell * 1.71) * u_ambientMotion * (0.018 + u_bass * 0.026);
-  treePoint.x -= treeSway * smoothstep(0.15, treeHeight, treePoint.y);
+vec2 forestField(vec3 p, float best) {
+  vec2 result = vec2(1.0e5, 0.0);
+  // The rear woodland repeats along x but always stands in this band of depth and height (trunks and shrubs rooted at y = 0, crowns below y = 5.6), so a ray
+  // that is farther from the band than the nearest thing already found cannot be affected by any tree or shrub in it.
+  float rearBound = length(max(vec2(max(-16.3 - p.z, p.z + 7.2), p.y - 5.9), 0.0));
+  if (rearBound < best) {
+    float treeCell = floor((p.x + 1.7) / 3.4);
+    float treeRandom = hash21(vec2(treeCell, 4.7));
+    float rearArc = min(p.x * p.x, 30.0);
+    float leftWing = smoothstep(2.5, 10.5, -p.x);
+    vec3 treePoint = p;
+    treePoint.x = mod(p.x + 1.7, 3.4) - 1.7;
+    // The woodland occupies a shallow rear arc: the center of the tree line is
+    // nearest and its outer edges recede, following the grass horizon instead
+    // of reading as a straight row pasted behind the hero composition.
+    float treeDepth = 14.40 + rearArc * 0.025 - leftWing * (6.35 + rearArc * 0.012);
+    treePoint.z += treeDepth + (treeRandom - 0.5) * 0.50;
+    float treeHeight = mix(3.70, 5.15, treeRandom);
+    float treeSway = sin(u_time * 0.22 + treeCell * 1.71) * u_ambientMotion * (0.018 + u_bass * 0.026);
+    treePoint.x -= treeSway * smoothstep(0.15, treeHeight, treePoint.y);
 
-  float trunkRadius = mix(0.13, 0.20, hash21(vec2(treeCell, 8.3)));
-  float trunk = sdCapsule(treePoint, vec3(0.0, 0.0, 0.0), vec3(treeSway * 1.6, treeHeight * 0.72, 0.0), trunkRadius);
-  vec2 result = vec2(trunk, 11.0);
+    float trunkRadius = mix(0.13, 0.20, hash21(vec2(treeCell, 8.3)));
+    float trunk = sdCapsule(treePoint, vec3(0.0, 0.0, 0.0), vec3(treeSway * 1.6, treeHeight * 0.72, 0.0), trunkRadius);
+    result = vec2(trunk, 11.0);
 
-  vec3 crown = treePoint - vec3(treeSway * 1.5, treeHeight * 0.76, 0.0);
-  float foliage = sdEllipsoid(crown, vec3(0.82, treeHeight * 0.25, 0.58));
-  foliage = min(foliage, sdEllipsoid(crown - vec3(-0.55, -0.12, 0.05), vec3(0.58, treeHeight * 0.20, 0.50)));
-  foliage = min(foliage, sdEllipsoid(crown - vec3(0.54, -0.06, -0.04), vec3(0.62, treeHeight * 0.21, 0.52)));
-  foliage = min(foliage, sdEllipsoid(crown - vec3(0.02, 0.55, 0.02), vec3(0.56, treeHeight * 0.19, 0.46)));
-  float leafBreakup = (fbm(treePoint.xy * 2.3 + treePoint.z) - 0.5) * 0.075;
-  result = nearest(result, vec2(foliage + leafBreakup, 12.0));
+    vec3 crown = treePoint - vec3(treeSway * 1.5, treeHeight * 0.76, 0.0);
+    float foliage = sdEllipsoid(crown, vec3(0.82, treeHeight * 0.25, 0.58));
+    foliage = min(foliage, sdEllipsoid(crown - vec3(-0.55, -0.12, 0.05), vec3(0.58, treeHeight * 0.20, 0.50)));
+    foliage = min(foliage, sdEllipsoid(crown - vec3(0.54, -0.06, -0.04), vec3(0.62, treeHeight * 0.21, 0.52)));
+    foliage = min(foliage, sdEllipsoid(crown - vec3(0.02, 0.55, 0.02), vec3(0.56, treeHeight * 0.19, 0.46)));
+    if (foliage < 0.3) foliage += (fbm3(treePoint.xy * 2.3 + treePoint.z) - 0.455) * 0.075;
+    result = nearest(result, vec2(foliage, 12.0));
 
-  float shrubCell = floor((p.x + 0.85) / 1.7);
-  float shrubRandom = hash21(vec2(shrubCell, 12.4));
-  vec3 shrubPoint = p;
-  shrubPoint.x = mod(p.x + 0.85, 1.7) - 0.85;
-  float shrubDepth = 13.65 + rearArc * 0.023 - leftWing * (5.85 + rearArc * 0.010);
-  shrubPoint.z += shrubDepth + (shrubRandom - 0.5) * 0.42;
-  float shrubHeight = mix(0.66, 1.18, shrubRandom);
-  shrubPoint.x -= sin(u_time * 0.28 + shrubCell) * u_ambientMotion * 0.012 * smoothstep(0.0, shrubHeight, shrubPoint.y);
-  float shrub = sdEllipsoid(shrubPoint - vec3(0.0, shrubHeight * 0.48, 0.0), vec3(0.68, shrubHeight * 0.58, 0.48));
-  shrub = min(shrub, sdEllipsoid(shrubPoint - vec3(-0.46, shrubHeight * 0.38, 0.04), vec3(0.43, shrubHeight * 0.43, 0.38)));
-  shrub = min(shrub, sdEllipsoid(shrubPoint - vec3(0.45, shrubHeight * 0.34, -0.03), vec3(0.45, shrubHeight * 0.40, 0.36)));
-  shrub += (fbm(shrubPoint.xy * 3.7 + shrubPoint.z * 1.8) - 0.5) * 0.055;
-  result = nearest(result, vec2(shrub, 13.0));
+    float shrubCell = floor((p.x + 0.85) / 1.7);
+    float shrubRandom = hash21(vec2(shrubCell, 12.4));
+    vec3 shrubPoint = p;
+    shrubPoint.x = mod(p.x + 0.85, 1.7) - 0.85;
+    float shrubDepth = 13.65 + rearArc * 0.023 - leftWing * (5.85 + rearArc * 0.010);
+    shrubPoint.z += shrubDepth + (shrubRandom - 0.5) * 0.42;
+    float shrubHeight = mix(0.66, 1.18, shrubRandom);
+    shrubPoint.x -= sin(u_time * 0.28 + shrubCell) * u_ambientMotion * 0.012 * smoothstep(0.0, shrubHeight, shrubPoint.y);
+    float shrub = sdEllipsoid(shrubPoint - vec3(0.0, shrubHeight * 0.48, 0.0), vec3(0.68, shrubHeight * 0.58, 0.48));
+    shrub = min(shrub, sdEllipsoid(shrubPoint - vec3(-0.46, shrubHeight * 0.38, 0.04), vec3(0.43, shrubHeight * 0.43, 0.38)));
+    shrub = min(shrub, sdEllipsoid(shrubPoint - vec3(0.45, shrubHeight * 0.34, -0.03), vec3(0.45, shrubHeight * 0.40, 0.36)));
+    if (shrub < 0.3) shrub += (fbm3(shrubPoint.xy * 3.7 + shrubPoint.z * 1.8) - 0.455) * 0.055;
+    result = nearest(result, vec2(shrub, 13.0));
+    best = min(best, result.x);
+  }
 
   // Continue the rear perimeter around the left side with true world-space
   // clusters. Keeping these as separate SDF objects avoids distorting the
   // distance field while completing the curved woodland boundary.
   for (int i = 0; i < 4; i++) {
     float index = float(i);
-    float sideRandom = hash21(vec2(index, 21.7));
     vec3 sideCenter = vec3(-5.25 - index * 3.12, 0.0, -13.25 + index * 3.86);
+    // Every surface of this cluster (trunk, crown, shrub, with sway) lies inside this box.
+    if (boxBound(p, sideCenter + vec3(-0.7, 2.95, 0.15), vec3(1.95, 3.0, 1.0)) >= best) continue;
+    float sideRandom = hash21(vec2(index, 21.7));
     vec3 sidePoint = p - sideCenter;
     float sideHeight = mix(3.45, 4.85, sideRandom);
     float sideSway = sin(u_time * 0.20 + index * 1.47) * u_ambientMotion * (0.018 + u_bass * 0.024);
@@ -279,23 +325,24 @@ vec2 forestField(vec3 p) {
     float sideFoliage = sdEllipsoid(sideCrown, vec3(0.78, sideHeight * 0.24, 0.56));
     sideFoliage = min(sideFoliage, sdEllipsoid(sideCrown - vec3(-0.51, -0.10, 0.04), vec3(0.55, sideHeight * 0.19, 0.47)));
     sideFoliage = min(sideFoliage, sdEllipsoid(sideCrown - vec3(0.50, -0.04, -0.03), vec3(0.58, sideHeight * 0.20, 0.49)));
-    sideFoliage += (fbm(sidePoint.xy * 2.35 + sidePoint.z) - 0.5) * 0.07;
+    if (sideFoliage < 0.3) sideFoliage += (fbm3(sidePoint.xy * 2.35 + sidePoint.z) - 0.455) * 0.07;
     result = nearest(result, vec2(sideFoliage, 12.0));
 
     vec3 sideShrubPoint = p - (sideCenter + vec3(-1.25, 0.0, 0.36));
     float sideShrubHeight = mix(0.68, 1.08, hash21(vec2(index, 32.8)));
     float sideShrub = sdEllipsoid(sideShrubPoint - vec3(0.0, sideShrubHeight * 0.48, 0.0), vec3(1.18, sideShrubHeight * 0.58, 0.55));
-    sideShrub += (fbm(sideShrubPoint.xy * 3.5 + sideShrubPoint.z * 1.7) - 0.5) * 0.05;
+    if (sideShrub < 0.3) sideShrub += (fbm3(sideShrubPoint.xy * 3.5 + sideShrubPoint.z * 1.7) - 0.455) * 0.05;
     result = nearest(result, vec2(sideShrub, 13.0));
+    best = min(best, result.x);
   }
   return result;
 }
 
-vec2 mapScene(vec3 p) {
-  vec2 result = vec2(p.y, 1.0);
-
-  result = nearest(result, forestField(p));
-
+// The case, lid, handle and the three balls: everything the viewer is looking at. All of it lies inside the box prepareScene() fits around it.
+#define HERO_CENTER gHeroCenter
+#define HERO_HALF gHeroHalf
+vec2 heroField(vec3 p) {
+  vec2 result = vec2(1.0e5, 0.0);
   // Lower case and its visible right-side depth.
   result = nearest(result, vec2(sdRoundBox(p - vec3(0.0, 0.83, -1.18), vec3(2.70, 0.70, 0.93), 0.20), 2.0));
 
@@ -319,22 +366,86 @@ vec2 mapScene(vec3 p) {
   result = nearest(result, vec2(sdCapsule(p, vec3(-0.62, 0.18, 0.28), vec3(0.62, 0.18, 0.28), 0.13), 3.0));
   result = nearest(result, vec2(sdCapsule(p, vec3(0.62, 0.18, 0.28), vec3(0.72, 0.55, 0.04), 0.13), 3.0));
 
-  result = nearest(result, ballField(p, ballCenter(0), 0));
-  result = nearest(result, ballField(p, ballCenter(1), 1));
-  result = nearest(result, ballField(p, ballCenter(2), 2));
+  result = nearest(result, ballField(p, 0));
+  result = nearest(result, ballField(p, 1));
+  result = nearest(result, ballField(p, 2));
   return result;
 }
 
-vec2 raymarch(vec3 origin, vec3 direction) {
-  float travel = 0.0;
-  float material = 0.0;
+// The whole scene's distance field, used for normals, shadows and occlusion. Each group is skipped when its box is already farther than the nearest surface
+// found so far, which cannot change the result.
+vec2 mapScene(vec3 p) {
+  vec2 result = vec2(p.y, 1.0);
+  result = nearest(result, forestField(p, result.x));
+  if (boxBound(p, HERO_CENTER, HERO_HALF) >= result.x) return result;
+  return nearest(result, heroField(p));
+}
+
+// The boxes that hold every surface other than the ground: the case and balls (HERO), the rear woodland band (REAR, repeated along x) and the left-side clusters (SIDE).
+#define REAR_CENTER vec3(0.0, 2.8, -11.75)
+#define REAR_HALF vec3(80.0, 3.1, 4.55)
+#define SIDE_CENTER vec3(-10.6, 2.9, -7.3)
+#define SIDE_HALF vec3(6.7, 3.0, 6.8)
+
+// Where a ray is inside an axis-aligned box: (enter, exit), with enter > exit when it misses.
+vec2 rayBox(vec3 origin, vec3 direction, vec3 center, vec3 halfSize) {
+  vec3 safe = mix(direction, vec3(1.0e-6), lessThan(abs(direction), vec3(1.0e-6)));
+  vec3 inverse = 1.0 / safe;
+  vec3 a = (center - halfSize - origin) * inverse;
+  vec3 b = (center + halfSize - origin) * inverse;
+  vec3 nearSide = min(a, b);
+  vec3 farSide = max(a, b);
+  return vec2(max(max(nearSide.x, nearSide.y), nearSide.z), min(min(farSide.x, farSide.y), farSide.z));
+}
+
+vec2 marchHero(vec3 origin, vec3 direction, float start, float end) {
+  float travel = start;
   for (int i = 0; i < MAX_STEPS; i++) {
-    vec2 samplePoint = mapScene(origin + direction * travel);
-    material = samplePoint.y;
-    if (samplePoint.x < SURFACE_EPSILON || travel > MAX_DISTANCE) break;
-    travel += samplePoint.x * 0.72;
+    vec2 field = heroField(origin + direction * travel);
+    if (field.x < SURFACE_EPSILON) return vec2(travel, field.y);
+    travel += field.x * 0.72;
+    if (travel > end) break;
   }
-  return vec2(travel, material);
+  return vec2(1.0e9, 0.0);
+}
+
+vec2 marchForest(vec3 origin, vec3 direction, float start, float end) {
+  float travel = start;
+  for (int i = 0; i < MAX_STEPS; i++) {
+    vec2 field = forestField(origin + direction * travel, 1.0e5);
+    if (field.x < SURFACE_EPSILON) return vec2(travel, field.y);
+    travel += field.x * 0.72;
+    if (travel > end) break;
+  }
+  return vec2(1.0e9, 0.0);
+}
+
+// The nearest surface along a ray, as (distance, material). The ground is a plane, so its hit is exact and costs nothing; the case and balls, and the woodland,
+// are only marched through the stretch of the ray that crosses the box holding them, and only up to the ground or a nearer hit. Rays that touch neither
+// box (most of the grass, and the sky) never march at all.
+vec2 traceScene(vec3 origin, vec3 direction) {
+  float groundDistance = direction.y < -1.0e-4 ? -origin.y / direction.y : 1.0e9;
+  vec2 best = groundDistance < MAX_DISTANCE ? vec2(groundDistance, 1.0) : vec2(1.0e9, 0.0);
+  float limit = min(best.x, MAX_DISTANCE);
+
+  vec2 heroSpan = rayBox(origin, direction, HERO_CENTER, HERO_HALF);
+  if (heroSpan.x <= heroSpan.y && heroSpan.y > 0.0 && heroSpan.x < limit) {
+    vec2 hero = marchHero(origin, direction, max(heroSpan.x - 0.02, 0.0), min(heroSpan.y + 0.02, limit));
+    if (hero.x < best.x) { best = hero; limit = min(limit, hero.x); }
+  }
+
+  // The rear woodland (a band of depth and height, repeated along x) and the left-side clusters.
+  vec2 rearSpan = rayBox(origin, direction, REAR_CENTER, REAR_HALF);
+  vec2 sideSpan = rayBox(origin, direction, SIDE_CENTER, SIDE_HALF);
+  float forestStart = 1.0e9;
+  float forestEnd = -1.0e9;
+  if (rearSpan.x <= rearSpan.y) { forestStart = min(forestStart, rearSpan.x); forestEnd = max(forestEnd, rearSpan.y); }
+  if (sideSpan.x <= sideSpan.y) { forestStart = min(forestStart, sideSpan.x); forestEnd = max(forestEnd, sideSpan.y); }
+  if (forestStart <= forestEnd && forestEnd > 0.0 && forestStart < limit) {
+    vec2 forest = marchForest(origin, direction, max(forestStart - 0.02, 0.0), min(forestEnd + 0.02, limit));
+    if (forest.x < best.x) best = forest;
+  }
+  return best;
 }
 
 vec3 sceneNormal(vec3 p) {
@@ -358,14 +469,28 @@ float ambientOcclusion(vec3 p, vec3 normal) {
   return clamp(1.0 - occlusion * 2.6, 0.28, 1.0);
 }
 
+// A soft shadow is the smallest 13 * distance / travel along the ray, so a ray that never comes within travel / 13 (at most 12 / 13 of a unit) of any surface
+// leaves the shade at exactly 1. Every surface lies in the three boxes above, so a ray that misses all of them, grown by one unit, needs no marching at all,
+// and one that does cross them only needs marching until it has left the last.
 float softShadow(vec3 origin, vec3 direction) {
+  vec2 hero = rayBox(origin, direction, HERO_CENTER, HERO_HALF + 1.0);
+  vec2 rear = rayBox(origin, direction, REAR_CENTER, REAR_HALF + 1.0);
+  vec2 side = rayBox(origin, direction, SIDE_CENTER, SIDE_HALF + 1.0);
+  float enter = 1.0e9;
+  float reach = 0.0;
+  if (hero.x <= hero.y && hero.y > 0.0) { enter = min(enter, hero.x); reach = max(reach, hero.y); }
+  if (rear.x <= rear.y && rear.y > 0.0) { enter = min(enter, rear.x); reach = max(reach, rear.y); }
+  if (side.x <= side.y && side.y > 0.0) { enter = min(enter, side.x); reach = max(reach, side.y); }
+  if (reach <= 0.0) return 1.0;
+  reach = min(reach, 12.0);
+
   float shade = 1.0;
-  float travel = 0.025;
+  float travel = max(0.025, enter - 0.32);
   for (int i = 0; i < 42; i++) {
     float distanceToScene = mapScene(origin + direction * travel).x;
     shade = min(shade, 13.0 * distanceToScene / travel);
     travel += clamp(distanceToScene, 0.025, 0.32);
-    if (distanceToScene < 0.001 || travel > 12.0) break;
+    if (distanceToScene < 0.001 || travel > reach) break;
   }
   return clamp(shade, 0.18, 1.0);
 }
@@ -494,7 +619,37 @@ vec3 backgroundColor(vec3 direction, vec2 screenPoint) {
   return color;
 }
 
+// Works out, once per pixel, everything that depends only on the controls. The box around the case and balls is fitted to where they are now: the case body
+// and handle (x within 2.7, y 0.05..1.53, z -2.11..0.41), the lid at its current angle (its extreme corners, from the lid's own size), and each ball with its
+// bezel and button (within 1.08 radii of its centre), plus a margin.
+void prepareScene() {
+  float angle = clamp(u_caseOpen + u_build * 0.08, 0.0, 1.0) * 1.18;
+  gLidCos = cos(angle);
+  gLidSin = sin(angle);
+  vec3 low = vec3(-2.78, 0.04, -2.14);
+  vec3 high = vec3(2.78, 1.56, 0.44);
+  for (int i = 0; i < 4; i++) {
+    float v0 = (i / 2 == 0) ? 0.06 : 0.875;
+    float v1 = (i - (i / 2) * 2 == 0) ? -0.12 : 1.64;
+    float y = 1.43 + gLidCos * v0 + gLidSin * v1;
+    float z = -2.05 - gLidSin * v0 + gLidCos * v1;
+    low.yz = min(low.yz, vec2(y, z));
+    high.yz = max(high.yz, vec2(y, z));
+  }
+  for (int i = 0; i < 3; i++) {
+    prepareBall(i);
+    vec3 reach = vec3(gBallRadius[i] * 1.08 + 0.02);
+    low = min(low, gBallCenter[i] - reach);
+    high = max(high, gBallCenter[i] + reach);
+  }
+  low -= 0.12;
+  high += 0.12;
+  gHeroCenter = (low + high) * 0.5;
+  gHeroHalf = (high - low) * 0.5;
+}
+
 void main() {
+  prepareScene();
   vec2 pixel = (gl_FragCoord.xy * 2.0 - u_resolution.xy) / max(u_resolution.y, 1.0);
 
   // A bounded front-hemisphere orbit keeps the release buttons readable while
@@ -514,15 +669,18 @@ void main() {
   vec3 up = cross(right, forward);
   vec3 ray = normalize(forward * 2.70 + right * pixel.x + up * pixel.y);
 
-  vec2 hit = raymarch(camera, ray);
+  vec2 hit = traceScene(camera, ray);
   vec3 color;
   if (hit.x < MAX_DISTANCE) {
     vec3 point = camera + ray * hit.x;
-    vec3 normal = sceneNormal(point);
+    // The ground is the plane y = 0: its normal is exact, and its occlusion is exactly 1 unless the point is within reach (0.3) of the case, balls or woodland.
+    bool onGround = hit.y < 1.5;
+    vec3 normal = onGround ? vec3(0.0, 1.0, 0.0) : sceneNormal(point);
     vec3 lightDirection = normalize(vec3(-0.62, 0.78, 0.48));
     float diffuse = max(dot(normal, lightDirection), 0.0);
     float shadow = softShadow(point + normal * 0.012, lightDirection);
-    float ao = ambientOcclusion(point, normal);
+    bool nearObjects = boxBound(point, HERO_CENTER, HERO_HALF) < 0.3 || boxBound(point, REAR_CENTER, REAR_HALF) < 0.3 || boxBound(point, SIDE_CENTER, SIDE_HALF) < 0.3;
+    float ao = (onGround && !nearObjects) ? 1.0 : ambientOcclusion(point, normal);
     float halfLambert = 0.42 + 0.58 * diffuse * shadow;
     // Broad stepped light keeps the case and environment illustrated. The
     // supplied ball rendering is intentionally smoother and more reflective.

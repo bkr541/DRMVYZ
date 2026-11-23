@@ -16,6 +16,8 @@ export interface DualRailCollapsibleProps {
    *  nested groups never do. Pass `false` to suppress it on a parent. */
   icon?: ReactNode
   defaultOpen?: boolean
+  /** Keep child component state when the disclosure is collapsed. */
+  keepMounted?: boolean
   open?: boolean
   onOpenChange?: (open: boolean) => void
   children: ReactNode
@@ -33,6 +35,7 @@ export function DualRailCollapsible({
   label,
   icon,
   defaultOpen = true,
+  keepMounted = false,
   open: controlledOpen,
   onOpenChange,
   children,
@@ -71,8 +74,8 @@ export function DualRailCollapsible({
         {headerAccessory != null && <span className="drc-header-accessory">{headerAccessory}</span>}
         <span className="drc-arrow" aria-hidden="true"><AppIcon kind="chevronDown" size={14} /></span>
       </button>
-      {open && (
-        <div id={contentId} className={`drc-body${bodyClassName ? ` ${bodyClassName}` : ''}`}>
+      {(open || keepMounted) && (
+        <div id={contentId} hidden={!open} className={`drc-body${bodyClassName ? ` ${bodyClassName}` : ''}`}>
           <GroupDepthContext.Provider value={depth + 1}>{children}</GroupDepthContext.Provider>
         </div>
       )}

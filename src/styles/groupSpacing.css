@@ -20,12 +20,6 @@
   padding-inline: var(--workspace-panel-inset, 6px);
 }
 
-/* Brand Kit tabs use a 12px inset; the editor previously added 20px. */
-:root body .bk-editor {
-  padding-inline: 12px;
-  scrollbar-gutter: auto;
-}
-
 /* The first parent group under a panel's sub-tab row (ENGINE / SELECTION, PERFORMANCE / ANALYSIS) is the same distance
    below the pills as one parent group is below the previous: 21px = the 12px the sub-tabs keep under the pills plus
    the 9px control gap. Before, the control group's 7px top padding and the group's own 12px top padding stacked on

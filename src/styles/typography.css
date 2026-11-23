@@ -242,14 +242,16 @@
   letter-spacing: normal !important;
 }
 
-:root body [class].drc-header {
+:root body [class].drc-header,
+:root body .vsm-settings-group-title {
   font: var(--type-group-heading) !important;
   letter-spacing: var(--type-window-heading-tracking) !important;
 }
 
 /* Depth comes from the reusable group's structure, including intervening
    layout wrappers. Every nested level keeps the smaller heading role. */
-:root body .drc-group .drc-group > .drc-header {
+:root body .drc-group .drc-group > .drc-header,
+:root body .drc-group .bk-analysis-panel .bk-section-heading h3 {
   font: var(--type-nested-group-heading) !important;
   letter-spacing: 0.09em !important;
 }

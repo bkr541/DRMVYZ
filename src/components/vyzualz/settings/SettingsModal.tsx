@@ -649,7 +649,7 @@ export function SettingsModalFrame({
           </nav>
           <div
             id={`${idPrefix}-panel-${tab}`}
-            className={`vsm-content${tab === 'brand' ? ' vsm-content--brand' : ''}${tab === 'developer' ? ' vsm-content--developer' : ''}`}
+            className={`vsm-content${tab === 'developer' ? ' vsm-content--developer' : ''}`}
             role="tabpanel"
             aria-labelledby={`${idPrefix}-tab-${tab}`}
             tabIndex={0}
@@ -684,7 +684,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
       if (event.key !== 'Tab' || !modalRef.current) return
       const focusable = Array.from(modalRef.current.querySelectorAll<HTMLElement>(
         'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
-      )).filter(element => !element.hasAttribute('hidden'))
+      )).filter(element => !element.closest('[hidden]'))
       if (focusable.length === 0) {
         event.preventDefault()
         modalRef.current.focus()

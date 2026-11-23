@@ -1,12 +1,8 @@
-import { RailWindowHeader } from '../../../components/vyzualz/layout/RailWindowHeader'
-import { RailTabs } from '../../../components/vyzualz/layout/RailTabs'
 import { ToggleRow, TextInputRow, SelectRow } from '../../../components/vyzualz/react/ReactControlRows'
 import { DualRailCollapsible } from '../../../components/vyzualz/react/DualRailCollapsible'
-import { LayerRow } from '../../../components/vyzualz/react/controls/LayerRow'
 import { StatusBadge } from '../../../components/vyzualz/react/controls/StatusBadge'
 import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
 import { AppIcon } from '../../../components/shared/icons/AppIcon'
-import { DreamVizTextInput } from '../../../components/vyzualz/react/controls/DreamVizTextInput'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { getProfile } from '../../../lib/profileDb'
@@ -59,12 +55,11 @@ function SyncStatus() {
         : activeMetadata.source === 'database' ? 'Cloud synced'
           : 'Not synced'
   return (
-    <div className={`bk-sync-status${error ? ' bk-sync-status--error' : ''}`} role="status" aria-live="polite">
-      <span className="bk-sync-dot" aria-hidden="true" />
-      <div>
-        <strong>{label}</strong>
-        <span>{error ?? (activeMetadata.lastSyncedAt ? `Last synced ${formatTimestamp(activeMetadata.lastSyncedAt)}` : 'Changes are stored with your account.')}</span>
-      </div>
+    <div className={`bk-sync-status vsm-settings-detail${error ? ' vsm-settings-detail--error' : ''}`} role="status" aria-live="polite">
+      <span>{label}</span>
+      {(error || activeMetadata.lastSyncedAt) && (
+        <span>{error ?? `Last synced ${formatTimestamp(activeMetadata.lastSyncedAt)}`}</span>
+      )}
       {error && (
         <IconChipButton type="button" onClick={() => { clearError(); void refresh() }}>
           Retry
@@ -154,63 +149,6 @@ function ExtractedPalettePanel({
   )
 }
 
-function KitList({ selectedKitId, onSelect, onCreate }: {
-  selectedKitId: string | null
-  onSelect: (id: string) => void
-  onCreate: () => void
-}) {
-  const { kits, activeKit, loading, syncing } = useBrandKitStore(useShallow(state => ({
-    kits: state.kits,
-    activeKit: state.activeKit,
-    loading: state.loading,
-    syncing: state.syncing,
-  })))
-  const rowsRef = useRef<HTMLDivElement>(null)
-  const [pageSize, setPageSize] = useState(4)
-  const [page, setPage] = useState(0)
-  const pageCount = Math.max(1, Math.ceil(kits.length / pageSize))
-  useEffect(() => {
-    const rows = rowsRef.current
-    if (!rows || typeof ResizeObserver === 'undefined') return
-    const observer = new ResizeObserver(([entry]) => setPageSize(Math.max(1, Math.floor(entry.contentRect.height / 64))))
-    observer.observe(rows)
-    return () => observer.disconnect()
-  }, [])
-  useEffect(() => {
-    const index = kits.findIndex(kit => kit.id === selectedKitId)
-    if (index >= 0) setPage(Math.floor(index / pageSize))
-  }, [selectedKitId, pageSize, kits])
-  useEffect(() => setPage(current => Math.min(current, pageCount - 1)), [pageCount])
-  return (
-    <aside className="bk-kit-list" aria-label="Brand Kits">
-      <RailWindowHeader side="left" label="Brand Kits" icon={<AppIcon kind="brand" size={15} />} actions={
-        <IconChipButton type="button" className="bk-icon-action" onClick={onCreate} aria-label="Create Brand Kit" disabled={syncing} icon={<AppIcon kind="plus" size={14} />} />
-      } />
-      {loading && kits.length === 0 && <div className="bk-kit-list-state">Loading…</div>}
-      {!loading && kits.length === 0 && <div className="bk-kit-list-state">No kits yet</div>}
-      <div className="bk-kit-list-rows" ref={rowsRef}>
-        {kits.slice(page * pageSize, (page + 1) * pageSize).map((kit, index) => (
-          <LayerRow
-            key={kit.id}
-            index={page * pageSize + index + 1}
-            label={kit.name}
-            status={activeKit?.id === kit.id ? 'Active kit' : 'Saved kit'}
-            tone={kit.palette.primary}
-            active={selectedKitId === kit.id}
-            aria-pressed={selectedKitId === kit.id}
-            onClick={() => onSelect(kit.id)}
-          />
-        ))}
-      </div>
-      <div className="bk-kit-pagination" aria-label="Brand Kit pages" aria-hidden={pageCount <= 1} style={{ visibility: pageCount > 1 ? 'visible' : 'hidden' }}>
-        <IconChipButton aria-label="Previous Brand Kits" disabled={page === 0} onClick={() => setPage(page - 1)} icon={<AppIcon kind="chevronRight" style={{ transform: 'rotate(180deg)' }} size={14} />} />
-        <span aria-live="polite">{page + 1} / {pageCount}</span>
-        <IconChipButton aria-label="Next Brand Kits" disabled={page === pageCount - 1} onClick={() => setPage(page + 1)} icon={<AppIcon kind="chevronRight" size={14} />} />
-      </div>
-    </aside>
-  )
-}
-
 export function BrandKitSettingsPanel() {
   const {
     currentUserId,
@@ -220,7 +158,6 @@ export function BrandKitSettingsPanel() {
     loadingAssetsForKitId,
     loading,
     syncing,
-    error,
     createKit,
     updateKit,
     deleteKit,
@@ -234,7 +171,6 @@ export function BrandKitSettingsPanel() {
     loadingAssetsForKitId: state.loadingAssetsForKitId,
     loading: state.loading,
     syncing: state.syncing,
-    error: state.error,
     createKit: state.createKit,
     updateKit: state.updateKit,
     deleteKit: state.deleteKit,
@@ -245,7 +181,6 @@ export function BrandKitSettingsPanel() {
     items: state.items,
     updateMediaMetadata: state.updateMediaMetadata,
   })))
-  const [editorTab, setEditorTab] = useState<'identity' | 'assets' | 'palette' | 'engines'>('identity')
   const [selectedKitId, setSelectedKitId] = useState<string | null>(activeKit?.id ?? kits[0]?.id ?? null)
   const [suggestedName, setSuggestedName] = useState('My Brand Kit')
   const [creating, setCreating] = useState(false)
@@ -256,6 +191,7 @@ export function BrandKitSettingsPanel() {
   const [selectedSourceAssetId, setSelectedSourceAssetId] = useState<string | null>(null)
   const [analysisState, setAnalysisState] = useState<'idle' | 'analyzing' | 'error'>('idle')
   const [notice, setNotice] = useState<string | null>(null)
+  const newNameInputRef = useRef<HTMLInputElement>(null)
 
   const kit = useMemo(
     () => kits.find(candidate => candidate.id === selectedKitId) ?? activeKit ?? kits[0] ?? null,
@@ -279,6 +215,10 @@ export function BrandKitSettingsPanel() {
   useEffect(() => {
     if (!selectedKitId && (activeKit?.id || kits[0]?.id)) setSelectedKitId(activeKit?.id ?? kits[0].id)
   }, [selectedKitId, activeKit?.id, kits])
+
+  useEffect(() => {
+    if (creating) newNameInputRef.current?.focus()
+  }, [creating])
 
   useEffect(() => {
     if (!kitId) return
@@ -379,141 +319,162 @@ export function BrandKitSettingsPanel() {
     }
   }
 
-  if (!currentUserId && !loading) {
-    return <div className="bk-state bk-state--error">Sign in to create and sync Brand Kits.</div>
-  }
-
-  if (!kit && !loading) {
-    return (
-      <div className="bk-settings">
-        <SyncStatus />
-        <div className="bk-empty">
-          <div className="bk-empty-mark" aria-hidden="true"><AppIcon kind="shape" size={14} /></div>
-          <h2>Make STAGELESS feel like your booth</h2>
-          <p>Create a Brand Kit from your logos or artwork, then use it across Sound Drawing, Cinema, and LaserDMX.</p>
-          <label className="bk-field-label" htmlFor="bk-first-name">Brand Kit name</label>
-          <DreamVizTextInput id="bk-first-name" value={newKitName} onChange={event => setNewKitName(event.target.value)} placeholder={suggestedName} />
-          <IconChipButton type="button" tone="primary" onClick={() => void handleCreate()} disabled={syncing}>Create Brand Kit</IconChipButton>
-          {error && <div className="bk-inline-warning" role="alert">{error}</div>}
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="bk-settings">
-      <SyncStatus />
-      <div className="bk-workspace">
-        <KitList selectedKitId={kit?.id ?? null} onSelect={setSelectedKitId} onCreate={() => { setCreating(true); setNewKitName(suggestedName) }} />
-        <div className="bk-editor-workspace">
-        <RailWindowHeader side="right" label="Brand Kit Workspace" icon={<AppIcon kind="brand" size={15} />} />
-        <RailTabs variant="underline" tabs={[{id:'identity',label:'Identity'},{id:'assets',label:'Assets'},{id:'palette',label:'Palette'},{id:'engines',label:'Engines'}]} activeTab={editorTab} onChange={setEditorTab} ariaLabel="Brand Kit workspace" />
-        <main className="bk-editor" aria-label="Brand Kit editor" tabIndex={0}>
-          {creating && (
-            <div className="bk-create-bar">
-              <label htmlFor="bk-new-name">New Brand Kit</label>
-              <DreamVizTextInput id="bk-new-name" value={newKitName} onChange={event => setNewKitName(event.target.value)} autoFocus />
-              <IconChipButton type="button" tone="primary" onClick={() => void handleCreate()} disabled={syncing}>Create</IconChipButton>
-              <IconChipButton type="button" onClick={() => setCreating(false)}>Cancel</IconChipButton>
-            </div>
+      <section className="vsm-settings-group" aria-labelledby="bk-settings-heading">
+        <div className="vsm-settings-group-heading vsm-settings-group-heading--action">
+          <h2 id="bk-settings-heading" className="vsm-settings-group-title">
+            <AppIcon kind="brand" size={15} />
+            Brand Kit
+          </h2>
+          {kit && !creating && (
+            <IconChipButton
+              type="button"
+              icon={<AppIcon kind="plus" size={14} />}
+              onClick={() => { setCreating(true); setNewKitName(suggestedName) }}
+              disabled={syncing}
+            >New Kit</IconChipButton>
           )}
-          {kit && (
-            <>
-              <header className="bk-kit-header">
-                <TextInputRow id="bk-kit-name" label="Brand Kit name" value={renameDraft} maxLength={120} onChange={setRenameDraft} onBlur={() => void commitRename()} />
-                <div className="bk-kit-header-actions">
-                  {activeKit?.id === kit.id
-                    ? <StatusBadge tone="playing">ACTIVE KIT</StatusBadge>
-                    : <IconChipButton type="button" tone="primary" onClick={() => void activateKit(kit.id)} disabled={syncing}>Activate</IconChipButton>}
-                  {!deleteConfirm
-                    ? <IconChipButton type="button" className="dv-icon-chip--danger" onClick={() => setDeleteConfirm(true)}>Delete</IconChipButton>
-                    : <div className="bk-delete-confirm" role="group" aria-label={`Confirm deletion of ${kit.name}`}>
-                        <span>Delete this kit?</span>
-                        <IconChipButton type="button" className="dv-icon-chip--danger" onClick={async () => {
-                          const deleted = await deleteKit(kit.id)
-                          if (deleted) setSelectedKitId(useBrandKitStore.getState().activeKit?.id ?? useBrandKitStore.getState().kits[0]?.id ?? null)
-                        }}>Confirm</IconChipButton>
-                        <IconChipButton type="button" onClick={() => setDeleteConfirm(false)}>Cancel</IconChipButton>
-                      </div>}
-                </div>
-              </header>
-
-              <div hidden={editorTab !== 'identity'} role="tabpanel" aria-label="Identity">
-              <DualRailCollapsible label="Personalization behavior">
-                <p className="bk-description">Choose how this kit personalizes your visuals and interface.</p>
-                <ToggleRow
-                  value={kit.autoApply}
-                  onChange={autoApply => void patchKit({ autoApply })}
-                  label="Automatic visual personalization"
-                  description="Apply this kit at render and preview time. Turn it off to keep original preset palettes."
-                  disabled={syncing}
-                />
-                <ToggleRow
-                  value={kit.useForAppAccent}
-                  onChange={useForAppAccent => void patchKit({ useForAppAccent })}
-                  label="Use for application accents"
-                  description="Use the Brand Kit primary color for selected STAGELESS interface accents."
-                  disabled={syncing}
-                />
-              </DualRailCollapsible>
-
-              <BrandPersonalizationDiagnostics />
-              </div>
-              <div hidden={editorTab !== 'assets'} role="tabpanel" aria-label="Assets">
-              <DualRailCollapsible label="Brand assets">
-                <p className="bk-description">Choose logos and artwork from your media library.</p>
-                {loadingAssetsForKitId === kit.id
-                  ? <div className="bk-state" role="status">Loading linked assets…</div>
-                  : <BrandKitAssetsEditor kitId={kit.id} assets={assets} onPaletteAnalysis={applyAnalysis} />}
-              </DualRailCollapsible>
-
-              <BrandSoundDrawingShortcuts assets={assets} />
-
-              </div>
-              <div hidden={editorTab !== 'palette'} role="tabpanel" aria-label="Palette">
-              {paletteSources.length > 1 && (
-                <SelectRow id="bk-palette-source" label="Palette source to analyze" value={selectedSource?.id ?? ''} onChange={setSelectedSourceAssetId} options={paletteSources.map(source => ({value:source.id,label:items.find(item => item.dbId === source.mediaItemId)?.name ?? source.media?.name ?? 'Missing media'}))} />
-              )}
-
-              <DualRailCollapsible label="Semantic palette">
-                <ExtractedPalettePanel
-                  analysis={kit.extractedPalette}
-                  selectedCandidate={selectedCandidate}
-                  analysisState={analysisState}
-                  sourceName={sourceMediaItem?.title || sourceMediaItem?.name || selectedSource?.media?.name || null}
-                  onSelectCandidate={id => {
-                    setSelectedCandidate(id)
-                    const palette = kit.extractedPalette?.candidates[id]
-                    if (palette) void patchKit({ palette })
-                  }}
-                  onRestore={() => {
-                    const palette = kit.extractedPalette?.candidates[selectedCandidate]
-                    if (palette) void patchKit({ palette })
-                  }}
-                  onReanalyze={() => void reanalyze()}
-                />
-                {notice && <div className="bk-inline-success" role="status">{notice}</div>}
-                <p className="bk-description">Unusual palettes are allowed. Contrast warnings are advisory, not blockers.</p>
-                <BrandKitPaletteEditor
-                  palette={kit.palette}
-                  resetPalette={kit.extractedPalette?.candidates[selectedCandidate] ?? DEFAULT_BRAND_PALETTE}
-                  onChange={palette => void patchKit({ palette })}
-                />
-              </DualRailCollapsible>
-
-              </div>
-              <div hidden={editorTab !== 'engines'} role="tabpanel" aria-label="Engines">
-              <DualRailCollapsible label="Engine personalization">
-                <p className="bk-description">Choose per-engine palette behavior for Sound Drawing and LaserDMX. Cinema uses semantic Brand Kit mappings in the Cinema Composer.</p>
-                <BrandKitEngineControls kit={kit} onChange={engineRules => void patchKit({ engineRules })} />
-              </DualRailCollapsible>
-
-              </div>
-            </>
-          )}
-        </main>
         </div>
-      </div>
+
+        {!currentUserId && !loading ? (
+          <p className="bk-description">Sign in to create and sync Brand Kits.</p>
+        ) : (
+          <div className="bk-kit-controls">
+            {kit && (
+              <>
+                <SelectRow
+                  id="bk-selected-kit"
+                  label="Kit to edit"
+                  value={kit.id}
+                  onChange={setSelectedKitId}
+                  options={kits.map(candidate => ({
+                    value: candidate.id,
+                    label: candidate.name,
+                    description: candidate.id === activeKit?.id ? 'Active kit' : undefined,
+                  }))}
+                  showOptionDescriptions
+                  menuSearch
+                  menuSearchPlaceholder="Search Brand Kits"
+                />
+                <TextInputRow
+                  id="bk-kit-name"
+                  label="Brand Kit name"
+                  value={renameDraft}
+                  maxLength={120}
+                  onChange={setRenameDraft}
+                  onBlur={() => void commitRename()}
+                />
+                <div className="vsm-settings-actions bk-kit-actions">
+                  {activeKit?.id === kit.id
+                    ? <StatusBadge tone="playing">Active kit</StatusBadge>
+                    : <IconChipButton type="button" tone="primary" onClick={() => void activateKit(kit.id)} disabled={syncing}>Activate</IconChipButton>}
+                  {deleteConfirm ? (
+                    <div className="vsm-settings-actions bk-delete-confirm" role="group" aria-label={`Confirm deletion of ${kit.name}`}>
+                      <span>Delete this kit?</span>
+                      <IconChipButton type="button" className="dv-icon-chip--danger" disabled={syncing} onClick={async () => {
+                        const deleted = await deleteKit(kit.id)
+                        if (deleted) setSelectedKitId(useBrandKitStore.getState().activeKit?.id ?? useBrandKitStore.getState().kits[0]?.id ?? null)
+                      }}>Confirm</IconChipButton>
+                      <IconChipButton type="button" onClick={() => setDeleteConfirm(false)}>Cancel</IconChipButton>
+                    </div>
+                  ) : <IconChipButton type="button" className="dv-icon-chip--danger" onClick={() => setDeleteConfirm(true)}>Delete</IconChipButton>}
+                </div>
+              </>
+            )}
+
+            {(creating || (!kit && !loading)) && (
+              <>
+                <TextInputRow
+                  id={kit ? 'bk-new-name' : 'bk-first-name'}
+                  inputRef={newNameInputRef}
+                  label={kit ? 'New Brand Kit name' : 'Brand Kit name'}
+                  value={newKitName}
+                  onChange={setNewKitName}
+                  placeholder={suggestedName}
+                  maxLength={120}
+                />
+                <div className="vsm-settings-actions bk-kit-actions">
+                  <IconChipButton type="button" tone="primary" onClick={() => void handleCreate()} disabled={syncing}>Create Brand Kit</IconChipButton>
+                  {kit && <IconChipButton type="button" onClick={() => setCreating(false)}>Cancel</IconChipButton>}
+                </div>
+              </>
+            )}
+
+            <SyncStatus />
+          </div>
+        )}
+      </section>
+
+      {kit && (
+        <>
+          <DualRailCollapsible label="Personalization" className="vsm-settings-group bk-settings-disclosure">
+            <ToggleRow
+              value={kit.autoApply}
+              onChange={autoApply => void patchKit({ autoApply })}
+              label="Automatic visual personalization"
+              description="Apply this kit at render and preview time. Turn it off to keep original preset palettes."
+              disabled={syncing}
+            />
+            <ToggleRow
+              value={kit.useForAppAccent}
+              onChange={useForAppAccent => void patchKit({ useForAppAccent })}
+              label="Use for application accents"
+              description="Use the Brand Kit primary color for selected STAGELESS interface accents."
+              disabled={syncing}
+            />
+            <BrandPersonalizationDiagnostics />
+          </DualRailCollapsible>
+
+          <DualRailCollapsible label="Brand assets" className="vsm-settings-group bk-settings-disclosure" defaultOpen={false} keepMounted>
+            {loadingAssetsForKitId === kit.id
+              ? <div className="bk-state" role="status">Loading linked assets…</div>
+              : <BrandKitAssetsEditor kitId={kit.id} assets={assets} onPaletteAnalysis={applyAnalysis} />}
+            <BrandSoundDrawingShortcuts assets={assets} />
+          </DualRailCollapsible>
+
+          <DualRailCollapsible label="Palette" className="vsm-settings-group bk-settings-disclosure" defaultOpen={false}>
+            {paletteSources.length > 1 && (
+              <SelectRow
+                id="bk-palette-source"
+                label="Palette source to analyze"
+                value={selectedSource?.id ?? ''}
+                onChange={setSelectedSourceAssetId}
+                options={paletteSources.map(source => ({
+                  value: source.id,
+                  label: items.find(item => item.dbId === source.mediaItemId)?.name ?? source.media?.name ?? 'Missing media',
+                }))}
+              />
+            )}
+            <ExtractedPalettePanel
+              analysis={kit.extractedPalette}
+              selectedCandidate={selectedCandidate}
+              analysisState={analysisState}
+              sourceName={sourceMediaItem?.title || sourceMediaItem?.name || selectedSource?.media?.name || null}
+              onSelectCandidate={id => {
+                setSelectedCandidate(id)
+                const palette = kit.extractedPalette?.candidates[id]
+                if (palette) void patchKit({ palette })
+              }}
+              onRestore={() => {
+                const palette = kit.extractedPalette?.candidates[selectedCandidate]
+                if (palette) void patchKit({ palette })
+              }}
+              onReanalyze={() => void reanalyze()}
+            />
+            {notice && <div className="bk-inline-success" role="status">{notice}</div>}
+            <BrandKitPaletteEditor
+              palette={kit.palette}
+              resetPalette={kit.extractedPalette?.candidates[selectedCandidate] ?? DEFAULT_BRAND_PALETTE}
+              onChange={palette => void patchKit({ palette })}
+            />
+          </DualRailCollapsible>
+
+          <DualRailCollapsible label="Engine personalization" className="vsm-settings-group bk-settings-disclosure" defaultOpen={false}>
+            <BrandKitEngineControls kit={kit} onChange={engineRules => void patchKit({ engineRules })} />
+          </DualRailCollapsible>
+        </>
+      )}
     </div>
   )
 }

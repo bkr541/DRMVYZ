@@ -107,6 +107,8 @@
   background: rgba(255, 255, 255, 0.012);
 }
 
+.drc-body[hidden] { display: none; }
+
 .drc-header-accessory {
   flex: 0 0 auto !important;
   color: rgba(196, 207, 211, 0.42);
