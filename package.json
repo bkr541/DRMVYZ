@@ -63,6 +63,7 @@
     "test:e2e:pix-grid-deck-show-manager": "node scripts/run-pix-grid-deck-show-manager-browser.mjs",
     "test:e2e:cinema2-hud": "node scripts/run-cinema2-hud-browser.mjs",
     "test:e2e:cinema2-allstar": "node scripts/run-cinema2-allstar-browser.mjs",
+    "test:e2e:cinema2-purity": "node scripts/run-cinema2-purity-browser.mjs",
     "test:e2e:cinema2-paradox-weave": "node scripts/run-cinema2-paradox-weave-browser.mjs",
     "review-notes": "node scripts/review-notes.mjs",
     "test:e2e:review-notes": "node scripts/run-review-notes-browser.mjs",

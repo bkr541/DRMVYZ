@@ -45,6 +45,7 @@ import { cinema2EventHorizonNativeModuleDefinition } from './Cinema2EventHorizon
 import { cinema2ConstellationNativeModuleDefinition } from './Cinema2ConstellationNativeModule'
 import { cinema2SixfoldNativeModuleDefinition } from './Cinema2SixfoldNativeModule'
 import { cinema2AllstarNativeModuleDefinition } from './Cinema2AllstarNativeModule'
+import { cinema2PurityNativeModuleDefinition } from './Cinema2PurityNativeModule'
 import { cinema2HypnotizeNativeModuleDefinition } from './Cinema2HypnotizeNativeModule'
 import { cinema2StartersNativeModuleDefinition } from './Cinema2StartersNativeModule'
 import { cinema2MarqueeNativeModuleDefinition } from './Cinema2MarqueeNativeModule'
@@ -273,6 +274,11 @@ if (!sixfoldRegistration.ok) {
 const allstarRegistration = cinema2NativeModuleRegistry.register(cinema2AllstarNativeModuleDefinition)
 if (!allstarRegistration.ok) {
   throw new Error(`Cinema 2.0 ALLSTAR native module registration failed: ${allstarRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
+}
+
+const purityRegistration = cinema2NativeModuleRegistry.register(cinema2PurityNativeModuleDefinition)
+if (!purityRegistration.ok) {
+  throw new Error(`Cinema 2.0 PURITY native module registration failed: ${purityRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
 }
 
 const hypnotizeRegistration = cinema2NativeModuleRegistry.register(cinema2HypnotizeNativeModuleDefinition)

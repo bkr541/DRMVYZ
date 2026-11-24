@@ -24,6 +24,12 @@ export const CINEMA2_AUTO_COVERAGE_EXEMPT: Readonly<Record<string, Readonly<Reco
     'allstar-geometry-thickness': 'Fixed physical thickness of the authored light bars.',
     'allstar-reactivity': 'User-owned strength of the shared choreography, not an automation target.',
   }),
+  purity: Object.freeze({
+    'purity-tunnel-width': 'Changing the physical corridor width during a recycled segment pass breaks fixed architectural framing.',
+    'purity-tunnel-depth': 'Changing segment spacing changes the recycling period and causes a discontinuous spatial jump.',
+    'purity-frame-thickness': 'Fixed architectural rib dimensions are authored geometry.',
+    'purity-reactivity': 'User-owned strength of the shared choreography, not an automation target.',
+  }),
   blockshift: Object.freeze({
     'blockshift-block-size': BLOCK_GEOMETRY, 'blockshift-spread': BLOCK_GEOMETRY, 'blockshift-depth': BLOCK_GEOMETRY, 'blockshift-rotation-range': BLOCK_GEOMETRY,
   }),

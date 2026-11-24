@@ -1525,7 +1525,9 @@ export { CINEMA2_ORBITAL_PRESET_ID, CINEMA2_ORBITAL_PRESET_MANIFEST } from './pr
 export { CINEMA2_ORBITAL_MODULE_TYPE_ID, cinema2OrbitalNativeModuleDefinition } from './modules/Cinema2OrbitalNativeModule'
 
 export { CINEMA2_ALLSTAR_PRESET_ID, CINEMA2_ALLSTAR_PRESET_MANIFEST } from './presets/Cinema2AllstarPreset'
+export { CINEMA2_PURITY_PRESET_ID, CINEMA2_PURITY_PRESET_MANIFEST } from './presets/Cinema2PurityPreset'
 export { CINEMA2_ALLSTAR_NATIVE_MODULE_TYPE_ID, cinema2AllstarNativeModuleDefinition } from './modules/Cinema2AllstarNativeModule'
+export { CINEMA2_PURITY_NATIVE_MODULE_TYPE_ID, cinema2PurityNativeModuleDefinition } from './modules/Cinema2PurityNativeModule'
 
 export { CINEMA2_HONEY_PRESET_ID, CINEMA2_HONEY_PRESET_MANIFEST, CINEMA2_HONEY_MODULE_ID } from './presets/Cinema2HoneyPreset'
 export { CINEMA2_HONEY_NATIVE_MODULE_TYPE_ID, cinema2HoneyNativeModuleDefinition } from './modules/Cinema2HoneyNativeModule'
