@@ -4,11 +4,12 @@ import { HONEY_CAMERA,HONEY_PALETTE,HONEY_PALETTE_KEYS } from '../modules/honey/
 import { finishHoney } from './Cinema2HoneyFinishing'
 import { HONEY_LIGHT_DEFAULTS,HONEY_LIGHT_RANGES,type HoneyLightControls } from '../modules/honey/Cinema2HoneyLighting'
 import { HONEY_AUDIO_DEFAULTS,HONEY_AUDIO_REACTIVITY } from '../modules/honey/Cinema2HoneyAudio'
+import { HONEY_DIRECTOR_DEFAULTS } from '../modules/honey/Cinema2HoneyPerformance'
 import { honeyAudioRules } from './Cinema2HoneyChoreography'
 import { HONEY_MOTION_DEFAULTS } from '../modules/honey/Cinema2HoneyMotion'
 import { HONEY_PATTERNS } from '../modules/honey/Cinema2HoneyPatterns'
 import { CINEMA2_AFTERHOURS_TRIGGER_OPTIONS } from './Cinema2AfterhoursPreset'
-import { withCinema2MoodDrives } from './Cinema2MoodConductorAuthoring'
+import { withCinema2MoodDrives,type Cinema2MoodDrive } from './Cinema2MoodConductorAuthoring'
 import { cinema2AutoTargets } from './Cinema2AutoPerformanceAuthoring'
 import { CINEMA2_QUALITY_MODE_PARAMETER } from '../parameters/Cinema2PerformanceParameters'
 
@@ -55,13 +56,13 @@ const motionParameters:Cinema2ParameterManifest[]=[
 const motionKeys={...Object.fromEntries(Object.keys(d).map(key=>[key,key])),masterIntensity:'master-intensity',audioReactivity:'audio-reactivity',bpmSync:'bpm-sync',autoPerformance:'auto-performance',pattern:'pattern',patternChange:'pattern-change',trigger:'trigger'}
 const motionBindings=Object.fromEntries(Object.entries(motionKeys).map(([key,id])=>[key,cinema2Ref(honeyParameterId(id))]))
 const motionDefaults=Object.fromEntries(Object.entries(motionKeys).map(([key,id])=>[key,motionParameters.find(p=>p.id===honeyParameterId(id))!.defaultValue]))
-/** P03 performance reference; keep the P02 material and effect graph. */
+/** P05 performance reference; keep the P02 material and effect graph. */
 export const CINEMA2_HONEY_PRESET_MANIFEST:Readonly<Cinema2NativePresetManifest>=withCinema2MoodDrives(finishHoney({
   schemaId:CINEMA2_NATIVE_PRESET_SCHEMA_ID,schemaVersion:CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,id:CINEMA2_HONEY_PRESET_ID,revision:1,
   metadata:{name:'HONEY',description:'A close industrial honeycomb wall of solid beveled hex plates, recessed chambers, mixed industrial finishes and physical emissive channels. Eight mechanical and light programs.',author:'STAGELESS',tags:['cinematic','3d','audio-reactive']},
   capabilities:[{id:'render.webgl2',requirement:'required',purpose:'Instanced native hexagonal assemblies.'},{id:'render.depth',requirement:'required',purpose:'Resolve raised plates and stationary recessed chambers.'},{id:'scene.3d',requirement:'required',purpose:'World-space axial hex field.'},{id:'camera.world',requirement:'required',purpose:'Shared close perspective camera.'},{id:'render.hdr',requirement:'optional',purpose:'HDR emissive channels with rgba8 fallback.'},{id:'lighting',requirement:'required',purpose:'Shared directional and ambient light rig.'},{id:'audio.transport',requirement:'optional',purpose:'Playback lifecycle and discontinuities.'},{id:'audio.bands',requirement:'optional',purpose:'Six distinct native spatial and light routes.'},{id:'audio.features',requirement:'optional',purpose:'Energy, spectral flux and build progress.'},{id:'music.vocal-presence',requirement:'optional',purpose:'Restrain kinetic overlays during vocals.'},{id:'music.build',requirement:'optional',purpose:'Sustained tension and canonical build edge.'},{id:'music.section',requirement:'optional',purpose:'Canonical section variation cue.'},{id:'music.beat',requirement:'optional',purpose:'Shared beat timing and pattern switches.'},{id:'music.rhythm-events',requirement:'optional',purpose:'Canonical kick and snare switching.'},{id:'music.drop',requirement:'optional',purpose:'Canonical drop switching.'},{id:'music.downbeat',requirement:'optional',purpose:'Canonical downbeat switching.'},{id:'music.bar',requirement:'optional',purpose:'Canonical bar switching.'},{id:'music.phrase',requirement:'optional',purpose:'Canonical phrase switching.'}],
   parameters:[{id:honeyParameterId('musical-cue'),label:'Musical Cue',type:'trigger',exposure:'hidden',persistence:'runtime-only',reset:'none',section:'React',group:'Runtime',order:999},{...CINEMA2_QUALITY_MODE_PARAMETER,section:'Design',designParentGroup:'master-controls'},...paletteParameters,...lightingParameters,...motionParameters],
-  modules:[{id:CINEMA2_HONEY_MODULE_ID,typeId:CINEMA2_HONEY_NATIVE_MODULE_TYPE_ID,version:1,actionBindings:{musicalCue:cinema2Ref(honeyParameterId('musical-cue'))},parameters:{...motionDefaults,...HONEY_AUDIO_DEFAULTS,...HONEY_PALETTE,...Object.fromEntries(moduleLightKeys.map(key=>[key,HONEY_LIGHT_DEFAULTS[key]]))},parameterBindings:{...motionBindings,...Object.fromEntries([...HONEY_PALETTE_KEYS,...moduleLightKeys].map(key=>[key,cinema2Ref(honeyParameterId(key))]))}}],
+  modules:[{id:CINEMA2_HONEY_MODULE_ID,typeId:CINEMA2_HONEY_NATIVE_MODULE_TYPE_ID,version:1,actionBindings:{musicalCue:cinema2Ref(honeyParameterId('musical-cue'))},parameters:{...motionDefaults,...HONEY_AUDIO_DEFAULTS,...HONEY_DIRECTOR_DEFAULTS,...HONEY_PALETTE,...Object.fromEntries(moduleLightKeys.map(key=>[key,HONEY_LIGHT_DEFAULTS[key]]))},parameterBindings:{...motionBindings,...Object.fromEntries([...HONEY_PALETTE_KEYS,...moduleLightKeys].map(key=>[key,cinema2Ref(honeyParameterId(key))]))}}],
   choreography:{rules:honeyAudioRules(CINEMA2_HONEY_MODULE_ID,honeyParameterId('musical-cue'))},
   scene:{nodes:[{id:root,kind:'group',coordinateSpace:'world'},{id:wall,kind:'module',parent:cinema2Ref(root),module:cinema2Ref(CINEMA2_HONEY_MODULE_ID)}],roots:[cinema2Ref(root)]},
   layers:[{id:layer,label:'HONEY Wall',source:cinema2Ref(root),role:'world',depthPolicy:'read-write',order:0}],
@@ -71,12 +72,41 @@ export const CINEMA2_HONEY_PRESET_MANIFEST:Readonly<Cinema2NativePresetManifest>
   render:{targets:[{id:target,ownership:'transient',descriptor:{size:{kind:'viewport'},colorFormat:'rgba8',depthFormat:'depth24'}}],passes:[{id:pass,kind:'scene',layers:[cinema2Ref(layer)],outputs:[{id:color,target:cinema2Ref(target),attachment:'color'},{id:depth,target:cinema2Ref(target),attachment:'depth'}]}],outputPass:cinema2Ref(pass)},
   defaults:{camera:cinema2Ref(camera)},output:{renderPass:cinema2Ref(pass),colorSpace:'srgb',alphaMode:'opaque'},
 },honeyParameterId),{
-  idPrefix:'honey-auto',enabledParameter:honeyParameterId('auto-performance'),strengthParameter:honeyParameterId('motion'),
+  idPrefix:'honey-auto',enabledParameter:honeyParameterId('auto-performance'),strengthParameter:honeyParameterId('audio-reactivity'),
   patternControls:{patternChange:honeyParameterId('pattern-change'),trigger:honeyParameterId('trigger')},
-  drives:[
-    {id:'motion-activity',target:cinema2AutoTargets.module(CINEMA2_HONEY_MODULE_ID,'motion'),source:'mood.activity',operation:'multiply',value:1.22},
-    {id:'motion-calm',target:cinema2AutoTargets.module(CINEMA2_HONEY_MODULE_ID,'motion'),source:'mood.calm',operation:'multiply',value:.72},
-    {id:'coverage-activity',target:cinema2AutoTargets.module(CINEMA2_HONEY_MODULE_ID,'coverage'),source:'mood.activity',operation:'multiply',value:1.18},
-    {id:'coverage-silence',target:cinema2AutoTargets.module(CINEMA2_HONEY_MODULE_ID,'coverage'),source:'mood.silence',operation:'multiply',value:.6},
-  ],
+  drives:honeyMoodDrives(),
 })
+
+/** Multiplication keeps authored zero authoritative, including effects and camera.
+ * Shared coverage still runs in the catalog; these bindings already cover every
+ * eligible numeric control, so it must not add competing drives. */
+function honeyMoodDrives():Cinema2MoodDrive[]{
+  type Pair=readonly [Cinema2MoodDrive['source'],number]
+  const drives:Cinema2MoodDrive[]=[]
+  const add=(id:string,target:Cinema2MoodDrive['target'],...pairs:Pair[])=>{
+    for(const [source,value] of pairs)drives.push({id:`${id}-${source.slice(5)}`,target,source,operation:'multiply',value})
+  }
+  const module=(key:string,...pairs:Pair[])=>add(key.toLowerCase(),cinema2AutoTargets.module(CINEMA2_HONEY_MODULE_ID,key),...pairs)
+  module('motion',['mood.activity',1.3],['mood.calm',.65],['mood.silence',.65])
+  module('coverage',['mood.activity',1.25],['mood.calm',.72],['mood.silence',.6])
+  module('rate',['mood.drive',1.32],['mood.calm',.7])
+  module('attack',['mood.shock',.65],['mood.calm',1.4])
+  module('release',['mood.calm',1.45],['mood.drive',.72])
+  module('elevation',['mood.calm',.62],['mood.peak',1.12])
+  module('rotation',['mood.complexity',1.22],['mood.calm',.7])
+  module('tilt',['mood.tense',1.28],['mood.calm',.68])
+  module('separation',['mood.peak',1.3],['mood.calm',.7])
+  module('width',['mood.build',.7],['mood.peak',1.25])
+  module('delay',['mood.build',1.35],['mood.drive',.72])
+  module('masterIntensity',['mood.peak',1.16],['mood.calm',.8])
+  module('audioReactivity',['mood.activity',1.18],['mood.calm',.75])
+  module('outerGain',['mood.peak',1.18],['mood.calm',.76])
+  module('innerGain',['mood.brightness',1.25],['mood.calm',.8])
+  module('underGain',['mood.build',1.22],['mood.shock',1.18],['mood.calm',.72])
+  module('lightSpill',['mood.peak',1.18],['mood.calm',.78])
+  add('ambient',{kind:'light',ref:cinema2Ref(cinema2StableId<Cinema2LightId>('honey-ambient')),property:'intensity'},['mood.calm',1.15],['mood.peak',.85])
+  add('bloom',cinema2AutoTargets.effect('honey-bloom','intensity'),['mood.peak',1.3],['mood.calm',.7])
+  add('ao',cinema2AutoTargets.effect('honey-ao','intensity'),['mood.build',1.18],['mood.peak',.82])
+  add('camera-sway',cinema2AutoTargets.camera(camera,'control.motionAmount'),['mood.activity',1.15],['mood.calm',.68])
+  return drives
+}

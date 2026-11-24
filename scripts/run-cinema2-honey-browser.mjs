@@ -4,7 +4,7 @@ import { mkdir,writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { chromium } from '@playwright/test'
 import sharp from 'sharp'
-const port=48500+process.pid%1000,url=`http://127.0.0.1:${port}/src/test/browser/cinema2-honey-production.html`,output=path.resolve('artifacts/cinema2-honey/p04')
+const port=48500+process.pid%1000,url=`http://127.0.0.1:${port}/src/test/browser/cinema2-honey-production.html`,output=path.resolve('artifacts/cinema2-honey/p05')
 const server=spawn(process.execPath,['node_modules/vite/bin/vite.js','--host','127.0.0.1','--port',String(port),'--strictPort'],{stdio:['ignore','pipe','pipe']})
 let log='',browser;server.stdout.on('data',v=>log+=v);server.stderr.on('data',v=>log+=v)
 try{
@@ -54,5 +54,28 @@ try{
   }
   await api('set','audio-reactivity',0);await api('audioFixture',{band:'sub',cue:'kick'});await capture('audio-off');const muted=await audioInspect();assert.equal(muted.envelopes.length,0);assert(Object.values(muted.channels).every(v=>v===0))
   await api('set','audio-reactivity',.8);await api('audioSeek',0);assert.equal((await audioInspect()).envelopes.length,0)
-  await api('stop');await api('reset');await api('prepare');await capture('audio-returned-idle');await api('dispose');assert.deepEqual(errors,[]);console.log(`HONEY production captures: ${output}`)
+  await api('stop');await api('reset');await api('prepare');await capture('audio-returned-idle');
+  // P05: exercise the actual registered runtime and shared Inspector (not mock pixels).
+  await api('set','pattern-change',true);await api('set','trigger','snare');await api('set','auto-performance',true);await api('set','camera-motion',false)
+  await api('play',120,true);await api('audioFixture',{energy:.10});await page.waitForTimeout(700)
+  const savedAuto=await api('saved');await capture('director-calm')
+  await api('showInspector',true)
+  const control=id=>page.locator(`[data-cinema2-control-id="honey-${id}"]`)
+  assert.equal(await control('motion-amount').locator('input[type=range]').isDisabled(),true)
+  assert.equal(await control('bpm-sync').locator('xpath=ancestor::*[@data-auto-performance-locked]').count(),0)
+  assert.equal(await control('face').locator('xpath=ancestor::*[@data-auto-performance-locked]').count(),0)
+  await page.waitForFunction(()=>document.querySelector('[data-live-value]')&&document.querySelector('[data-live-policy]'))
+  await page.screenshot({path:path.join(output,'auto-inspector-calm.png')});await api('showInspector',false)
+  await api('audioFixture',{band:'bass',energy:.75,build:.95});await page.waitForTimeout(450);await capture('director-build')
+  await api('audioFixture',{cue:'drop',band:'bass',energy:1});await capture('director-drop')
+  await api('audioFixture',{energy:.35});await page.waitForTimeout(1200);await capture('director-release')
+  await api('audioFixture',{energy:0});await page.waitForTimeout(900);await capture('director-silence')
+  await api('audioFixture',{energy:.8,band:'bass'});await page.waitForTimeout(400);await capture('director-return')
+  assert.equal(await api('saved'),savedAuto,'Auto must not change persisted settings')
+  await api('audioFixture',{energy:.8,grid:false});const fallback=await api('prepare');const native=fallback.modules.modules.find(m=>m.moduleId==='honey-wall')?.inspection
+  assert.equal(native.patternControlsAutomatic,false);assert.equal(native.effectiveTrigger,'snare')
+  await api('set','face',[.2,.4,.6,1]);const edited=await api('saved');await api('reenter');assert.equal(await api('saved'),edited)
+  await api('set','auto-performance',false);await api('showInspector',true);assert.equal(await control('motion-amount').locator('input[type=range]').isDisabled(),false)
+  await page.screenshot({path:path.join(output,'auto-inspector-off.png')});await api('showInspector',false)
+  await api('stop');await api('dispose');assert.deepEqual(errors,[]);console.log(`HONEY production captures: ${output}`)
 }finally{await browser?.close();server.kill()}

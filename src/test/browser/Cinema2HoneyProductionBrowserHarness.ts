@@ -40,10 +40,10 @@ function select(id:Cinema2PresetId,serializedParameterState?:string){
 }
 const settle=async()=>{for(let i=0;i<5;i++)await new Promise<void>(resolve=>requestAnimationFrame(()=>resolve()))}
 const status=()=>({active,modules:runtime.getModuleRuntimeSnapshot(),render:runtime.getRenderGraphExecutorSnapshot(),resources:runtime.getResourceManagerSnapshot(),effects:runtime.getEffectRuntimeSnapshot(),shadow:runtime.getShadowServiceSnapshot()})
-const api={status,async audioFixture(input:{band?:'sub'|'bass'|'lowMid'|'mid'|'high'|'air';cue?:'kick'|'snare'|'downbeat'|'phrase'|'drop';vocal?:boolean;energy?:number}={}){
+const api={status,saved:()=>runtime.getParameterState().serialize(),async audioFixture(input:{band?:'sub'|'bass'|'lowMid'|'mid'|'high'|'air';cue?:'kick'|'snare'|'downbeat'|'phrase'|'drop';vocal?:boolean;energy?:number;build?:number;grid?:boolean}={}){
   const names={sub:'normalizedSub',bass:'normalizedBass',lowMid:'normalizedLowMid',mid:'normalizedMid',high:'normalizedHigh',air:'normalizedAir'} as const
   const time=transportState().timeSec,cue=input.cue
-  publishAudio({bands:{...DEFAULT_MI_FRAME.bands,...(input.band?{[names[input.band]]:1}:{})},energy:{...DEFAULT_MI_FRAME.energy,instant:input.energy??0},stems:{...DEFAULT_MI_FRAME.stems,vocalActivity:input.vocal?1:0},
+  publishAudio({bands:{...DEFAULT_MI_FRAME.bands,...(input.band?{[names[input.band]]:1}:{})},energy:{...DEFAULT_MI_FRAME.energy,instant:input.energy??0,rms:input.energy??0,buildProgress:input.build??0},semantics:{...DEFAULT_MI_FRAME.semantics,buildConfidence:input.build??0},capabilities:{...DEFAULT_MI_FRAME.capabilities!,liveBands:true,rhythmEvents:true,beatGrid:input.grid!==false,stemCurves:true,sections:true},stems:{...DEFAULT_MI_FRAME.stems,vocalActivity:input.vocal?1:0},
     rhythm:{...DEFAULT_MI_FRAME.rhythm,bpm:transport.bpm??120,bpmConfidence:1,transientConfidence:1,kickHit:cue==='kick',kickStrength:cue==='kick'?1:0,snareHit:cue==='snare',snareStrength:cue==='snare'?1:0,downbeatHit:cue==='downbeat'},
     phraseMarkers:cue==='phrase'?[{id:`phrase-${sequence}`,timeSec:time,phraseLength:4,confidence:1}]:[],semanticMoments:cue==='drop'?[{id:`drop-${sequence}`,timeSec:time,type:'drop',confidence:1}]:[],timeSec:time})
   await settle();return status()

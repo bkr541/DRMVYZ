@@ -315,3 +315,70 @@ node scripts/run-cinema2-honey-browser.mjs
 P04 changed files (C2 relative unless root): `presets/Cinema2HoneyChoreography.ts`, `presets/Cinema2HoneyPreset.ts`, `modules/honey/Cinema2HoneyAudio.ts`, `modules/honey/Cinema2HoneyMotion.ts`, `modules/honey/Cinema2HoneyLighting.ts`, `modules/honey/Cinema2HoneyOrchestration.ts`, `modules/Cinema2HoneyNativeModule.ts`, `__tests__/Cinema2HoneyAudio.test.ts`, `__tests__/Cinema2HoneyMaterials.test.ts`; root `src/test/browser/Cinema2HoneyProductionBrowserHarness.ts`, `scripts/run-cinema2-honey-browser.mjs`, `docs/cinema2-honey.md`. No binaries, shared contract changes or additional dependencies.
 
 Single-patch verification: the staged whitespace check passed; `git apply --check` and actual indexed application succeeded on a pristine disposable worktree of the supplied baseline, and the resulting full-index binary diff matched the generated patch byte-for-byte.
+
+## P05 — Visual Director and full Auto Performance (implementation candidate)
+
+The supplied P04 source is the baseline and the P05 prompt grants human approval of P01–04, not P05. Existing native registry, reference catalog entry, geometry, four seeded finishes, eight patterns, saved IDs/revision, camera, palette and effect graph remain intact. No shared code, other preset, coverage exemption, Inspector, dependency or global behavior changed. Phase 06 atmosphere/optimization is not included. Earlier production test limitations remain open.
+
+### A: Director and overlay ownership
+
+`presets/Cinema2HoneyChoreography.ts` routes `director.intensity`, `director.build`, `director.impact` through the existing canonical continuous resolver, gated by `visual-director.significance`, to three zero-neutral native targets. `modules/honey/Cinema2HoneyPerformance.ts` computes presentation weights only; no independent significance estimator, drop detector or musical clock. `Cinema2HoneyAudio.ts` consumes these targets via `Cinema2HoneyOrchestration.ts` and the existing native module lifecycle. Intensity/build use .14 s attack/.32 s release smoothing; impact is sampled on the existing cue frame. Cue weight is 1 + .15 intensity + .25 impact (impact only for kick, snare, downbeat, drop), bounded 1–1.4; coverage expansion .08 intensity + .14 impact, bounded 0–.22. Cue weights are latched to the existing event identity and envelope, never a second impulse. Ordinary kick still uses its canonical event strength. Missing Director authority is neutral. Normal Director-weighted audio reactions operate with Auto off, subject to audio/motion permissions.
+
+Build tension is the maximum of existing canonical build progress and smoothed Director build, not their sum. The seeded spatial concentration narrows axial compression and underlighting to clusters (continuous compression coefficient .13, underlight .12); as build increases more nearby regions participate. The existing canonical build cue now has .35/.20/.90 s attack/hold/release and shared not-silent gate; drop remains .055/.14/.80 s. A drop retires the build cue and suppresses a simultaneous build envelope; underlying continuous build still follows canonical data. Drop spreads the existing coordinated expansion and light response rather than swapping patterns. Existing pose bounds (-.35/+ .38 normalized audio extension), emitter ceilings and solver clearance remain authoritative. Vocal restraint from P04 remains in place; Auto calm drives further restrain motion. No palette, mesh or authored pattern mutations.
+
+Manual pattern edits, Auto transitions, authored trigger/reactivity edits and transport discontinuities clear old envelopes and suppress stale boundary events. Changing the effective shared trigger due to changing mood alone does not clear a legitimate cue. The shared pattern controller retains base program progression independently of overlays; there is no temporary pattern substitution. Auto off restores the saved pattern policy through the shared controller and clears prior transient envelopes. Pause holds the current rendered pose; live authority changes affect subsequent motion when playback resumes. Source loss and re-entry use the existing reset lifecycle. Motion zero freezes governed geometry; reactivity zero disables audio overlays and removes mood-drive strength; zero channel gain/effect intensity remains zero. No-source composition, independent light behavior, both BPM permissions, hard camera permission and fixed sleeves remain unchanged.
+
+### B: complete HONEY mood-drive inventory
+
+`presets/Cinema2HoneyPreset.ts` uses the existing `withCinema2MoodDrives` enabled parameter `honey-auto-performance`, with strength `honey-audio-reactivity` (saved value) and the existing Pattern Change/Trigger targets. Exactly one standard Auto toggle, default unchanged (off). All entries below use existing shared multiply operations: factors are interpolated from neutral 1 by source strength and saved reactivity, combined by the existing resolver and clamped to the authored control range. Drives never add a positive offset to zero. The normal catalog coverage wrapper remains unchanged; the isolated HONEY manifest compiled with that same wrapper reports 21 eligible controls, no uncovered target and no additional coverage drives. This is an isolated manifest audit, not a successful import of the full production catalog (see blockers below). All numeric drives target real consumers, not UI-only values. No color drive, permission drive, new persistent control or topology rebuild.
+
+| Target / consumer | Default [range] | Shared mood source: full factor | Effect |
+|---|---|---|---|
+| motion / native solver | .72 [0,1] | activity 1.30; calm .65; silence .65 | physical displacement permission/amount |
+| coverage / native field | .72 [0,1] | activity 1.25; calm .72; silence .60 | active cell distribution |
+| rate / native clock input | 1 [.25,2] | drive 1.32; calm .70 | procedural progression |
+| attack / native solver | .14 [.04,.50] | shock .65; calm 1.40 | mechanical attack seconds |
+| release / native solver | .55 [.15,1.20] | calm 1.45; drive .72 | mechanical settle seconds |
+| elevation / native solver | 1 [0,1] | calm .62; peak 1.12 | axial amplitude |
+| rotation / native solver | .65 [0,1] | complexity 1.22; calm .70 | bounded local rotation |
+| tilt / native solver | .65 [0,1] | tense 1.28; calm .68 | bounded local tilt |
+| separation / native solver | .65 [0,1] | peak 1.30; calm .70 | local lateral clearance |
+| width / pattern field | 1 [.5,1.5] | build .70; peak 1.25 | spatial width |
+| delay / pattern field | .125 [.0625,.25] | build 1.35; drive .72 | cell timing offset |
+| masterIntensity / native emitters | 1 [0,2] | peak 1.16; calm .80 | overall physical light |
+| audioReactivity / native audio | .8 [0,1] | activity 1.18; calm .75 | overlay amplitude |
+| outerGain / native emitters | 1 [0,2] | peak 1.18; calm .76 | outer channel intensity |
+| innerGain / native emitters | 1 [0,2] | brightness 1.25; calm .80 | inner channel detail |
+| underGain / native emitters | 1 [0,2] | build 1.22; shock 1.18; calm .72 | underlight tension/impact |
+| lightSpill / native neighbor lighting | .65 [0,1] | peak 1.18; calm .78 | bounded local warm spill |
+| honey-ambient.intensity / shared light | .48 [0,1] | calm 1.15; peak .85 | shadow fill |
+| honey-bloom.intensity / shared effect | .30 [0,1] | peak 1.30; calm .70 | HDR bloom strength |
+| honey-ao.intensity / shared effect | .65 [0,1] | build 1.18; peak .82 | contact depth |
+| camera control.motionAmount / shared camera | .55 [0,1] | activity 1.15; calm .68 | slight lateral sway only |
+
+All rows are authorized only when shared Auto is enabled and mood is available; authored reactivity zero neutralizes their contribution. Parameter ranges are existing saved-control bounds (not new limits). The existing Inspector model provides locks and live resolved values for Design/Effects/Master Controls, except standard Auto/BPM Sync and other contract-defined exceptions; Palette stays editable and persists. Quality, pattern enums and hard permission switches use their existing shared contracts, not numeric mood drives. Pattern policy is the existing `Cinema2PatternControlResolver` with actual mood and grid; silence holds its prior valid state, unavailable mood/grid falls back to saved values. No local override of authored controls or shared policy. Manual edits through supported paths remain authoritative as prescribed by the existing pattern controller. P05 inventory supersedes the historical partial mood bindings above.
+
+### Validation, actual output and outstanding gates
+
+- New `Cinema2HoneyAutoPerformance.test.ts` contains six focused cases: isolated compiled coverage and Director routes; identical audio/different Director significance with missing authority neutral; real canonical build/drop decay, event identity and manual/Auto boundaries; all eligible numeric targets varied/restored through actual shared mood/resolver and native lifecycle; actual Mood Conductor silence/return and missing-grid fallback; hard-off controls, shared Inspector model, palette, saved state and re-entry. `__tests__/support/HoneyRuntimeFixture.ts` extracts the existing P04 runtime fixture (default unchanged), uses actual compiler, bridge, Director, choreography, camera, module lifecycle and optionally actual Mood Conductor; renderer injection captures actual native cell records, not pixels. Existing HONEY audio regression cases remain in place.
+- Six P05 cases and existing focused HONEY/Director/choreography/pattern/lock cases executed with actual TypeScript source via temporary transpilation loader and limited assertion adapter (not Vitest). 115 distinct passing cases after correcting two missing adapter matchers; three suite imports blocked by missing `@supabase/supabase-js` (`Cinema2HoneyPreset`, `Cinema2AutoCoverage`, `Cinema2AutoPerformanceInventory`). No remaining executed assertion failures. Actual full registry/catalog, full Inspector browser interaction and hardware performance remain unverified.
+- `npm ci --offline --ignore-scripts --no-audit --no-fund` failed ENOTCACHED (`zustand@5.0.13`); `npm exec --offline -- vitest run` for requested suites failed ENOTCACHED (Vitest). Targeted strict `tsc` with temporary config excluding missing Vite types reported no HONEY production-file diagnostics; missing dependency/type diagnostics remain, including Vitest for HONEY tests. Full typecheck is not passed. `node --check scripts/run-cinema2-honey-browser.mjs` passed.
+- `src/test/browser/Cinema2HoneyProductionBrowserHarness.ts` and `scripts/run-cinema2-honey-browser.mjs` extend the existing production-path harness with actual canonical fixtures for calm/build/drop/release/silence/return, missing grid, Auto locks/live values, saved palette and re-entry. Production launch blocked by missing `@playwright/test`. No production screenshots or visual review achieved this phase; numerical native cell comparisons are not visual approval. Prior P04 native draw observations remain historical only. The current ZIP did not contain the original HONEY video and it was not recovered by Library search; P01 reference observations remain the design basis. No fresh video decode, no claims of visually verified P05 output or measured FPS.
+
+| Gate | Result |
+|---|---|
+| A Director route/availability, bounded envelopes, matched audio significance and transport | Focused source/native state assertions pass; visual production comparison blocked. |
+| B shared Auto coverage, numeric restoration, pattern policy and Inspector | Isolated compiled HONEY coverage and focused source tests pass; full catalog and browser gates blocked. |
+| P05 regression | 115 distinct adapter assertions/cases pass; 3 suite imports blocked; actual Vitest/typecheck incomplete. |
+| P05 final | Candidate patch only, production acceptance not passed; no human approval or release claim. |
+
+Local validation commands, from project root after applying with dependencies installed:
+
+```sh
+npx vitest run src/components/vyzualz/cinema2/__tests__/Cinema2Honey{AutoPerformance,Audio,Preset,Patterns,Layout,Geometry,Materials,Lighting,LocalLight,Controls}.test.ts src/components/vyzualz/cinema2/__tests__/Cinema2{VisualDirector,ChoreographyRuntime,AutoCoverage,AutoPerformanceInventory,AutoPerformanceLock,PatternAutoPerformance,PatternControlPolicy}.test.ts
+node scripts/run-cinema2-honey-browser.mjs
+```
+
+Exact P05 changed files (C2 relative unless root): `modules/honey/Cinema2HoneyPerformance.ts`, `modules/honey/Cinema2HoneyAudio.ts`, `modules/honey/Cinema2HoneyOrchestration.ts`, `presets/Cinema2HoneyChoreography.ts`, `presets/Cinema2HoneyPreset.ts`, `__tests__/Cinema2HoneyAudio.test.ts`, `__tests__/Cinema2HoneyAutoPerformance.test.ts`, `__tests__/support/HoneyRuntimeFixture.ts`; root `src/test/browser/Cinema2HoneyProductionBrowserHarness.ts`, `scripts/run-cinema2-honey-browser.mjs`, `docs/cinema2-honey.md`. Native module itself consumes the existing orchestrator and needed no separate edit. No binaries or shared changes.
+
+Single-patch verification: staged whitespace check, `git apply --check`, actual indexed application and byte-for-byte comparison of the full-index binary diff on a pristine disposable baseline worktree. Next prerequisite: apply and run actual tests and production visual captures; review reference and resulting performance before approval and Phase 06. Phase 06 must not be considered implemented by this patch.

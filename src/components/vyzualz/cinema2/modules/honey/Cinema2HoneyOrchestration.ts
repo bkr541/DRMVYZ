@@ -7,6 +7,7 @@ import { HONEY_PATTERN_IDS } from './Cinema2HoneyDomain'
 import { sampleHoneyPattern,type HoneyPattern } from './Cinema2HoneyPatterns'
 import { advanceHoneyCell,blendHoneyCell,createHoneyCellState,HONEY_MOTION_DEFAULTS,targetHoneyCell,type HoneyMotionControls,type HoneyVisualCell } from './Cinema2HoneyMotion'
 import { Cinema2HoneyAudio,HONEY_AUDIO_DEFAULTS,HONEY_AUDIO_REACTIVITY,type HoneyAudioChannels,type HoneyCue } from './Cinema2HoneyAudio'
+import { HONEY_DIRECTOR_DEFAULTS,type HoneyDirectorChannels } from './Cinema2HoneyPerformance'
 import type { HoneyCell } from './Cinema2HoneyLayout'
 
 export class Cinema2HoneyOrchestration {
@@ -15,6 +16,7 @@ export class Cinema2HoneyOrchestration {
   private readonly controller=new Cinema2MainframePatternController<HoneyPattern>(HONEY_PATTERN_IDS,'cascade')
   private readonly audio=new Cinema2HoneyAudio()
   private priorCueControls:string|null=null
+  private priorAuto=false
   private states
   private identity='';private lastTime:number|null=null;private lastBeat:number|null=null;private phase=0;private activePattern:HoneyPattern='cascade';private authored:HoneyPattern='cascade'
   private snapshot:readonly HoneyVisualCell[]|null=null;private transitionBeat=0;private transitionLength=1
@@ -32,29 +34,32 @@ export class Cinema2HoneyOrchestration {
     const authored=HONEY_PATTERN_IDS.find(p=>p===parameters.get('pattern'))??'cascade'
     const trigger=CINEMA2_AFTERHOURS_TRIGGER_IDS.find(t=>t===parameters.get('trigger'))??'bar4'
     const auto=parameters.get('autoPerformance')===true&&present
+    const autoReleased=this.priorAuto&&!auto
+    this.priorAuto=auto
     const controls=this.policy.update({saved:{patternChange:parameters.get('patternChange')===true,trigger},mood:frame.mood,autoPerformance:auto})
     const clock=this.clock.update({...frame,elapsedTimeSec:reset?0:frame.elapsedTimeSec,deltaTimeSec:active?frame.deltaTimeSec:0},parameters.get('bpmSync')!==false&&frame.transport?.bpmSync!==false)
     const beat=clock.beats,dt=active?Math.max(0,Math.min(.25,frame.deltaTimeSec)):0
     const n=(key:keyof HoneyMotionControls,min:number,max:number)=>{const v=parameters.get(key),base=HONEY_MOTION_DEFAULTS[key];return typeof v==='number'&&Number.isFinite(v)?Math.max(min,Math.min(max,v)):Number(base)}
     const k:HoneyMotionControls={motion:n('motion',0,1),rate:n('rate',.25,2),attack:n('attack',.04,.5),release:n('release',.15,1.2),rotation:n('rotation',0,1),tilt:n('tilt',0,1),separation:n('separation',0,1),elevation:n('elevation',0,1),coverage:n('coverage',0,1),width:n('width',.5,1.5),delay:n('delay',.0625,.25),transition:String(parameters.get('transition')??'1')}
-    if(parameters.getAuthored('motion')===0)k.motion=0
+    // All P05 drives multiply the saved target; a zero remains zero in the resolver.
     const event=active?resolveCinema2AfterhoursTriggerEventIdentity(frame,controls.trigger,reset||!this.wasActive?null:this.lastTime):null
     // Observe even muted/reset events so a held identity cannot replay after silence or resume.
     const fresh=event!==null&&event!==this.observedEvents.get(controls.trigger)
     if(event)this.observedEvents.set(controls.trigger,event)
-    const silentHold=!reset&&authored===this.authored&&auto&&controls.automatic&&!controls.patternChange&&(frame.mood?.silence??0)>.5
-    const selected=silentHold?null:this.controller.update({authoredPattern:authored,patternChange:controls.patternChange,trigger:controls.trigger,triggerEventId:fresh&&this.wasActive?event:null,absoluteBeat:beat,reset})
+    const silentHold=!reset&&authored===this.authored&&auto&&controls.automatic&&!controls.patternChange&&(frame.mood?.silence??0)>=.5
+    const selected=silentHold?null:this.controller.update({authoredPattern:authored,patternChange:controls.patternChange,trigger:controls.trigger,triggerEventId:fresh&&this.wasActive?event:null,absoluteBeat:beat,reset:reset||autoReleased})
     if(selected&&selected.activePattern!==this.activePattern){this.snapshot=this.states.map(s=>s.current);this.transitionBeat=beat;this.transitionLength=[.5,1,2,4].includes(Number(k.transition))?Number(k.transition):1;this.phase=0;this.activePattern=selected.activePattern}
     if(active&&this.lastBeat!=null)this.phase+=Math.max(0,Math.min(1,beat-this.lastBeat))*k.rate
-    const raw=parameters.get('audioReactivity'),reactivity=parameters.getAuthored('audioReactivity')===0?0:typeof raw==='number'&&Number.isFinite(raw)?Math.max(0,Math.min(1,raw)):HONEY_AUDIO_REACTIVITY
-    const cueControls=JSON.stringify([parameters.getEditRevision?.('audioReactivity')??reactivity,parameters.getEditRevision?.('trigger')??trigger,parameters.getEditRevision?.('patternChange')??(parameters.get('patternChange')===true),trigger,controls.trigger])
+    const raw=parameters.get('audioReactivity'),reactivity=typeof raw==='number'&&Number.isFinite(raw)?Math.max(0,Math.min(1,raw)):HONEY_AUDIO_REACTIVITY
+    const cueControls=JSON.stringify([auto,authored,parameters.getEditRevision?.('pattern')??0,parameters.getEditRevision?.('audioReactivity')??parameters.getAuthored('audioReactivity'),parameters.getEditRevision?.('trigger')??trigger,parameters.getEditRevision?.('patternChange')??(parameters.get('patternChange')===true),trigger])
     const boundary=this.priorCueControls!==null&&cueControls!==this.priorCueControls
     this.priorCueControls=cueControls
     const channels=Object.fromEntries(Object.keys(HONEY_AUDIO_DEFAULTS).map(key=>{const v=parameters.get(key);return [key,typeof v==='number'&&Number.isFinite(v)?v:0]})) as HoneyAudioChannels
+    const director=Object.fromEntries(Object.keys(HONEY_DIRECTOR_DEFAULTS).map(key=>{const v=parameters.get(key);return [key,typeof v==='number'&&Number.isFinite(v)?v:0]})) as HoneyDirectorChannels
     const audio=frame.audio
     // Availability is diagnostic only: values are read from shared resolved targets, never raw bands.
     const available=!!audio&&(Object.values(audio.bands??{}).some(v=>v.available)||[audio.features?.spectralFlux,audio.features?.overallEnergy,audio.features?.vocalPresence,audio.features?.buildProgress].some(v=>v?.available))
-    this.audio.update({channels,cues,active:active&&!!audio,reset:reset||!audio||!present,boundary,deltaSeconds:dt,reactivity,available})
+    this.audio.update({channels,director,cues,active:active&&!!audio,reset:reset||!audio||!present,boundary,deltaSeconds:dt,reactivity,available})
     if(active){
       const t=this.snapshot?Math.max(0,Math.min(1,(beat-this.transitionBeat)/this.transitionLength)):1
       const mix=t*t*(3-2*t),beatSeconds=60/(clock.locked&&clock.bpm?clock.bpm:120)

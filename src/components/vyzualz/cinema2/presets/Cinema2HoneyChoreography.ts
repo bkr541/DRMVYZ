@@ -8,6 +8,9 @@ export const HONEY_AUDIO_ROUTES = [
   ['flux', 'audio.features.spectralFlux', 'audio.features'], ['energy', 'audio.features.overallEnergy', 'audio.features'],
   ['vocal', 'audio.features.vocalPresence', 'music.vocal-presence'], ['tension', 'audio.features.buildProgress', 'music.build'],
 ] as const satisfies readonly (readonly [keyof HoneyAudioChannels, Cinema2ChoreographyContinuousSourcePath, Cinema2CapabilityId])[]
+export const HONEY_DIRECTOR_ROUTES=[
+  ['directorIntensity','director.intensity'],['directorBuild','director.build'],['directorImpact','director.impact'],
+] as const satisfies readonly (readonly [keyof import('../modules/honey/Cinema2HoneyPerformance').HoneyDirectorChannels,Cinema2ChoreographyContinuousSourcePath])[]
 export const HONEY_CUE_ROUTES = [
   ['kick', 'kick', 'music.rhythm-events'], ['snare', 'snare', 'music.rhythm-events'], ['beat', 'beat', 'music.beat'],
   ['downbeat', 'downbeat', 'music.downbeat'], ['bar', 'bar', 'music.bar'], ['phrase', 'phrase', 'music.phrase'],
@@ -21,10 +24,15 @@ export function honeyAudioRules(moduleId: Cinema2ModuleId, cueId: Cinema2Paramet
       source: { signal:'continuous',path,capability },
       actions: [{ id:cinema2StableId<Cinema2ChoreographyActionId>(`honey-map-${property.toLowerCase()}`),target:{kind:'module',ref:cinema2Ref(moduleId),property},operation:'replace',value:1 }],
     })),
+    ...HONEY_DIRECTOR_ROUTES.map(([property,path],i):Cinema2ChoreographyRuleManifest=>({
+      id:cinema2StableId<Cinema2ChoreographyRuleId>(`honey-director-${i}`),priority:20+i,
+      source:{signal:'continuous',path,capability:'visual-director.significance'},
+      actions:[{id:cinema2StableId<Cinema2ChoreographyActionId>(`honey-director-map-${i}`),target:{kind:'module',ref:cinema2Ref(moduleId),property},operation:'replace',value:1}],
+    })),
     ...HONEY_CUE_ROUTES.map(([kind,signal,capability],i): Cinema2ChoreographyRuleManifest => ({
       id:cinema2StableId<Cinema2ChoreographyRuleId>(`honey-event-${kind}`),priority:30+i,
       source:{signal,capability,...(kind==='build'?{threshold:.6}:{})},
-      ...(['beat','downbeat','bar','phrase'].includes(kind)?{conditions:[{kind:'not-silent' as const}]}:{}),
+      ...(['beat','downbeat','bar','phrase','build'].includes(kind)?{conditions:[{kind:'not-silent' as const}]}:{}),
       actions:[{id:cinema2StableId<Cinema2ChoreographyActionId>(`honey-cue-${kind}`),target:{kind:'parameter',ref:cinema2Ref(cueId)},operation:'spawn',value:{kind}}],
     })),
   ]
