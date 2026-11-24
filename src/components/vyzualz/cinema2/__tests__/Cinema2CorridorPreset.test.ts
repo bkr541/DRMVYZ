@@ -2,6 +2,9 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { setAutoPerformanceUserDefault } from '../../../../lib/autoPerformanceDefault'
 import { createCinema2DesignParentGroupModel } from '../parameters/Cinema2InspectorModel'
 import { Cinema2ParameterState } from '../parameters/Cinema2ParameterState'
+import { Cinema2CorridorPerformance } from '../modules/Cinema2CorridorNativeModule'
+import type { Cinema2ModuleUpdateContext } from '../modules/Cinema2ModuleContracts'
+import { buildCorridorGeometry, CORRIDOR_VERTEX_FLOATS, CORRIDOR_MAX_INSET, CORRIDOR_BANK_SPAN } from '../modules/corridor/Cinema2CorridorRenderer'
 import { CINEMA2_AFTERHOURS_TRIGGER_OPTIONS } from '../presets/Cinema2AfterhoursPreset'
 import { CINEMA2_CORRIDOR_PRESET_ID, CINEMA2_CORRIDOR_PRESET_MANIFEST } from '../presets/Cinema2CorridorPreset'
 import { validateCinema2PresetAuthoringConventions } from '../presets/Cinema2PresetAuthoring'
@@ -24,6 +27,74 @@ describe('Corridor', () => {
       options: CINEMA2_AFTERHOURS_TRIGGER_OPTIONS,
       visibleWhen: [{ kind: 'parameter-equals', parameterId: 'corridor-pattern-change', value: true }],
     })
+  })
+
+  it('builds a backing, telescoping mount, rigid body, bevel, recessed strip and face for every cell', () => {
+    const geometry = buildCorridorGeometry()
+    const cells = new Map<string, Map<number, number[]>>()
+    for (let i = 0; i < geometry.length; i += CORRIDOR_VERTEX_FLOATS) {
+      const cell = `${geometry[i+5]}:${geometry[i+6]}:${geometry[i+7]}`
+      const parts = cells.get(cell) ?? new Map<number, number[]>()
+      const part = geometry[i+8]!
+      const depths = parts.get(part) ?? []
+      depths.push(geometry[i+2]!)
+      parts.set(part,depths)
+      cells.set(cell,parts)
+    }
+    expect(cells.size).toBe(192)
+    expect(geometry.byteLength).toBe(1382400)
+    expect(CORRIDOR_BANK_SPAN + CORRIDOR_MAX_INSET).toBeLessThan(1)
+    for (const parts of cells.values()) {
+      expect([...parts.keys()].sort()).toEqual([0,1,2,3,4,5])
+      expect(Math.max(...parts.get(0)!)).toBe(0)
+      expect(Math.min(...parts.get(5)!)).toBe(0)
+      expect(Math.max(...parts.get(5)!)).toBe(1)
+      expect(Math.max(...parts.get(2)!)).toBe(1)
+      expect(Math.max(...parts.get(3)!)).toBeLessThan(Math.min(...parts.get(4)!))
+    }
+  })
+
+  it('uses the shared routed bass, kick and build with bounded attack, pause, reset and manual authority', () => {
+    const performance = new Cinema2CorridorPerformance(() => .5)
+    const values: Record<string, unknown> = { autoPerformance: true, motion: .75, bass: 0, kick: 0, build: 0 }
+    let time = 0
+    let generation = 1
+    const update = (paused = false, playing = true) => {
+      time += .1
+      return performance.update({
+        parameters: { get: (name: string) => values[name] },
+        frame: {
+          contextGeneration: generation, elapsedTimeSec: time, deltaTimeSec: .1, audio: null, director: null, mood: null,
+          transport: { sourcePresent: true, playing, paused, animationActive: !paused, timeSec: time, trackId: 'test', bpm: 120 },
+        },
+      } as unknown as Cinema2ModuleUpdateContext)
+    }
+    update()
+    Object.assign(values,{ bass: 1, kick: 1, build: 1 })
+    const attack = update()
+    expect(attack.bass).toBe(.75)
+    expect(attack.kick).toBe(.75)
+    expect(attack.extensionBuild).toBeGreaterThan(0)
+    expect(attack.extensionBuild).toBeLessThan(.75)
+    const charged = update()
+    expect(charged.extensionBuild).toBeGreaterThan(attack.extensionBuild)
+    Object.assign(values,{ bass: 0, kick: 0, build: 0 })
+    expect(update(true)).toMatchObject({ bass: charged.bass, kick: charged.kick, extensionBuild: charged.extensionBuild })
+    const released = update()
+    expect(released.bass).toBe(0)
+    expect(released.kick).toBe(0)
+    expect(released.extensionBuild).toBeLessThan(charged.extensionBuild)
+    Object.assign(values,{ bass: 1, kick: 1, build: 1 })
+    update()
+    generation++
+    expect(update()).toMatchObject({ bass: 0, kick: 0, extensionBuild: 0 })
+    values.autoPerformance = false
+    expect(update()).toMatchObject({ bass: 0, kick: 0, extensionBuild: 0 })
+    values.autoPerformance = true
+    values.motion = 0
+    expect(update()).toMatchObject({ bass: 0, kick: 0, extensionBuild: 0 })
+    values.motion = .75
+    expect(update(false,false)).toMatchObject({ bass: 0, kick: 0, extensionBuild: 0 })
   })
 
   it('follows both System Settings values and preserves the contracted Inspector authority', () => {

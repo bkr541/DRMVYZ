@@ -17,7 +17,7 @@ export const CORRIDOR_COLORS: Pick<CorridorLook, 'voidColor' | 'wall' | 'amber' 
 
 const DEFAULT_LOOK: Readonly<CorridorLook> = {
   ...CORRIDOR_COLORS, travel: 0.58, phase: 0.08, roll: 0.032, sway: 0, width: 2.35, density: 0.38, intensity: 0.86,
-  haze: 0.23, pattern: 'night-transit', kick: 0, transient: 0, build: 0, drop: 0,
+  haze: 0.23, pattern: 'night-transit', kick: 0, bass: 0, extensionBuild: 0, transient: 0, build: 0, drop: 0,
 }
 
 /** Runtime-only phase and pattern authority; persistent values remain in Parameter State. */
@@ -92,7 +92,15 @@ export class Cinema2CorridorPerformance {
     })
     if (selection?.changed) this.phase = 0
     const build = signal('build', this.look.build)
-    const kick = signal('kick', this.look.kick)
+    const kick = reset ? 0 : signal('kick', this.look.kick)
+    const bass = reset ? 0 : signal('bass', this.look.bass)
+    // The shared director build signal is already smoothed; the slower mechanical
+    // attack lets the housings extend progressively instead of stepping outward.
+    const dt = Number.isFinite(frame.deltaTimeSec) ? Math.max(0, Math.min(.25, frame.deltaTimeSec)) : 0
+    const previousExtension = this.look.extensionBuild
+    const extensionBuild = reset || !auto || motion === 0 || (!playing && !paused) ? 0
+      : paused ? previousExtension
+      : previousExtension + (build - previousExtension) * (1 - Math.exp(-dt / (build > previousExtension ? .65 : .32)))
     const drop = signal('drop', this.look.drop)
     const roll = read('roll', 0.54, 0, 1)
     const density = read('density', 0.38, 0.05, 0.85)
@@ -110,7 +118,7 @@ export class Cinema2CorridorPerformance {
       intensity: read('intensity', 0.86, 0, 1.45),
       haze: read('haze', 0.23, 0, 1),
       pattern: selection?.activePattern ?? this.look.pattern,
-      kick, transient: signal('transient', this.look.transient), build, drop,
+      kick, bass, extensionBuild, transient: signal('transient', this.look.transient), build, drop,
       voidColor: color('voidColor'), wall: color('wall'), amber: color('amber'), hot: color('hot'), markings: color('markings'),
     }
     this.identity = identity
@@ -125,6 +133,7 @@ export class Cinema2CorridorPerformance {
       ...this.policy.inspect(),
       activePattern: this.look.pattern, travel: this.look.travel, phase: this.look.phase,
       density: this.look.density, drop: this.look.drop,
+      bass: this.look.bass, kick: this.look.kick, extensionBuild: this.look.extensionBuild,
     }
   }
 }
