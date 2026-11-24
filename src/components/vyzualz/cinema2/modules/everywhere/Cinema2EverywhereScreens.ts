@@ -56,26 +56,68 @@ vec3 linearColor(vec3 v) { return pow(max(v,vec3(0.0)),vec3(2.2)); }
 vec3 eyeSample(vec2 uv) {
   return linearColor(texture2D(uEye,clamp(vec2(uv.x,1.0-uv.y),.001,.999)).rgb);
 }
-float irisMask(vec2 uv, vec2 center) {
-  return 1.0-smoothstep(.93,1.05,length((uv-center)/vec2(.315,.425)));
+// The photograph is a frontal projection of a curved eye. Work in globe
+// coordinates (equal pixel radii for the 4:3 source), not translated UVs.
+const vec2 eyeCenter=vec2(.50,.53);
+const vec2 globeRadius=vec2(.62,.8266667);
+float irisDistance(vec2 uv) {
+  return length((uv-eyeCenter)/vec2(.315,.355));
+}
+float irisMask(vec2 uv) {
+  return 1.0-smoothstep(.97,1.04,irisDistance(uv));
+}
+float eyeApertureUpper(float side) { return .865-.31*pow(side,1.85); }
+float eyeApertureLower(float side) { return .168+.17*pow(side,2.1); }
+vec3 scleraStrip(float x, float height) {
+  float side=abs(x-.5)*2.0;
+  return eyeSample(vec2(x,mix(eyeApertureLower(side),eyeApertureUpper(side),height)));
+}
+vec3 eyeGlobeNormal(vec2 uv) {
+  vec2 p=(uv-eyeCenter)/globeRadius;
+  return vec3(p,sqrt(max(0.0,1.0-dot(p,p))));
+}
+vec3 inverseEyeRotation(vec3 n, float yaw, float pitch) {
+  // Inverse of yaw about vertical and pitch about horizontal. A positive
+  // gaze moves the pupil right/up, and the far side of the iris foreshortens.
+  float cy=cos(yaw), sy=sin(yaw), cp=cos(pitch), sp=sin(pitch);
+  vec3 q=vec3(cy*n.x-sy*n.z,n.y,sy*n.x+cy*n.z);
+  return vec3(q.x,cp*q.y-sp*q.z,sp*q.y+cp*q.z);
 }
 vec3 animatedEye(vec2 uv, vec4 pose) {
   vec3 original=eyeSample(uv);
   if (dot(abs(pose),vec4(1.0))<.001) return original;
-  vec2 irisCenter=vec2(.50,.53);
   float side=clamp(abs(uv.x-.5)*2.0,0.0,1.0);
   float upper=.89-.42*pow(side,1.65);
   float lower=.175+.24*pow(side,1.65);
-  float aperture=smoothstep(lower,lower+.035,uv.y)*(1.0-smoothstep(upper-.035,upper,uv.y));
-  // Move the iris within a fixed lid aperture, not the entire photograph.
-  // Reconstruct only newly exposed sclera from the source's two white regions.
-  vec2 shift=vec2(pose.x*.18,pose.y*.15+pose.w*.56);
-  float travel=smoothstep(.001,.065,length(shift));
-  float whiteY=clamp(uv.y,.36,.63);
-  vec3 sclera=mix(eyeSample(vec2(.095,whiteY)),eyeSample(vec2(.905,whiteY)),smoothstep(.30,.70,uv.x));
-  vec3 emptyEye=mix(original,sclera,irisMask(uv,irisCenter));
-  vec3 moved=mix(emptyEye,eyeSample(uv-shift),irisMask(uv-shift,irisCenter));
-  vec3 picture=mix(original,moved,aperture*travel);
+  vec3 picture=original;
+  float yaw=pose.x*.34;
+  float pitch=pose.y*.25+pose.w*.98;
+  float travel=smoothstep(0.0,.012,length(vec2(yaw,pitch)));
+  if (travel>0.0) {
+    // Keep the photographed eyelids/lashes still. The more closely fitted
+    // gaze aperture is separate from the existing blink closure geometry.
+    float gazeUpper=eyeApertureUpper(side);
+    float gazeLower=eyeApertureLower(side);
+    float aperture=smoothstep(gazeLower,gazeLower+.018,uv.y)*(1.0-smoothstep(gazeUpper-.018,gazeUpper,uv.y));
+    vec3 sourceNormal=inverseEyeRotation(eyeGlobeNormal(uv),yaw,pitch);
+    vec2 sourceUV=eyeCenter+sourceNormal.xy*globeRadius;
+    // Only the forward-facing hemisphere of the source can carry the iris;
+    // without this check, a large upward roll could reveal a mirrored pupil.
+    float movedIris=irisMask(sourceUV)*smoothstep(0.0,.04,sourceNormal.z);
+    // Reveal sclera behind the rotating iris using the photographed whites.
+    // Preserve the source eye everywhere not covered by the old or new iris.
+    // Map two-dimensional white patches into the aperture, rather than
+    // stretching single columns into horizontal bands. Feather beyond the
+    // original dark limbus so no stationary iris outline remains.
+    float height=mix(.10,.90,clamp((uv.y-gazeLower)/max(.01,gazeUpper-gazeLower),0.0,1.0));
+    float leftX=.035+.115*clamp(uv.x/.65,0.0,1.0);
+    float rightX=.965-.115*clamp((1.0-uv.x)/.65,0.0,1.0);
+    vec3 sclera=mix(scleraStrip(leftX,height),scleraStrip(rightX,height),smoothstep(.25,.75,uv.x));
+    float eraseIris=1.0-smoothstep(1.045,1.30,irisDistance(uv));
+    vec3 emptyEye=mix(original,sclera,eraseIris);
+    vec3 moved=mix(emptyEye,eyeSample(sourceUV),movedIris);
+    picture=mix(original,moved,aperture*travel);
+  }
   // Pull the actual upper/lower lid pixels into the opening, forming a
   // curved closure with a lash crease. No black overlay or screen-wide squash.
   float blink=clamp(pose.z,0.0,1.0);
