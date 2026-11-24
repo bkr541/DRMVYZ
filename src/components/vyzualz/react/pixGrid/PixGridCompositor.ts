@@ -164,32 +164,34 @@ function blendPixel(
   pixels[offset + 3] = Math.round(outAlpha * 255)
 }
 
-function localCoordinates(
-  outputU: number,
-  outputV: number,
+function createLocalCoordinates(
   layer: PixGridLayer,
   positionX: number,
   positionY: number,
   scaleX: number,
   scaleY: number,
   rotationDegrees: number,
-): readonly [number, number] {
-  const dx = outputU - positionX
-  const dy = outputV - positionY
+): (outputU: number, outputV: number) => readonly [number, number] {
   const radians = (-rotationDegrees * Math.PI) / 180
   const cosine = Math.cos(radians)
   const sine = Math.sin(radians)
-  const rotatedX = dx * cosine - dy * sine
-  const rotatedY = dx * sine + dy * cosine
-  let u = rotatedX / Math.max(0.001, scaleX) + 0.5
-  let v = rotatedY / Math.max(0.001, scaleY) + 0.5
-  if (layer.clipMode === 'wrap') {
-    u = fract(u)
-    v = fract(v)
+  const safeScaleX = Math.max(0.001, scaleX)
+  const safeScaleY = Math.max(0.001, scaleY)
+  return (outputU, outputV) => {
+    const dx = outputU - positionX
+    const dy = outputV - positionY
+    const rotatedX = dx * cosine - dy * sine
+    const rotatedY = dx * sine + dy * cosine
+    let u = rotatedX / safeScaleX + 0.5
+    let v = rotatedY / safeScaleY + 0.5
+    if (layer.clipMode === 'wrap') {
+      u = fract(u)
+      v = fract(v)
+    }
+    if (layer.flipX) u = 1 - u
+    if (layer.flipY) v = 1 - v
+    return [u, v]
   }
-  if (layer.flipX) u = 1 - u
-  if (layer.flipY) v = 1 - v
-  return [u, v]
 }
 
 function revealContains(value: number, progress: number, from: 'start' | 'end' | 'center'): boolean {
@@ -342,6 +344,7 @@ function renderLayer(
   const audioScale = effectiveScale(layer, frame)
   const scaleX = composedLayerScale(animation.scaleX, audioScale)
   const scaleY = composedLayerScale(animation.scaleY, audioScale)
+  const localCoordinates = createLocalCoordinates(layer, animation.positionX, animation.positionY, scaleX, scaleY, animation.rotation)
   const finalLayerOpacity = effectiveOpacity(layer, scene, frame)
   const layerOpacity = clamp01(animation.opacity * finalLayerOpacity)
 
@@ -349,7 +352,7 @@ function renderLayer(
     const outputV = (y + 0.5) / height
     for (let x = 0; x < width; x += 1) {
       const outputU = (x + 0.5) / width
-      const [u, v] = localCoordinates(outputU, outputV, layer, animation.positionX, animation.positionY, scaleX, scaleY, animation.rotation)
+      const [u, v] = localCoordinates(outputU, outputV)
       if (layer.clipMode === 'clip' && (u < 0 || u >= 1 || v < 0 || v >= 1)) continue
 
       let target = sampleLayerFrame(layer, u, v, animation.frameIndex)
@@ -476,6 +479,7 @@ function renderPreparedDeckLayer(
   const audioScale = effectiveScale(layer, frame)
   const scaleX = composedLayerScale(animation.scaleX, audioScale)
   const scaleY = composedLayerScale(animation.scaleY, audioScale)
+  const localCoordinates = createLocalCoordinates(layer, animation.positionX, animation.positionY, scaleX, scaleY, animation.rotation)
   const finalLayerOpacity = effectiveOpacity(layer, scene, frame)
   const opacity = clamp01(animation.opacity * finalLayerOpacity)
   const maskBits = preparedDeckLayerMaskBits(groupCompiler, layer.id, width * height)
@@ -483,7 +487,7 @@ function renderPreparedDeckLayer(
     const outputV = (y + 0.5) / height
     for (let x = 0; x < width; x += 1) {
       const outputU = (x + 0.5) / width
-      const [u, v] = localCoordinates(outputU, outputV, layer, animation.positionX, animation.positionY, scaleX, scaleY, animation.rotation)
+      const [u, v] = localCoordinates(outputU, outputV)
       if (layer.clipMode === 'clip' && (u < 0 || u >= 1 || v < 0 || v >= 1)) continue
       const sx = Math.max(0, Math.min(preparedDeck.width - 1, Math.floor(u * preparedDeck.width)))
       const sy = Math.max(0, Math.min(preparedDeck.height - 1, Math.floor(v * preparedDeck.height)))
@@ -535,13 +539,14 @@ function renderPreparedAssetLayer(
   const audioScale = effectiveScale(layer, frame)
   const scaleX = composedLayerScale(animation.scaleX, audioScale)
   const scaleY = composedLayerScale(animation.scaleY, audioScale)
+  const localCoordinates = createLocalCoordinates(layer, animation.positionX, animation.positionY, scaleX, scaleY, animation.rotation)
   const finalLayerOpacity = effectiveOpacity(layer, scene, frame)
   const opacity = clamp01(animation.opacity * finalLayerOpacity)
   for (let y = 0; y < height; y += 1) {
     const outputV = (y + 0.5) / height
     for (let x = 0; x < width; x += 1) {
       const outputU = (x + 0.5) / width
-      const [u, v] = localCoordinates(outputU, outputV, layer, animation.positionX, animation.positionY, scaleX, scaleY, animation.rotation)
+      const [u, v] = localCoordinates(outputU, outputV)
       if (layer.clipMode === 'clip' && (u < 0 || u >= 1 || v < 0 || v >= 1)) continue
       const sx = Math.max(0, Math.min(preparedAsset.width - 1, Math.floor(u * preparedAsset.width)))
       const sy = Math.max(0, Math.min(preparedAsset.height - 1, Math.floor(v * preparedAsset.height)))

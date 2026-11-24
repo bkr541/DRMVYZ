@@ -23,6 +23,7 @@ export function PixGridPreviewStage({ preset, pixGridState, pixGridDecks, intens
   return (
     <div className="pmv-pixgrid-stage" aria-label={`${preset.name} PixGrid preview`}>
       <PixGridSurface
+        previewOnly
         analyser={null}
         activePreset={preset}
         pixGridState={state}

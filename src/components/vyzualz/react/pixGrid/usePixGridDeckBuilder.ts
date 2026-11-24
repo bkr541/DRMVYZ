@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { recordPerformanceEvent } from '../../../../lib/performanceTelemetry'
 import { useReactStore } from '../../../../stores/reactStore'
 import { usePixGridDeckCompilerStore } from './PixGridDeckCompilerRuntime'
 import {
@@ -267,14 +268,21 @@ export function usePixGridDeckBuilder(options: PixGridDeckBuilderOptions = {}) {
 
   const createPreset = () => {
     if (!deck || !readiness) return
+    const startedAt = performance.now()
+    recordPerformanceEvent('pixGrid', 'deck-create-start', {
+      deckId: deck.id, revision: deck.revision, itemCount: enabledItems.length,
+    })
     const result = createPixGridDeckPreset(deck.id, readiness)
     if (!result.ok) {
       setUpload(current => ({ ...current, error: result.error.message }))
       return
     }
-    optionsRef.current.onPresetCreated?.(deck.generatedPresetId)
+    recordPerformanceEvent('pixGrid', 'deck-registered', {
+      deckId: deck.id, presetId: deck.generatedPresetId, elapsedMs: performance.now() - startedAt,
+    })
     if (optionsRef.current.confirmCreation) setCreated(true)
     else exit()
+    optionsRef.current.onPresetCreated?.(deck.generatedPresetId)
   }
 
   /**

@@ -7,7 +7,8 @@ import { AudioFeatureBus } from '../../../../../features/musicIntelligence/Audio
 import { DEFAULT_MI_FRAME } from '../../../../../features/musicIntelligence/constants'
 import { musicIntelligenceEngine } from '../../../../../features/musicIntelligence/MusicIntelligenceEngine'
 import { DEFAULT_REACT_PRESETS } from '../../ReactTypes'
-import { resetReactLiveEngineOwnershipForTests } from '../../renderers/ReactLiveEngineOwnership'
+import { getReactLiveEngineSnapshot, resetReactLiveEngineOwnershipForTests } from '../../renderers/ReactLiveEngineOwnership'
+import { setPerformancePressure } from '../../../../../lib/performancePressure'
 import { createDefaultPixGridState } from '../PixGridDefaults'
 import { getPixGridReactivityRuntimeStatus } from '../PixGridReactivityStatus'
 import { PixGridSurface } from '../PixGridSurface'
@@ -171,6 +172,54 @@ describe('PixGridSurface lifecycle', () => {
     expect(host.querySelectorAll('[data-pix-grid-cell]')).toHaveLength(0)
     expect(host.querySelector('[data-pix-grid-matrix="160x90"]')).not.toBeNull()
     expect(host.querySelector('[data-pix-grid-renderer="canvas2d-fallback"]')).not.toBeNull()
+  })
+
+  it('does not mark the engine stable before the first completed frame', () => {
+    renderSurface({ isPlaying: false })
+    expect(getReactLiveEngineSnapshot().phase).toBe('initializing')
+    runNextFrame()
+    expect(getReactLiveEngineSnapshot().phase).toBe('stable')
+  })
+
+  it('keeps the effective matrix aligned with adaptive quality under pressure', () => {
+    setPerformancePressure('gpu', 2)
+    try {
+      const { onDiagnostics } = renderSurface({ isPlaying: false })
+      runNextFrame()
+      expect(onDiagnostics).toHaveBeenLastCalledWith(expect.objectContaining({ logicalWidth: 96, logicalHeight: 54 }))
+      expect(host.querySelector('[data-pix-grid-matrix="160x90"]')).not.toBeNull()
+    } finally {
+      setPerformancePressure('gpu', 0)
+    }
+  })
+
+  it('stops automatic GPU retries after three failures and retains manual retry', () => {
+    vi.useFakeTimers()
+    try {
+      renderSurface({ isPlaying: false })
+      runNextFrame()
+      act(() => vi.advanceTimersByTime(60_000))
+      expect(webglAttempts).toBe(4)
+      const button = host.querySelector<HTMLButtonElement>('.rv-pix-grid-diagnostic button')!
+      act(() => button.click())
+      expect(webglAttempts).toBe(5)
+      act(() => root.unmount())
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('retires a failing frame and permits an explicit restart', () => {
+    renderSurface({ isPlaying: false })
+    vi.mocked(context.drawImage).mockImplementationOnce(() => { throw new Error('test render failure') })
+    runNextFrame()
+    expect(getReactLiveEngineSnapshot().phase).toBe('idle')
+    expect(rafCallbacks.size).toBe(0)
+    const restart = [...host.querySelectorAll('button')].find(button => button.textContent?.includes('Restart PixGrid'))!
+    expect(restart).toBeDefined()
+    act(() => restart.click())
+    runNextFrame()
+    expect(getReactLiveEngineSnapshot().phase).toBe('stable')
   })
 
   it('renders one deterministic stopped frame, then leaves no continuing animation work', () => {

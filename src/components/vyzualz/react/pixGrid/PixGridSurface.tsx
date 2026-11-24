@@ -52,6 +52,7 @@ import {
   type PixGridAdaptiveQualityProfile,
 } from './PixGridAdaptiveQuality'
 import { getPerformancePressure } from '../../../../lib/performancePressure'
+import { recordPerformanceEvent } from '../../../../lib/performanceTelemetry'
 import { validatePixGridState } from './PixGridValidationAudit'
 import {
   PixGridPerceptualResponseTracker,
@@ -108,8 +109,14 @@ function activeDeckSourceId(state: PixGridState, sceneId?: string | null): strin
 
 /** How often a watched, otherwise idle PixGrid canvas redraws so the cast keeps receiving frames. */
 const WATCHED_REFRESH_MS = 66
+const GPU_RETRY_DELAYS_MS = [1_000, 2_000, 5_000] as const
+// Limit the backing store of non-output authoring previews, without changing
+// their logical grid, authored quality, or the live/casting presentation.
+const PREVIEW_MAX_PIXELS = 1920 * 1080
 
 export interface PixGridSurfaceProps {
+  /** Non-output authoring surface: avoid oversampling the display backing store. */
+  previewOnly?: boolean
   analyser: AnalyserNode | null
   activePreset: ReactPreset | null
   pixGridState: PixGridState
@@ -343,6 +350,8 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
   const gpuCanvasRef = useRef<HTMLCanvasElement>(null)
   const fallbackCanvasRef = useRef<HTMLCanvasElement>(null)
   const propsRef = useRef(props)
+  const [rendererAttempt, setRendererAttempt] = useState(0)
+  const [fatalRenderError, setFatalRenderError] = useState<{ presetId: string | null; reason: string } | null>(null)
   const requestRenderRef = useRef<(force?: boolean) => void>(() => {})
   const retryGpuRef = useRef<() => void>(() => {})
   const resizeRef = useRef<() => void>(() => {})
@@ -354,12 +363,6 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
   const runtimeDimensions = resolvePixGridMatrixDimensions(runtimeQuality)
   const deckRuntimeResolutionOwner = useRef<object>({})
   const deckTransitionPlanLatchRef = useRef(new PixGridDeckTransitionPlanLatch())
-  useEffect(() => {
-    setPixGridDeckRuntimeResolution(deckRuntimeResolutionOwner.current, runtimeDimensions.width, runtimeDimensions.height)
-  }, [runtimeDimensions.height, runtimeDimensions.width])
-  useEffect(() => () => {
-    clearPixGridDeckRuntimeResolution(deckRuntimeResolutionOwner.current)
-  }, [])
   const [diagnostics, setDiagnostics] = useState<PixGridRendererDiagnostics>(EMPTY_DIAGNOSTICS)
   const configuredDeckId = useMemo(() => {
     const layerDeckId = activeDeckSourceId(props.pixGridState)
@@ -417,7 +420,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
 
   useEffect(() => {
     adaptiveControllerRef.current.reset()
-    const profile = resolvePixGridAdaptiveQualityProfile(props.pixGridState.quality, props.pixGridState.qualityMode, 0)
+    const profile = resolvePixGridAdaptiveQualityProfile(props.pixGridState.quality, props.pixGridState.qualityMode, pixGridPressureFloorStage(getPerformancePressure()))
     adaptiveProfileRef.current = profile
     runtimeQualityRef.current = profile.logicalQuality
     setRuntimeQuality(profile.logicalQuality)
@@ -572,6 +575,14 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
     let frameRenderStartedAt = 0
     let lastRouteDiagnosticsAt = Number.NEGATIVE_INFINITY
     let mounted = true
+    let readyPresetId: string | null = null
+    let lastSummaryAt = Number.NEGATIVE_INFINITY
+    let cachedRuntimeState: { authored: PixGridState; profile: PixGridAdaptiveQualityProfile; state: PixGridState } | null = null
+    const diagnosticContext = () => ({
+      presetId: propsRef.current.activePreset?.id ?? null,
+      preview: propsRef.current.previewOnly === true,
+      quality: runtimeQualityRef.current,
+    })
     let gpuRetryAttempts = 0
     let gpuRetryTimer: ReturnType<typeof setTimeout> | null = null
     let createGpuRenderer: () => void = () => {}
@@ -712,10 +723,9 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
     }
 
     const scheduleGpuRetry = () => {
-      if (gpuRetryTimer != null || !mounted) return
-      const delays = [1_000, 2_000, 5_000, 10_000, 20_000, 30_000] as const
-      const delay = delays[Math.min(gpuRetryAttempts, delays.length - 1)]
-      gpuRetryAttempts += 1
+      if (gpuRetryTimer != null || !mounted || gpuRetryAttempts >= GPU_RETRY_DELAYS_MS.length) return
+      const delay = GPU_RETRY_DELAYS_MS[gpuRetryAttempts++]
+      recordPerformanceEvent('pixGrid', 'gpu-retry-scheduled', { ...diagnosticContext(), attempt: gpuRetryAttempts, delayMs: delay })
       gpuRetryTimer = setTimeout(() => {
         gpuRetryTimer = null
         if (mounted) createGpuRenderer()
@@ -936,18 +946,29 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
       const previewSourceFrame = selectedScenePreviewClock.apply(controlledSourceFrame, current.pixGridState)
       const audioFrame = motionClock.apply(applyPixGridEditorPreview(previewSourceFrame))
       const qualityProfile = adaptiveProfileRef.current
-      const runtimeState: PixGridState = {
-        ...current.pixGridState,
-        matrixWidth: qualityProfile.logicalWidth,
-        matrixHeight: qualityProfile.logicalHeight,
-        glowAmount: current.pixGridState.glowAmount * qualityProfile.glowScale,
-        diffusion: current.pixGridState.diffusion * qualityProfile.diffusionScale,
-        rgbSubpixelMode: current.pixGridState.rgbSubpixelMode && qualityProfile.rgbSubpixelEnabled,
-        diagnostics: {
-          ...current.pixGridState.diagnostics,
-          showMatrixBounds: current.pixGridState.diagnostics.showMatrixBounds && qualityProfile.diagnosticsEnabled,
-        },
+      // Keep identity stable so the existing canonical-state cache can actually
+      // reuse normalization/migration work between frames. Effective quality
+      // must accompany dimensions: normalizePixGridState derives them from it.
+      if (!cachedRuntimeState || cachedRuntimeState.authored !== current.pixGridState || cachedRuntimeState.profile !== qualityProfile) {
+        cachedRuntimeState = {
+          authored: current.pixGridState,
+          profile: qualityProfile,
+          state: {
+            ...current.pixGridState,
+            quality: qualityProfile.logicalQuality,
+            matrixWidth: qualityProfile.logicalWidth,
+            matrixHeight: qualityProfile.logicalHeight,
+            glowAmount: current.pixGridState.glowAmount * qualityProfile.glowScale,
+            diffusion: current.pixGridState.diffusion * qualityProfile.diffusionScale,
+            rgbSubpixelMode: current.pixGridState.rgbSubpixelMode && qualityProfile.rgbSubpixelEnabled,
+            diagnostics: {
+              ...current.pixGridState.diagnostics,
+              showMatrixBounds: current.pixGridState.diagnostics.showMatrixBounds && qualityProfile.diagnosticsEnabled,
+            },
+          },
+        }
       }
+      const runtimeState = cachedRuntimeState.state
       const selectedSceneId = resolveSectionScene(
         activePreset,
         current.trackSections ?? intelligenceFrame.resolvedSections ?? [],
@@ -1349,8 +1370,9 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
       lifecycle.setAnimationFrame(animationFrame)
     }
 
-    const render = (now: number) => {
+    const renderFrame = (now: number) => {
       animationFrame = 0
+      lifecycle.setAnimationFrame(0)
       frameRenderStartedAt = performance.now()
       if (lifecycle.disposed || !ownership.isCurrent()) return
       const force = forcedRender
@@ -1363,8 +1385,11 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         return
       }
 
+      const firstFrame = readyPresetId !== current.activePreset?.id
+      if (firstFrame) recordPerformanceEvent('pixGrid', 'first-frame-start', diagnosticContext())
       const input = currentFrameInput(force)
       if (!input) return
+      const inputMs = performance.now() - frameRenderStartedAt
       let rendered = false
       if (activePath === 'webgl2' && gpuRenderer?.isReady) {
         try {
@@ -1398,7 +1423,8 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
           }
         } catch (error) {
           const reason = error instanceof Error ? error.message : String(error)
-          gpuRenderer.dispose()
+          recordPerformanceEvent('pixGrid', 'gpu-render-failed', { ...diagnosticContext(), reason })
+          gpuRenderer?.dispose()
           gpuRenderer = null
           activatePath('canvas2d-fallback', `PixGrid GPU rendering failed temporarily: ${reason}`)
           scheduleGpuRetry()
@@ -1412,11 +1438,29 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
           renderFallback(input)
         } catch (error) {
           const reason = error instanceof Error ? error.message : String(error)
+          if (!input.transition) throw error
           fallbackReason = `PixGrid transition allocation failed; rendering the stable frame instead: ${reason}`
           renderFallback({ ...input, transition: null })
         }
       }
 
+      // A submitted GPU frame or completed Canvas2D frame, not merely a
+      // constructed renderer, releases the live-engine initialization gate.
+      ownership.markStable()
+      const frameMs = performance.now() - frameRenderStartedAt
+      if (firstFrame || now - lastSummaryAt >= 10_000 || (frameMs >= 100 && now - lastSummaryAt >= 2_000)) {
+        const compiler = getPixGridDeckCompilerDiagnostics()
+        const transitions = getPixGridDeckTransitionDiagnostics()
+        recordPerformanceEvent('pixGrid', firstFrame ? 'first-frame-complete' : 'render-summary', {
+          ...diagnosticContext(), path: activePath, inputMs, frameMs,
+          logicalWidth: input.state.matrixWidth, logicalHeight: input.state.matrixHeight,
+          presentationWidth: lastDiagnostics.presentationWidth, presentationHeight: lastDiagnostics.presentationHeight,
+          deckStatus: input.deckRuntimeStatus, cacheBytes: compiler.cacheBytes + transitions.cacheBytes,
+          compilerJobs: compiler.runningJobCount + transitions.runningJobCount,
+        })
+        lastSummaryAt = now
+      }
+      readyPresetId = input.preset.id
       frameCount += 1
       const elapsed = now - fpsWindowStarted
       const frameReactivityActive = (current.analysisActive ?? current.isPlaying) && !current.isPaused
@@ -1452,22 +1496,39 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
       else fpsReporter.unavailable()
     }
 
+    // Do not leave a broken RAF loop retrying the same failing frame forever.
+    // The Deck/project stays registered, and the user can restart this surface.
+    const render = (now: number) => {
+      try {
+        renderFrame(now)
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : String(error)
+        recordPerformanceEvent('pixGrid', 'render-failed', { ...diagnosticContext(), reason })
+        ownership.retire('render-failed')
+        setFatalRenderError({ presetId: propsRef.current.activePreset?.id ?? null, reason })
+      }
+    }
+
     createGpuRenderer = () => {
+      if (!mounted || !ownership.isCurrent()) return
       gpuRenderer?.dispose()
       gpuRenderer = null
       const result = PixGridGpuRenderer.create(gpuCanvas, {
+        exclusiveContext: true,
         onContextLost: () => {
+          recordPerformanceEvent('pixGrid', 'gpu-context-lost', diagnosticContext())
           activatePath('canvas2d-fallback', 'PixGrid WebGL context was lost. Canvas2D fallback is active while recovery is attempted.')
           scheduleGpuRetry()
           requestRender(true)
         },
         onContextRestored: () => {
           clearGpuRetry()
-          gpuRetryAttempts = 0
+          recordPerformanceEvent('pixGrid', 'gpu-context-restored', diagnosticContext())
           activatePath('webgl2', null)
           requestRender(true)
         },
         onContextRestoreFailed: (reason) => {
+          recordPerformanceEvent('pixGrid', 'gpu-restore-failed', { ...diagnosticContext(), reason })
           activatePath('canvas2d-fallback', `PixGrid context restoration failed: ${reason}`)
           scheduleGpuRetry()
           requestRender(true)
@@ -1475,7 +1536,6 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
       })
       if (result.renderer) {
         clearGpuRetry()
-        gpuRetryAttempts = 0
         gpuRenderer = result.renderer
         activatePath('webgl2', null)
         publishDiagnostics({
@@ -1485,6 +1545,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
           fps: lastFps,
         })
       } else {
+        recordPerformanceEvent('pixGrid', 'gpu-init-failed', { ...diagnosticContext(), reason: result.error })
         activatePath('canvas2d-fallback', result.error)
         const fallbackResolution = resolvePixGridFallbackResolution(runtimeQualityRef.current)
         publishDiagnostics({
@@ -1506,12 +1567,16 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
     }
 
     const resize = () => {
-      const bounds = gpuCanvas.getBoundingClientRect()
+      if (!ownership.isCurrent() || lifecycle.disposed) return
+      const dimensions = resolvePixGridMatrixDimensions(runtimeQualityRef.current)
+      setPixGridDeckRuntimeResolution(deckRuntimeResolutionOwner.current, dimensions.width, dimensions.height)
+      const bounds = (gpuCanvas.hidden ? fallbackCanvas : gpuCanvas).getBoundingClientRect()
       const next = resolveCanvasResolution({
         cssWidth: bounds.width,
         cssHeight: bounds.height,
         devicePixelRatio: window.devicePixelRatio,
-        quality: canvasQuality(runtimeQualityRef.current),
+        quality: propsRef.current.previewOnly ? 'low' : canvasQuality(runtimeQualityRef.current),
+        maxPixelCount: propsRef.current.previewOnly ? PREVIEW_MAX_PIXELS : undefined,
         previous: resolution,
       })
       if (!next.valid) return
@@ -1532,6 +1597,8 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
 
     const lifecycle = createPixGridRendererLifecycle(() => {
       mounted = false
+      clearPixGridDeckRuntimeResolution(deckRuntimeResolutionOwner.current)
+      recordPerformanceEvent('pixGrid', 'surface-retired', diagnosticContext())
       if (watchTimer !== null) { window.clearInterval(watchTimer); watchTimer = null }
       clearGpuRetry()
       gpuRenderer?.dispose()
@@ -1568,13 +1635,22 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
     resizeRef.current = resize
     const observer = new ResizeObserver(resize)
     lifecycle.setResizeObserver(observer)
-    observer.observe(gpuCanvas)
-    resize()
-    createGpuRenderer()
-    ownership.markStable()
+    // Observe the host so switching between hidden GPU and fallback canvases
+    // does not lose resize notifications.
+    observer.observe(gpuCanvas.parentElement ?? gpuCanvas)
+    try {
+      recordPerformanceEvent('pixGrid', 'surface-initializing', diagnosticContext())
+      resize()
+      createGpuRenderer()
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error)
+      recordPerformanceEvent('pixGrid', 'surface-init-failed', { ...diagnosticContext(), reason })
+      ownership.retire('setup-failed')
+      setFatalRenderError({ presetId: propsRef.current.activePreset?.id ?? null, reason })
+    }
 
     return () => ownership.retire('unmount')
-  }, [hasActivePreset])
+  }, [hasActivePreset, rendererAttempt])
 
   useEffect(() => {
     // State, preset, editor, and playhead changes need one deterministic frame
@@ -1600,6 +1676,14 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
     preparedAssets,
     deckCompilerRuntimeRevision,
   ])
+
+  // A failed preset must not strand the next preset on the retired surface.
+  useEffect(() => {
+    if (fatalRenderError && fatalRenderError.presetId !== (props.activePreset?.id ?? null)) {
+      setFatalRenderError(null)
+      setRendererAttempt(value => value + 1)
+    }
+  }, [fatalRenderError, props.activePreset?.id])
 
   const fallbackActive = diagnostics.path === 'canvas2d-fallback'
   return (
@@ -1635,7 +1719,15 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
           {mediaPreparationMessage}
         </DrawerNotice>
       )}
-      {fallbackActive && diagnostics.fallbackReason && (
+      {fatalRenderError && (
+        <DrawerNotice className="rv-pix-grid-diagnostic" tone="warning" role="status" title="PixGrid preview stopped">
+          {fatalRenderError.reason}{' '}
+          <button type="button" onClick={() => { setFatalRenderError(null); setRendererAttempt(value => value + 1) }}>
+            Restart PixGrid
+          </button>
+        </DrawerNotice>
+      )}
+      {!fatalRenderError && fallbackActive && diagnostics.fallbackReason && (
         <DrawerNotice className="rv-pix-grid-diagnostic" tone="warning" role="status" title="PixGrid is using the fallback renderer">
           {diagnostics.fallbackReason}{' '}
           <button type="button" onClick={() => retryGpuRef.current()}>

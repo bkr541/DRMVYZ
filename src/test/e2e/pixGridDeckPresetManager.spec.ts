@@ -50,6 +50,7 @@ test('Preset Manager\'s PixGrid Deck popover builds, previews, edits and deletes
   await expect(popover.getByRole('button', { name: 'Next', exact: true })).toBeEnabled()
   // The live preview is the real PixGrid render for the Deck.
   await expect(popover.locator('.ll-deck-stage .rv-pix-grid-surface-host')).toBeVisible({ timeout: 60_000 })
+  await expect(page.locator('.pmv-preview-group .rv-pix-grid-surface-host')).toHaveCount(0)
 
   // Authoring controls: one image's own duration, and the arrival event once transitions arrive on a boundary.
   const firstDuration = popover.getByLabel('one.png duration in beats')
@@ -82,6 +83,7 @@ test('Preset Manager\'s PixGrid Deck popover builds, previews, edits and deletes
   await expect(createPreset).toBeEnabled({ timeout: 120_000 })
   await createPreset.click()
   await expect(popover.getByText('Preset created')).toBeVisible()
+  await expect(page.locator('.rv-pix-grid-surface-host')).toHaveCount(0)
   const created = statusPayload(await status.textContent())
   expect(created.deck).toMatchObject({ name: 'Preset Manager Deck', itemCount: 5, enabledItemCount: 5, presetCreated: true })
   expect(created.compile?.ready).toBe(true)
@@ -90,6 +92,7 @@ test('Preset Manager\'s PixGrid Deck popover builds, previews, edits and deletes
   await popover.getByRole('button', { name: 'Done' }).click()
   await expect(popover).toHaveCount(0)
   await expect(headerKey).toHaveAttribute('aria-pressed', 'false')
+  await expect(page.locator('.pmv-preview-group .rv-pix-grid-surface-host')).toBeVisible()
 
   // The new preset is a custom library record.
   const deckCard = page.locator(`.pmv-card[data-preset-id="${created.deck?.generatedPresetId}"]`)

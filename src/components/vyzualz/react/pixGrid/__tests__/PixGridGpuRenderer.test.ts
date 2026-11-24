@@ -136,6 +136,27 @@ describe('PixGridGpuRenderer', () => {
     expect(PIX_GRID_PRESENTATION_FRAGMENT_SHADER).not.toContain('uGlobalIntensity')
   })
 
+  it('avoids synchronous per-frame state queries on an exclusively owned surface', () => {
+    const gl = createFakeWebGL2()
+    const canvas = createCanvas(gl)
+    const renderer = PixGridGpuRenderer.create(canvas as unknown as HTMLCanvasElement, { exclusiveContext: true }).renderer!
+    const input = renderInput('high')
+    expect(renderer.render(input)).toBe(true)
+    gl.getParameter.mockClear()
+    gl.isEnabled.mockClear()
+    gl.flush.mockClear()
+    expect(renderer.render(input)).toBe(true)
+    expect(gl.getParameter).not.toHaveBeenCalled()
+    expect(gl.isEnabled).not.toHaveBeenCalled()
+    expect(gl.flush).not.toHaveBeenCalled()
+    renderer.dispose()
+  })
+
+  it('returns a recoverable initialization failure when getContext throws', () => {
+    const canvas = { getContext: () => { throw new Error('GPU unavailable') } } as unknown as HTMLCanvasElement
+    expect(PixGridGpuRenderer.create(canvas)).toEqual({ renderer: null, error: 'GPU unavailable' })
+  })
+
   it('skips unchanged logical texture uploads and uploads the next authored phase exactly once', () => {
     const gl = createFakeWebGL2()
     const canvas = createCanvas(gl)

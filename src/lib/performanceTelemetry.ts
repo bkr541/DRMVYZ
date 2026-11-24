@@ -1,7 +1,7 @@
 import { createLogger } from './logger'
 
 export type PerformanceDetails = Record<string, string | number | boolean | null>
-type Scope = 'engine' | 'cast' | 'cinema2' | 'canvas' | 'renderer'
+type Scope = 'engine' | 'cast' | 'cinema2' | 'canvas' | 'renderer' | 'pixGrid'
 const log = createLogger('system', 'performance')
 const context: Partial<Record<Scope, PerformanceDetails>> = {}
 let activeCast = false

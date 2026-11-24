@@ -33,6 +33,8 @@ export function buildPixGridGpuSemanticPlan(
 }
 
 export interface PixGridGpuRendererCallbacks {
+  /** The surface owns this canvas/context exclusively; no external GL state needs restoring. */
+  exclusiveContext?: boolean
   onContextLost?: () => void
   onContextRestored?: () => void
   onContextRestoreFailed?: (reason: string) => void
@@ -103,7 +105,13 @@ function compileShader(gl: WebGL2RenderingContext, type: number, source: string,
 
 function createProgram(gl: WebGL2RenderingContext, fragmentSource: string, label: string): WebGLProgram {
   const vertex = compileShader(gl, gl.VERTEX_SHADER, PIX_GRID_FULLSCREEN_VERTEX_SHADER, `${label} vertex`)
-  const fragment = compileShader(gl, gl.FRAGMENT_SHADER, fragmentSource, `${label} fragment`)
+  let fragment: WebGLShader
+  try {
+    fragment = compileShader(gl, gl.FRAGMENT_SHADER, fragmentSource, `${label} fragment`)
+  } catch (error) {
+    gl.deleteShader(vertex)
+    throw error
+  }
   const program = gl.createProgram()
   if (!program) {
     gl.deleteShader(vertex)
@@ -131,15 +139,20 @@ function requireUniform(gl: WebGL2RenderingContext, program: WebGLProgram, name:
 
 export class PixGridGpuRenderer {
   static create(canvas: HTMLCanvasElement, callbacks: PixGridGpuRendererCallbacks = {}): PixGridGpuRendererCreateResult {
-    const gl = canvas.getContext('webgl2', {
-      alpha: false,
-      antialias: false,
-      depth: false,
-      stencil: false,
-      premultipliedAlpha: false,
-      preserveDrawingBuffer: false,
-      powerPreference: 'high-performance',
-    }) as WebGL2RenderingContext | null
+    let gl: WebGL2RenderingContext | null
+    try {
+      gl = canvas.getContext('webgl2', {
+        alpha: false,
+        antialias: false,
+        depth: false,
+        stencil: false,
+        premultipliedAlpha: false,
+        preserveDrawingBuffer: false,
+        powerPreference: 'high-performance',
+      }) as WebGL2RenderingContext | null
+    } catch (error) {
+      return { renderer: null, error: error instanceof Error ? error.message : String(error) }
+    }
     if (!gl) return { renderer: null, error: 'WebGL2 is unavailable; using the Canvas2D PixGrid fallback.' }
 
     let renderer: PixGridGpuRenderer | null = null
@@ -262,7 +275,7 @@ export class PixGridGpuRenderer {
     if (width !== this.canvas.width || height !== this.canvas.height) return false
 
     const gl = this.gl
-    const saved = this.captureState()
+    const saved = this.callbacks.exclusiveContext ? null : this.captureState()
     try {
       this.ensureLogicalTarget(state.matrixWidth, state.matrixHeight)
       this.updateOverrideTexture(input, state)
@@ -292,10 +305,10 @@ export class PixGridGpuRenderer {
       gl.bindTexture(gl.TEXTURE_2D, this.logicalTexture)
       gl.uniform1i(this.presentationUniform('uLogicalTexture'), 0)
       gl.drawArrays(gl.TRIANGLES, 0, 3)
-      gl.flush()
+      if (saved) gl.flush()
       return true
     } finally {
-      this.restoreState(saved)
+      if (saved) this.restoreState(saved)
     }
   }
 

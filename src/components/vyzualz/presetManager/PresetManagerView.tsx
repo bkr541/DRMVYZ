@@ -514,7 +514,9 @@ export function PresetManagerView() {
               </section>
             ) : (
               <div className="pmv-preview-group" role="group" aria-label="Preset preview">
-                {selectedPreset?.activation === 'cinema2' && selectedCinema2PresetId && CAN_HOST_CINEMA2_STAGE ? (
+                {/* The modal uses the same exclusive live renderer. Retire the background
+                    preview until Done/Close, including the creation confirmation. */}
+                {deckBuilder.active ? null : selectedPreset?.activation === 'cinema2' && selectedCinema2PresetId && CAN_HOST_CINEMA2_STAGE ? (
                   <Cinema2Stage
                     presetId={selectedCinema2PresetId}
                     restoreState={cinema2RestoreState as Readonly<Cinema2WorkspacePresetState> | null}

@@ -42,6 +42,22 @@ let transitionCoordinator: PixGridDeckTransitionCoordinator | null = null
 let stopRuntime: (() => void) | null = null
 let synchronizeRuntime: (() => void) | null = null
 let runtimeResolution: Readonly<{ owner: object; width: number; height: number }> | null = null
+let resolutionSyncQueued = false
+let lastSyncedResolution: { width: number; height: number } | null = null
+
+function scheduleResolutionSync(): void {
+  if (resolutionSyncQueued) return
+  resolutionSyncQueued = true
+  queueMicrotask(() => {
+    resolutionSyncQueued = false
+    if (!synchronizeRuntime) return
+    const state = useReactStore.getState().pixGridState
+    const width = runtimeResolution?.width ?? state.matrixWidth
+    const height = runtimeResolution?.height ?? state.matrixHeight
+    if (lastSyncedResolution?.width === width && lastSyncedResolution.height === height) return
+    synchronizeRuntime()
+  })
+}
 
 function statusRecord<T>(statuses: ReadonlyMap<string, T>): Readonly<Record<string, T>> {
   return Object.freeze(Object.fromEntries(statuses))
@@ -70,12 +86,11 @@ export function startPixGridDeckCompilerRuntime(): () => void {
   const sync = () => {
     if (!coordinator) return
     const state = useReactStore.getState()
-    coordinator.synchronize(
-      runtimeDecks(state.pixGridDecks),
-      runtimeResolution?.width ?? state.pixGridState.matrixWidth,
-      runtimeResolution?.height ?? state.pixGridState.matrixHeight,
-    )
-    syncTransitions()
+    const width = runtimeResolution?.width ?? state.pixGridState.matrixWidth
+    const height = runtimeResolution?.height ?? state.pixGridState.matrixHeight
+    lastSyncedResolution = { width, height }
+    // synchronize emits a status notification, which already synchronizes transitions.
+    coordinator.synchronize(runtimeDecks(state.pixGridDecks), width, height)
   }
   let lastDecks = useReactStore.getState().pixGridDecks
   let lastMatrixWidth = useReactStore.getState().pixGridState.matrixWidth
@@ -118,6 +133,7 @@ export function startPixGridDeckCompilerRuntime(): () => void {
     stopRuntime = null
     synchronizeRuntime = null
     runtimeResolution = null
+    lastSyncedResolution = null
     usePixGridDeckCompilerStore.getState().clear()
   }
   return stopRuntime
@@ -138,13 +154,13 @@ export function setPixGridDeckRuntimeResolution(owner: object, width: number, he
     && runtimeResolution.height === nextHeight
   ) return
   runtimeResolution = { owner, width: nextWidth, height: nextHeight }
-  synchronizeRuntime?.()
+  scheduleResolutionSync()
 }
 
 export function clearPixGridDeckRuntimeResolution(owner: object): void {
   if (runtimeResolution?.owner !== owner) return
   runtimeResolution = null
-  synchronizeRuntime?.()
+  scheduleResolutionSync()
 }
 
 export function getPixGridDeckCompileStatus(deckId: string): PixGridDeckCompileStatus | null {
