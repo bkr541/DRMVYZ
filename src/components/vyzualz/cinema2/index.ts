@@ -1529,3 +1529,6 @@ export { CINEMA2_ALLSTAR_NATIVE_MODULE_TYPE_ID, cinema2AllstarNativeModuleDefini
 
 export { CINEMA2_HONEY_PRESET_ID, CINEMA2_HONEY_PRESET_MANIFEST, CINEMA2_HONEY_MODULE_ID } from './presets/Cinema2HoneyPreset'
 export { CINEMA2_HONEY_NATIVE_MODULE_TYPE_ID, cinema2HoneyNativeModuleDefinition } from './modules/Cinema2HoneyNativeModule'
+
+export { CINEMA2_HUD_PRESET_ID, CINEMA2_HUD_PRESET_MANIFEST, CINEMA2_HUD_MODULE_ID } from './presets/Cinema2HudPreset'
+export { CINEMA2_HUD_NATIVE_MODULE_TYPE_ID, cinema2HudNativeModuleDefinition } from './modules/Cinema2HudNativeModule'
