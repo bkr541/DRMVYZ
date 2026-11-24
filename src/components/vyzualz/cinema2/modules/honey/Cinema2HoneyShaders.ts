@@ -77,6 +77,7 @@ flat in vec4 v_lights[7];
 uniform vec3 u_palette[7]; // linear RGB; output encoded for shared HDR bloom
 uniform vec3 u_gain;
 uniform float u_spill;
+uniform float u_detailQuality;
 uniform vec3 u_ambient;
 uniform vec3 u_key;
 uniform vec3 u_lightDir;
@@ -106,6 +107,13 @@ vec2 ringPoint(vec2 p,vec2 n,float radius){
 }
 float filteredWave(float x){return sin(x)*(1.0-smoothstep(.55,3.14,fwidth(x)));}
 float grain(vec2 p,float seed,int finish){
+  // Keep the four authored material identities at low tier, but omit secondary fine waves.
+  if(u_detailQuality<.5){
+    if(finish==2){vec2 uv=mat2(.707,-.707,.707,.707)*p;return .09*filteredWave(uv.x*47.0)*filteredWave(uv.y*47.0);}
+    if(finish==1)return .06*filteredWave(p.y*155.0+seed*20.0);
+    if(finish==3)return .004*filteredWave(p.x*173.0);
+    return .02*filteredWave(p.y*155.0+seed*20.0);
+  }
   float a=filteredWave(p.y*155.0+seed*20.0+2.0*filteredWave(p.x*11.0));
   float b=filteredWave(p.y*370.0+seed*47.0);
   if(finish==1)return .075*a+.035*b+.032*filteredWave(p.y*43.0+seed*5.0);
@@ -120,8 +128,12 @@ float shadowVisibility(vec3 N){
   if(any(lessThan(uv,vec3(0.0)))||any(greaterThan(uv,vec3(1.0))))return 1.0;
   float bias=u_shadowSettings.y*(1.0+1.5*(1.0-max(dot(N,u_lightDir),0.0)));
   float s=0.0;
-  for(int x=-1;x<=1;x++)for(int y=-1;y<=1;y++)s+=texture(u_shadow,vec3(uv.xy+vec2(x,y)*u_shadowSettings.z,uv.z-bias));
-  return s/9.0;
+  bool reduced=u_detailQuality<1.5;
+  for(int x=-1;x<=1;x++)for(int y=-1;y<=1;y++){
+    if(reduced&&x!=0&&y!=0)continue;
+    s+=texture(u_shadow,vec3(uv.xy+vec2(x,y)*u_shadowSettings.z,uv.z-bias));
+  }
+  return s/(reduced?5.0:9.0);
 }
 vec3 spillSample(vec3 N,vec2 rel,vec2 ringN,float radius,float z,float level,vec3 color,float occlusion){
   if(level<=0.0)return vec3(0.0);
@@ -155,7 +167,10 @@ vec3 localSpill(vec3 N){
   for(int i=0;i<7;i++){
     vec2 center=v_cell.xy+offsets[i];vec4 source=v_lights[i];vec3 level=source.xyz*u_gain;
     if(max(level.x,max(level.y,level.z))<=0.0)continue;
-    vec2 rel=v_world.xy-center;vec2 ringN=ringNormal(rel);
+    vec2 rel=v_world.xy-center;
+    // Beyond ring radius + compact spill support + maximum cap displacement, the contribution is exactly zero.
+    if(dot(rel,rel)>5.29)continue;
+    vec2 ringN=ringNormal(rel);
     // Low cap channels are occluded by their own sleeve. Cross-cell illumination
     // below the lip is attenuated rather than leaking through solid walls.
     float crossOcclusion=i==0?1.0:smoothstep(.20,.55,v_world.z)*smoothstep(.35,.55,source.w);

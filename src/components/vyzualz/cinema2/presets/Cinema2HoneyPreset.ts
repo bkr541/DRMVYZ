@@ -1,6 +1,7 @@
 import { CINEMA2_NATIVE_PRESET_SCHEMA_ID,CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,cinema2NamespacedId,cinema2StableId,cinema2Ref,type Cinema2PresetId,type Cinema2ModuleId,type Cinema2SceneNodeId,type Cinema2LayerId,type Cinema2CameraId,type Cinema2RenderTargetId,type Cinema2RenderPassId,type Cinema2RenderSlotId,type Cinema2ParameterId,type Cinema2LightId,type Cinema2ParameterManifest,type Cinema2NativePresetManifest } from '../contracts/Cinema2NativePresetManifest'
 import { CINEMA2_HONEY_NATIVE_MODULE_TYPE_ID } from '../modules/Cinema2HoneyNativeModule'
 import { HONEY_CAMERA,HONEY_PALETTE,HONEY_PALETTE_KEYS } from '../modules/honey/Cinema2HoneyDomain'
+import { HONEY_PARTICLE_DEFAULTS,HONEY_PARTICLE_COLOR } from '../modules/honey/Cinema2HoneyParticles'
 import { finishHoney } from './Cinema2HoneyFinishing'
 import { HONEY_LIGHT_DEFAULTS,HONEY_LIGHT_RANGES,type HoneyLightControls } from '../modules/honey/Cinema2HoneyLighting'
 import { HONEY_AUDIO_DEFAULTS,HONEY_AUDIO_REACTIVITY } from '../modules/honey/Cinema2HoneyAudio'
@@ -27,8 +28,20 @@ const paletteParameters:Cinema2ParameterManifest[]=HONEY_PALETTE_KEYS.map((key,i
 const lightLabels={outerGain:'Outer Channel Intensity',innerGain:'Inner Channel Intensity',underGain:'Underlighting',lightSpill:'Light Spill',ambient:'Ambient Lighting',bloom:'Bloom',ao:'Ambient Occlusion'} as const
 const lightingParameters:Cinema2ParameterManifest[]=(Object.keys(HONEY_LIGHT_DEFAULTS) as (keyof HoneyLightControls)[]).map((key,i)=>({id:honeyParameterId(key),label:lightLabels[key],type:'float',defaultValue:HONEY_LIGHT_DEFAULTS[key],min:0,max:HONEY_LIGHT_RANGES[key],step:.01,section:'Design',designParentGroup:key==='ambient'?'master-controls':key==='bloom'||key==='ao'||key==='lightSpill'?'effects':'design',...(key==='outerGain'||key==='innerGain'||key==='underGain'?{group:'Lighting'}:{}),order:i+10,exposure:'primary',persistence:'preset',reset:'authored-default',modulatable:true,choreographable:true,automatable:true}))
 const moduleLightKeys=['outerGain','innerGain','underGain','lightSpill'] as const
-const base=(key:string,label:string,parent:'master-controls'|'design',group:string,order:number)=>({id:honeyParameterId(key),label,section:'Design' as const,designParentGroup:parent,group,order,exposure:'primary' as const,persistence:'preset' as const,reset:'authored-default' as const})
-const slider=(key:string,label:string,parent:'master-controls'|'design',group:string,order:number,value:number,min:number,max:number,step=.01):Cinema2ParameterManifest=>({...base(key,label,parent,group,order),type:'float',defaultValue:value,min,max,step,modulatable:true,choreographable:true,automatable:true})
+const base=(key:string,label:string,parent:'master-controls'|'design'|'effects',group:string,order:number)=>({id:honeyParameterId(key),label,section:'Design' as const,designParentGroup:parent,group,order,exposure:'primary' as const,persistence:'preset' as const,reset:'authored-default' as const})
+const slider=(key:string,label:string,parent:'master-controls'|'design'|'effects',group:string,order:number,value:number,min:number,max:number,step=.01):Cinema2ParameterManifest=>({...base(key,label,parent,group,order),type:'float',defaultValue:value,min,max,step,modulatable:true,choreographable:true,automatable:true})
+const opticalParameters:Cinema2ParameterManifest[]=[
+  {...base('particles','Particles','effects','Embers',30),type:'boolean',defaultValue:true},
+  slider('particle-amount','Particle Amount','effects','Embers',31,HONEY_PARTICLE_DEFAULTS.particleAmount,0,1),
+  {...base('atmosphere','Atmosphere','effects','Depth',40),type:'boolean',defaultValue:true},
+  slider('haze-density','Haze Density','effects','Depth',41,.004,0,.025,.001),
+  {...base('depth-of-field','Depth of Field','effects','Depth',42),type:'boolean',defaultValue:true},
+  slider('focus-amount','Focus Amount','effects','Depth',43,.25,0,1),
+  slider('vignette','Vignette','effects','Optics',50,.18,0,1),
+  slider('grain','Grain','effects','Optics',51,.015,0,.1,.005),
+  {id:honeyParameterId('particle-color'),label:'Particles',type:'color',defaultValue:HONEY_PARTICLE_COLOR,section:'Design',designParentGroup:'palette',order:8,exposure:'primary',persistence:'preset',reset:'authored-default',modulatable:false,choreographable:false,automatable:false},
+]
+const particleBindings={particles:cinema2Ref(honeyParameterId('particles')),particleAmount:cinema2Ref(honeyParameterId('particle-amount')),particleColor:cinema2Ref(honeyParameterId('particle-color'))}
 const d=HONEY_MOTION_DEFAULTS
 const motionParameters:Cinema2ParameterManifest[]=[
   slider('master-intensity','Master Intensity','master-controls','Lighting',0,1,0,2),
@@ -56,13 +69,13 @@ const motionParameters:Cinema2ParameterManifest[]=[
 const motionKeys={...Object.fromEntries(Object.keys(d).map(key=>[key,key])),masterIntensity:'master-intensity',audioReactivity:'audio-reactivity',bpmSync:'bpm-sync',autoPerformance:'auto-performance',pattern:'pattern',patternChange:'pattern-change',trigger:'trigger'}
 const motionBindings=Object.fromEntries(Object.entries(motionKeys).map(([key,id])=>[key,cinema2Ref(honeyParameterId(id))]))
 const motionDefaults=Object.fromEntries(Object.entries(motionKeys).map(([key,id])=>[key,motionParameters.find(p=>p.id===honeyParameterId(id))!.defaultValue]))
-/** P05 performance reference; keep the P02 material and effect graph. */
+/** P06 cinematic performance reference; stable native identity. */
 export const CINEMA2_HONEY_PRESET_MANIFEST:Readonly<Cinema2NativePresetManifest>=withCinema2MoodDrives(finishHoney({
   schemaId:CINEMA2_NATIVE_PRESET_SCHEMA_ID,schemaVersion:CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,id:CINEMA2_HONEY_PRESET_ID,revision:1,
   metadata:{name:'HONEY',description:'A close industrial honeycomb wall of solid beveled hex plates, recessed chambers, mixed industrial finishes and physical emissive channels. Eight mechanical and light programs.',author:'STAGELESS',tags:['cinematic','3d','audio-reactive']},
   capabilities:[{id:'render.webgl2',requirement:'required',purpose:'Instanced native hexagonal assemblies.'},{id:'render.depth',requirement:'required',purpose:'Resolve raised plates and stationary recessed chambers.'},{id:'scene.3d',requirement:'required',purpose:'World-space axial hex field.'},{id:'camera.world',requirement:'required',purpose:'Shared close perspective camera.'},{id:'render.hdr',requirement:'optional',purpose:'HDR emissive channels with rgba8 fallback.'},{id:'lighting',requirement:'required',purpose:'Shared directional and ambient light rig.'},{id:'audio.transport',requirement:'optional',purpose:'Playback lifecycle and discontinuities.'},{id:'audio.bands',requirement:'optional',purpose:'Six distinct native spatial and light routes.'},{id:'audio.features',requirement:'optional',purpose:'Energy, spectral flux and build progress.'},{id:'music.vocal-presence',requirement:'optional',purpose:'Restrain kinetic overlays during vocals.'},{id:'music.build',requirement:'optional',purpose:'Sustained tension and canonical build edge.'},{id:'music.section',requirement:'optional',purpose:'Canonical section variation cue.'},{id:'music.beat',requirement:'optional',purpose:'Shared beat timing and pattern switches.'},{id:'music.rhythm-events',requirement:'optional',purpose:'Canonical kick and snare switching.'},{id:'music.drop',requirement:'optional',purpose:'Canonical drop switching.'},{id:'music.downbeat',requirement:'optional',purpose:'Canonical downbeat switching.'},{id:'music.bar',requirement:'optional',purpose:'Canonical bar switching.'},{id:'music.phrase',requirement:'optional',purpose:'Canonical phrase switching.'}],
-  parameters:[{id:honeyParameterId('musical-cue'),label:'Musical Cue',type:'trigger',exposure:'hidden',persistence:'runtime-only',reset:'none',section:'React',group:'Runtime',order:999},{...CINEMA2_QUALITY_MODE_PARAMETER,section:'Design',designParentGroup:'master-controls'},...paletteParameters,...lightingParameters,...motionParameters],
-  modules:[{id:CINEMA2_HONEY_MODULE_ID,typeId:CINEMA2_HONEY_NATIVE_MODULE_TYPE_ID,version:1,actionBindings:{musicalCue:cinema2Ref(honeyParameterId('musical-cue'))},parameters:{...motionDefaults,...HONEY_AUDIO_DEFAULTS,...HONEY_DIRECTOR_DEFAULTS,...HONEY_PALETTE,...Object.fromEntries(moduleLightKeys.map(key=>[key,HONEY_LIGHT_DEFAULTS[key]]))},parameterBindings:{...motionBindings,...Object.fromEntries([...HONEY_PALETTE_KEYS,...moduleLightKeys].map(key=>[key,cinema2Ref(honeyParameterId(key))]))}}],
+  parameters:[{id:honeyParameterId('musical-cue'),label:'Musical Cue',type:'trigger',exposure:'hidden',persistence:'runtime-only',reset:'none',section:'React',group:'Runtime',order:999},{...CINEMA2_QUALITY_MODE_PARAMETER,section:'Design',designParentGroup:'master-controls'},...paletteParameters,...lightingParameters,...motionParameters,...opticalParameters],
+  modules:[{id:CINEMA2_HONEY_MODULE_ID,typeId:CINEMA2_HONEY_NATIVE_MODULE_TYPE_ID,version:1,actionBindings:{musicalCue:cinema2Ref(honeyParameterId('musical-cue'))},parameters:{...HONEY_PARTICLE_DEFAULTS,...motionDefaults,...HONEY_AUDIO_DEFAULTS,...HONEY_DIRECTOR_DEFAULTS,...HONEY_PALETTE,...Object.fromEntries(moduleLightKeys.map(key=>[key,HONEY_LIGHT_DEFAULTS[key]]))},parameterBindings:{...particleBindings,...motionBindings,...Object.fromEntries([...HONEY_PALETTE_KEYS,...moduleLightKeys].map(key=>[key,cinema2Ref(honeyParameterId(key))]))}}],
   choreography:{rules:honeyAudioRules(CINEMA2_HONEY_MODULE_ID,honeyParameterId('musical-cue'))},
   scene:{nodes:[{id:root,kind:'group',coordinateSpace:'world'},{id:wall,kind:'module',parent:cinema2Ref(root),module:cinema2Ref(CINEMA2_HONEY_MODULE_ID)}],roots:[cinema2Ref(root)]},
   layers:[{id:layer,label:'HONEY Wall',source:cinema2Ref(root),role:'world',depthPolicy:'read-write',order:0}],
@@ -108,5 +121,10 @@ function honeyMoodDrives():Cinema2MoodDrive[]{
   add('bloom',cinema2AutoTargets.effect('honey-bloom','intensity'),['mood.peak',1.3],['mood.calm',.7])
   add('ao',cinema2AutoTargets.effect('honey-ao','intensity'),['mood.build',1.18],['mood.peak',.82])
   add('camera-sway',cinema2AutoTargets.camera(camera,'control.motionAmount'),['mood.activity',1.15],['mood.calm',.68])
+  module('particleAmount',['mood.brightness',1.3],['mood.calm',.7])
+  add('haze',cinema2AutoTargets.effect('honey-atmosphere','density'),['mood.build',1.3],['mood.calm',.75])
+  add('focus',cinema2AutoTargets.effect('honey-dof','mix'),['mood.calm',1.25],['mood.peak',.75])
+  add('vignette',cinema2AutoTargets.effect('honey-grade','vignette'),['mood.calm',1.18],['mood.peak',.85])
+  add('grain',cinema2AutoTargets.effect('honey-grade','grain'),['mood.calm',.75],['mood.peak',1.2])
   return drives
 }

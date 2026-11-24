@@ -7,9 +7,11 @@ import { staticHoneyCell,type HoneyVisualCell } from './Cinema2HoneyMotion'
 import type { HoneyCell } from './Cinema2HoneyLayout'
 
 import { HONEY_CAMERA,HONEY_FINISHES,honeySeed } from './Cinema2HoneyDomain'
-import { HONEY_LIGHT_DEFAULTS,honeyLightInstances,type HoneyLightControls } from './Cinema2HoneyLighting'
+import { HONEY_LIGHT_DEFAULTS,type HoneyLightControls } from './Cinema2HoneyLighting'
 import { HONEY_VERTEX,HONEY_FRAGMENT,HONEY_SHADOW_VERTEX,HONEY_SHADOW_FRAGMENT } from './Cinema2HoneyShaders'
 import type { Cinema2LightingEnvironmentFrame } from '../../spatial/Cinema2LightingEnvironmentRuntime'
+import { Cinema2HoneyParticleRenderer,type Cinema2HoneyParticles } from './Cinema2HoneyParticles'
+import type { Cinema2Color,Cinema2RenderQualityLevel } from '../../contracts/Cinema2NativePresetManifest'
 import type { Cinema2ShadowFrame } from '../../runtime/Cinema2ShadowService'
 
 export interface HoneyDrawLighting {
@@ -38,11 +40,17 @@ export class Cinema2HoneyRenderer {
   private readonly matrix = new Float32Array(16)
   private readonly colors = new Float32Array(21)
   private disposed = false
+  private embers:Cinema2HoneyParticleRenderer|null=null
+  private emberCount=0
+  private readonly neighborIndices:Int32Array
   constructor(private readonly gl: WebGL2RenderingContext, private readonly cells: readonly HoneyCell[]) {
+    const indices=new Map(cells.map((cell,i)=>[cell.id,i]))
+    this.neighborIndices=Int32Array.from(cells.flatMap((cell,i)=>[i,...cell.neighbors.map(id=>indices.get(id)??-1)]))
     this.instanceData=new Float32Array(cells.length*39)
     this.poseData=new Float32Array(cells.length*8)
+    cells.forEach((cell,i)=>{const at=i*39;this.instanceData[at]=cell.x;this.instanceData[at+1]=cell.y;this.instanceData[at+3]=cell.tone;this.instanceData[at+4]=HONEY_FINISHES.indexOf(cell.finish);this.instanceData[at+5]=honeySeed(cell.q,cell.r,79)})
     try {
-      const result=ShaderProgram.create(gl,new ShaderCompiler(gl),{label:'Cinema2/Honey',vertSrc:HONEY_VERTEX,fragSrc:HONEY_FRAGMENT,requiredUniforms:['u_viewProjection','u_palette[0]','u_gain','u_spill','u_ambient','u_key','u_lightDir','u_eye','u_shadow','u_shadowMatrix','u_shadowSettings','u_poses']})
+      const result=ShaderProgram.create(gl,new ShaderCompiler(gl),{label:'Cinema2/Honey',vertSrc:HONEY_VERTEX,fragSrc:HONEY_FRAGMENT,requiredUniforms:['u_viewProjection','u_palette[0]','u_gain','u_spill','u_ambient','u_key','u_lightDir','u_eye','u_shadow','u_shadowMatrix','u_shadowSettings','u_poses','u_detailQuality']})
       if(!result.program)throw new Error(`HONEY shader ${result.error.stage}: ${result.error.log}`)
       this.program=result.program
       const shadow=ShaderProgram.create(gl,new ShaderCompiler(gl),{label:'Cinema2/Honey/Shadow',vertSrc:HONEY_SHADOW_VERTEX,fragSrc:HONEY_SHADOW_FRAGMENT,requiredUniforms:['u_viewProjection']})
@@ -91,10 +99,10 @@ export class Cinema2HoneyRenderer {
   /** One upload per distinct simulation frame; world and shadow consume the same pose. */
   updateCells(cells:readonly HoneyVisualCell[]){
     if(this.disposed||cells===this.lastCells)return
-    const gl=this.gl,lights=honeyLightInstances(cells),count=cells.length
+    const gl=this.gl,count=cells.length
     cells.forEach((c,i)=>{
-      this.instanceData.set([c.x,c.y,c.pose.elevation,c.tone,HONEY_FINISHES.indexOf(c.finish),honeySeed(c.q,c.r,79)],i*39)
-      this.instanceData.set(lights.subarray(i*28,(i+1)*28),i*39+6)
+      this.instanceData[i*39+2]=c.pose.elevation
+      for(let j=0;j<7;j++){const source=cells[this.neighborIndices[i*7+j]!],at=i*39+6+j*4;this.instanceData[at]=source?.channels[0]??0;this.instanceData[at+1]=source?.channels[1]??0;this.instanceData[at+2]=source?.channels[2]??0;this.instanceData[at+3]=source?.elevation??0}
       this.instanceData.set([c.pose.rotation,c.pose.tiltX,c.pose.tiltY,c.pose.x,c.pose.y],i*39+34)
       this.poseData.set([c.pose.rotation,c.pose.tiltX,c.pose.tiltY,c.pose.x],i*4)
       this.poseData.set([c.pose.y,0,0,0],(count+i)*4)
@@ -106,7 +114,16 @@ export class Cinema2HoneyRenderer {
     this.lastCells=cells
   }
   private attribute(index:number,size:number,stride:number,offset:number,divisor=0){const gl=this.gl;gl.enableVertexAttribArray(index);gl.vertexAttribPointer(index,size,gl.FLOAT,false,stride,offset);gl.vertexAttribDivisor(index,divisor)}
-  estimateGpuBytes(){return this.gpuBytes}
+  estimateGpuBytes(){return this.gpuBytes+(this.embers?.bytes??0)}
+  inspectDraw(){return {drawCalls:1+Number(this.emberCount>0),particleCount:this.emberCount,triangles:this.vertexCount/3*this.cells.length}}
+  drawParticles(matrix:readonly number[],height:number,color:Cinema2Color,pool:Cinema2HoneyParticles,quality:Cinema2RenderQualityLevel){
+    if(this.disposed)return
+    this.emberCount=pool.fill(quality)
+    if(!this.emberCount)return
+    this.embers??=new Cinema2HoneyParticleRenderer(this.gl)
+    this.embers.draw(matrix,height,color,pool.data,this.emberCount)
+    assertCinema2NoGlErrors(this.gl,'HONEY embers')
+  }
   private geometry(){const gl=this.gl;gl.bindVertexArray(this.vao);gl.drawArraysInstanced(gl.TRIANGLES,0,this.vertexCount,this.cells.length);gl.bindVertexArray(null)}
   drawShadow(viewProjection:readonly number[]){
     if(this.disposed||!this.shadowProgram)return
@@ -120,7 +137,7 @@ export class Cinema2HoneyRenderer {
     const gl=this.gl,p=this.program,c=lighting.controls
     this.matrix.set(viewProjection);HONEY_PALETTE_KEYS.forEach((key,i)=>this.colors.set(palette[key].slice(0,3).map(linear),i*3))
     p.activate();p.setMat4('u_viewProjection',this.matrix);gl.uniform3fv(p.getUniform('u_palette[0]'),this.colors)
-    p.setVec3('u_gain',c.outerGain,c.innerGain,c.underGain);p.setFloat('u_spill',c.lightSpill)
+    p.setVec3('u_gain',c.outerGain,c.innerGain,c.underGain);p.setFloat('u_spill',c.lightSpill);p.setFloat('u_detailQuality',lighting.environment?.quality==='low'?0:lighting.environment?.quality==='medium'?1:2)
     const ambient=lighting.environment?.lights.find(l=>l.type==='ambient'),key=lighting.environment?.lights.find(l=>l.type==='directional')
     const ambientColor=ambient?.color??[.76,.86,1,1],keyColor=key?.color??[.83,.91,1,1]
     const ambientGain=ambient?.intensity??c.ambient,keyGain=key?.intensity??1.1
@@ -145,6 +162,7 @@ export class Cinema2HoneyRenderer {
   }
   dispose(){
     if(this.disposed)return;this.disposed=true;this.gl.bindVertexArray(null);this.gl.bindBuffer(this.gl.ARRAY_BUFFER,null)
+    this.embers?.dispose();this.embers=null;this.emberCount=0
     if(this.vao)this.gl.deleteVertexArray(this.vao);for(const buffer of this.buffers)this.gl.deleteBuffer(buffer);this.program?.dispose();this.shadowProgram?.dispose();if(this.fallbackShadow)this.gl.deleteTexture(this.fallbackShadow);if(this.poseTexture)this.gl.deleteTexture(this.poseTexture)
     this.vao=null;this.buffers=[];this.program=null;this.shadowProgram=null;this.fallbackShadow=null;this.poseTexture=null;this.instanceBuffer=null;this.lastCells=null;this.gpuBytes=0
   }

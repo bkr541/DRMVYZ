@@ -104,11 +104,11 @@ No source: fully composed static wall; no fabricated event, no audio motion. P03
 | Phase | Scope | Status |
 |---|---|---|
 | P01 | audit, registration, static geometry, palette, pose limits | code present; local compiler/geometry/lease checks pass; production gate unverified; human approval conveyed by P02 prompt |
-| P02 | mixed finishes, lighting, real emission, static visual baseline | implementation candidate; native GPU diagnostics pass; production and human acceptance pending |
-| P03 | real controls, mechanical motion, eight patterns, shared timing/pattern policy | pending; remove static tag when moving |
-| P04 | standard Audio Intelligence and event choreography | pending |
-| P05 | Director and full Auto Performance | pending |
-| P06 | shared finishing, atmosphere, optimization | pending |
+| P02 | mixed finishes, lighting, real emission, static visual baseline | supplied/applied; prior approval conveyed by subsequent prompt; historical visual gates remain recorded |
+| P03 | real controls, mechanical motion, eight patterns, shared timing/pattern policy | supplied/applied; prior approval conveyed by subsequent prompt |
+| P04 | standard Audio Intelligence and event choreography | supplied/applied; prior approval conveyed by subsequent prompt |
+| P05 | Director and full Auto Performance | supplied/applied; prior approval conveyed by P06 prompt |
+| P06 | shared finishing, atmosphere, optimization | implementation candidate; isolated source gates pass; production visual/performance/output gate blocked, not human-approved |
 | P07 | production validation, human acceptance, release | pending |
 
 ### P01 validation and exact changed files
@@ -382,3 +382,67 @@ node scripts/run-cinema2-honey-browser.mjs
 Exact P05 changed files (C2 relative unless root): `modules/honey/Cinema2HoneyPerformance.ts`, `modules/honey/Cinema2HoneyAudio.ts`, `modules/honey/Cinema2HoneyOrchestration.ts`, `presets/Cinema2HoneyChoreography.ts`, `presets/Cinema2HoneyPreset.ts`, `__tests__/Cinema2HoneyAudio.test.ts`, `__tests__/Cinema2HoneyAutoPerformance.test.ts`, `__tests__/support/HoneyRuntimeFixture.ts`; root `src/test/browser/Cinema2HoneyProductionBrowserHarness.ts`, `scripts/run-cinema2-honey-browser.mjs`, `docs/cinema2-honey.md`. Native module itself consumes the existing orchestrator and needed no separate edit. No binaries or shared changes.
 
 Single-patch verification: staged whitespace check, `git apply --check`, actual indexed application and byte-for-byte comparison of the full-index binary diff on a pristine disposable baseline worktree. Next prerequisite: apply and run actual tests and production visual captures; review reference and resulting performance before approval and Phase 06. Phase 06 must not be considered implemented by this patch.
+
+## P06 | Atmosphere, cinematic finishing and optimization (candidate, not release)
+
+### Baseline and scope
+
+The supplied `STAGELESS-Studio-main (7).zip` was extracted into an isolated Git repository, committed as the pristine baseline. P01–P05 files and reports, the native registration, all eight patterns, canonical audio routes, Director, standard Auto, and the fixed wall/camera/materials were present. The P06 prompt grants prior human approval, not P06 approval or retroactive technical validation. The HONEY declaration remains `reference`, stable schema/IDs/revision, no static or internal tag. No shared runtime, renderer, effect, quality, casting, catalog, Inspector, choreography, policy, or other preset file changed. No dependencies/assets added.
+
+The original HONEY video was not attached to this turn; ZIP inspection and Library search for the original recording returned no usable video. The P01 frame observations remain the historical design reference: dark industrial relief, local orange channels, layered recesses and sparse suspended sparks. These are not newly decoded observations, and no beat/instrument mapping is inferred from them.
+
+### A: native depth-tested embers
+
+`modules/honey/Cinema2HoneyParticles.ts` owns a fixed 400-slot CPU array (8,000 bytes) and a lazily created single GPU VBO (8,000 bytes), VAO and point shader. Seeded slots have 2–6 second lifetimes, deterministic cycle-dependent selection of already-lit cavity cells, stable phase offsets, upward/lateral drift, varied world Z and age-based fade; roughly 9% of slots are nearer foreground. Point diameters are world-distance/height scaled and clamped to 1–3.5 target pixels. The renderer draws the wall first, then small additive RGB point sprites in the same bound camera/depth target, using LEQUAL, no depth writes and no alpha writes. No screen-space layer, new loop, time source or framebuffer. The existing native renderer lease owns the lazily allocated particle GPU objects; reported bytes include the VBO, disposed on renderer retirement. Hard off or amount zero skips the particle draw; hard off resets phase/lift and retains only the bounded reusable storage until retirement.
+
+`Cinema2HoneyOrchestration.update` hands the particle pool the existing active/reset/delta state and the resolved, smoothed P04 high/air/flux channels plus P05 weighted canonical drop envelope. Lift = reactivity × clamp(.30 high + .25 air + .25 flux + .50 drop); no raw FFT, second detector or extra event path. Count = floor(tier capacity × amount × (.55 + .45 lift)), capped by tier capacity (100 low, 220 medium, 400 high). At default amount .42 and zero lift, counts are 23/50/92, not a claim about on-screen visible counts. Reactivity zero restores baseline count, baseline drift remains permitted during playback, pause holds age and lift, no-source/seek/context discontinuity resets age and transient state, and idle shows a deterministic still field. Cell topology and palette roles of the wall are unchanged.
+
+### B: actual shared optical graph
+
+`presets/Cinema2HoneyFinishing.ts` now chains scene → AO → volumetric atmosphere → DOF → HDR bloom → cinematic finish → auto anti-aliasing. AO, atmosphere and DOF consume the original scene depth attachment with explicit dependencies; intermediate color targets retain RGBA16F with RGBA8 fallback, grade/AA are RGBA8. The engine owns all targets and effect resources. Haze density .004 (world density units), cool color [.27,.34,.43,1], ambient haze .12, occlusion .9, zero beams/mist/floor reflection/drift/reactivity. DOF uses shared camera-target focus (~12.75 units), range 1.5, falloff 4, near/far blur 2/3.5 pixels at 1080p and mix .25; medium/high only. Existing AO and bloom values retained. Grade uses soft tone mapping, exposure 1, contrast 1.10, saturation .95, vignette .18, grain .015 and zero chromatic aberration. No trails. AA uses the shared `auto` quality mode. The shared atmosphere/DOF `enabled` bindings actually bypass their passes when off; numeric zero remains authoritative. Visual strength/legibility is not empirically established in this phase because actual rendering was blocked.
+
+### C: quality, lifetime and output
+
+`Cinema2HoneyRenderer` retains one instanced physical wall draw, stable 625-cell geometry and existing shadow pass; a second main world draw only when embers are enabled/nonempty. Fixed cell coordinates/finish/seed and seven neighbor lookup indices are initialized once; dynamic uploads reuse the existing typed arrays, and no per-frame neighbor Map/packed light array is created. The HONEY fragment shader culls sources outside conservative compact-support radius 2.3, preserves all four finish identities with cheaper fine-wave evaluation on low, and uses five shadow comparison taps on medium instead of nine on high. Low shadow/AO/DOF behavior is owned by the existing shared quality profiles. The shared resolved `execution.lightingEnvironment.quality` governs particles and native detail, not a new selector. Diagnostics include base/active pattern, effective trigger/policy, particle age/lift/amount/count, cell count, resolved quality, world draw calls, submitted wall triangle count and reported module GPU buffer/texture bytes; these are declared/submitted counts, not measured performance. Existing wall layout, geometry, control authority, audio routes and fixed material assignments preserved. No runtime log spam.
+
+The existing production browser harness is extended with `--p06`, using `Cinema2Runtime.create`, the production selector, registered HONEY, shared renderer, actual final camera and target resolver. Scenarios include same-fixture on/off optical controls, low/high/colored particles, canonical high/drop, pause/seek, quality × resolution matrix (1920×1080, 1080×1920, 1080×1080, 960×540, 640×360; Auto/Performance/Balanced/Quality), RAF interval percentiles and runtime/resource snapshots, actual context loss/restore, repeated preset switching and canvas captureStream video-frame sampling. This exercises the canvas source used by the existing recording path; it does not claim remote Google Cast or receiver parity. Browser runner writes local screenshots/JSON to `artifacts/cinema2-honey/p06`; no screenshots or reference video are in the patch. The original P05 runner path remains available with its high quality override.
+
+### Current additional persistent control / authority inventory
+
+All previous P05 controls and drivers are retained. P06 actual IDs below supersede the provisional initial design inventory. All controls use authored reset and preset persistence; the standard shared Inspector supplies automation lock behavior. Colors remain independently editable. All five new numeric drives are shared multiply operations with saved Audio Reactivity as strength, no additive revival of zero, and no shared coverage modifications.
+
+| Parent / ID (prefix `honey-`) | Default / range | Real consumer / shared Auto factors |
+|---|---|---|
+| Effects / particles | true | pool hard permission; no automatic drive |
+| Effects / particle-amount | .42 [0,1] | pool capacity fraction; brightness 1.30, calm .70 |
+| Effects / atmosphere | true | atmosphere effect enabled; hard permission |
+| Effects / haze-density | .004 [0,.025], step .001 | volumetric density; build 1.30, calm .75 |
+| Effects / depth-of-field | true | DOF enabled; hard permission, shared medium/high gate |
+| Effects / focus-amount | .25 [0,1] | shared DOF mix; calm 1.25, peak .75 |
+| Effects / vignette | .18 [0,1] | shared grade vignette; calm 1.18, peak .85 |
+| Effects / grain | .015 [0,.1], step .005 | shared grade grain; calm .75, peak 1.20 |
+| Palette / particle-color | #FF9C48 | independent point-shader RGBA; editable, no drive |
+
+### Executed validation and limitations
+
+- Isolated actual TypeScript `compileCinema2NativePreset(withCinema2AutoCoverage(manifest))`: **pass**, no diagnostics. `validateCinema2PresetAuthoringConventions({role:'reference',manifest})`: **pass**. Actual `cinema2NativeEffectRegistry.validateEffects` for all six effects: **pass**. `computeCinema2AutoCoverage`: 26 covered numeric controls, zero added drives, zero skipped. Full catalog import is blocked, not claimed.
+- Using a temporary TypeScript transpilation loader (only `import.meta` environment substitution in the loader) and minimal standalone assertion/mock adapter: **82 executed test cases passed, zero executed failures**, including the new 4 particle, 2 finishing and 1 renderer test, earlier HONEY control/audio/pattern/geometry/material/lighting/Auto tests, shared quality/pool and Director/choreography/pattern-policy cases. Four suites could not execute: `Cinema2HoneyPreset`, `Cinema2RenderGraph`, `Cinema2RenderGraphExecutor` (missing `@supabase/supabase-js`), and `Cinema2AutoPerformanceLock` (adapter does not implement `describe.each`). This is NOT Vitest execution, actual WebGL or a full regression pass. Mock renderer assertions establish GL state calls and allocation/disposal symmetry, not visible depth occlusion.
+- `npm ci --ignore-scripts --no-audit --no-fund --fetch-retries=0` could not complete; registry DNS resolution failed (`curl` could not resolve registry.npmjs.org). `npm exec --offline -- vitest run ...` failed ENOTCACHED. Global TypeScript 5.8.3 targeted strict compile excluding missing Vite ambient types: production HONEY files report no diagnostics; dependencies and test/harness external types missing; full typecheck not passed. `node --check scripts/run-cinema2-honey-browser.mjs` passed.
+- Production runner `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium node scripts/run-cinema2-honey-browser.mjs --p06` failed before launch: missing `@playwright/test`. Supplemental isolated native Chromium capture using the compiled shared camera and actual HONEY shaders did not complete: ANGLE/EGL initialization failed (`EGL_NOT_INITIALIZED`), and the command timed out. No fresh screenshots or visual inspection, no actual shader execution proof, no measured FPS/percentiles/GPU timings/target-size matrix, no real context restoration or output-stream/remote casting validation. No invented benchmark, visual approval or production readiness claim.
+
+| Gate | Result |
+|---|---|
+| A fixed pool, deterministic lifecycle, audio permissions, quality and independent palette | Source/native state and mock GL/resource tests pass; visible depth occlusion and captures blocked |
+| B shared graph, depth routing, effects, coverage, hard-off | Isolated compiler/registry/target tests pass; actual effect output comparison blocked |
+| C quality and resource optimization | Source and mock lifetime tests pass; production performance, switching/context recovery and recording/casting parity blocked |
+| Final P06 visual acceptance | **NOT PASSED**: candidate implementation only, pending real production render and user review |
+
+Local validation with dependencies installed:
+
+```sh
+npx vitest run src/components/vyzualz/cinema2/__tests__/Cinema2Honey*.test.ts src/components/vyzualz/cinema2/__tests__/Cinema2{RenderGraph,RenderGraphExecutor,RenderQualityAndPool,VisualDirector,ChoreographyRuntime,AutoPerformanceLock,PatternControlPolicy,AutoCoverage,AutoPerformanceInventory}.test.ts
+npm run typecheck
+node scripts/run-cinema2-honey-browser.mjs --p06
+```
+
+Exact P06 paths (C2 relative except root): `modules/Cinema2HoneyNativeModule.ts`, `modules/honey/Cinema2HoneyParticles.ts`, `modules/honey/Cinema2HoneyOrchestration.ts`, `modules/honey/Cinema2HoneyRenderer.ts`, `modules/honey/Cinema2HoneyShaders.ts`, `presets/Cinema2HoneyPreset.ts`, `presets/Cinema2HoneyFinishing.ts`, `__tests__/Cinema2HoneyParticles.test.ts`, `__tests__/Cinema2HoneyFinishing.test.ts`, `__tests__/Cinema2HoneyRenderer.test.ts`; root `src/test/browser/Cinema2HoneyProductionBrowserHarness.ts`, `scripts/run-cinema2-honey-browser.mjs`, `docs/cinema2-honey.md`. Next prerequisite: apply candidate, run actual tests and inspect default and effect/quality/output captures, resolve remaining visual/performance gates and obtain user approval before release. Phase 07 not implemented.

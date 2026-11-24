@@ -8,6 +8,7 @@ import { sampleHoneyPattern,type HoneyPattern } from './Cinema2HoneyPatterns'
 import { advanceHoneyCell,blendHoneyCell,createHoneyCellState,HONEY_MOTION_DEFAULTS,targetHoneyCell,type HoneyMotionControls,type HoneyVisualCell } from './Cinema2HoneyMotion'
 import { Cinema2HoneyAudio,HONEY_AUDIO_DEFAULTS,HONEY_AUDIO_REACTIVITY,type HoneyAudioChannels,type HoneyCue } from './Cinema2HoneyAudio'
 import { HONEY_DIRECTOR_DEFAULTS,type HoneyDirectorChannels } from './Cinema2HoneyPerformance'
+import { Cinema2HoneyParticles,HONEY_PARTICLE_DEFAULTS } from './Cinema2HoneyParticles'
 import type { HoneyCell } from './Cinema2HoneyLayout'
 
 export class Cinema2HoneyOrchestration {
@@ -21,8 +22,9 @@ export class Cinema2HoneyOrchestration {
   private identity='';private lastTime:number|null=null;private lastBeat:number|null=null;private phase=0;private activePattern:HoneyPattern='cascade';private authored:HoneyPattern='cascade'
   private snapshot:readonly HoneyVisualCell[]|null=null;private transitionBeat=0;private transitionLength=1
   private observedEvents=new Map<Cinema2AfterhoursTriggerId,string>();private wasActive=false
+  readonly particles:Cinema2HoneyParticles
   cells:readonly HoneyVisualCell[]
-  constructor(private readonly layout:readonly HoneyCell[]){this.states=layout.map(createHoneyCellState);this.cells=this.states.map(s=>s.current)}
+  constructor(private readonly layout:readonly HoneyCell[]){this.particles=new Cinema2HoneyParticles(layout);this.states=layout.map(createHoneyCellState);this.cells=this.states.map(s=>s.current)}
   update({frame,parameters}:Cinema2ModuleUpdateContext,cues:readonly HoneyCue[]=[]){
     const previousVisual=this.cells
     const time=frame.transport?.timeSec??frame.audio?.upstream.timeSec??frame.elapsedTimeSec
@@ -60,6 +62,8 @@ export class Cinema2HoneyOrchestration {
     // Availability is diagnostic only: values are read from shared resolved targets, never raw bands.
     const available=!!audio&&(Object.values(audio.bands??{}).some(v=>v.available)||[audio.features?.spectralFlux,audio.features?.overallEnergy,audio.features?.vocalPresence,audio.features?.buildProgress].some(v=>v?.available))
     this.audio.update({channels,director,cues,active:active&&!!audio,reset:reset||!audio||!present,boundary,deltaSeconds:dt,reactivity,available})
+    const atmosphere=this.audio.inspect(),amount=parameters.get('particleAmount')
+    this.particles.update({active,reset,deltaSeconds:dt,enabled:parameters.get('particles')!==false,amount:typeof amount==='number'?amount:HONEY_PARTICLE_DEFAULTS.particleAmount,reactivity,high:atmosphere.channels.high,air:atmosphere.channels.air,flux:atmosphere.channels.flux,drop:atmosphere.envelopes.reduce((v,e)=>e.kind==='drop'?Math.max(v,e.level*e.weight):v,0)})
     if(active){
       const t=this.snapshot?Math.max(0,Math.min(1,(beat-this.transitionBeat)/this.transitionLength)):1
       const mix=t*t*(3-2*t),beatSeconds=60/(clock.locked&&clock.bpm?clock.bpm:120)
@@ -79,5 +83,5 @@ export class Cinema2HoneyOrchestration {
     if(!active&&reactivity===0){this.cells=this.states.map((s,i)=>k.motion===0&&!reset?{...s.current,pose:previousVisual[i]!.pose,elevation:previousVisual[i]!.pose.elevation}:s.current)}
     this.identity=identity;this.lastTime=time;this.lastBeat=beat;this.authored=authored;this.wasActive=active
   }
-  inspect(){return {...this.policy.inspect(),activePattern:this.activePattern,phase:this.phase,locked:this.clock.getState().locked,transitioning:this.snapshot!==null,audio:this.audio.inspect()}}
+  inspect(){return {...this.policy.inspect(),activePattern:this.activePattern,basePattern:this.authored,particles:this.particles.inspect(),phase:this.phase,locked:this.clock.getState().locked,transitioning:this.snapshot!==null,audio:this.audio.inspect()}}
 }
