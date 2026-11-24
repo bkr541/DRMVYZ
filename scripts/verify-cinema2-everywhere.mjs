@@ -58,6 +58,25 @@ try {
   await open(false)
   const baseline = await capture('everywhere')
   assert(baseline.some(value => value > 180), 'The picture should contain luminous CRTs.')
+  // Use an unmistakable alternate environment color to detect exposed wall edges.
+  // The geometry itself should conceal it at every preview/cast aspect ratio.
+  await change({motion:0})
+  for (const [width,height] of [[1024,576],[768,768],[450,800],[1536,432]]) {
+    await page.setViewportSize({width,height})
+    await api('resize',width,height)
+    const normal=await capture(`coverage-${width}x${height}`)
+    await change({background:[1,0,1,1]})
+    const sentinel=await capture()
+    let exposed=0
+    for (let i=0;i<normal.length;i+=3) {
+      if (Math.max(Math.abs(normal[i]-sentinel[i]),Math.abs(normal[i+1]-sentinel[i+1]),Math.abs(normal[i+2]-sentinel[i+2]))>30) exposed++
+    }
+    assert(exposed/(normal.length/3)<.005, `Exposed background at ${width}x${height}: ${exposed} pixels`)
+    await change({background:[.012,.018,.023,1]})
+  }
+  await page.setViewportSize({width:1024,height:576})
+  await api('resize',1024,576)
+  await change({motion:.72})
   const frames = [['all-eyes', baseline]]
   for (const pattern of ['signal-sweep','outward-pulse','cross-cut','channel-hold','ghost-feed','static-switch','retro-broadcast','tape-tracking','channel-mosaic','signal-relay','midnight-replay']) {
     await change({ pattern })

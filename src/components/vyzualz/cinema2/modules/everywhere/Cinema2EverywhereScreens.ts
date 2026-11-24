@@ -1,15 +1,18 @@
 export const EVERYWHERE_SCREEN_VERTEX = /* glsl */ `
 attribute vec4 aProgram; // exposure, seed, aspect, hero
+attribute vec4 aEyePose; // gaze x/y, blink, roll back
 varying vec2 vUv;
 varying vec2 vWall;
 varying vec2 vCabinet;
 varying vec4 vProgram;
+varying vec4 vEyePose;
 void main() {
   vec4 local = instanceMatrix * vec4(position,1.0);
   vUv = uv;
-  vWall = local.xy / vec2(15.4,8.7) + .5;
-  vCabinet = instanceMatrix[3].xy / vec2(15.4,8.7) + .5;
+  vWall = local.xy / vec2(19.0,10.0) + .5;
+  vCabinet = instanceMatrix[3].xy / vec2(19.0,10.0) + .5;
   vProgram = aProgram;
+  vEyePose = aEyePose;
   gl_Position = projectionMatrix * modelViewMatrix * local;
 }`
 
@@ -39,6 +42,7 @@ varying vec2 vUv;
 varying vec2 vWall;
 varying vec2 vCabinet;
 varying vec4 vProgram;
+varying vec4 vEyePose;
 
 float hash(vec2 p) {
   vec3 q = fract(vec3(p.xyx)*.1031);
@@ -46,6 +50,50 @@ float hash(vec2 p) {
   return fract((q.x+q.y)*q.z);
 }
 vec3 linearColor(vec3 v) { return pow(max(v,vec3(0.0)),vec3(2.2)); }
+
+// Eye UVs are bottom-up, unlike the borrowed image. Landmarks are calibrated
+// to the packaged 4:3 eye texture, not to user-provided pictures.
+vec3 eyeSample(vec2 uv) {
+  return linearColor(texture2D(uEye,clamp(vec2(uv.x,1.0-uv.y),.001,.999)).rgb);
+}
+float irisMask(vec2 uv, vec2 center) {
+  return 1.0-smoothstep(.93,1.05,length((uv-center)/vec2(.315,.425)));
+}
+vec3 animatedEye(vec2 uv, vec4 pose) {
+  vec3 original=eyeSample(uv);
+  if (dot(abs(pose),vec4(1.0))<.001) return original;
+  vec2 irisCenter=vec2(.50,.53);
+  float side=clamp(abs(uv.x-.5)*2.0,0.0,1.0);
+  float upper=.89-.42*pow(side,1.65);
+  float lower=.175+.24*pow(side,1.65);
+  float aperture=smoothstep(lower,lower+.035,uv.y)*(1.0-smoothstep(upper-.035,upper,uv.y));
+  // Move the iris within a fixed lid aperture, not the entire photograph.
+  // Reconstruct only newly exposed sclera from the source's two white regions.
+  vec2 shift=vec2(pose.x*.18,pose.y*.15+pose.w*.56);
+  float travel=smoothstep(.001,.065,length(shift));
+  float whiteY=clamp(uv.y,.36,.63);
+  vec3 sclera=mix(eyeSample(vec2(.095,whiteY)),eyeSample(vec2(.905,whiteY)),smoothstep(.30,.70,uv.x));
+  vec3 emptyEye=mix(original,sclera,irisMask(uv,irisCenter));
+  vec3 moved=mix(emptyEye,eyeSample(uv-shift),irisMask(uv-shift,irisCenter));
+  vec3 picture=mix(original,moved,aperture*travel);
+  // Pull the actual upper/lower lid pixels into the opening, forming a
+  // curved closure with a lash crease. No black overlay or screen-wide squash.
+  float blink=clamp(pose.z,0.0,1.0);
+  float closeLine=mix(lower,upper,.19);
+  float newUpper=mix(upper,closeLine,blink);
+  float newLower=mix(lower,closeLine,blink);
+  float upperY=mix(upper,1.0,clamp((uv.y-newUpper)/max(.01,1.0-newUpper),0.0,1.0));
+  float lowerY=lower*clamp(uv.y/max(.01,newLower),0.0,1.0);
+  vec3 upperLid=eyeSample(vec2(uv.x,upperY));
+  vec3 lowerLid=eyeSample(vec2(uv.x,lowerY));
+  float upperMask=smoothstep(newUpper-.012,newUpper+.012,uv.y);
+  float lowerMask=1.0-smoothstep(newLower-.012,newLower+.012,uv.y);
+  float closing=smoothstep(0.0,.07,blink);
+  picture=mix(picture,upperLid,upperMask*closing);
+  picture=mix(picture,lowerLid,lowerMask*closing);
+  float crease=exp(-pow((uv.y-newUpper)/.009,2.0))*(1.0-smoothstep(.82,1.0,side));
+  return picture*(1.0-.62*crease*blink);
+}
 
 vec4 poolPicture(sampler2D tex, float aspect, float screenAspect, vec2 uv) {
   vec2 fit = screenAspect > aspect ? vec2(1.0,aspect/screenAspect) : vec2(screenAspect/aspect,1.0);
@@ -73,15 +121,16 @@ void main() {
   float line = exp(-pow((fract(vUv.y + uLook.x*.18+seed*.23)-.5)*8.0,2.0));
   vec3 picture = vec3(.036,.025,.017)*(1.0+hash(floor(curved*144.0))*1.5);
   if (uHasEye > .5) {
-    vec2 signalUV = curved;
-    signalUV.x = mix(signalUV.x,1.0-signalUV.x,step(.65,seed)*(1.0-vProgram.w));
-    signalUV.x += (seed-.5)*.052*(1.0-vProgram.w);
-    picture = linearColor(texture2D(uEye,clamp(vec2(signalUV.x,1.0-signalUV.y),.001,.999)).rgb);
+    // Do not mirror animated pictures: synchronized world-left/right gazes
+    // must look in the same direction across all cabinets.
+    picture = animatedEye(curved,vEyePose);
+    // Lift the photographic feed only; opaque user media retains its prior exposure.
+    picture = pow(max(picture,vec3(0.0)),vec3(.82))*1.16;
     float alternate = smoothstep(.52,.90,seed)*(1.0-vProgram.w);
-    picture = mix(picture,picture*vec3(.72,1.05,1.25),alternate*.46);
+    picture = mix(picture,picture*vec3(.80,1.05,1.16),alternate*.33);
   }
   if (uHasMedia > .5) {
-    float screenAspect = uLayout > .5 ? 15.4/8.7 : vProgram.z;
+    float screenAspect = uLayout > .5 ? 19.0/10.0 : vProgram.z;
     vec2 source = uLayout > .5 ? vWall : curved;
     vec2 fit = vec2(1.0);
     if (uMediaFit < .5) fit = screenAspect > uMediaAspect ? vec2(screenAspect/uMediaAspect,1.0) : vec2(1.0,uMediaAspect/screenAspect);
@@ -111,7 +160,7 @@ void main() {
     channel=mod(channel+1.0,3.0);
   }
   vec2 poolUV=uLayout>.5 ? vWall : curved;
-  float poolScreenAspect=uLayout>.5 ? 15.4/8.7 : vProgram.z;
+  float poolScreenAspect=uLayout>.5 ? 19.0/10.0 : vProgram.z;
   vec4 feed=vec4(0.0);
   if (channel<.5 && uPoolAspect.x>0.0) feed=poolPicture(uPool0,uPoolAspect.x,poolScreenAspect,poolUV);
   else if (channel<1.5 && channel>.5 && uPoolAspect.y>0.0) feed=poolPicture(uPool1,uPoolAspect.y,poolScreenAspect,poolUV);

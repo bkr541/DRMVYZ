@@ -5,7 +5,8 @@ import { Cinema2ParameterState } from '../parameters/Cinema2ParameterState'
 import { CINEMA2_AFTERHOURS_TRIGGER_OPTIONS } from '../presets/Cinema2AfterhoursPreset'
 import { CINEMA2_EVERYWHERE_PRESET_ID, CINEMA2_EVERYWHERE_PRESET_MANIFEST } from '../presets/Cinema2EverywherePreset'
 import { Cinema2EverywherePerformance } from '../modules/Cinema2EverywhereNativeModule'
-import { buildEverywhereCabinetLayout, EVERYWHERE_PATTERNS, everywhereScreenGain, type EverywhereLook } from '../modules/everywhere/Cinema2EverywhereWall'
+import { buildEverywhereCabinetLayout, EVERYWHERE_PATTERNS, EVERYWHERE_REAR_DEPTH, everywhereWallCoverScale, everywhereScreenGain, type EverywhereLook } from '../modules/everywhere/Cinema2EverywhereWall'
+import { everywhereEyePose } from '../modules/everywhere/Cinema2EverywhereEyeMotion'
 import { EVERYWHERE_SCREEN_FRAGMENT } from '../modules/everywhere/Cinema2EverywhereScreens'
 import type { Cinema2ModuleUpdateContext } from '../modules/Cinema2ModuleContracts'
 import { validateCinema2PresetAuthoringConventions } from '../presets/Cinema2PresetAuthoring'
@@ -63,7 +64,7 @@ describe('Everywhere', () => {
   it('builds a dense deterministic wall with a prominent hero and distinct screen programs', () => {
     const wall = buildEverywhereCabinetLayout()
     expect(wall.length).toBeGreaterThan(60)
-    expect(wall[0]).toMatchObject({ x: 0, scale: 2.75 })
+    expect(wall[0]).toMatchObject({ x: 0, scale: 3.05 })
     expect(buildEverywhereCabinetLayout()).toEqual(wall)
     expect(wall.some(screen => screen.x < -6)).toBe(true)
     expect(wall.some(screen => screen.x > 6)).toBe(true)
@@ -89,6 +90,61 @@ describe('Everywhere', () => {
     expect(everywhereScreenGain(wall[3]!, 3, { ...look, coverage: .18 })).toBeLessThanOrEqual(
       everywhereScreenGain(wall[3]!, 3, look),
     )
+  })
+
+  it('covers the entire perspective frustum with rear cabinets in every tested layout', () => {
+    const rear=buildEverywhereCabinetLayout().filter(c=>c.z<=EVERYWHERE_REAR_DEPTH+.05)
+    expect(rear).toHaveLength(117)
+    expect(manifest.cameras?.[0]?.minAspect).toBeUndefined()
+    // Ray/rounded cabinet front-plane intersection; use the un-beveled lip
+    // footprint, not a loose bounding box. Test the maximum wall roll and push.
+    for (const aspect of [.45,9/16,1,1.2,1.5,16/9,1.9,21/9,32/9,4]) {
+      const cover=everywhereWallCoverScale(aspect)
+      for (const [roll,push] of [[-.01,0],[.01,.42]] as const) {
+        let missing=0
+        for (let iy=0;iy<=40;iy++) for (let ix=0;ix<=60;ix++) {
+          const rx=(ix/30-1)*Math.tan(Math.PI/9)*aspect
+          const ry=(iy/20-1)*Math.tan(Math.PI/9)
+          const hit=rear.some(c=>{
+            const d=10.8-(c.z+.145*c.scale+push)
+            const x=(rx*d*Math.cos(roll)+ry*d*Math.sin(roll))/cover-c.x
+            const y=(-rx*d*Math.sin(roll)+ry*d*Math.cos(roll))/cover-c.y
+            const dx=Math.abs(x)/c.scale-(.99-.153)
+            const dy=Math.abs(y)/c.scale-(.725-.153)
+            return Math.hypot(Math.max(dx,0),Math.max(dy,0))+Math.min(Math.max(dx,dy),0)<=.153
+          })
+          if (!hit) missing++
+        }
+        expect(missing, `aspect=${aspect}, roll=${roll}, push=${push}`).toBe(0)
+      }
+    }
+  })
+
+  it('choreographs bounded synchronized gazes, actual blinks and rolls without a local clock', () => {
+    const wall=buildEverywhereCabinetLayout()
+    const look: EverywhereLook = {
+      pattern:'all-eyes', phase:.22, brightness:1.06, coverage:.86, angle:.84, motion:.72,
+      scan:.2, glare:.65, layout:'repeat', colors: { background:[0,0,0,1],cabinet:[.2,.2,.2,1],cool:[0,1,1,1],warm:[1,.5,.2,1],screen:[1,1,1,1] },
+      energy:0,bass:0,high:0,vocal:0,kick:0,snare:0,build:0,drop:0,
+    }
+    const pose=(i:number,changes:Partial<EverywhereLook>)=>everywhereEyePose(wall[i]!,i,{...look,...changes})
+    expect(pose(0,{})).toEqual([0,0,0,0])
+    expect(pose(0,{phase:1.22})[0]).toBeGreaterThan(.5)
+    expect(pose(0,{phase:5.22})[0]).toBeLessThan(-.5)
+    expect(pose(0,{phase:2.48})[2]).toBeCloseTo(1)
+    expect(pose(0,{phase:1.22})).toEqual(pose(12,{phase:1.22}))
+    expect(pose(0,{phase:1.22,drop:1})[3]).toBeGreaterThan(.65)
+    expect(pose(0,{phase:1.22,drop:1})[0]).toBe(0)
+    expect(pose(0,{phase:1.22,kick:1})[2]).toBeGreaterThan(.6)
+    expect(pose(0,{phase:5.22,drop:1,kick:1,motion:0})).toEqual([0,0,0,0])
+    const programs=EVERYWHERE_PATTERNS.map(({value})=>Array.from({length:25},(_,i)=>pose(i,{pattern:value,phase:3.2})))
+    expect(new Set(programs.map(value=>JSON.stringify(value))).size).toBe(12)
+    for (const program of programs) for (const [x,y,b,r] of program) {
+      expect([x,y,b,r].every(Number.isFinite)).toBe(true)
+      expect(Math.abs(x)).toBeLessThanOrEqual(1); expect(Math.abs(y)).toBeLessThanOrEqual(1)
+      expect(b).toBeGreaterThanOrEqual(0); expect(b).toBeLessThanOrEqual(1)
+      expect(r).toBeGreaterThanOrEqual(0); expect(r).toBeLessThanOrEqual(1)
+    }
   })
 
   it('preserves the default eye underneath transparent assigned media', () => {

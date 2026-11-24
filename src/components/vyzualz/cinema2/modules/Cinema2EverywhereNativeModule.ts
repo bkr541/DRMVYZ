@@ -115,6 +115,7 @@ export const cinema2EverywhereNativeModuleDefinition: Readonly<Cinema2ModuleType
     let wall: Cinema2EverywhereWall | null = null
     let bridge: Cinema2ThreeSceneBridge | null = null
     let starting=false, disposed=false, measured=false, wallGpuBytes=0, reportedBytes=-1
+    let aspectRatio=16/9
     const diagnostics: Cinema2ModuleDiagnostic[]=[]
     const report=(error:unknown)=>diagnostics.push({
       code:'CINEMA2_EVERYWHERE_WALL_FAILED',message:error instanceof Error ? error.message : String(error),path:'$.modules',
@@ -132,6 +133,7 @@ export const cinema2EverywhereNativeModuleDefinition: Readonly<Cinema2ModuleType
         id:`${context.module.id}:crt-wall`,moduleId:context.module.id,intent:'world' as const,
         execute(execution) {
           if (disposed || diagnostics.length) return
+          aspectRatio=execution.camera?.aspect ?? execution.width/Math.max(1,execution.height)
           if (!starting) {
             starting=true
             eye=context.textures?.acquire(EVERYWHERE_EYE_ASSET,execution.lightingEnvironment?.quality ?? 'high') ?? null
@@ -147,7 +149,7 @@ export const cinema2EverywhereNativeModuleDefinition: Readonly<Cinema2ModuleType
               },node:null,preserveMaterials:true}],{
                 hdr:true,modelController:{
                   attach:root=>{wall=new Cinema2EverywhereWall(library,merge,root)},
-                  beforeDraw:()=>wall?.apply(performance.look,eye?.status==='ready' ? eye.texture : null,context.media.get('screenMedia'),pool?.getResources(),pool?.step),
+                  beforeDraw:()=>wall?.apply(performance.look,eye?.status==='ready' ? eye.texture : null,context.media.get('screenMedia'),pool?.getResources(),pool?.step,aspectRatio),
                   dispose:()=>wall?.dispose(),
                 },
               }),value=>value.dispose())

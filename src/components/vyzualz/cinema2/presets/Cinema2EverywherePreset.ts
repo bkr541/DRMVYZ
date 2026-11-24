@@ -62,7 +62,7 @@ const parameters: readonly Cinema2ParameterManifest[] = [
   slider('bloom','Bloom','effects','CRT Finish',1,.34,0,1.2,'Optical glow around the brightest screen and cabinet highlights.'),
   slider('scan','Scanlines','effects','CRT Finish',2,.20,0,1,'Strength of the fine CRT raster.'),
   slider('glare','Glass Glare','effects','CRT Finish',3,.65,0,1,'Intensity of the glass reflection and recessed lip highlights.'),
-  swatch('background','Background',1,'Dark background visible in gaps between the cabinets.'),
+  swatch('background','Background',1,'Shadow color visible only in narrow seams between cabinets.'),
   swatch('cabinet','Cabinet',2,'Base color of the molded television cases.'),
   swatch('cool','Cool Rim',3,'Color of the light along the left edges.'),
   swatch('warm','Warm Rim',4,'Color of the warm light along the opposite edges.'),
@@ -131,7 +131,7 @@ const manifest: Cinema2NativePresetManifest = {
   layers: [{ id: layer, label: 'CRT Wall', source: cinema2Ref(root), role: 'world', depthPolicy: 'read-write', order: 0 }],
   cameras: [{
     id: camera, label: 'Front Wall', projection: 'perspective', fovDegrees: 40,
-    minAspect: 1.5, near: 0.2, far: 40, transform: { position: [0, 0, 10.8] },
+    near: 0.2, far: 40, transform: { position: [0, 0, 10.8] },
     targetNode: cinema2Ref(aim), rig: { kind: 'static' },
   }],
   environment: { backgroundColor: EVERYWHERE_COLORS.background, exposure: 1, controls: { backgroundColor: ref('background') } },
@@ -140,7 +140,7 @@ const manifest: Cinema2NativePresetManifest = {
       parameters: { mix: 1, threshold: 1.25, knee: 0.29, intensity: 0.34, spread: 0.32, levels: 5, clampMax: 12, tint: [1, 0.91, 0.81, 1] },
       parameterBindings: { intensity: ref('bloom') } },
     { id: finish, typeId: CINEMA2_CINEMATIC_FINISH_EFFECT_TYPE_ID, version: 1, enabled: true, order: 1, scope: 'output',
-      parameters: { mix: 0.46, exposure: 1.02, contrast: 1.08, saturation: 1.05, vignette: 0.22, grain: 0, aberration: 0 } },
+      parameters: { mix: 0.46, exposure: 1.02, contrast: 1.08, saturation: 1.05, vignette: 0.08, grain: 0, aberration: 0 } },
   ],
   choreography: { tempoSyncParameter: ref('bpm-sync'), rules: [
     route('energy', 'audio.features.overallEnergy', 'audio.features', 145),

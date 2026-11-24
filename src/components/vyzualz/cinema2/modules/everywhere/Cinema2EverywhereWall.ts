@@ -2,6 +2,7 @@ import type * as Three from 'three'
 import type { Cinema2Color } from '../../contracts/Cinema2NativePresetManifest'
 import type { Cinema2ManagedMediaResource } from '../../media/Cinema2MediaSlotRuntime'
 import type { Cinema2ThreeLibrary } from '../three/Cinema2ThreeLibrary'
+import { everywhereEyePose } from './Cinema2EverywhereEyeMotion'
 import { EVERYWHERE_SCREEN_FRAGMENT, EVERYWHERE_SCREEN_VERTEX } from './Cinema2EverywhereScreens'
 
 export const EVERYWHERE_COLORS = {
@@ -46,29 +47,51 @@ export interface EverywhereLook {
 export interface EverywhereCabinet {
   x: number; y: number; z: number; scale: number; roll: number; yaw: number; seed: number
 }
+// Five reference silhouettes, then irregular medium cabinets, then a continuous
+// rear mosaic. All coordinates are in world space; the camera never sees a wall edge.
 const MAIN: readonly EverywhereCabinet[] = [
-  {x:0,y:-.20,z:.87,scale:2.75,roll:-.064,yaw:0,seed:.34},
-  {x:-4.27,y:2.05,z:.51,scale:1.91,roll:-.24,yaw:.17,seed:.22},
-  {x:4.50,y:1.96,z:.40,scale:1.92,roll:.25,yaw:-.18,seed:.78},
-  {x:-4.55,y:-2.42,z:.54,scale:1.79,roll:-.29,yaw:.18,seed:.41},
-  {x:4.67,y:-2.52,z:.48,scale:1.79,roll:.26,yaw:-.18,seed:.84},
+  {x:0,y:-.08,z:1.12,scale:3.05,roll:-.035,yaw:0,seed:.34},
+  {x:-4.68,y:2.42,z:.58,scale:1.98,roll:-.37,yaw:.13,seed:.22},
+  {x:4.75,y:2.38,z:.48,scale:1.99,roll:.35,yaw:-.15,seed:.78},
+  {x:-4.96,y:-2.70,z:.64,scale:1.83,roll:-.39,yaw:.18,seed:.41},
+  {x:4.97,y:-2.60,z:.55,scale:1.87,roll:.36,yaw:-.17,seed:.84},
 ]
+const MID: readonly (readonly [number,number,number,number,number,number])[] = [
+  // x, y, depth, size, roll, yaw. Fill pockets rather than repeat a flat grid.
+  [-6.9,3.2,-.60,.91,-.20,.21],[-2.83,3.55,-.53,.90,-.22,.08],
+  [-.95,3.48,-.48,.84,-.10,.03],[.88,3.65,-.76,.83,.13,-.04],
+  [2.65,3.49,-.38,.97,.19,-.12],[6.92,3.2,-.67,.88,.23,-.24],
+  [-6.8,.83,-.56,.92,-.21,.22],[-3.54,.65,-.75,.79,.21,.09],
+  [3.61,.70,-.46,.91,-.16,-.11],[6.77,.67,-.69,.98,.25,-.23],
+  [-6.52,-.94,-.55,.96,.18,.23],[-3.62,-.77,-.43,.83,.16,.13],
+  [3.72,-.72,-.57,.87,-.18,-.15],[6.61,-.87,-.49,.91,-.13,-.23],
+  [-2.93,-3.26,-.33,.99,-.18,.10],[-1.06,-3.64,-.62,.85,.17,.03],
+  [.97,-3.22,-.36,1.04,-.14,-.05],[2.89,-3.52,-.55,.91,.21,-.12],
+  [-7.10,-3.58,-.75,.87,-.18,.23],[7.16,-3.55,-.76,.92,.17,-.22],
+]
+export const EVERYWHERE_REAR_SCALE = .96
+export const EVERYWHERE_REAR_DEPTH = -2.25
+export const EVERYWHERE_WIDE_ASPECT = 1.9
+
+/** Cover, not contain: keep vertical framing on narrow previews; on unusually
+ * wide outputs enlarge both transverse axes equally, preserving screen shape.
+ * Depth is left alone, so even extreme widths cannot push the hero into the lens. */
+export function everywhereWallCoverScale(aspect: number): number {
+  return Math.max(1, (Number.isFinite(aspect) ? aspect : EVERYWHERE_WIDE_ASPECT) / EVERYWHERE_WIDE_ASPECT)
+}
 
 export function buildEverywhereCabinetLayout(): EverywhereCabinet[] {
-  const sets = [...MAIN]
-  const random = (i: number) => (Math.sin(i*127.1+17.7)*43758.5453)%1 + (Math.sin(i*127.1+17.7)<0 ? 1 : 0)
-  for (let row=0;row<7;row++) {
-    for (let column=0;column<11;column++) {
-      const i=row*11+column
-      const seed=random(i)
-      const x=(column-5)*1.43+(row%2 ? .37 : -.25)+(seed-.5)*.32
-      const y=(row-3)*1.17+(random(i+137)-.5)*.30
-      // The cabinet backs behind the hero contribute neither visible pixels nor draw work.
-      if (Math.abs(x)<1.75 && Math.abs(y+.2)<1.36) continue
-      sets.push({
-        x,y,z:-.05-seed*.74,scale:.54+random(i+92)*.36,
-        roll:(random(i+16)-.5)*.27,yaw:Math.max(-.21,Math.min(.21,-x*.036)),seed,
-      })
+  const sets = MAIN.map(item=>({...item}))
+  const random = (i: number) => { const n=Math.sin(i*127.1+17.7)*43758.5453; return n-Math.floor(n) }
+  MID.forEach(([x,y,z,scale,roll,yaw],index)=>sets.push({x,y,z,scale,roll,yaw,seed:random(index+150)}))
+  // Constant overlapping pitch at the rear: the narrowest cabinet footprint
+  // exceeds both pitches, including bevel corners and perspective safety margin.
+  // No random holes, even behind the hero: those become visible during cropping.
+  for (let row=0;row<9;row++) {
+    for (let column=0;column<13;column++) {
+      const i=row*13+column
+      sets.push({x:(column-6)*1.65+(row%2 ? .41 : -.41),y:(row-4)*1.23,
+        z:EVERYWHERE_REAR_DEPTH+(i%2)*.045,scale:EVERYWHERE_REAR_SCALE,roll:0,yaw:0,seed:random(i)})
     }
   }
   return sets
@@ -128,6 +151,7 @@ export class Cinema2EverywhereWall {
   private readonly screenMatrix: Three.Matrix4
   private readonly screenLocal: Three.Matrix4
   private readonly gains: Three.InstancedBufferAttribute
+  private readonly eyePoses: Three.InstancedBufferAttribute
   private renderer: Three.WebGLRenderer | null = null
   private media: Readonly<Cinema2ManagedMediaResource> | null = null
   private eye: WebGLTexture | null = null
@@ -154,16 +178,16 @@ export class Cinema2EverywhereWall {
       return new THREE.ExtrudeGeometry(shape,{curveSegments:5,depth,steps:1,bevelEnabled:true,bevelSegments:3,bevelThickness:bevel,bevelSize:bevel})
     }
     this.caseMaterial = new THREE.MeshStandardMaterial({ roughness:.37, metalness:.42 })
-    const lip = new THREE.MeshStandardMaterial({ color:0x212c31, roughness:.29, metalness:.61 })
+    const lip = new THREE.MeshStandardMaterial({ color:0x34434a, roughness:.26, metalness:.48 })
     const recess = new THREE.MeshStandardMaterial({ color:0x070a0a, roughness:.60, metalness:.1 })
-    this.trimMaterial = new THREE.MeshStandardMaterial({ color:0x889295, roughness:.30, metalness:.86 })
+    this.trimMaterial = new THREE.MeshStandardMaterial({ color:0xb29c7e, roughness:.28, metalness:.60 })
     const add = (geometry: Three.BufferGeometry, material: Three.Material) => {
       const mesh = new THREE.InstancedMesh(geometry,material,this.count)
       mesh.frustumCulled = false
       this.instances.push(mesh)
       this.group.add(mesh)
     }
-    add(extrusion(1.99,1.464,.159,.45,.045).translate(0,0,-.48),this.caseMaterial)
+    add(extrusion(1.99,1.464,.159,.61,.045).translate(0,0,-.64),this.caseMaterial)
     add(extrusion(1.98,1.45,.153,.129,.033,true).translate(0,0,.016),lip)
     add(extrusion(1.898,1.344,.152,.046,.015,true).translate(0,.026,.144),recess)
     const hardware: Three.BufferGeometry[] = []
@@ -185,6 +209,8 @@ export class Cinema2EverywhereWall {
     this.sets.forEach((item,index)=>data.set([1,item.seed,1.692/1.186,index===0 ? 1 : 0],index*4))
     this.gains = new T.InstancedBufferAttribute(data,4)
     plane.setAttribute('aProgram',this.gains)
+    this.eyePoses = new T.InstancedBufferAttribute(new Float32Array(this.count*4),4)
+    plane.setAttribute('aEyePose',this.eyePoses)
     this.eyeTexture = new T.Texture()
     this.mediaTexture = new T.Texture()
     this.poolTextures = Array.from({length:3},()=>new T.Texture())
@@ -217,7 +243,7 @@ export class Cinema2EverywhereWall {
     this.place(.84)
   }
 
-  apply(look: Readonly<EverywhereLook>, eye: WebGLTexture | null, media: Readonly<Cinema2ManagedMediaResource> | null, poolMedia: readonly (Readonly<Cinema2ManagedMediaResource> | null)[] = [], poolStep = 0) {
+  apply(look: Readonly<EverywhereLook>, eye: WebGLTexture | null, media: Readonly<Cinema2ManagedMediaResource> | null, poolMedia: readonly (Readonly<Cinema2ManagedMediaResource> | null)[] = [], poolStep = 0, aspectRatio = 16/9) {
     const { THREE } = this.library
     const uniforms = this.screenMaterial.uniforms
     this.eye = eye
@@ -228,8 +254,16 @@ export class Cinema2EverywhereWall {
     uniforms.uProgram!.value.set(Math.max(0,EVERYWHERE_PATTERNS.findIndex(p=>p.value===look.pattern)-5),poolStep,look.kick,look.snare)
     uniforms.uMusic!.value.set(look.bass,look.high,look.build,look.drop)
     this.place(look.angle)
-    this.sets.forEach((item,index)=>this.gains.setX(index,everywhereScreenGain(item,index,look)))
+    const cover = everywhereWallCoverScale(aspectRatio)
+    this.group.scale.set(cover,cover,1)
+    const animateEyes = !media && !poolMedia.some(Boolean)
+    this.sets.forEach((item,index)=>{
+      this.gains.setX(index,everywhereScreenGain(item,index,look))
+      const pose=animateEyes ? everywhereEyePose(item,index,look) : [0,0,0,0] as const
+      this.eyePoses.setXYZW(index,...pose)
+    })
     this.gains.needsUpdate=true
+    this.eyePoses.needsUpdate=true
     this.group.rotation.z = .010 * Math.sin(look.phase*.42) * look.motion
     this.group.position.z = .18 * look.build + .24 * look.drop
     const setColor = (color: Three.Color, rgba: Cinema2Color) => color.setRGB(rgba[0],rgba[1],rgba[2],THREE.SRGBColorSpace)
@@ -260,7 +294,7 @@ export class Cinema2EverywhereWall {
       const object=this.placement
       object.position.set(item.x,item.y,item.z)
       object.scale.setScalar(item.scale)
-      object.rotation.set((item.seed-.5)*.095*angle,item.yaw*angle,item.roll*angle)
+      object.rotation.set(item.z <= EVERYWHERE_REAR_DEPTH+.05 ? 0 : (item.seed-.5)*.12*angle,item.yaw*angle,item.roll*angle)
       object.updateMatrix()
       for (const mesh of this.instances) mesh.setMatrixAt(index,object.matrix)
       this.screen.setMatrixAt(index,this.screenMatrix.multiplyMatrices(object.matrix,this.screenLocal))
