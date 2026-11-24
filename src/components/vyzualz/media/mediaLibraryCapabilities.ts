@@ -18,7 +18,7 @@ export type MediaLibraryCapability =
   | 'multi-select'
   /** Browsable tab for the CANVAS Engine Media Pools (reactStore's
    * canvasOrchestrationSettings.mediaPools) — the same pools CANVAS Engine
-   * authoring uses. Media Manager and the CANVAS Engine library only. */
+   * authoring uses. Media Manager and opt-in performance libraries. */
   | 'pools'
 
 /**
@@ -68,8 +68,8 @@ export const CANVAS_MEDIA_LIBRARY_CAPABILITIES = [
 
 
 /** CANVAS Engine's own media library: the shared CANVAS set plus a browsable
- * Pools tab. Other CANVAS-context hosts (Show Manager, Cinema 2.0 source
- * panel) keep the plain set. */
+ * Pools tab. EVERYWHERE opts into this same set; other Cinema 2.0
+ * presets and Show Manager keep the plain set. */
 export const CANVAS_ENGINE_MEDIA_LIBRARY_CAPABILITIES = [
   ...CANVAS_MEDIA_LIBRARY_CAPABILITIES,
   'pools',

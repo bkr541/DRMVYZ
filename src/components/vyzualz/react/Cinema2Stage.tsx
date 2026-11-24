@@ -1,3 +1,4 @@
+import { createCinema2WorkspaceMediaPoolSource } from './Cinema2WorkspaceMediaPoolSource'
 import { measurePerformanceSurface, performanceRenderDpr } from './output/performanceOutputGeometry'
 import { GraphicsHealer } from '../../../lib/graphicsSelfHealing'
 import { markCanvasFramePending, markCanvasFrameReady, notifyCanvasFrameRendered } from '../../../lib/canvasFrameReadiness'
@@ -202,7 +203,9 @@ export function Cinema2Stage({
           }
         },
       }
+      const mediaPoolSource = createCinema2WorkspaceMediaPoolSource()
       let created = Cinema2Runtime.create(canvas, {
+        mediaPoolSource,
         onSnapshot: reportSnapshot,
         onFirstFrame: () => markCanvasFrameReady(canvas),
         onFrameRendered: () => notifyCanvasFrameRendered(canvas),
@@ -217,7 +220,7 @@ export function Cinema2Stage({
         if (import.meta.env.DEV) {
           console.warn('[Cinema2Stage] discarding incompatible session parameter state and retrying with defaults:', created.error)
         }
-        created = Cinema2Runtime.create(canvas, { onSnapshot: reportSnapshot, onFirstFrame: () => markCanvasFrameReady(canvas), onFrameRendered: () => notifyCanvasFrameRendered(canvas), presetId, transportSource })
+        created = Cinema2Runtime.create(canvas, { onSnapshot: reportSnapshot, onFirstFrame: () => markCanvasFrameReady(canvas), onFrameRendered: () => notifyCanvasFrameRendered(canvas), presetId, transportSource, mediaPoolSource })
       }
       reportSnapshot(created.snapshot)
       if (!created.runtime) {

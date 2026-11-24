@@ -58,6 +58,7 @@ const parameters: readonly Cinema2ParameterManifest[] = [
   {...base('screen-media','Screen Media','design','Screen Media',1,'Select a feed in the Source tab’s Media Library.'),type:'media',defaultValue:null,mediaSlot:cinema2Ref(CINEMA2_EVERYWHERE_MEDIA_SLOT)},
   {...base('media-layout','Media Layout','design','Screen Media',2,'Repeat the same picture on each television or spread it across the whole wall.'),type:'enum',
     defaultValue:'repeat',options:[{value:'repeat',label:'Repeat on each screen'},{value:'wall',label:'Span the wall'}]},
+  {...base('pool-trigger','Pool Trigger','design','Screen Media',3,'Choose when the active media pool advances, independently of Pattern Change. Program uses the current pattern’s authored musical cadence.'),type:'enum',defaultValue:'program',options:[{value:'program',label:'Program cadence'},...CINEMA2_AFTERHOURS_TRIGGER_OPTIONS]},
   slider('bloom','Bloom','effects','CRT Finish',1,.34,0,1.2,'Optical glow around the brightest screen and cabinet highlights.'),
   slider('scan','Scanlines','effects','CRT Finish',2,.20,0,1,'Strength of the fine CRT raster.'),
   slider('glare','Glass Glare','effects','CRT Finish',3,.65,0,1,'Intensity of the glass reflection and recessed lip highlights.'),
@@ -70,7 +71,7 @@ const parameters: readonly Cinema2ParameterManifest[] = [
 const bindings = {
   motion:ref('motion'), bpmSync:ref('bpm-sync'), autoPerformance:auto, brightness:ref('brightness'),
   coverage:ref('coverage'), angle:ref('angle'), pattern:ref('pattern'), patternChange:ref('pattern-change'),
-  trigger:ref('trigger'), mediaLayout:ref('media-layout'), scan:ref('scan'), glare:ref('glare'),
+  trigger:ref('trigger'), poolTrigger:ref('pool-trigger'), mediaLayout:ref('media-layout'), scan:ref('scan'), glare:ref('glare'),
   background:ref('background'),cabinet:ref('cabinet'),cool:ref('cool'),warm:ref('warm'),screen:ref('screen'),
 }
 const defaults=Object.fromEntries(Object.entries(bindings).map(([key,binding])=>[key,parameters.find(parameter=>parameter.id===binding.$ref)!.defaultValue]))
@@ -94,7 +95,7 @@ const manifest: Cinema2NativePresetManifest = {
   revision: 1,
   metadata: {
     name: 'EVERYWHERE', author: 'STAGELESS', category: 'Architecture',
-    description: 'An edge-to-edge wall of modeled CRTs with an eye feed, replaceable user media and six musical screen programs.',
+    description: 'An edge-to-edge wall of modeled CRTs with an eye feed, replaceable user media, named pools and twelve musical screen programs.',
     tags: ['3d', 'televisions', 'media-wall', 'screens', 'audio-reactive'],
   },
   capabilities: [

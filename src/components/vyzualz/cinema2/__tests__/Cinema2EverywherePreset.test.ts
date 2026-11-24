@@ -17,13 +17,14 @@ const parameter = (name: string) => manifest.parameters!.find(item => item.id ==
 afterEach(() => setAutoPerformanceUserDefault(null))
 
 describe('Everywhere', () => {
-  it('registers the production graph, six patterns, and all canonical trigger options', () => {
+  it('registers the production graph, twelve patterns, and all canonical trigger options', () => {
     const result = cinema2NativePresetRegistry.compile(CINEMA2_EVERYWHERE_PRESET_ID)
     expect(result.diagnostics).toEqual([])
     expect(result.ok).toBe(true)
     expect(validateCinema2PresetAuthoringConventions({ role: 'keeper', manifest }).diagnostics).toEqual([])
     expect(manifest.mediaSlots).toEqual([{ id: 'everywhere-screen-media', label: 'Screen Media', accepts: ['image', 'video', 'svg'] }])
-    expect(parameter('pattern').options).toHaveLength(6)
+    expect(parameter('pattern').options).toHaveLength(12)
+    expect(parameter('pool-trigger').options).toEqual([{value:'program',label:'Program cadence'},...CINEMA2_AFTERHOURS_TRIGGER_OPTIONS])
     expect(manifest.schemaId).toBe('drmvyz.cinema2.native-preset')
     expect(manifest.modules?.[0]?.id).toBe('everywhere-cassettes')
     expect(manifest.layers?.[0]?.label).toBe('CRT Wall')

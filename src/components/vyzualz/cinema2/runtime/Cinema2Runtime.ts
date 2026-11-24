@@ -1,3 +1,4 @@
+import type { Cinema2MediaPoolSource } from '../media/Cinema2MediaPoolSource'
 import { isPerformanceCastActive, recordPerformanceEvent, PerformanceFrameSampler } from '../../../../lib/performanceTelemetry'
 import type { Cinema2CapabilityId, Cinema2ParameterId, Cinema2PresetId, Cinema2RenderQualityLevel } from '../contracts/Cinema2NativePresetManifest'
 import { CINEMA2_QUALITY_MODE_PARAMETER_ID, readCinema2QualityMode, type Cinema2QualityMode } from '../parameters/Cinema2PerformanceParameters'
@@ -165,6 +166,7 @@ export interface Cinema2RuntimeCreateOptions {
    * analysis is inactive or file playback is paused.
    */
   transportSource?: Cinema2RuntimeTransportSource
+  mediaPoolSource?: Cinema2MediaPoolSource
   mediaLoader?: Cinema2MediaLoader
   randomness?: Readonly<Cinema2RuntimeRandomnessOptions>
 }
@@ -508,7 +510,7 @@ export class Cinema2Runtime {
     )
     this.choreographyRuntime = new Cinema2ChoreographyRuntime(compiledPresetPlan, parameterState, this.targetResolver, this.randomService)
     this.mediaSlotRuntime = new Cinema2MediaSlotRuntime(gl, compiledPresetPlan.manifest.mediaSlots ?? [], options.mediaLoader)
-    this.moduleRuntime = new Cinema2ModuleRuntime(gl, compiledPresetPlan, this.targetResolver, moduleRegistry, this.mediaSlotRuntime, this.randomService, this.textureService)
+    this.moduleRuntime = new Cinema2ModuleRuntime(gl, compiledPresetPlan, this.targetResolver, moduleRegistry, this.mediaSlotRuntime, this.randomService, this.textureService, options.mediaPoolSource)
     moduleRuntime = this.moduleRuntime
     this.effectRuntime = new Cinema2EffectRuntime(gl, compiledPresetPlan, this.targetResolver, effectRegistry, renderQuality, this.historyService, this.textureService)
     effectRuntime = this.effectRuntime

@@ -1,3 +1,4 @@
+import type { Cinema2MediaPoolSource } from '../media/Cinema2MediaPoolSource'
 import type { Cinema2AssetTextureService } from '../assets/Cinema2AssetTextureService'
 import type {
   Cinema2JsonValue,
@@ -82,6 +83,7 @@ export class Cinema2ModuleRuntime {
     mediaRuntime: Cinema2MediaSlotRuntime,
     randomService: Cinema2RandomService,
     private readonly textures?: Cinema2AssetTextureService,
+    private readonly mediaPoolSource?: Cinema2MediaPoolSource,
   ) {
     const moduleTargets = indexModuleTargets(plan.targets.targets)
     this.records = (plan.manifest.modules ?? []).map(module => ({
@@ -224,6 +226,7 @@ export class Cinema2ModuleRuntime {
     })
     const createContext: Cinema2ModuleCreateContext = {
       textures: this.textures,
+      mediaPoolSource: this.mediaPoolSource,
       module: record.module,
       parameters: record.parameters,
       targets: record.targets,

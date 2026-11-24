@@ -1,5 +1,7 @@
 import { Cinema2PatternControlResolver } from '../conductor/Cinema2PatternControls'
 import { cinema2StableId, type Cinema2Color, type Cinema2ModuleTypeId } from '../contracts/Cinema2NativePresetManifest'
+import { Cinema2MediaSlotRuntime } from '../media/Cinema2MediaSlotRuntime'
+import { Cinema2EverywherePool, EVERYWHERE_POOL_SLOTS, everywherePoolTrigger } from './everywhere/Cinema2EverywherePool'
 import type { Cinema2TextureHandle } from '../assets/Cinema2AssetTextureService'
 import { CINEMA2_AFTERHOURS_TRIGGER_IDS, resolveCinema2AfterhoursTriggerEventIdentity, type Cinema2AfterhoursTriggerId } from './Cinema2AfterhoursNativeModule'
 import { Cinema2BeatClock } from './Cinema2BeatClock'
@@ -27,9 +29,11 @@ export class Cinema2EverywherePerformance {
   private identity = ''
   private lastTime: number | null = null
   private lastBeat: number | null = null
+  private lastMediaTrigger: Cinema2AfterhoursTriggerId | null = null
   private lastPattern: EverywherePattern = 'all-eyes'
   private phase = DEFAULT_LOOK.phase
   look = DEFAULT_LOOK
+  poolFrame = { identity: '', reset: false, event: null as string | null, paused: false, patternChanged: false }
 
   constructor(sample: (index: number) => number) {
     this.controller = new Cinema2MainframePatternController(createCinema2MainframePatternCycle(
@@ -85,6 +89,12 @@ export class Cinema2EverywherePerformance {
       energy:signal('energy'),bass:signal('bass'),high:signal('high'),vocal:signal('vocal'),
       kick:signal('kick'),snare:signal('snare'),build:signal('build'),drop:signal('drop'),
     }
+    const poolTrigger = parameters.get('poolTrigger')
+    const mediaTrigger = CINEMA2_AFTERHOURS_TRIGGER_IDS.find(value => value === poolTrigger) ?? everywherePoolTrigger(this.look.pattern)
+    this.poolFrame = { identity, reset, paused: !active, patternChanged: base?.changed === true || pattern !== this.lastPattern || mediaTrigger !== this.lastMediaTrigger,
+      event: active && motion > 0 && !(auto && (frame.mood?.silence ?? 0) > .5)
+        ? resolveCinema2AfterhoursTriggerEventIdentity(frame, mediaTrigger, reset ? null : this.lastTime) : null }
+    this.lastMediaTrigger=mediaTrigger
     this.identity=identity
     this.lastTime=time
     this.lastBeat=beat
@@ -98,18 +108,24 @@ export const cinema2EverywhereNativeModuleDefinition: Readonly<Cinema2ModuleType
   typeId:CINEMA2_EVERYWHERE_MODULE_TYPE_ID,version:1,
   create(context: Cinema2ModuleCreateContext) {
     const performance=new Cinema2EverywherePerformance(index=>context.randomness.sample('everywhere-pattern-order',index))
+    const pool = context.mediaPoolSource ? context.resources.acquire('everywhere:pool', 'EverywhereMediaPool', gl =>
+      new Cinema2EverywherePool(context.mediaPoolSource!, new Cinema2MediaSlotRuntime(gl, EVERYWHERE_POOL_SLOTS)), value => value.dispose()) : null
     let setup: {library:Cinema2ThreeLibrary;merge:Merge} | null = null
     let eye: Cinema2TextureHandle | null = null
     let wall: Cinema2EverywhereWall | null = null
     let bridge: Cinema2ThreeSceneBridge | null = null
-    let starting=false, disposed=false, measured=false
+    let starting=false, disposed=false, measured=false, wallGpuBytes=0, reportedBytes=-1
     const diagnostics: Cinema2ModuleDiagnostic[]=[]
     const report=(error:unknown)=>diagnostics.push({
       code:'CINEMA2_EVERYWHERE_WALL_FAILED',message:error instanceof Error ? error.message : String(error),path:'$.modules',
     })
     return {
       lifecycle:{
-        update:(update:Cinema2ModuleUpdateContext)=>performance.update(update),
+        update:(update:Cinema2ModuleUpdateContext)=>{
+          performance.update(update)
+          const { identity, event, reset, paused, patternChanged } = performance.poolFrame
+          pool?.update(identity, event, reset, paused, patternChanged)
+        },
         dispose() { disposed=true;eye?.release();eye=null },
       },
       render:{providers:[{
@@ -131,7 +147,7 @@ export const cinema2EverywhereNativeModuleDefinition: Readonly<Cinema2ModuleType
               },node:null,preserveMaterials:true}],{
                 hdr:true,modelController:{
                   attach:root=>{wall=new Cinema2EverywhereWall(library,merge,root)},
-                  beforeDraw:()=>wall?.apply(performance.look,eye?.status==='ready' ? eye.texture : null,context.media.get('screenMedia')),
+                  beforeDraw:()=>wall?.apply(performance.look,eye?.status==='ready' ? eye.texture : null,context.media.get('screenMedia'),pool?.getResources(),pool?.step),
                   dispose:()=>wall?.dispose(),
                 },
               }),value=>value.dispose())
@@ -140,14 +156,16 @@ export const cinema2EverywhereNativeModuleDefinition: Readonly<Cinema2ModuleType
           if (bridge) {
             bridge.draw(execution,overrides)
             if (!measured) {
-              context.resources.reportGpuBytes(bridge.estimateGpuBytes())
+              wallGpuBytes=bridge.estimateGpuBytes()
               measured=bridge.ready
             }
+            const bytes=wallGpuBytes+(pool?.getResources().reduce((total, feed)=>total+(feed ? feed.width*feed.height*4 : 0),0) ?? 0)
+            if (bytes!==reportedBytes) { context.resources.reportGpuBytes(bytes);reportedBytes=bytes }
           }
         },
       }]},
       getDiagnostics:()=>diagnostics,
-      inspect:()=>({...performance.inspect(),screens:wall?.count ?? 0,renderReady:bridge?.ready===true,eyeReady:eye?.status==='ready',userMedia:context.media.get('screenMedia')!=null}),
+      inspect:()=>({...performance.inspect(),screens:wall?.count ?? 0,renderReady:bridge?.ready===true,eyeReady:eye?.status==='ready',userMedia:context.media.get('screenMedia')!=null,poolMediaCount:pool?.count ?? 0,poolStep:pool?.step ?? 0,poolReadyChannels:pool?.getResources().filter(Boolean).length ?? 0}),
     }
   },
 }

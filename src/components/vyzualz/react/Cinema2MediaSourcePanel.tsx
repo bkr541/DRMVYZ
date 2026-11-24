@@ -1,12 +1,15 @@
-import { useEffect, useState, useSyncExternalStore } from 'react'
+import { useReactStore } from '../../../stores/reactStore'
+import { ContextActionMenu } from '../context-menu/ContextActionMenu'
+import { MediaAddToPoolPicker } from '../media/MediaAddToMenu'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { UploadedMedia } from '../../../stores/mediaStore'
 import { useMediaStore } from '../../../stores/mediaStore'
 import type { Cinema2MediaKind, Cinema2MediaSlotId } from '../cinema2/contracts/Cinema2NativePresetManifest'
 import type { Cinema2MediaSlotRuntimeSnapshot, Cinema2MediaSource } from '../cinema2/media/Cinema2MediaSlotRuntime'
 import type { Cinema2Runtime } from '../cinema2/runtime/Cinema2Runtime'
-import { MediaLibraryBrowser } from '../media/MediaLibraryBrowser'
+import { MediaLibraryBrowser, type MediaLibraryCardActionAnchor } from '../media/MediaLibraryBrowser'
 import { notify } from '../../../stores/notificationStore'
-import { CANVAS_MEDIA_LIBRARY_CAPABILITIES } from '../media/mediaLibraryCapabilities'
+import { CANVAS_MEDIA_LIBRARY_CAPABILITIES, CANVAS_ENGINE_MEDIA_LIBRARY_CAPABILITIES } from '../media/mediaLibraryCapabilities'
 import { SelectRow } from './ReactControlRows'
 import { isUnifiedSvgMediaItem } from './svgSourceLifecycle'
 
@@ -34,6 +37,11 @@ export function Cinema2MediaSourcePanel({ runtime, onOpenMediaManager }: Cinema2
     () => EMPTY_MEDIA_SNAPSHOT,
   )
   const [selectedSlotId, setSelectedSlotId] = useState<string>('')
+  const [actionMenu, setActionMenu] = useState<({ mediaId: string } & MediaLibraryCardActionAnchor) | null>(null)
+  const everywhere = snapshot.slots.some(slot => slot.id === 'everywhere-screen-media')
+  const activePool = useReactStore(state => state.canvasOrchestrationSettings.mediaPools.find(pool => pool.id === state.canvasOrchestrationSettings.activeMediaPoolId) ?? null)
+  const request = useRef(0)
+  useEffect(() => { setActionMenu(null); return () => { request.current++ } }, [runtime])
 
   useEffect(() => {
     if (snapshot.slots.some(slot => slot.id === selectedSlotId)) return
@@ -49,36 +57,56 @@ export function Cinema2MediaSourcePanel({ runtime, onOpenMediaManager }: Cinema2
 
   const selectedSlot = snapshot.slots.find(slot => slot.id === selectedSlotId) ?? snapshot.slots[0]
 
+  const makeActive = (mediaId: string) => {
+    const ticket = ++request.current
+    const assign = () => {
+      if (ticket !== request.current || !mediaRuntime) return
+      const media = useMediaStore.getState().items.find(item => item.id === mediaId)
+      if (!media) return
+      const source = cinema2MediaSourceFromLibraryItem(media)
+      if (!source || getCinema2MediaDisabledReason(media, selectedSlot.accepts)) {
+        if (everywhere) notify('react', { tone: 'error', title: 'Media could not be loaded', message: 'Media is unavailable or unsupported.' })
+        return
+      }
+      void mediaRuntime.replace(selectedSlot.id as Cinema2MediaSlotId, source)
+        .then(slot => {
+          if (slot.error && ticket === request.current) notify('react', { tone: 'error', title: 'Media could not be loaded', message: `${slot.label}: ${slot.error}` })
+        })
+        .catch(error => {
+          if (ticket === request.current) notify('react', { tone: 'error', title: 'Media could not be loaded', message: `${selectedSlot.label}: ${error instanceof Error ? error.message : String(error)}` })
+        })
+    }
+    if (!everywhere) { assign(); return }
+    setActionMenu(null)
+    useReactStore.getState().setActiveCanvasMediaPool(null)
+    void useMediaStore.getState().ensureMediaSigned([mediaId], 'visible').then(assign).catch(error => {
+      if (ticket === request.current) notify('react', { tone: 'error', title: 'Media could not be loaded', message: String(error) })
+    })
+  }
+
   return (
     <div className="rv-canvas-engine-panel" data-cinema2-media-source="slots">
       <div className="rv-canvas-library-shell">
         <MediaLibraryBrowser
-          activeMediaId={selectedSlot.source?.id ?? null}
-          onSelect={mediaId => {
-            const media = useMediaStore.getState().items.find(item => item.id === mediaId)
-            if (!media || !mediaRuntime) return
-            const source = cinema2MediaSourceFromLibraryItem(media)
-            if (!source) return
-            void mediaRuntime.replace(selectedSlot.id as Cinema2MediaSlotId, source)
-              .then(slot => {
-                // A failed load leaves the slot on its previous media (or empty) and records why on the slot.
-                if (slot.error) notify('react', { tone: 'error', title: 'Media could not be loaded', message: `${slot.label}: ${slot.error}` })
-              })
-              .catch(error => {
-                notify('react', {
-                  tone: 'error',
-                  title: 'Media could not be loaded',
-                  message: `${selectedSlot.label}: ${error instanceof Error ? error.message : String(error)}`,
-                })
-              })
-          }}
+          activeMediaId={everywhere && activePool ? null : selectedSlot.source?.id ?? null}
+          onSelect={makeActive}
+          onCardActionRequest={everywhere ? (mediaId, anchor) => setActionMenu({ mediaId, ...anchor }) : undefined}
           context="canvas"
           title="Media Library"
-          capabilities={CANVAS_MEDIA_LIBRARY_CAPABILITIES}
+          capabilities={everywhere ? CANVAS_ENGINE_MEDIA_LIBRARY_CAPABILITIES : CANVAS_MEDIA_LIBRARY_CAPABILITIES}
           onOpenMediaManager={onOpenMediaManager}
-          getDisabledReason={media => getCinema2MediaDisabledReason(media, selectedSlot.accepts)}
+          getDisabledReason={media => everywhere && media.storagePath && !media.uploading && media.lifecycleStatus !== 'deletion_pending'
+            ? null : getCinema2MediaDisabledReason(media, selectedSlot.accepts)}
         />
       </div>
+      {everywhere && actionMenu && (
+        <ContextActionMenu x={actionMenu.x} y={actionMenu.y} ariaLabel="EVERYWHERE media actions"
+          onClose={() => setActionMenu(null)} items={[
+            { id: 'make-active', label: 'Make Active', onSelect: () => makeActive(actionMenu.mediaId) },
+            { id: 'add-to-pool', label: 'Add to Pool', submenu: <MediaAddToPoolPicker targetIds={[actionMenu.mediaId]}
+              onDone={message => { if (message) notify('react', { tone: 'warning', title: 'Pool action', message }); setActionMenu(null) }} /> },
+          ]} />
+      )}
       {snapshot.slots.length > 1 && (
         <SelectRow
           id="cinema2-media-slot"
@@ -91,7 +119,9 @@ export function Cinema2MediaSourcePanel({ runtime, onOpenMediaManager }: Cinema2
           onChange={setSelectedSlotId}
         />
       )}
-      {selectedSlot.source && (
+      {everywhere && activePool ? (
+        <div className="rv-canvas-panel-status"><span>Active Pool</span><strong>{activePool.name}</strong></div>
+      ) : selectedSlot.source && (
         <div className="rv-canvas-panel-status">
           <span>Source</span>
           <strong>{selectedSlot.source.label}</strong>
@@ -118,7 +148,7 @@ export function cinema2MediaSourceFromLibraryItem(media: UploadedMedia): Readonl
   })
 }
 
-function getCinema2MediaDisabledReason(media: UploadedMedia, accepts: readonly Cinema2MediaKind[]): string | null {
+export function getCinema2MediaDisabledReason(media: UploadedMedia, accepts: readonly Cinema2MediaKind[]): string | null {
   if (media.uploading) return 'This media is still uploading.'
   if (media.lifecycleStatus === 'deletion_pending') return 'This media is pending deletion.'
   const source = cinema2MediaSourceFromLibraryItem(media)

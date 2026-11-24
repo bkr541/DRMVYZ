@@ -1,3 +1,4 @@
+import { createCinema2WorkspaceMediaPoolSource } from '../../components/vyzualz/react/Cinema2WorkspaceMediaPoolSource'
 /** Deterministic review of the real Cinema 2.0 typography preset registry, renderer, modules, effects and audio bridge. */
 import { Cinema2Runtime } from '../../components/vyzualz/cinema2/runtime/Cinema2Runtime'
 import { CINEMA2_ORBITAL_PRESET_ID } from '../../components/vyzualz/cinema2/presets/Cinema2OrbitalPreset'
@@ -33,6 +34,7 @@ const bridge = new Cinema2AudioIntelligenceBridge({
   getPublicationMeta: () => ({ sequence: publication, publisherId: `${slug}-production-review`, kind: 'frame', publishedAtMs: timestampMs }),
 })
 const created = Cinema2Runtime.create(canvas, {
+  mediaPoolSource: slug === 'everywhere' ? createCinema2WorkspaceMediaPoolSource() : undefined,
   presetId: presets[slug], renderQuality: quality, diagnosticsEnabled: true,
   randomness: { mode: 'deterministic', seed: `${slug}-review` }, audioIntelligenceBridge: bridge,
   requestAnimationFrame(callback) {
@@ -151,9 +153,19 @@ if (slug === 'everywhere' && query.has('source')) {
     drawing.fillStyle = '#23eb36'
     drawing.fillRect(0, 0, 80, 60)
     const url = testImage.toDataURL()
+    drawing.fillStyle = '#25b7eb'
+    drawing.fillRect(0, 0, 160, 120)
+    drawing.fillStyle = '#ffbd25'
+    drawing.fillRect(80, 60, 80, 60)
+    const secondUrl = testImage.toDataURL()
     useMediaStore.setState({
+      queryItemIds: ['crt-test-image', 'crt-pool-image'],
       items: [{
         id: 'crt-test-image', name: 'CRT test image', type: 'image', url, thumbnailUrl: url,
+        mimeType: 'image/png', mediaRole: 'other', favorite: false, tags: [], collectionIds: [],
+        meta: 'PNG · 160×120', metadata: { width: 160, height: 120 },
+      }, {
+        id: 'crt-pool-image', name: 'CRT pool image', type: 'image', url: secondUrl, thumbnailUrl: secondUrl,
         mimeType: 'image/png', mediaRole: 'other', favorite: false, tags: [], collectionIds: [],
         meta: 'PNG · 160×120', metadata: { width: 160, height: 120 },
       }],

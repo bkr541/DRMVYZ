@@ -16,6 +16,9 @@ export const EVERYWHERE_PATTERNS = [
   {value:'all-eyes',label:'All Eyes'}, {value:'signal-sweep',label:'Signal Sweep'},
   {value:'outward-pulse',label:'Outward Pulse'}, {value:'cross-cut',label:'Cross Cut'},
   {value:'channel-hold',label:'Channel Hold'}, {value:'ghost-feed',label:'Ghost Feed'},
+  {value:'static-switch',label:'Static Switch'}, {value:'retro-broadcast',label:'Retro Broadcast'},
+  {value:'tape-tracking',label:'Tape Tracking'}, {value:'channel-mosaic',label:'Channel Mosaic'},
+  {value:'signal-relay',label:'Signal Relay'}, {value:'midnight-replay',label:'Midnight Replay'},
 ] as const
 export type EverywherePattern = typeof EVERYWHERE_PATTERNS[number]['value']
 type Colors = { [Key in keyof typeof EVERYWHERE_COLORS]: Cinema2Color }
@@ -91,6 +94,12 @@ export function everywhereScreenGain(item: Readonly<EverywhereCabinet>, index: n
   if (look.pattern === 'cross-cut') gain = .24+.76*gaussian(item.y-item.x*Math.cos(phase)*.66,1.04)
   if (look.pattern === 'channel-hold') gain = ((index+(Math.floor(phase*.68)))%3===0) ? 1 : .24
   if (look.pattern === 'ghost-feed') gain = .33+.61*(.5+.5*Math.sin(phase*2.15+item.seed*9.4))**2
+  if (look.pattern === 'static-switch') gain = .66 + .30 * (1 + Math.sin(item.seed*17 + phase*2))*.5
+  if (look.pattern === 'retro-broadcast') gain = .62 + .38*gaussian(item.y, 2.8)
+  if (look.pattern === 'tape-tracking') gain = .42 + .55*gaussian(item.y - Math.sin(phase*.7)*3, 2.1)
+  if (look.pattern === 'channel-mosaic') gain = .58 + .40*(.5+.5*Math.sin(index*2.4+Math.floor(phase*.5)))
+  if (look.pattern === 'signal-relay') gain = .38 + .62*gaussian(radius-(front*7.5), 2.0)
+  if (look.pattern === 'midnight-replay') gain = .46 + .52*gaussian(radius, 3.0) + .10*Math.sin(phase*.5+item.seed*5)
   if (item.seed>coverage && index>0) gain*=.27
   const focus = .66 + .34 * Math.exp(-radius*.24)
   gain *= 1 - look.build*(1-focus)*1.5
@@ -113,6 +122,8 @@ export class Cinema2EverywhereWall {
   private readonly warmLight: Three.DirectionalLight
   private readonly eyeTexture: Three.Texture
   private readonly mediaTexture: Three.Texture
+  private readonly poolTextures: readonly Three.Texture[]
+  private poolMedia: readonly (Readonly<Cinema2ManagedMediaResource> | null)[] = []
   private readonly placement: Three.Object3D
   private readonly screenMatrix: Three.Matrix4
   private readonly screenLocal: Three.Matrix4
@@ -176,11 +187,14 @@ export class Cinema2EverywhereWall {
     plane.setAttribute('aProgram',this.gains)
     this.eyeTexture = new T.Texture()
     this.mediaTexture = new T.Texture()
+    this.poolTextures = Array.from({length:3},()=>new T.Texture())
     this.screenMaterial = new T.ShaderMaterial({
       vertexShader:EVERYWHERE_SCREEN_VERTEX,fragmentShader:EVERYWHERE_SCREEN_FRAGMENT,
       toneMapped:false,transparent:true,depthWrite:true,
       uniforms:{
         uEye:{value:this.eyeTexture},uMedia:{value:this.mediaTexture},uHasEye:{value:0},uHasMedia:{value:0},
+        uPool0:{value:this.poolTextures[0]},uPool1:{value:this.poolTextures[1]},uPool2:{value:this.poolTextures[2]},
+        uPoolAspect:{value:new T.Vector3()},uProgram:{value:new T.Vector4()},uMusic:{value:new T.Vector4()},
         uLayout:{value:0},uMediaAspect:{value:1},uMediaFit:{value:1},uMediaOpacity:{value:1},uMediaRotation:{value:0},
         uMediaTransform:{value:new T.Vector4(.5,.5,1,1)},uLook:{value:new T.Vector4()},
         uReaction:{value:new T.Vector2()},uTint:{value:new T.Color()},uCool:{value:new T.Color()},uWarm:{value:new T.Color()},
@@ -192,6 +206,7 @@ export class Cinema2EverywhereWall {
       this.renderer = renderer
       this.borrow(renderer,this.eyeTexture,this.eye)
       this.borrow(renderer,this.mediaTexture,this.media?.texture ?? null)
+      this.poolTextures.forEach((texture,index)=>this.borrow(renderer,texture,this.poolMedia[index]?.texture ?? null))
     }
     this.group.add(this.screen)
     this.coolLight = new T.DirectionalLight(0xffffff,3.1)
@@ -202,11 +217,16 @@ export class Cinema2EverywhereWall {
     this.place(.84)
   }
 
-  apply(look: Readonly<EverywhereLook>, eye: WebGLTexture | null, media: Readonly<Cinema2ManagedMediaResource> | null) {
+  apply(look: Readonly<EverywhereLook>, eye: WebGLTexture | null, media: Readonly<Cinema2ManagedMediaResource> | null, poolMedia: readonly (Readonly<Cinema2ManagedMediaResource> | null)[] = [], poolStep = 0) {
     const { THREE } = this.library
     const uniforms = this.screenMaterial.uniforms
     this.eye = eye
     this.media = media
+    this.poolMedia = poolMedia
+    const aspect = (i: number) => { const feed = poolMedia[i]; return feed ? feed.width / Math.max(1,feed.height) : 0 }
+    uniforms.uPoolAspect!.value.set(aspect(0),aspect(1),aspect(2))
+    uniforms.uProgram!.value.set(Math.max(0,EVERYWHERE_PATTERNS.findIndex(p=>p.value===look.pattern)-5),poolStep,look.kick,look.snare)
+    uniforms.uMusic!.value.set(look.bass,look.high,look.build,look.drop)
     this.place(look.angle)
     this.sets.forEach((item,index)=>this.gains.setX(index,everywhereScreenGain(item,index,look)))
     this.gains.needsUpdate=true
@@ -262,7 +282,7 @@ export class Cinema2EverywhereWall {
       if (!Array.isArray(mesh.material)) materials.add(mesh.material)
     }
     materials.forEach(material=>material.dispose())
-    for (const texture of [this.mediaTexture,this.eyeTexture]) {
+    for (const texture of [this.mediaTexture,this.eyeTexture,...this.poolTextures]) {
       this.renderer?.properties.remove(texture)
       texture.dispose()
     }
