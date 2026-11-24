@@ -5,7 +5,7 @@ export const HONEY_PITCH = 1.8
 export const HONEY_GRID_RADIUS = 12
 export const HONEY_CAP_RADIUS = .97
 export const HONEY_CAP_THICKNESS = .18
-export const HONEY_BEVEL = .035
+export const HONEY_BEVEL = .065
 export const HONEY_SLEEVE_INNER = .985
 export const HONEY_SLEEVE_OUTER = 1.027
 export const HONEY_SLEEVE_LIP = .42
@@ -26,3 +26,10 @@ export const HONEY_PALETTE_KEYS = ['face', 'edge', 'cavity', 'substrate', 'outer
 export const HONEY_NEIGHBORS = [[1,0], [0,1], [-1,1], [-1,0], [0,-1], [1,-1]] as const
 export const HONEY_CAMERA = { position: [.32, .85, 13] as const, target: [0, 0, .25] as const, fov: 40 } as const
 export interface HoneyPose { elevation: number; rotation: number; tiltX: number; tiltY: number; x: number; y: number }
+
+/** Stable integer hash, independent of iteration order, frame time and viewport. */
+export function honeySeed(q: number, r: number, salt: number): number {
+  let n = Math.imul(q, 374761393) ^ Math.imul(r, 668265263) ^ Math.imul(salt, 1274126177)
+  n = Math.imul(n ^ (n >>> 13), 1274126177)
+  return ((n ^ (n >>> 16)) >>> 0) / 4294967296
+}

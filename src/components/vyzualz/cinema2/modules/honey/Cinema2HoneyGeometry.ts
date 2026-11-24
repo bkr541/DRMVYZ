@@ -30,9 +30,9 @@ export function buildHoneyGeometry():readonly HoneyMesh[]{
     mesh('sleeve-rim','edge',false,o=>{band(o,outer,lip,outer-.012,lip);band(o,inner+.009,lip,inner,lip)}),
     mesh('lower-channel-seat','under',false,o=>{band(o,outer-.012,lip,outer-.012,lip-.007);band(o,outer-.012,lip-.007,inner+.009,lip-.007);band(o,inner+.009,lip-.007,inner+.009,lip)}),
     mesh('body','cavity',true,o=>{band(o,r,bottom,r,-.065);disk(o,r,bottom,true)}),
-    mesh('outer-channel-seat','outer',true,o=>{band(o,r,-.065,r,-.035)}),
-    mesh('plate-bevel','edge',true,o=>band(o,r,-.035,top,0)),
-    mesh('plate-face','face',true,o=>{disk(o,.79,0);band(o,top,0,.812,0)}),
-    mesh('inner-channel-seat','inner',true,o=>{band(o,.812,0,.812,-.009);band(o,.812,-.009,.79,-.009);band(o,.79,-.009,.79,0)}),
+    mesh('outer-channel-seat','outer',true,o=>{band(o,r,-.065,r-.008,-.059);band(o,r-.008,-.059,r-.034,-.034);band(o,r-.034,-.034,r-.040,-.028)}),
+    mesh('plate-bevel','edge',true,o=>band(o,r-.040,-.028,top,0)),
+    mesh('plate-face','face',true,o=>{disk(o,.79,0);band(o,top,0,.808,0)}),
+    mesh('inner-channel-seat','inner',true,o=>{band(o,.808,0,.808,-.004);band(o,.808,-.004,.79,-.004);band(o,.79,-.004,.79,0)}),
   ]
 }

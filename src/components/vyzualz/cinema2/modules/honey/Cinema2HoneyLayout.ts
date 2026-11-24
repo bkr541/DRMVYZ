@@ -1,14 +1,12 @@
-import { HONEY_CAP_RADIUS, HONEY_CAP_THICKNESS, HONEY_GRID_RADIUS, HONEY_PITCH, HONEY_NEIGHBORS, HONEY_FLOOR, HONEY_SLEEVE_INNER, HONEY_SLEEVE_LIP, HONEY_MIN_ELEVATION, HONEY_MAX_ELEVATION, HONEY_MAX_ROTATION, HONEY_MAX_TILT, HONEY_MAX_SEPARATION, HONEY_FINISHES, type HoneyPose } from './Cinema2HoneyDomain'
+import { HONEY_CAP_RADIUS, HONEY_CAP_THICKNESS, HONEY_GRID_RADIUS, HONEY_PITCH, HONEY_NEIGHBORS, HONEY_FLOOR, HONEY_SLEEVE_INNER, HONEY_SLEEVE_LIP, HONEY_MIN_ELEVATION, HONEY_MAX_ELEVATION, HONEY_MAX_ROTATION, HONEY_MAX_TILT, HONEY_MAX_SEPARATION, HONEY_FINISHES, type HoneyPose, honeySeed } from './Cinema2HoneyDomain'
+
+import { honeyFinish } from './Cinema2HoneyMaterials'
+import { honeyStaticChannels } from './Cinema2HoneyLighting'
 
 export interface HoneyCell { id: string; q: number; r: number; x: number; y: number; elevation: number; finish: typeof HONEY_FINISHES[number]; tone: number; channels: readonly [number, number, number]; neighbors: readonly string[] }
 export const honeyCellId = (q: number, r: number) => `${q}:${r}`
 export function honeyCenter(q: number, r: number): readonly [number, number] { return [HONEY_PITCH * Math.sqrt(3) / 2 * q, HONEY_PITCH * (r + q / 2)] }
-/** Stable integer hash, independent of iteration order, frame time and viewport. */
-export function honeySeed(q: number, r: number, salt: number): number {
-  let n = Math.imul(q, 374761393) ^ Math.imul(r, 668265263) ^ Math.imul(salt, 1274126177)
-  n = Math.imul(n ^ (n >>> 13), 1274126177)
-  return ((n ^ (n >>> 16)) >>> 0) / 4294967296
-}
+export { honeySeed } from './Cinema2HoneyDomain'
 export function buildHoneyLayout(): readonly HoneyCell[] {
   const cells: HoneyCell[] = []
   // Bounded rectangular world coverage with axial identities. Overscan remains fixed on resize.
@@ -17,11 +15,9 @@ export function buildHoneyLayout(): readonly HoneyCell[] {
       const r = row - Math.floor(q / 2)
       const [x, y] = honeyCenter(q, r)
       const value = honeySeed(q, r, 11)
-      const cluster = honeySeed(Math.floor(q / 3), Math.floor(r / 3), 29)
-      const finishIndex = Math.min(3, Math.floor((.74 * cluster + .26 * honeySeed(q, r, 31)) * 4))
       cells.push({ id: honeyCellId(q, r), q, r, x, y, elevation: value < .15 ? .12 : value < .35 ? .32 : value < .60 ? .49 : value < .86 ? .75 : .98,
-        finish: HONEY_FINISHES[finishIndex]!, tone: .9 + .18 * honeySeed(q, r, 17),
-        channels: [honeySeed(q, r, 23) < .68 ? 1 : .08, honeySeed(q, r, 41) < .43 ? .85 : .045, value > .60 ? .7 : .06],
+        finish: honeyFinish(q,r), tone: .9 + .18 * honeySeed(q, r, 17),
+        channels: honeyStaticChannels(q,r,value),
         neighbors: HONEY_NEIGHBORS.map(([dq, dr]) => honeyCellId(q+dq, r+dr)) })
     }
   }

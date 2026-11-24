@@ -2,7 +2,7 @@
 
 ## P01: native foundation and selectable static geometry
 
-Status: implementation staged for technical review; no human approval. Full production visual acceptance is blocked in this environment (see gate record). Phase 02 is not included. Stable identity: `drmvyz.cinema2.honey`, module type `honey-native@1`, module instance `honey-wall`, manifest revision 1. The first-party declaration is `reference`, tags `cinematic`, `3d`, `static`. The real `Cinema2PresetsPanel` uses `cinema2NativePresetRegistry.list()`, filters `internal` and calls `resolvePresetScope`; new IDs without private catalog rows are system presets. No database entry or parallel picker is needed. Remove `static` in P03 only after actual motion is implemented; promotion to keeper requires the final human and technical gates.
+Historical P01 report: the arrival of the P02 prompt supplies human approval of P01. Its unverified production gate has not retroactively passed. Current P02 report follows below. P01 geometry/resource figures and neutral shader descriptions below are historical, superseded where noted in P02. Stable identity: `drmvyz.cinema2.honey`, module type `honey-native@1`, module instance `honey-wall`, manifest revision 1. The first-party declaration is `reference`, tags `cinematic`, `3d`, `static`. The real `Cinema2PresetsPanel` uses `cinema2NativePresetRegistry.list()`, filters `internal` and calls `resolvePresetScope`; new IDs without private catalog rows are system presets. No database entry or parallel picker is needed. Remove `static` in P03 only after actual motion is implemented; promotion to keeper requires the final human and technical gates.
 
 ### Reference observations (not an audio analysis)
 
@@ -27,7 +27,7 @@ Fixed finish assignment is implemented as clustered deterministic metadata, not 
 
 ### Parameter inventory and phase of exposure
 
-IDs below are `honey-<id>` except shared `quality-mode`. All color values are normalized RGBA; color controls have preset persistence and no automation. P01 only exposes rows with actual consumers. Proposed later rows are specifications, not currently registered controls. Numeric values clamp at listed bounds and use shared targets. Four canonical parents, no generic UI modifications.
+IDs below are `honey-<id>` except shared `quality-mode`. All color values are normalized RGBA; color controls have preset persistence and no automation. P01 and P02 expose only rows with actual consumers. Proposed later rows are specifications, not currently registered controls. Numeric values clamp at listed bounds and use shared targets. Four canonical parents, no generic UI modifications.
 
 | Parent | ID / label | Type; default; range | Consumer / authority / phase |
 |---|---|---|---|
@@ -36,9 +36,9 @@ IDs below are `honey-<id>` except shared `quality-mode`. All color values are no
 | Palette | edge / Edge / Sleeve | color #354650; 0–1 | bevel/rim/exterior, user, P01 |
 | Palette | cavity / Cavity / Body | color #080D13; 0–1 | interior/floor/body, user, P01 |
 | Palette | substrate / Substrate / Background | color #0E1318; 0–1 | substrate and environment clear, user, P01 |
-| Palette | outer / Outer Channel Seat | color #FF791B; 0–1 | side seat pigment P01; outer emitter P02, user |
-| Palette | inner / Inner Channel Seat | color #FFC373; 0–1 | inner seat pigment P01; inner emitter P02, user |
-| Palette | under / Lower Channel Seat | color #E35D0E; 0–1 | lower seat pigment P01; under emitter P02, user |
+| Palette | outer / Outer Channel | color #FF791B; 0–1 | side seat pigment P01; outer emitter implemented P02, user |
+| Palette | inner / Inner Channel | color #FFC373; 0–1 | inner seat pigment P01; inner emitter implemented P02, user |
+| Palette | under / Under Channel | color #E35D0E; 0–1 | lower seat pigment P01; under emitter implemented P02, user |
 | Master Controls | master-intensity / Master Intensity | float 1; 0–2 | light/scene gain, base+modulation, P03 |
 | Master Controls | bpm-sync / BPM Sync | bool true | shared tempo permission, user P03 |
 | Master Controls | auto-performance / Auto Performance | bool false | shared mood policy/Inspector, user P03, full drives P05 |
@@ -55,12 +55,14 @@ IDs below are `honey-<id>` except shared `quality-mode`. All color values are no
 | Design | separation / Lateral Separation | float .012; 0–.025 world units | local displacement envelope, base+modulation P03 |
 | Design | motion-rate / Motion Rate | float 1; .25–2 | shared beat clock phase scaling, base+modulation P03 |
 | Design | transition-length / Transition Length | enum 1; .5/1/2/4 beats | module eased pose blends, user P03 |
-| Effects | outer-intensity / Outer Channel Intensity | float .8; 0–2 | emitter gain P02, base+modulation later |
-| Effects | inner-intensity / Inner Channel Intensity | float .55; 0–2 | emitter gain P02, base+modulation later |
-| Effects | under-intensity / Underlighting | float .5; 0–2 | lower emitter gain P02, base+modulation later |
+| Design | outer-intensity / Outer Channel Intensity | float 1; 0–2 | emitter gain P02, user; base+modulation later |
+| Design | inner-intensity / Inner Channel Intensity | float 1; 0–2 | emitter gain P02, user; base+modulation later |
+| Design | under-intensity / Underlighting | float 1; 0–2 | lower emitter gain P02, user; base+modulation later |
 | Effects | camera-float-speed / Float Speed | float .7; .25–2 | shared camera motion speed P03 |
-| Effects | bloom / Bloom | float .3; 0–1 | shared HDR bloom P06 |
-| Effects | light-spill / Light Spill | float .3; 0–1 | bounded local neighbor illumination P02/P06 |
+| Effects | bloom / Bloom | float .3; 0–1 | shared HDR bloom intensity, user P02 |
+| Effects | light-spill / Light Spill | float .65; 0–1 | bounded local neighbor illumination, user P02 |
+| Effects | ao / Ambient Occlusion | float .65; 0–1 | shared depth AO intensity, user P02 |
+| Master Controls | ambient / Ambient Lighting | float .48; 0–1 | shared ambient light intensity, user P02 |
 | Effects | atmosphere / Atmosphere | float .01; 0–.05 | shared depth haze P06 |
 | Effects | particles / Ember Amount | float .15; 0–1 | bounded HONEY ember instances P06 |
 | Effects | depth-of-field / Depth of Field | float .1; 0–1 | actual shared supported depth effect only P06 |
@@ -101,8 +103,8 @@ No source: fully composed static wall; no fabricated event, no audio motion. P03
 
 | Phase | Scope | Status |
 |---|---|---|
-| P01 | audit, registration, static geometry, palette, pose limits | code present; local compiler/geometry/lease checks pass; production gate unverified |
-| P02 | mixed finishes, lighting, real emission, static visual baseline | pending |
+| P01 | audit, registration, static geometry, palette, pose limits | code present; local compiler/geometry/lease checks pass; production gate unverified; human approval conveyed by P02 prompt |
+| P02 | mixed finishes, lighting, real emission, static visual baseline | implementation candidate; native GPU diagnostics pass; production and human acceptance pending |
 | P03 | real controls, mechanical motion, eight patterns, shared timing/pattern policy | pending; remove static tag when moving |
 | P04 | standard Audio Intelligence and event choreography | pending |
 | P05 | Director and full Auto Performance | pending |
@@ -118,7 +120,7 @@ npx vitest run src/components/vyzualz/cinema2/__tests__/Cinema2Honey{Preset,Layo
 node scripts/run-cinema2-honey-browser.mjs
 ```
 
-Inspect captures under `artifacts/cinema2-honey/p01`: selector, baseline, 16:9/square/portrait, seven palette variants, inspector, re-entry. Compare depth without bloom, crop, plate scale, dark sleeve, narrow gap, topology silhouette and console; a pixel change alone does not establish visual quality. Later phases extend harness for pose/motion, controls, shared audio/trigger discontinuities, Auto lock/authority, quality and performance. P01 final gate remains **unverified** until production canvas and regression checks run successfully. Human approval pending; next prerequisite is review of P01 and actual production acceptance before P02. No unrelated source changes.
+Inspect captures under `artifacts/cinema2-honey/p01`: selector, baseline, 16:9/square/portrait, seven palette variants, inspector, re-entry. Compare depth without bloom, crop, plate scale, dark sleeve, narrow gap, topology silhouette and console; a pixel change alone does not establish visual quality. Later phases extend harness for pose/motion, controls, shared audio/trigger discontinuities, Auto lock/authority, quality and performance. P01 final gate remains **unverified** until production canvas and regression checks run successfully. At P01 delivery human approval was pending; P02 prompt now conveys it. Production acceptance remained unverified. No unrelated source changes.
 
 Changed files (relative C2 unless marked root):
 
@@ -128,3 +130,54 @@ Changed files (relative C2 unless marked root):
 - root `src/test/browser/Cinema2HoneyProductionBrowserHarness.ts`, `src/test/browser/cinema2-honey-production.html`, `scripts/run-cinema2-honey-browser.mjs`, `docs/cinema2-honey.md`, `docs/documentation-index.md`.
 
 Final delivery checks: explicit Vitest invocation failed because `node_modules/vitest/vitest.mjs` is missing; the production browser runner failed to resolve `@playwright/test`. An additional isolated native-shader diagnostic using the system Chromium and the actual engine camera matrices could not produce a screenshot because SwiftShader/EGL initialization failed (`EGL_NOT_INITIALIZED`). The staged patch passes `git diff --cached --check`, and `git apply --check` plus actual `git apply` were performed against a clean detached worktree of the supplied baseline. Only the 17 paths listed above are included. No production screenshot or user visual acceptance is implied by these checks.
+
+## P02: materials, illumination and static baseline
+
+**Status:** implementation candidate, not a human-approved visual baseline or release. P01 is present and human-approved by the P02 prompt. P01 full browser gate remains unverified. Stable IDs, camera, grid/pose envelope, catalog `reference` role and `static` tag retained. No motion, music routes, Auto, pattern controls or atmosphere added. No changes to shared code or other presets.
+
+### A. Fixed finishes and geometry
+
+`Cinema2HoneyMaterials.ts` assigns four finishes using stable 3×3 axial clusters plus 25% scattered accents, keyed by cell identity. `honeySeed` now lives in the HONEY domain and is re-exported by Layout. The actual 625-cell distribution is graphite 347 (55.52%), brushed 129 (20.64%), carbon 90 (14.4%), ceramic 59 (9.44%). All four occur within the representative center crop. Fixed physical values (metalness, roughness, relative tint, anisotropy): graphite (.65,.48,1,.12), steel (.83,.38,1.25,.72), carbon (.16,.58,.84,.08), ceramic (.05,.53,.95,0). Edge .8/.32, body .6/.65, cavity .2/.85. `Cinema2HoneyShaders.ts` uses local-coordinate analytic brushed grain, weave, shallow engraving, subtle scratches, derivative attenuation and bounded specular response. No images, asset licensing dependencies, runtime downloads, texture controls or material mode. Original procedural detail is generated in the HONEY shader; no texture allocations are needed.
+
+The bevel is now .065; outer channel is a recessed sloped strip with radial width .026 at cap-local z -.059 to -.034; inner ring radius .79–.808, width .018 and recess .004; lower channel remains at the stationary sleeve lip with .007 groove. This supersedes P01 seat-only geometry. Cap radius, clearance, pitch, elevations, fixed camera and sleeve envelope retained. 11 parts, 216 triangles per cell (135,000 instanced triangles). Vertex buffer 20,736 bytes; 34-float instance records 85,000 bytes; 1×1 depth fallback 2 bytes; total reported 105,738 bytes, excluding programs/VAO and shared targets. One instanced world draw and one depth-only instanced draw when the shared shadow service refreshes. Resource leases own two buffers, VAO, two programs and depth-compare fallback; disposed on retirement.
+
+### B. Independent physical channels and finishing
+
+`honeyStaticChannels` creates an authored deterministic density composition, not musical timing. The eight outer/inner/under on/off combinations across the wall are 000:140, 001:97, 010:17, 011:25, 100:113, 101:64, 110:87, 111:82. Active outer range .65–1, inner .6–.9, under .45–.9. Linear HDR emitter factors 2.8, 1.45, 2.5, with narrower hot cores and warmer edges. Output uses display-encoded HDR (preserves values >1), matching the shared HDR effect's power-2.2 conversion. The upper channels belong to the cap; lower channel belongs to the fixed sleeve. Seven original palette IDs/defaults remain, with separate actual shader consumers. Saved P01 parameters restore with new P02 defaults; no migration or revision bump necessary.
+
+Seven real new floats with .01 step, user-only preset persistence, authored reset, no automation/modulation/choreography yet: `honey-outer-intensity`, `honey-inner-intensity`, `honey-under-intensity` (Design, 1, 0–2, module `outerGain`, `innerGain`, `underGain`); `honey-light-spill` (Effects, .65, 0–1, module `lightSpill`); `honey-ambient` (Master Controls, .48, 0–1, shared ambient light intensity); `honey-bloom` (Effects, .30, 0–1, shared HDR bloom intensity); `honey-ao` (Effects, .65, 0–1, shared AO intensity). Zero channel gain extinguishes that emitter and its corresponding spill. Zero spill disables local illumination without disabling physical emitters. Palette remains user-owned. See persistent inventory above; future rows are not exposed.
+
+`finishHoney` in `presets/Cinema2HoneyFinishing.ts` uses engine-owned scene color/depth, shared AO, HDR bloom and cinematic finish in that order. AO consumes actual scene depth (`radius .32`, intensity .65, power 1.1, emissiveProtect .95); bloom intensity .30, threshold .85, knee .22, spread .35, levels 4, clampMax 4; final shared neutral grade soft tone-map 2, exposure 1, no vignette/grain/aberration. Scene, AO and bloom targets rgba16f with rgba8 fallback; final grade rgba8. Optional `render.hdr`, required `lighting`. No private postprocessing targets or loops. Bloom zero leaves native emitter geometry intact. Actual shared effect image output still requires production-browser verification.
+
+### C. Local illumination and shared shadow depth
+
+`honeyLightInstances` in `Cinema2HoneyLighting.ts` packs self and six axial neighbors in seven vec4 records with individual emission and elevation, plus cell and finish attributes. `Cinema2HoneyShaders.ts` chooses the nearest edge candidates (three per source, maximum 21 bounded samples), applies normal-facing distance falloff `(1-d/1.05)^2`, height/cavity occlusion and per-channel .62 contribution cap. Lower emitter elevation .413 is stationary. This is a bounded local-light approximation, not ray-traced area lighting or a separate light system. Contact darkening, cool ambient, rough wells and separate shadows remain when bloom is zero. In P03 update neighbor pose/elevation and light positions to match moving caps, mark dynamic casters appropriately, and preserve stationary sleeve channels; P02 does not animate anything.
+
+The manifest supplies actual shared ambient ([.76,.86,1], .48) and directional ([.83,.91,1], 1.1, rotation [-.55,.46,0]) lights. HONEY's `renderShadow` provides depth to `Cinema2ShadowService`; shadow extent 13, depth 45, focus ahead 13, bias .012, softness 1. Shared shadow quality/service governs allocation (low disabled, medium 1024, high 2048); native 3×3 comparison PCF uses the shared matrix and actual depth map. Static cast participation only; low-quality fallback remains dark via contact/ambient independently. No changes to shared lighting, renderer, shadow service, AO or engine clocks.
+
+### Validation and actual observations
+
+- Source audit: root instructions, P01 report, shared effect owners (`Cinema2HdrBloomEffect`, `Cinema2AmbientOcclusionEffect`, `Cinema2CinematicFinishEffect`), native provider/depth contracts, lighting environment/shadow runtime and reference preset finishing audited. Actual `compileCinema2NativePreset` and `validateCinema2PresetAuthoringConventions` passed using the real HONEY manifest via a temporary TS transpilation loader. All three actual shared effect definitions passed their validation. Registry/catalog source unchanged, full catalog execution not verified.
+- 12 focused cases from actual HONEY Layout, Geometry, Materials, Lighting and LocalLight test files passed using a temporary Node/TypeScript loader and minimal standalone assertion adapter; **not a Vitest run**. Tests cover deterministic layouts/finishes, clearance and winding, local seed stability, resource retirement, no texture selector, all activation combinations, gain/palette isolation, prior save restoration, actual shared target bindings, fallback/depth graph, neighbor isolation/decay/bounds, shader guards and shadow binding/fallback. P01 Preset test updated for the new renderer and resource bytes; full registry/auto inventory regression not run.
+- `npm ci --offline --ignore-scripts --no-audit --no-fund` failed ENOTCACHED (`zustand@5.0.13`); `npm exec --offline -- vitest run ...` failed ENOTCACHED (Vitest). Targeted strict `tsc --noEmit --skipLibCheck --strict --target es2022 --module esnext --moduleResolution bundler --lib es2022,dom --typeRoots /tmp/honey-empty-types` on HONEY native module and preset failed due missing external Vite/Supabase/Zustand declarations, no HONEY diagnostics; not a full typecheck pass. `node --check scripts/run-cinema2-honey-browser.mjs` passed. Production runner cannot resolve `@playwright/test`; system Chromium could not establish WebGL2 under tested flags.
+- Actual isolated native GPU diagnostics used system Mesa surfaceless OpenGL ES 3.2, the real shader sources, compiled mesh/instance records, shared camera/light fit, depth24 shadow map and RGBA16F color target. Both world and shadow shader programs compiled/linked. Twelve final captures (960×540 and 540×960, each default, neutral, spill-off, shadow-off, dense, sparse) rendered with zero GL errors. Also rendered native rgba8 targets. These are diagnostic renders of the native geometry/shaders, **not production-runtime screenshots**, and do not execute shared fullscreen AO/bloom/grade. No performance benchmark.
+- Actual diagnostic image inspection: close portrait crop shows roughly three cells across, substantial dark chambers, varying elevations, restrained brushed striation and woven carbon detail; satin is subtler. The first outer strip was too fragmented at the camera angle, corrected to a wider sloped inset and slightly wider inner channel. Final hot orange outer and yellow-orange inner remain narrower than plate edges; dark separation and shadows survive. Warm spill catches adjacent edges and recessed faces without filling entire tiles. Thin inner stripes show some pixel stair-stepping at un-antialiased diagnostic resolution; production anti-aliasing and final tone map require inspection. Neutral image retains a readable layered industrial wall without LEDs. HDR native default peaks at 1.623 encoded (above 1 on 21,956 landscape pixels), neutral .3984; dense peaks 1.9424, sparse 1.1299. Landscape spill-off mean absolute RGB difference 3.141 (203,799 changed pixels), shadow-off 1.213 (76,250 changed); independent visible effects. No claim of exact reference match: the original MOV was not in the P02 upload or retrievable from the file search, so fresh decoding at 0–6 s is blocked; comparison uses the P01 recorded observations above only.
+- Production harness extended to use actual manifest, registry, camera, renderer and native runtime, plus captures and checks for independent gains, palette, neutral/sparse/dense, ambient, bloom, AO, spill, shadow status, resize, restore and re-entry. It was not executed here. Run with dependencies installed and a working WebGL2 browser:
+
+```sh
+npx vitest run src/components/vyzualz/cinema2/__tests__/Cinema2Honey{Preset,Layout,Geometry,Materials,Lighting,LocalLight}.test.ts src/components/vyzualz/cinema2/__tests__/Cinema2AutoPerformanceInventory.test.ts
+node scripts/run-cinema2-honey-browser.mjs
+```
+
+| Checkpoint | Gate result |
+|---|---|
+| A fixed finishes | Focused deterministic/clearance/consumer checks and isolated native neutral/crop inspection pass. Production close and normal captures unverified. |
+| B emissive channels | Native geometry, independent channels, shared manifest effect validation and HDR diagnostic pass. Production bloom on/off and fallback graph execution unverified. |
+| C local illumination | Native GPU spill/shadow diagnostic and focused neighbor/depth checks pass. Production AO on/off, full graph, reference re-decode and performance blocked. |
+| P02 final | Code implementation candidate; full production acceptance **not passed**; no human approval inferred. |
+
+Next prerequisite: apply P02, run the full production harness and inspect actual AO/bloom/shadow output against the original video. Arrival of P03 prompt conveys human approval, not a substitute for technical tests. Preserve this record, keep unresolved production checks visible, and implement motion/patterns only in P03. No measured 60/30 fps claim.
+
+### P02 exact changed files
+
+C2-relative: `modules/Cinema2HoneyNativeModule.ts`; `modules/honey/Cinema2HoneyDomain.ts`, `Cinema2HoneyGeometry.ts`, `Cinema2HoneyLayout.ts`, `Cinema2HoneyRenderer.ts`, `Cinema2HoneyMaterials.ts`, `Cinema2HoneyShaders.ts`, `Cinema2HoneyLighting.ts`; `presets/Cinema2HoneyPreset.ts`, `presets/Cinema2HoneyFinishing.ts`; `__tests__/Cinema2HoneyPreset.test.ts`, `Cinema2HoneyMaterials.test.ts`, `Cinema2HoneyLighting.test.ts`, `Cinema2HoneyLocalLight.test.ts` (last three in same test directory). Root: `scripts/run-cinema2-honey-browser.mjs`, `src/test/browser/Cinema2HoneyProductionBrowserHarness.ts`, `docs/cinema2-honey.md`. No new dependency, binary asset, reference media, or shared logic changes. Final packaging: `git diff --cached --check`, `git apply --check` and actual application to a detached pristine worktree of the supplied P01 baseline passed; applied staged tree matched the intended staged tree exactly. This is a patch-integrity gate, not production acceptance.
