@@ -27,7 +27,7 @@ Fixed finish assignment is implemented as clustered deterministic metadata, not 
 
 ### Parameter inventory and phase of exposure
 
-IDs below are `honey-<id>` except shared `quality-mode`. All color values are normalized RGBA; color controls have preset persistence and no automation. P01 and P02 expose only rows with actual consumers. Proposed later rows are specifications, not currently registered controls. Numeric values clamp at listed bounds and use shared targets. Four canonical parents, no generic UI modifications.
+IDs below are `honey-<id>` except shared `quality-mode`. All color values are normalized RGBA; color controls have preset persistence and no automation. P01 and P02 expose only rows with actual consumers. Rows from P01/P02 retain their historical intent; the P03 inventory below supersedes proposed P03 IDs/defaults. P04/P06 rows are specifications, not currently registered controls. Numeric values clamp at listed bounds and use shared targets. Four canonical parents, no generic UI modifications.
 
 | Parent | ID / label | Type; default; range | Consumer / authority / phase |
 |---|---|---|---|
@@ -70,7 +70,7 @@ IDs below are `honey-<id>` except shared `quality-mode`. All color values are no
 
 Future controls may be adjusted to actual shared effect parameter ranges after owner inspection. Never add a placebo or a new shared effect. No camera FOV/orbit control, no material selector, no genre or shape selector. Audio hidden targets (P04, runtime-only, not user knobs): sub/bass pressure, mid texture, high detail, energy, vocal presence, event action `musicalCue`; Director (P05): significance/build/drop, section contrast and mood drives. Exact target routes to be bound against canonical source paths/capability availability, not inferred from the clip.
 
-### Eight pattern signatures (P03 planned, not running)
+### Eight pattern signatures (P03 implemented; see P03 validation below)
 
 | ID | Geometry | Lighting choreography |
 |---|---|---|
@@ -181,3 +181,70 @@ Next prerequisite: apply P02, run the full production harness and inspect actual
 ### P02 exact changed files
 
 C2-relative: `modules/Cinema2HoneyNativeModule.ts`; `modules/honey/Cinema2HoneyDomain.ts`, `Cinema2HoneyGeometry.ts`, `Cinema2HoneyLayout.ts`, `Cinema2HoneyRenderer.ts`, `Cinema2HoneyMaterials.ts`, `Cinema2HoneyShaders.ts`, `Cinema2HoneyLighting.ts`; `presets/Cinema2HoneyPreset.ts`, `presets/Cinema2HoneyFinishing.ts`; `__tests__/Cinema2HoneyPreset.test.ts`, `Cinema2HoneyMaterials.test.ts`, `Cinema2HoneyLighting.test.ts`, `Cinema2HoneyLocalLight.test.ts` (last three in same test directory). Root: `scripts/run-cinema2-honey-browser.mjs`, `src/test/browser/Cinema2HoneyProductionBrowserHarness.ts`, `docs/cinema2-honey.md`. No new dependency, binary asset, reference media, or shared logic changes. Final packaging: `git diff --cached --check`, `git apply --check` and actual application to a detached pristine worktree of the supplied P01 baseline passed; applied staged tree matched the intended staged tree exactly. This is a patch-integrity gate, not production acceptance.
+
+## Phase 03 (P03) — mechanical performance reference
+
+**Status:** implementation candidate; P01/P02 approvals accepted from the incoming P03 prompt, P03 not human-approved. Native implementation, source-level checks and isolated shader diagnostics completed. Full production acceptance remains open. Preset ID, module ID, revision, first-party reference registration, palette and P02 finishing graph are unchanged. Removed `static` tag; no shared logic, registry, coverage exemptions, UI or dependencies changed.
+
+### Current authority and parameters (supersedes proposed P03 rows above)
+
+All new parameters are preset-persistent with authored reset and actual module/shared-camera bindings. Numeric values are final resolved targets; the catalog's existing Auto Coverage adds shared drives. Master Motion is the authority and zero holds the current cap pose, independently of emission motion; camera hard-off is shared. `Master Intensity` multiplies the three emissive gains and their spill, not ambient or the base materials. Each P02 color remains user-owned, including the existing substrate/background shared role. Geometry pitch, cap radius, thickness, bevel, lip and camera lens remain fixed authored values: live changes would compromise the close-packed clearance contract. No texture, shape, FOV, orbit or material selectors. Camera speed is not exposed: it is a deliberately bounded shared reference sway. No particle/atmosphere controls until P06. Audio Reactivity and detailed audio overlays are P04.
+
+| Parent | ID (honey- prefix) | Default; range / options | Consumer |
+|---|---|---|---|
+| Master Controls | master-intensity | 1; 0–2 | native outer/inner/under multiplier |
+| Master Controls | motion-amount | .72; 0–1 | cap movement authority and shared camera master |
+| Master Controls | bpm-sync | true | shared native beat clock, composed with global transport BPM sync |
+| Master Controls | auto-performance | false | shared tagged mood and Inspector authority |
+| Master Controls | camera-motion | true | shared camera permission |
+| Master Controls | camera-motion-intensity | .55; 0–1, conditional | shared camera motionAmount |
+| Design / Pattern | pattern | cascade; eight ordered options | native shared pattern controller |
+| Design / Pattern | pattern-change | false | saved shared policy |
+| Design / Pattern | trigger | bar4; exact Afterhours options, conditional | canonical event identity |
+| Design / Pattern | transition-length | 1; .5/1/2/4 beats | current-cell pose/light snapshot |
+| Design / Pattern | width | 1; .5–1.5 multiplier | pulse width in travelling patterns |
+| Design / Pattern | delay | .125; .0625–.25 beats | spatial propagation spacing |
+| Design / Mechanical Motion | motion-rate | 1; .25–2 multiplier | shared beat phase scaling |
+| Design / Mechanical Motion | attack | .14; .04–.5 seconds | rising pose damping |
+| Design / Mechanical Motion | release | .55; .15–1.2 seconds | returning pose damping |
+| Design / Mechanical Motion | travel | 1; 0–1 fraction | bounded axial excursion |
+| Design / Mechanical Motion | rotation-range | .65; 0–1 fraction of 6 degrees | local normal rotation |
+| Design / Mechanical Motion | tilt-range | .65; 0–1 fraction of 6 degrees per axis | raised-cap tilt |
+| Design / Mechanical Motion | separation | .65; 0–1 fraction of .025 world units | lateral displacement |
+| Design / Lighting | coverage | .72; 0–1 | seeded activation gate (base material lighting remains) |
+
+Existing light controls remain at P02 defaults; they are now eligible for shared choreography/Auto Coverage. Four canonical parents use the existing Inspector. `withCinema2MoodDrives` authors activity/calm motion multipliers 1.22/.72 and activity/silence coverage multipliers 1.18/.6, with motion as strength. Catalog coverage augments all other eligible numeric controls automatically, no manual policy tags or exemptions. `computeCinema2AutoCoverage(withCinema2AutoCoverage(manifest))` reports no remaining drives or unbound controls. The shared camera uses authored static rig and `motion.tempo.weave=.35`, scaled by the camera permission/intensity and master motion; no z translation, lens animation, orbit, bob or roll. The actual shared camera tempo binding reads the preset toggle without composing the global host toggle, so HONEY deliberately leaves camera tempo sync unbound and uses the shared 120 BPM reference for subtle camera sway; native wall timing explicitly composes both BPM permissions. A synchronized camera would require a shared contract change, which is out of scope.
+
+### Implementation and pattern math
+
+`Cinema2HoneyPatterns.ts`: typed continuous per-cell output (axial displacement, rotation, two tilts, separation and three independent emitter levels). Stable axial seed and cluster seed; no frame RNG. Cascade directional phase x/y offsets; Shockwave radial distance; Fracture coherent crossed spatial fields with seeded cluster offsets; Alternating three axial group counterphases; Convergence inward distance to offset focal point; Current warped diagonal front; Submerge broad low-frequency regions with seeded elevated islands; Overdrive bounded sum of three moving fronts. Travelling envelopes use .14 s attack/.09 s hold/.55 s release with smooth compact support, capped inside a cycle at fast tempos. Width and spread delay apply to travelling fronts, not the slow region masks. All patterns retain fixed sleeve, finish and identity. Light output retains subdued seed-based base channels with gated accent additions, not a single uniform global pulse.
+
+`Cinema2HoneyMotion.ts`: target/current pose and channels plus per-axis velocity; exponential attack/release damping using dt, zero overshoot. Interpolated poses are checked by the existing prism clearance solver. Descending caps align before dropping below the raised clearance threshold; a final exact constraint prevents collisions at all sampled intermediate poses. Motion Amount zero holds current physical transforms. `Cinema2HoneyOrchestration.ts`: shared `Cinema2BeatClock`, `Cinema2MainframePatternController` and `Cinema2PatternControlResolver`; canonical `resolveCinema2AfterhoursTriggerEventIdentity` only, no synthesized musical events or secondary clock. Pattern switches snapshot current visual cells, smoothstep blend over selected beat duration and pass through the same solver. Saved selections are never overwritten. Active manual selection switches authority immediately; idle/paused explicit selection generates a deterministic still preview while normal pause holds. Default idle retains P02 static wall. Source/analysis/timeline/context identity or transport discontinuity resets the clock and state; observed canonical identities suppress held events at edit/reset/silence/resume boundaries.
+
+Renderer retains a single instanced native world draw and shadow draw, fixed topology, dynamic 39-float instance record (existing 34 plus rotation, tilt X/Y, x/y separation), and a 625 x 2 RGBA32F nearest-sampled pose texture for exact moving source ring positions in bounded neighbor spill. Both world and shadow vertex programs use matching Rz*Ry*Rx transforms only for moving parts; normals rotate with caps, stationary sleeves do not. Neighbor records carry current cap elevation/channels; fragment shader reconstructs moving ring source points with source pose, lower channel stays fixed. Dynamic shadow caster flag refreshes the shared map. Same resource lease and disposal, no alternate canvas or loop. Extra buffer/texture are reused across frames. Actual measured GPU performance is pending.
+
+### Validation and gates
+
+- Actual compiler and authoring conventions passed for HONEY, both raw and after the catalog's `withCinema2AutoCoverage` step. Standalone coverage audit: zero remaining drives, zero unbound controls. Full catalog/registry import in this container fails on missing `@supabase/supabase-js`; full inventory Vitest test was not executed.
+- Direct Node execution with a temporary TypeScript transpilation loader and standalone assertions: 30,000 target poses across eight patterns and six beat samples, all safe and distinct; 56,250 intermediate pose checks through the shared controller/solver passed, as did pause, freeze, transition and global sync-off. The actual new HONEY Controls and Patterns test files, prior HONEY Layout/Geometry tests, and unchanged shared PatternControlPolicy/MainframePatternController test files ran using a minimal local assertion adapter: 29 cases passed (not a Vitest run). These include all eleven canonical trigger options with held-ID suppression, manual edit under switching, no grid/silence authority, 30/60/120 Hz constant-target damping, all axes, saved values and reset, four Inspector groups/locks, shared camera permission/intensity, 90/150 BPM and seek. Continuous moving-target frame-rate equivalence and exhaustive live renderer control extrema are not established by the constant-target test.
+- `npm ci --offline --ignore-scripts --no-audit --no-fund` failed ENOTCACHED (`zustand@5.0.13`); `npm exec --offline -- vitest run ...` failed ENOTCACHED (`vitest`). Targeted strict `tsc` is limited by missing external packages and Vite declarations; no full typecheck pass. `node --check scripts/run-cinema2-honey-browser.mjs` passed. Production harness launch failed `ERR_MODULE_NOT_FOUND` for `@playwright/test`; no production-runtime screenshots or actual shared postprocess/shadow performance validation. Harness now exercises all eight patterns and pause with the actual runtime, registry, camera and real test transport, not mocked rendering.
+- Native isolated GPU diagnostic: Mesa llvmpipe OpenGL ES 3.2 compiled/linked both actual moving world and shadow shader programs. Eleven actual world draws using the real authored mesh, camera matrices, resolved orchestrator instance/pose records and shader: idle 640x360, 360x640, 480x480 and all eight pattern frames at 640x360, zero GL errors. These draws use a depth-tested RGBA8 native output, fallback depth comparison texture and no shared AO/bloom/grade or real shadow pass execution; they are not production-runtime screenshots. Visual inspection of the landscape montage and portrait idle: full-frame wall, orange channels and recessed dark gaps remain, with varied cap elevations and selective illumination. Overdrive produces denser orange accents, Submerge/Fracture show larger dark pockets, and the other fronts differ in distribution; stills at one sampled moment are relatively similar due to the fixed close framing. Fine channel edges show stair-stepping at diagnostic resolution. Temporal readability and depth after the production effect graph remain unverified. Original video was not present in this turn; prior recorded reference observations, not a fresh decode, inform the camera baseline.
+
+| Gate | Result |
+|---|---|
+| A manual controls and camera | Source compiler, Inspector/persistence and shared camera tests pass; three native aspect captures. Production independent visual extrema/save-discard and fresh reference comparison pending. |
+| B mechanical motion | Native tests, safe poses, constant-target Hz consistency, tempo permissions and actual shader draws pass. Moving production capture, full transport regression and performance pending. |
+| C first four patterns | Distinct deterministic signatures and native captures; production temporal visual verification pending. |
+| D eight patterns and shared policy | All eight signatures, canonical eleven-trigger tests, shared policy and coverage audit pass. Actual browser/registry inventory blocked by dependencies. |
+| P03 final | Implementation candidate only. Production acceptance not passed; no human visual approval claimed. |
+
+Next prerequisite: install repo dependencies and run the following, then inspect the production captures and original reference before P04; P04 must preserve P03 mechanics and add canonical continuous/event overlays only.
+
+```sh
+npx vitest run src/components/vyzualz/cinema2/__tests__/Cinema2Honey{Preset,Layout,Geometry,Materials,Lighting,LocalLight,Controls,Patterns}.test.ts src/components/vyzualz/cinema2/__tests__/Cinema2{PatternControlPolicy,MainframePatternController,AutoPerformanceInventory}.test.ts
+node scripts/run-cinema2-honey-browser.mjs
+```
+
+### P03 exact changed files
+
+C2: `modules/Cinema2HoneyNativeModule.ts`; `modules/honey/Cinema2HoneyLayout.ts`, `Cinema2HoneyMotion.ts`, `Cinema2HoneyOrchestration.ts`, `Cinema2HoneyPatterns.ts`, `Cinema2HoneyRenderer.ts`, `Cinema2HoneyShaders.ts`; `presets/Cinema2HoneyPreset.ts`; `__tests__/Cinema2HoneyPreset.test.ts`, `Cinema2HoneyControls.test.ts`, `Cinema2HoneyPatterns.test.ts`. Root: `docs/cinema2-honey.md`, `scripts/run-cinema2-honey-browser.mjs`, `src/test/browser/Cinema2HoneyProductionBrowserHarness.ts`. No other files, no binary assets or new libraries.

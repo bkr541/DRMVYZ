@@ -4,7 +4,7 @@ import { mkdir,writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { chromium } from '@playwright/test'
 import sharp from 'sharp'
-const port=48500+process.pid%1000,url=`http://127.0.0.1:${port}/src/test/browser/cinema2-honey-production.html`,output=path.resolve('artifacts/cinema2-honey/p02')
+const port=48500+process.pid%1000,url=`http://127.0.0.1:${port}/src/test/browser/cinema2-honey-production.html`,output=path.resolve('artifacts/cinema2-honey/p03')
 const server=spawn(process.execPath,['node_modules/vite/bin/vite.js','--host','127.0.0.1','--port',String(port),'--strictPort'],{stdio:['ignore','pipe','pipe']})
 let log='',browser;server.stdout.on('data',v=>log+=v);server.stderr.on('data',v=>log+=v)
 try{
@@ -28,5 +28,15 @@ try{
   await page.setViewportSize({width:540,height:960});await api('prepare');await capture('close-default');for(const key of ['outerGain','innerGain','underGain','lightSpill','bloom','ao'])await api('set',key,0);await capture('close-neutral');await api('reset')
   await page.setViewportSize({width:960,height:540});await api('prepare');assert.deepEqual(await capture('restored'),baseline)
   const status=await api('prepare');assert.equal(status.shadow.active,true);assert.equal(status.shadow.lastCasterCount,1);await writeFile(path.join(output,'runtime-status.json'),JSON.stringify(status,null,2))
-  await api('showInspector',true);await page.screenshot({path:path.join(output,'inspector.png')});await api('showInspector',false);await api('reenter');await api('prepare');assert.deepEqual(await capture('reentry'),baseline);await api('dispose');assert.deepEqual(errors,[]);console.log(`HONEY production captures: ${output}`)
+  await api('showInspector',true);await page.screenshot({path:path.join(output,'inspector.png')});await api('showInspector',false);await api('reenter');await api('prepare');assert.deepEqual(await capture('reentry'),baseline)
+  // Real runtime with an explicit test transport (no fabricated analysis or musical events).
+  await api('set','camera-motion',false);await api('play',120,true)
+  const patterns=['cascade','shockwave','fracture','alternating','convergence','current','submerge','overdrive'],frames=[]
+  for(const pattern of patterns){
+    await api('set','pattern',pattern);await page.waitForTimeout(1200);await api('prepare');const a=await capture(`${pattern}-a`);await page.waitForTimeout(500);const b=await capture(`${pattern}-b`)
+    assert(a.some((v,i)=>v!==b[i]),`${pattern} must visibly move`);frames.push(b)
+  }
+  for(let i=0;i<frames.length;i++)for(let j=i+1;j<frames.length;j++)assert(frames[i].some((v,k)=>v!==frames[j][k]),'Distinct pattern captures required')
+  await api('pause');const held=await capture('paused');await page.waitForTimeout(400);assert.deepEqual(await capture('paused-hold'),held)
+  await api('stop');await api('reset');await api('prepare');await capture('returned-idle');await api('dispose');assert.deepEqual(errors,[]);console.log(`HONEY production captures: ${output}`)
 }finally{await browser?.close();server.kill()}

@@ -35,6 +35,7 @@ export function honeyPoseCorners(pose: HoneyPose): readonly (readonly [number,nu
   }
   return points
 }
+const HONEY_CLEARANCE_NORMALS=HONEY_NEIGHBORS.map(([q,r])=>{const [x,y]=honeyCenter(q,r);return [x/HONEY_PITCH,y/HONEY_PITCH] as const})
 /** Each moving prism must stay inside its own Voronoi half-planes. If any part is below the lip, the entire prism must fit the sleeve's inner hex. */
 export function isHoneyPoseSafe(pose: HoneyPose): boolean {
   if (!Object.values(pose).every(Number.isFinite) || pose.elevation < HONEY_MIN_ELEVATION || pose.elevation > HONEY_MAX_ELEVATION || Math.abs(pose.rotation) > HONEY_MAX_ROTATION || Math.abs(pose.tiltX) > HONEY_MAX_TILT || Math.abs(pose.tiltY) > HONEY_MAX_TILT || Math.hypot(pose.x,pose.y) > HONEY_MAX_SEPARATION) return false
@@ -42,7 +43,7 @@ export function isHoneyPoseSafe(pose: HoneyPose): boolean {
   const lowest = Math.min(...points.map(p => p[2]))
   if (lowest < HONEY_FLOOR + .006) return false
   const limit = lowest < HONEY_SLEEVE_LIP + .015 ? HONEY_SLEEVE_INNER*Math.sqrt(3)/2-.003 : HONEY_PITCH/2-.006
-  return points.every(([x,y]) => HONEY_NEIGHBORS.every(([q,r]) => { const [nx,ny] = honeyCenter(q,r); return (x*nx+y*ny)/HONEY_PITCH <= limit + 1e-9 }))
+  return points.every(([x,y]) => HONEY_CLEARANCE_NORMALS.every(([nx,ny]) => x*nx+y*ny <= limit + 1e-9))
 }
 /** Clamp unsafe combined motion back along the requested pose; never shuffle or move sleeves. */
 export function constrainHoneyPose(request: HoneyPose): HoneyPose {

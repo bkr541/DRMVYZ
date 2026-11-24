@@ -21,14 +21,14 @@ import { createCinemaMockWebGL } from '../../../../test/support/CinemaWebGLTestU
 const frame: Cinema2ModuleFrameReadContext={frameId:1,timestampMs:0,deltaTimeSec:0,elapsedTimeSec:0,viewport:{width:960,height:540,dpr:1},contextGeneration:1,audio:null,director:null}
 function plan(){const result=compileCinema2NativePreset(manifest);if(!result.ok)throw Error(JSON.stringify(result.diagnostics));return result.plan}
 function camera(f=frame){const p=plan(),state=new Cinema2ParameterState(p.parameters),resolver=new Cinema2FinalValueResolver(p.targets,{resolveBaseValue:t=>t.authoredBaseValue}),spatial=new Cinema2SpatialRuntime(p.scene,p.targets.targets,resolver);return new Cinema2CameraRuntime(p,state,resolver,spatial).update(f)}
-describe('HONEY static reference',()=>{
-  it('compiles and is visible in the first-party native registry without dummy performance controls',()=>{
+describe('HONEY performance reference',()=>{
+  it('compiles and is visible in the first-party native registry with real performance controls',()=>{
     expect(plan().presetId).toBe(CINEMA2_HONEY_PRESET_ID)
     expect(validateCinema2PresetAuthoringConventions({role:'reference',manifest}).ok).toBe(true)
     expect(cinema2NativeModuleRegistry.validateModules(manifest.modules??[]).ok).toBe(true)
     expect(CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS.find(d=>d.manifest.id===manifest.id)?.role).toBe('reference')
-    expect(cinema2NativePresetRegistry.list().find(m=>m.id===manifest.id)?.metadata.tags).toEqual(['cinematic','3d','static'])
-    expect(manifest.parameters?.some(p=>/Auto Performance|BPM Sync|Pattern/.test(p.label))).toBe(false)
+    expect(cinema2NativePresetRegistry.list().find(m=>m.id===manifest.id)?.metadata.tags).toEqual(['cinematic','3d','audio-reactive'])
+    expect(manifest.parameters?.filter(p=>/^(Auto Performance|BPM Sync|Pattern)$/.test(p.label))).toHaveLength(3)
     const state=new Cinema2ParameterState(plan().parameters)
     for(const key of HONEY_PALETTE_KEYS){expect(state.setPersistentValue(honeyParameterId(key),[.2,.4,.6,1]).ok).toBe(true);expect(state.getValue(honeyParameterId(key))).toEqual([.2,.4,.6,1])}
     const restored=new Cinema2ParameterState(plan().parameters);expect(restored.restore(state.serialize()).ok).toBe(true)
@@ -55,7 +55,7 @@ describe('HONEY static reference',()=>{
     const gl=Object.assign(createCinemaMockWebGL(),{uniform3fv:vi.fn()})
     const renderer=new Cinema2HoneyRenderer(gl,buildHoneyLayout()),allocated=gl.__calls.createdBuffers
     renderer.draw(camera().viewProjectionMatrix,HONEY_PALETTE);renderer.draw(camera().viewProjectionMatrix,HONEY_PALETTE)
-    expect(allocated).toBe(2);expect(gl.__calls.createdBuffers).toBe(allocated);expect(gl.drawArraysInstanced).toHaveBeenCalledTimes(2);expect(renderer.estimateGpuBytes()).toBeLessThan(120000)
+    expect(allocated).toBe(2);expect(gl.__calls.createdBuffers).toBe(allocated);expect(gl.drawArraysInstanced).toHaveBeenCalledTimes(2);expect(renderer.estimateGpuBytes()).toBeLessThan(160000)
     renderer.dispose();renderer.dispose();expect(gl.__calls.deletedBuffers).toBe(allocated);expect(gl.__calls.deletedVertexArrays).toBe(gl.__calls.createdVertexArrays);expect(gl.__calls.deletedPrograms).toBe(gl.__calls.createdPrograms);expect(gl.__calls.deletedTextures).toBe(gl.__calls.createdTextures)
   })
 })

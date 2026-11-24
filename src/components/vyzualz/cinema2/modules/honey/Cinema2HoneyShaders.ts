@@ -1,6 +1,13 @@
+import { HONEY_GRID_RADIUS,HONEY_PITCH } from './Cinema2HoneyDomain'
 import { HONEY_MATERIAL_GLSL } from './Cinema2HoneyMaterials'
 import { HONEY_CHANNEL_POWER,HONEY_LIGHT_OFFSET_GLSL,HONEY_SPILL_LIMIT,HONEY_SPILL_RADIUS } from './Cinema2HoneyLighting'
 
+const HONEY_POSE_GLSL=`
+mat3 honeyRotation(vec3 a){
+  float sx=sin(a.y),cx=cos(a.y),sy=sin(a.z),cy=cos(a.z),sz=sin(a.x),cz=cos(a.x);
+  return mat3(cz,sz,0.0,-sz,cz,0.0,0.0,0.0,1.0)*mat3(cy,0.0,-sy,0.0,1.0,0.0,sy,0.0,cy)*mat3(1.0,0.0,0.0,0.0,cx,sx,0.0,-sx,cx);
+}
+`
 export const HONEY_VERTEX=`#version 300 es
 precision highp float;
 layout(location=0) in vec3 a_position;
@@ -15,7 +22,10 @@ layout(location=8) in vec4 i_light3;
 layout(location=9) in vec4 i_light4;
 layout(location=10) in vec4 i_light5;
 layout(location=11) in vec4 i_light6;
+layout(location=12) in vec3 i_angles;
+layout(location=13) in vec2 i_offset;
 uniform mat4 u_viewProjection;
+${HONEY_POSE_GLSL}
 out vec3 v_local;
 out vec3 v_world;
 out vec3 v_normal;
@@ -26,9 +36,10 @@ flat out vec2 v_finish;
 flat out vec4 v_lights[7];
 void main(){
   v_local=a_position;
-  v_world=a_position+vec3(i_cell.xy,i_cell.z*a_part.y);
+  mat3 rotation=honeyRotation(i_angles);
+  v_world=mix(a_position,rotation*a_position+vec3(i_offset,i_cell.z),a_part.y)+vec3(i_cell.xy,0.0);
   gl_Position=u_viewProjection*vec4(v_world,1.0);
-  v_normal=a_normal;v_role=int(a_part.x+0.5);v_moving=a_part.y;
+  v_normal=mix(a_normal,rotation*a_normal,a_part.y);v_role=int(a_part.x+0.5);v_moving=a_part.y;
   v_cell=i_cell;v_finish=i_finish;
   v_lights[0]=i_light0;
   v_lights[1]=i_light1;
@@ -43,8 +54,11 @@ precision highp float;
 layout(location=0) in vec3 a_position;
 layout(location=2) in vec2 a_part;
 layout(location=3) in vec4 i_cell;
+layout(location=12) in vec3 i_angles;
+layout(location=13) in vec2 i_offset;
 uniform mat4 u_viewProjection;
-void main(){gl_Position=u_viewProjection*vec4(a_position+vec3(i_cell.xy,i_cell.z*a_part.y),1.0);}`
+${HONEY_POSE_GLSL}
+void main(){gl_Position=u_viewProjection*vec4(mix(a_position,honeyRotation(i_angles)*a_position+vec3(i_offset,i_cell.z),a_part.y)+vec3(i_cell.xy,0.0),1.0);}`
 export const HONEY_SHADOW_FRAGMENT=`#version 300 es
 precision highp float;
 void main(){}`
@@ -68,6 +82,8 @@ uniform vec3 u_key;
 uniform vec3 u_lightDir;
 uniform vec3 u_eye;
 uniform sampler2DShadow u_shadow;
+uniform highp sampler2D u_poses;
+${HONEY_POSE_GLSL}
 uniform mat4 u_shadowMatrix;
 uniform vec3 u_shadowSettings; // enabled, normalized bias, inverse resolution
 out vec4 outColor;
@@ -115,6 +131,24 @@ vec3 spillSample(vec3 N,vec2 rel,vec2 ringN,float radius,float z,float level,vec
   float facing=max(dot(N,delta/max(d,.025)),0.0);
   return color*level*f*f*facing*occlusion;
 }
+// The fixed axial grid is stored q-major, row=r+floor(q/2). Fetch exact source cap pose.
+mat3 sourceRotation(vec2 center,out vec2 shift){
+  int q=int(round(center.x/(${HONEY_PITCH}*.8660254038)));
+  int r=int(round(center.y/${HONEY_PITCH}-float(q)*.5));
+  int row=r+int(floor(float(q)*.5));
+  int index=(q+${HONEY_GRID_RADIUS})*${HONEY_GRID_RADIUS*2+1}+row+${HONEY_GRID_RADIUS};
+  vec4 a=texelFetch(u_poses,ivec2(index,0),0);
+  shift=vec2(a.w,texelFetch(u_poses,ivec2(index,1),0).x);
+  return honeyRotation(a.xyz);
+}
+vec3 movingSpill(vec3 N,vec2 center,float height,float radius,float z,float level,vec3 color,float occlusion,mat3 rot){
+  if(level<=0.0)return vec3(0.0);
+  vec3 origin=vec3(center,height),local=transpose(rot)*(v_world-origin);
+  vec2 point=ringPoint(local.xy,ringNormal(local.xy),radius);
+  vec3 delta=origin+rot*vec3(point,z)-v_world;
+  float d=length(delta),f=max(0.0,1.0-d/${HONEY_SPILL_RADIUS});
+  return color*level*f*f*max(dot(N,delta/max(d,.025)),0.0)*occlusion;
+}
 vec3 localSpill(vec3 N){
   if(u_spill<=0.0)return vec3(0.0);
   vec3 sum=vec3(0.0);
@@ -126,8 +160,11 @@ vec3 localSpill(vec3 N){
     // below the lip is attenuated rather than leaking through solid walls.
     float crossOcclusion=i==0?1.0:smoothstep(.20,.55,v_world.z)*smoothstep(.35,.55,source.w);
     float recess=i==0?mix(.24,1.0,smoothstep(.22,.50,source.w)):crossOcclusion;
-    sum+=spillSample(N,rel,ringN,.949,source.w-.046,level.x,u_palette[4],recess);
-    sum+=spillSample(N,rel,ringN,.799,source.w-.004,level.y*.55,u_palette[5],recess);
+    if(max(level.x,level.y)>0.0){
+      vec2 shift;mat3 rotation=sourceRotation(center,shift);
+      sum+=movingSpill(N,center+shift,source.w,.949,-.046,level.x,u_palette[4],recess,rotation);
+      sum+=movingSpill(N,center+shift,source.w,.799,-.004,level.y*.55,u_palette[5],recess,rotation);
+    }
     float lower=i==0?1.0:smoothstep(.20,.55,v_world.z)*.35;
     sum+=spillSample(N,rel,ringN,1.006,.413,level.z,u_palette[6],lower);
   }
