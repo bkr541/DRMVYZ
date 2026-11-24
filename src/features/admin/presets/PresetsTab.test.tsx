@@ -6,6 +6,7 @@ import { resolve } from 'node:path'
 import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { useNotificationStore } from '../../../stores/notificationStore'
 import type { PresetMetadataRow } from '../../presetCatalog/presetMetadata'
 
 const data = vi.hoisted(() => ({
@@ -57,6 +58,7 @@ const qa = (selector: string) => [...host.querySelectorAll<HTMLElement>(selector
 const click = async (element: Element | null) => { expect(element).not.toBeNull(); await act(async () => { (element as HTMLElement).click(); await Promise.resolve() }); await flush() }
 
 beforeEach(async () => {
+  for (const event of useNotificationStore.getState().events.admin) useNotificationStore.getState().dismissEvent('admin', event.id)
   data.rows = []; data.saves = []; data.failOn = null; data.packs = [{ id: 'p1', name: 'Starters', description: 'The first pack.', display_order: 1 }]; data.members = [{ pack_id: 'p1', engine_id: 'cinema2', preset_key: 'bravo', position: 1 }]
   host = document.createElement('div'); document.body.appendChild(host); root = createRoot(host)
   await act(async () => root.render(<ApplicationWorkspaceFrame appView="admin" onAppViewChange={() => {}}><AdminView /></ApplicationWorkspaceFrame>))
@@ -67,10 +69,10 @@ beforeEach(async () => {
 afterEach(async () => { await act(async () => root.unmount()); host.remove() })
 
 describe('Admin Preset Catalog inside the real Admin page', () => {
-  it('shows the three windows under the section tabs, and puts its actions in the page header', () => {
+  it('shows a stationary catalog shell with two columns and puts its actions in the page header', () => {
     expect(qa('.adm-tabs-surface [role="tab"]').map(tab => tab.textContent)).toEqual(['User Accounts', 'Preset Catalog', 'Message Center'])
-    expect(q('.adm-pc .pmv-content')).not.toBeNull()
-    expect(qa('.adm-pc .pmv-content > .fw-surface').length).toBeGreaterThanOrEqual(3)
+    expect(q('.adm-catalog-shell')).not.toBeNull()
+    expect(qa('.adm-pane[data-active="true"] .adm-split > *').map(child => child.tagName)).toEqual(['SECTION', 'ASIDE'])
     expect(qa('.fw-app-header [data-app-header-slot="controls"] .adm-header-actions button').map(button => button.getAttribute('aria-label'))).toEqual(['Save changes', 'Publish preset', 'Reset to shipped', 'Discard unsaved changes'])
     // The header is the page's own, so the stand-in is not showing.
     expect(q('.fw-app-header-fallback')!.hidden).toBe(true)
@@ -90,12 +92,12 @@ describe('Admin Preset Catalog inside the real Admin page', () => {
     await click(q('[aria-label="Select Alpha for bulk actions"]'))
     await click(q('[aria-label="Select Bravo for bulk actions"]'))
     await click(q('[aria-label="Select Charlie for bulk actions"]'))
-    await click(qa('.adm-bulk button').find(button => button.textContent === 'Publish')!)
+    await click(q('.adm-header-actions button[aria-label="Publish 3 presets"]'))
     await click([...document.querySelectorAll('button')].find(button => button.textContent === 'Publish' && !button.closest('.adm-bulk') && !button.closest('.adm-publish')) ?? null)
     await until(() => qa('[data-preset-id][data-status="published"]').length === 3)
     expect(data.saves.map(save => [save.key, save.status, save.before])).toEqual([['alpha', 'published', 0], ['bravo', 'published', 1], ['charlie', 'published', 2]])
     expect(qa('[data-preset-id]').map(card => card.getAttribute('data-status'))).toEqual(['published', 'published', 'published'])
-    expect(qa('.adm-status-chip').map(chip => chip.textContent)).toEqual(['All3', 'Not set0', 'Designing0', 'Draft0', 'Published3', 'Archived0'])
+    expect(q('[aria-label="Filter by status"]')!.textContent).toContain('All Statuses (3)')
   })
 
   it('keeps the ones that were saved when a later one fails, and reports where it stopped', async () => {
@@ -105,71 +107,71 @@ describe('Admin Preset Catalog inside the real Admin page', () => {
     await click(q('[aria-label="Select Charlie for bulk actions"]'))
     await click(qa('.adm-bulk button').find(button => button.textContent === 'Draft')!)
     await click([...document.querySelectorAll('button')].find(button => button.textContent === 'Set to Draft') ?? null)
-    await until(() => !!q('.adm-inspector-notice')?.textContent?.includes('of 3 saved'))
-    expect(q('.adm-inspector-notice')!.textContent).toContain('1 of 3 saved')
+    await until(() => !!useNotificationStore.getState().events.admin[0]?.message.includes('of 3 saved'))
+    expect(useNotificationStore.getState().events.admin[0]?.message).toContain('1 of 3 saved')
     expect(q('[data-preset-id="cinema2:alpha"]')!.getAttribute('data-status')).toBe('draft')
     expect(q('[data-preset-id="cinema2:bravo"]')!.getAttribute('data-status')).toBe('unset')
     expect(q('[data-preset-id="cinema2:charlie"]')!.getAttribute('data-status')).toBe('unset')
   })
 
-  it('lays the Presets tab out like User Accounts, and keeps the three windows on the Packs tab, with the same tabs, search row and header', async () => {
-    const windows = () => qa('.adm-pane:not([hidden]) .pmv-content > .fw-surface').length
-    expect(q('.adm-pane:not([hidden]) .adm-split--catalog > .adm-main')).not.toBeNull()
-    expect(q('.adm-pane:not([hidden]) .adm-split--catalog > .adm-detail')).not.toBeNull()
-    expect(windows()).toBe(0)
-    expect(qa('.adm-pane:not([hidden]) > .adm-pc > [role="tablist"] [role="tab"]').map(tab => tab.textContent)).toEqual(['Presets', 'Packs'])
-    await click(qa('.adm-pane:not([hidden]) [role="tab"]').find(tab => tab.textContent === 'Packs')!)
-    expect(q('.adm-pane:not([hidden]) [aria-label="Preset packs"]')).not.toBeNull()
-    expect(windows()).toBeGreaterThanOrEqual(3)
-    expect(q('.adm-pane:not([hidden]) .rw-frame--left')!.textContent).toContain('Preset Catalog')
-    expect(qa('.adm-pane:not([hidden]) .rw-frame--left [role="tab"]').map(tab => tab.textContent)).toEqual(['Presets', 'Packs'])
-    expect(q('.adm-pane:not([hidden]) .adm-browser .vz-md-search-row')).not.toBeNull()
-    // The old two-column pack layout is gone.
-    expect(q('.adm-pane:not([hidden]) .adm-split')).toBeNull()
-    expect(qa('.adm-pane:not([hidden]) .adm-card').map(card => card.textContent)).toEqual([expect.stringContaining('Starters')])
+  it('keeps the catalog shell, tabs and column layout stable when opening Packs, and makes the inactive group inert', async () => {
+    const shell = q('.adm-catalog-shell')!
+    const tabs = q('.adm-catalog-shell > [role="tablist"]')!
+    const activeSplit = () => q('.adm-pane[data-active="true"] .adm-split--catalog')!
+    expect([...activeSplit().children].map(child => child.tagName)).toEqual(['SECTION', 'ASIDE'])
+    await click(qa('.adm-catalog-shell > [role="tablist"] [role="tab"]').find(tab => tab.textContent === 'Packs')!)
+    expect(q('.adm-catalog-shell')).toBe(shell)
+    expect(q('.adm-catalog-shell > [role="tablist"]')).toBe(tabs)
+    expect([...activeSplit().children].map(child => child.tagName)).toEqual(['SECTION', 'ASIDE'])
+    expect(q('.adm-pane[data-active="false"]')!.hasAttribute('inert')).toBe(true)
+    expect(q('.adm-pane[data-active="false"]')!.getAttribute('aria-hidden')).toBe('true')
+    expect(q('.adm-pane[data-active="true"]')!.hasAttribute('inert')).toBe(false)
+    expect(qa('.adm-pane[data-active="true"] .adm-card').map(card => card.textContent)).toEqual([expect.stringContaining('Starters')])
   })
 
-  it('shows a pack in the centre window and edits it in the inspector, with Save pack and Delete pack as header icons', async () => {
+  it('shows a pack in the right-hand preview and edits it in the inspector, with Save pack and Delete pack as header icons', async () => {
     await click(qa('[role="tab"]').find(tab => tab.textContent === 'Packs')!)
     expect(qa('.fw-app-header [data-app-header-slot="controls"] .adm-header-actions button').map(button => button.getAttribute('aria-label')).filter(label => /pack/i.test(label ?? ''))).toEqual([])
-    await click(qa('.adm-pane:not([hidden]) .adm-card-button')[0]!)
-    const stage = q('.adm-pane:not([hidden]) .adm-stage')!
+    await click(qa('.adm-pane[data-active="true"] .adm-card-button')[0]!)
+    const stage = q('.adm-pane[data-active="true"] .adm-stage')!
     expect(stage.querySelector('.adm-preview-title h2')!.textContent).toBe('Starters')
     expect(stage.textContent).toContain('The first pack.')
     expect(stage.querySelectorAll('.adm-pack-grid .adm-tile')).toHaveLength(1)
     expect(stage.querySelector('.adm-pack-grid')!.textContent).toContain('Bravo')
-    expect(qa('.adm-pane:not([hidden]) .pmv-inspector .rv-ctrl-row label').map(label => label.textContent)).toEqual(expect.arrayContaining(['Name', 'Description', 'Display Order']))
+    expect(qa('.adm-pane[data-active="true"] .adm-detail .rv-ctrl-row label').map(label => label.textContent)).toEqual(expect.arrayContaining(['Name', 'Description', 'Display Order']))
     expect(qa('.adm-header-actions button').map(button => button.getAttribute('aria-label'))).toEqual(['Save pack', 'Delete pack'])
-    expect(q('.adm-pane:not([hidden]) .pmv-inspector .adm-form-actions')).toBeNull()
+    expect(q('.adm-pane[data-active="true"] .adm-detail .adm-form-actions')).toBeNull()
     expect(qa('.adm-header-actions button').every(button => button.textContent === '')).toBe(true)
     expect((qa('.adm-header-actions button')[0] as HTMLButtonElement).disabled).toBe(true)
   })
 
   it('creates a pack from the library window and opens it', async () => {
     await click(qa('[role="tab"]').find(tab => tab.textContent === 'Packs')!)
-    const input = q('.adm-pane:not([hidden]) .adm-new-pack input')! as HTMLInputElement
+    const input = q('.adm-pane[data-active="true"] .adm-new-pack input')! as HTMLInputElement
     await act(async () => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, 'Late Night'); input.dispatchEvent(new Event('input', { bubbles: true })) })
-    await click(qa('.adm-pane:not([hidden]) .adm-new-pack button').find(button => button.textContent === 'Create Pack')!)
-    await until(() => qa('.adm-pane:not([hidden]) .adm-card').length === 2)
-    expect(q('.adm-pane:not([hidden]) .adm-stage .adm-preview-title h2')!.textContent).toBe('Late Night')
+    await click(qa('.adm-pane[data-active="true"] .adm-new-pack button').find(button => button.textContent === 'Create Pack')!)
+    await until(() => qa('.adm-pane[data-active="true"] .adm-card').length === 2)
+    expect(q('.adm-pane[data-active="true"] .adm-stage .adm-preview-title h2')!.textContent).toBe('Late Night')
   })
 
   it('keeps unsaved edits on the Presets tab while the Packs tab is open, and the header takes only the showing tab\'s actions', async () => {
-    const nameInput = () => qa('.adm-pane:not([hidden]) .rv-ctrl-row').find(entry => entry.querySelector('label')?.textContent === 'Name')!.querySelector<HTMLInputElement>('input')!
+    const nameInput = () => qa('.adm-pane[data-active="true"] .rv-ctrl-row').find(entry => entry.querySelector('label')?.textContent === 'Name')!.querySelector<HTMLInputElement>('input')!
     await act(async () => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(nameInput(), 'Alpha Edited'); nameInput().dispatchEvent(new Event('input', { bubbles: true })) })
     expect(qa('.adm-header-actions button').map(button => button.getAttribute('aria-label'))[0]).toBe('Save changes (1)')
     await click(qa('[role="tab"]').find(tab => tab.textContent === 'Packs')!)
     expect(qa('.adm-header-actions button')).toHaveLength(0)
-    await click(qa('.adm-pane:not([hidden]) [role="tab"]').find(tab => tab.textContent === 'Presets')!)
+    await click(qa('.adm-catalog-shell > [role="tablist"] [role="tab"]').find(tab => tab.textContent === 'Presets')!)
     expect(nameInput().value).toBe('Alpha Edited')
     expect(qa('.adm-header-actions button').map(button => button.getAttribute('aria-label'))[0]).toBe('Save changes (1)')
   })
 
-  it('lines the search row up with the dropdown rows under it, in the Preset Catalog\'s own styles', () => {
+  it('places the search and all five dropdowns in one filter grid and supports reduced motion', () => {
+    const grid = q('.adm-filter-grid')!
+    expect(grid.querySelector('.dv-library-search-input')).not.toBeNull()
+    expect(grid.querySelectorAll('[role="combobox"]')).toHaveLength(5)
     const css = readFileSync(resolve(process.cwd(), 'src/features/admin/admin.css'), 'utf8')
-    // The manager layout insets the search row by 26px; the admin library overrides that to the 12px its dropdown rows use.
-    expect(css).toMatch(/\.adm-browser\.vz-media-browser--manager \.vz-md-search-row \{ padding-inline: 12px; \}/)
-    expect(css).toMatch(/\.adm-filter-grid \{[^}]*padding: 4px 12px 0;/)
-    expect(css).toMatch(/\.adm-status-chips \{[^}]*padding: 10px 12px 0;/)
+    expect(css).toContain('repeat(5, minmax(85px, 1fr))')
+    expect(css).toContain('prefers-reduced-motion: reduce')
+    expect(css).toContain('clip-path: inset(0 0 100% 0)')
   })
 })

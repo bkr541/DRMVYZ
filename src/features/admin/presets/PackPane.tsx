@@ -1,15 +1,14 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { AppIcon } from '../../../components/shared/icons/AppIcon'
 import { HeaderActionIcon } from '../../../components/vyzualz/layout/HeaderActionIcon'
 import { HeaderIconKey } from '../../../components/vyzualz/layout/HeaderIconKey'
 import { RailWindowHeader } from '../../../components/vyzualz/layout/RailWindowHeader'
-import { WorkspaceRail } from '../../../components/vyzualz/layout/WorkspaceRail'
 import { presetArtworkBackdrop } from '../../../components/vyzualz/presetManager/PresetLibraryCard'
 import { ConfirmDialog } from '../../../components/vyzualz/react/controls/ConfirmDialog'
 import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
-import { NoticeCard } from '../../../components/vyzualz/react/controls/NoticeCard'
+import { notify } from '../../../stores/notificationStore'
 import { PresetSearchRow } from '../../../components/vyzualz/react/controls/PresetSearchRow'
-import { UnderlineTabs } from '../../../components/vyzualz/react/controls/UnderlineTabs'
 import { Collapsible, SelectRow, TextAreaRow, TextInputRow } from '../../../components/vyzualz/react/ReactControlRows'
 import { ReactPresetCard } from '../../../components/vyzualz/react/ReactPresetCard'
 import { AdminHeaderActions } from '../AdminHeaderActions'
@@ -21,8 +20,6 @@ interface Props {
   presets: readonly AdminPreset[]
   packs: readonly CatalogPack[]
   members: readonly PackMember[]
-  /** The Presets | Packs tabs, which sit at the top of the library window. */
-  section: ReactNode
   /** False while the Presets tab is showing: the pane stays mounted, so nothing typed in it is lost, but it takes nothing from the header. */
   active?: boolean
   onCreate: (name: string) => Promise<CatalogPack>
@@ -43,13 +40,12 @@ function PackInspector({ pack, ...props }: { pack: CatalogPack } & Props) {
   const [orderText, setOrderText] = useState(String(pack.display_order))
   const [add, setAdd] = useState('')
   const [busy, setBusy] = useState(false)
-  const [notice, setNotice] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
-  useEffect(() => { setName(pack.name); setDescription(pack.description ?? ''); setOrderText(String(pack.display_order)); setNotice(null) }, [pack])
+  useEffect(() => { setName(pack.name); setDescription(pack.description ?? ''); setOrderText(String(pack.display_order)) }, [pack])
 
-  const run = async (work: () => Promise<void>) => {
-    setBusy(true); setNotice(null)
-    try { await work() } catch (reason) { setNotice(reason instanceof Error ? reason.message : 'That did not work.') } finally { setBusy(false) }
+  const run = async (work: () => Promise<void>, message = 'Pack updated.') => {
+    setBusy(true)
+    try { await work(); notify('admin', { tone: 'success', title: 'Saved', message }) } catch (reason) { notify('admin', { tone: 'warning', title: 'Not saved', message: reason instanceof Error ? reason.message : 'That did not work.' }) } finally { setBusy(false) }
   }
   const byKey = useMemo(() => new Map(props.presets.map(preset => [preset.record.id, preset])), [props.presets])
   const ordered = props.members.filter(member => member.pack_id === pack.id).sort((a, b) => a.position - b.position)
@@ -61,14 +57,14 @@ function PackInspector({ pack, ...props }: { pack: CatalogPack } & Props) {
   const save = () => void run(() => props.onUpdate(pack.id, { name: name.trim(), description: description.trim() || null, display_order: Number(orderText) }))
 
   return (
-    <div className="vz-panel-body pmv-inspector-body adm-inspector-body" aria-label={`${pack.name} pack`}>
+    <div className="adm-inspector-body" aria-label={`${pack.name} pack`}>
       {props.active !== false && (
         <AdminHeaderActions>
           <HeaderIconKey label="Save pack" icon={<HeaderActionIcon action="save" />} disabled={busy || !valid || !changed} onClick={save} />
           <HeaderIconKey label="Delete pack" icon={<HeaderActionIcon action="delete" />} danger disabled={busy} onClick={() => setConfirmDelete(true)} />
         </AdminHeaderActions>
       )}
-      <div className="rv-inspector rv-inspector-scroll">
+      <div className="rv-inspector">
         <div className="rv-ctrl-group">
           <Collapsible label="Pack">
             <TextInputRow label="Name" value={name} onChange={setName} maxLength={160} />
@@ -101,27 +97,25 @@ function PackInspector({ pack, ...props }: { pack: CatalogPack } & Props) {
             </div>
           </Collapsible>
         </div>
-        {notice && <div className="adm-inspector-notice"><NoticeCard tone="warning" title="Not saved" role="alert">{notice}</NoticeCard></div>}
       </div>
-      {confirmDelete && (
+      {props.active !== false && confirmDelete && createPortal(
         <ConfirmDialog title="Delete pack?" message={<>“{pack.name}” will be deleted. The presets in it are not deleted, only removed from the pack.</>} confirmLabel="Delete" busy={busy}
-          onCancel={() => setConfirmDelete(false)} onConfirm={() => void run(async () => { await props.onDelete(pack.id); setConfirmDelete(false) })} />
+          onCancel={() => setConfirmDelete(false)} onConfirm={() => void run(async () => { await props.onDelete(pack.id); setConfirmDelete(false) }, 'Pack deleted.')} />, document.body
       )}
     </div>
   )
 }
 
-/** The centre window: the pack as a collection, its details and its presets in order, as cards. */
+/** The pack summary: the pack as a collection, its details and its presets in order, as cards. */
 function PackStage({ pack, presets, members }: { pack: CatalogPack | null; presets: readonly AdminPreset[]; members: readonly PackMember[] }) {
   const byKey = useMemo(() => new Map(presets.map(preset => [preset.record.id, preset])), [presets])
   const ordered = pack ? members.filter(member => member.pack_id === pack.id).sort((a, b) => a.position - b.position) : []
   return (
-    <div className="pmv-stage fw-surface adm-stage" aria-label="Pack preview workspace">
-      <UnderlineTabs tabs={[{ id: 'pack', label: 'PACK' }]} activeTab="pack" onChange={NOOP} ariaLabel="Pack preview views" className="pmv-stage-tabs" />
+    <div className="adm-stage adm-summary" aria-label="Pack preview workspace">
       {!pack ? (
-        <div className="pmv-preview-group adm-stage-empty"><p className="adm-empty">Select a pack to see it here.</p></div>
+        <div className="adm-stage-empty"><p className="adm-empty">Select a pack to see it here.</p></div>
       ) : (
-        <div className="pmv-preview-group adm-stage-preview" role="group" aria-label={`${pack.name} pack`}>
+        <div className="adm-stage-preview" role="group" aria-label={`${pack.name} pack`}>
           <div className="adm-preview-summary">
             <div className="adm-preview-title"><h2>{pack.name}</h2></div>
             <p className="adm-preview-description">{pack.description || 'No description.'}</p>
@@ -147,70 +141,61 @@ function PackStage({ pack, presets, members }: { pack: CatalogPack | null; prese
 }
 
 /**
- * The Packs tab, in the same three windows as the Presets tab: the packs in the library (left, with the same Presets | Packs tabs, a search and the new-pack row),
- * the selected pack and its presets (centre) and its editor (right). A pack only organizes presets the app already ships.
+ * The Packs tab uses the same two-column catalog layout: packs on the left, selected pack preview and editor on the right. A pack only organizes presets the app already ships.
  */
 export function PackPane(props: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [newName, setNewName] = useState('')
   const [query, setQuery] = useState('')
   const [busy, setBusy] = useState(false)
-  const [notice, setNotice] = useState<string | null>(null)
-  const [leftCollapsed, setLeftCollapsed] = useState(false)
-  const [rightCollapsed, setRightCollapsed] = useState(false)
   const selected = props.packs.find(pack => pack.id === selectedId) ?? null
   const count = (id: string) => props.members.filter(member => member.pack_id === id).length
   const duplicate = props.packs.some(pack => pack.name.trim().toLowerCase() === newName.trim().toLowerCase())
   const visible = sortedPacks(props.packs).filter(pack => !query.trim() || `${pack.name} ${pack.description ?? ''}`.toLowerCase().includes(query.trim().toLowerCase()))
 
   const create = async () => {
-    setBusy(true); setNotice(null)
-    try { const pack = await props.onCreate(newName.trim()); setNewName(''); setSelectedId(pack.id) } catch (reason) { setNotice(reason instanceof Error ? reason.message : 'That did not work.') } finally { setBusy(false) }
+    setBusy(true)
+    try { const pack = await props.onCreate(newName.trim()); setNewName(''); setSelectedId(pack.id); notify('admin', { tone: 'success', title: 'Saved', message: `${pack.name} created.` }) } catch (reason) { notify('admin', { tone: 'warning', title: 'Not created', message: reason instanceof Error ? reason.message : 'That did not work.' }) } finally { setBusy(false) }
   }
 
   return (
-    <section className="pmv-workspace adm-pc" aria-label="Preset packs">
-      <div className="vz-content pmv-content adm-pc-content" data-left-collapsed={leftCollapsed ? 'true' : 'false'} data-right-collapsed={rightCollapsed ? 'true' : 'false'}>
-        <WorkspaceRail side="left" label="Preset Catalog" collapsed={leftCollapsed} onToggleCollapsed={() => setLeftCollapsed(value => !value)} className="rw-frame--left fw-surface">
-          <RailWindowHeader side="left" icon={<AppIcon kind="layers" size={15} color="currentColor" aria-hidden="true" />} label="Preset Catalog" />
-          <div className="vz-panel vz-media-browser vz-media-browser--manager pmv-browser adm-browser">
-            {props.section}
-            <PresetSearchRow query={query} onQueryChange={setQuery} placeholder="Search packs…" ariaLabel="Search packs" className="pmv-search" />
-            <div className="adm-new-pack">
-              <TextInputRow label="New Pack" value={newName} onChange={setNewName} maxLength={160} placeholder="Pack name" />
-              <IconChipButton tone="primary" disabled={busy || !newName.trim() || duplicate} onClick={() => void create()}>Create Pack</IconChipButton>
-            </div>
-            {duplicate && newName.trim() && <p className="adm-field-error adm-pad" role="alert">A pack with that name already exists.</p>}
-            {notice && <div className="adm-pad"><NoticeCard tone="warning" title="Not created" role="alert">{notice}</NoticeCard></div>}
-            <div className="adm-list-head">
-              <span className="adm-count" role="status" aria-live="polite"><strong>{visible.length}</strong> of {props.packs.length} pack{props.packs.length === 1 ? '' : 's'}</span>
-            </div>
-            <div className="vz-media-scroll pmv-list adm-list">
-              {props.packs.length === 0 ? <p className="adm-empty">No packs yet. Create one to group presets.</p> : visible.length === 0 ? <div className="pmv-empty">No packs match.</div> : (
-                <ul className="adm-cards">
-                  {visible.map(pack => (
-                    <li key={pack.id} className={`adm-card${pack.id === selectedId ? ' is-selected' : ''}`}>
-                      <button type="button" className="adm-card-button" aria-pressed={pack.id === selectedId} onClick={() => setSelectedId(pack.id)}>
-                        <span className="adm-card-head"><strong>{pack.name}</strong><span className="adm-muted">{count(pack.id)} preset{count(pack.id) === 1 ? '' : 's'}</span></span>
-                        {pack.description && <span className="adm-card-body">{pack.description}</span>}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
+    <div className="adm-surface adm-pc" role="region" aria-label="Preset packs">
+      <div className="adm-split adm-split--catalog">
+        <section className="adm-main adm-browser" aria-label="Packs">
+          <PresetSearchRow query={query} onQueryChange={setQuery} placeholder="Search packs…" ariaLabel="Search packs" className="adm-pack-search" />
+          <div className="adm-new-pack">
+            <TextInputRow label="New Pack" value={newName} onChange={setNewName} maxLength={160} placeholder="Pack name" />
+            <IconChipButton tone="primary" disabled={busy || !newName.trim() || duplicate} onClick={() => void create()}>Create Pack</IconChipButton>
           </div>
-        </WorkspaceRail>
-
-        <PackStage pack={selected} presets={props.presets} members={props.members} />
-
-        <WorkspaceRail side="right" label="Pack Inspector" collapsed={rightCollapsed} onToggleCollapsed={() => setRightCollapsed(value => !value)} className="rw-frame--right pmv-inspector fw-surface">
+          {duplicate && newName.trim() && <p className="adm-field-error adm-pad" role="alert">A pack with that name already exists.</p>}
+          <div className="adm-list-head">
+            <span className="adm-count" role="status" aria-live="polite"><strong>{visible.length}</strong> of {props.packs.length} pack{props.packs.length === 1 ? '' : 's'}</span>
+          </div>
+          <div className="adm-table-wrap adm-list">
+            {props.packs.length === 0 ? <p className="adm-empty">No packs yet. Create one to group presets.</p> : visible.length === 0 ? <div className="pmv-empty">No packs match.</div> : (
+              <ul className="adm-cards">
+                {visible.map(pack => (
+                  <li key={pack.id} className={`adm-card${pack.id === selectedId ? ' is-selected' : ''}`}>
+                    <button type="button" className="adm-card-button" aria-pressed={pack.id === selectedId} onClick={() => setSelectedId(pack.id)}>
+                      <span className="adm-card-head"><strong>{pack.name}</strong><span className="adm-muted">{count(pack.id)} preset{count(pack.id) === 1 ? '' : 's'}</span></span>
+                      {pack.description && <span className="adm-card-body">{pack.description}</span>}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </section>
+        <aside className="adm-detail adm-detail--preset" aria-label="Pack details">
           <RailWindowHeader side="right" icon={<AppIcon kind="settings" size={15} color="currentColor" aria-hidden="true" />} label="Inspector" />
-          {selected
-            ? <PackInspector key={selected.id} pack={selected} {...props} />
-            : <div className="vz-panel-body pmv-inspector-body"><p className="adm-empty adm-inspector-empty">Select a pack to rename it, order it and arrange its presets.</p></div>}
-        </WorkspaceRail>
+          <div className="adm-detail-scroll rv-inspector-scroll">
+            {selected ? <>
+              <PackStage pack={selected} presets={props.presets} members={props.members} />
+              <PackInspector key={selected.id} pack={selected} {...props} />
+            </> : <p className="adm-empty adm-inspector-empty">Select a pack to rename it, order it and arrange its presets.</p>}
+          </div>
+        </aside>
       </div>
-    </section>
+    </div>
   )
 }

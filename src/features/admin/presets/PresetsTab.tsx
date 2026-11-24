@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { WorkspaceSurface } from '../../../components/vyzualz/layout/FloatingWorkspace'
 import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
-import { NoticeCard } from '../../../components/vyzualz/react/controls/NoticeCard'
+import { DrawerNotice } from '../../../components/vyzualz/shared/DrawerNotice'
 import { UnderlineTabs } from '../../../components/vyzualz/react/controls/UnderlineTabs'
 import { PRESET_MANAGER_PRESETS } from '../../../components/vyzualz/presetManager/presetManagerCatalog'
 import type { PresetMetadataRow } from '../../presetCatalog/presetMetadata'
@@ -104,7 +104,7 @@ export function PresetsTab() {
 
   const sections = <UnderlineTabs ariaLabel="Preset catalog sections" activeTab={section} onChange={setSection} tabs={[{ id: 'presets', label: 'Presets' }, { id: 'packs', label: 'Packs' }]} className="pmv-tabs vz-filter-tabs dv-underline-tabs--equal adm-subtabs" />
   const notices = <>
-    {status === 'error' && <NoticeCard tone="warning" title="The catalog could not be loaded" role="alert">{error} <IconChipButton onClick={load}>Try again</IconChipButton></NoticeCard>}
+    {status === 'error' && <DrawerNotice tone="warning" title="The catalog could not be loaded" role="alert">{error} <IconChipButton onClick={load}>Try again</IconChipButton></DrawerNotice>}
     {status === 'loading' && <p className="adm-empty" role="status">Loading the catalog…</p>}
   </>
 
@@ -116,11 +116,18 @@ export function PresetsTab() {
       </WorkspaceSurface>
     )
   }
-  // Both tabs are the same three windows. Both stay mounted and the one not showing is hidden, so switching tabs never loses unsaved edits on the other.
+  // One stationary catalog window; both content groups stay mounted so drafts survive tab switches.
   return (
-    <>
-      <div className="adm-pane" hidden={section !== 'presets'}><PresetCatalogPane presets={presets} packs={packs} section={sections} active={section === 'presets'} {...handlers} /></div>
-      <div className="adm-pane" hidden={section !== 'packs'}><PackPane presets={presets} packs={packs} members={members} section={sections} active={section === 'packs'} {...packHandlers} /></div>
-    </>
+    <WorkspaceSurface className="adm-surface adm-catalog-shell">
+      {sections}
+      <div className="adm-catalog-panels">
+        <div className="adm-pane" data-active={section === 'presets'} aria-hidden={section !== 'presets'} ref={element => { element?.toggleAttribute('inert', section !== 'presets') }}>
+          <PresetCatalogPane presets={presets} packs={packs} active={section === 'presets'} {...handlers} />
+        </div>
+        <div className="adm-pane" data-active={section === 'packs'} aria-hidden={section !== 'packs'} ref={element => { element?.toggleAttribute('inert', section !== 'packs') }}>
+          <PackPane presets={presets} packs={packs} members={members} active={section === 'packs'} {...packHandlers} />
+        </div>
+      </div>
+    </WorkspaceSurface>
   )
 }

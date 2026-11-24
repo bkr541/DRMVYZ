@@ -152,7 +152,7 @@ export const STATUS_ORDER: readonly (PublicationStatus | '')[] = ['', 'designing
 
 export type StatusCounts = Record<PublicationStatus | 'unset' | 'all', number>
 
-/** How many presets are in each status, for the filter chips. The counts follow the other filters, so a chip always says what clicking it will show. */
+/** How many presets are in each status, for the status dropdown. The counts follow the other filters, so each option says what selecting it will show. */
 export function statusCounts(presets: readonly AdminPreset[]): StatusCounts {
   const counts: StatusCounts = { all: presets.length, unset: 0, designing: 0, draft: 0, published: 0, archived: 0 }
   for (const preset of presets) counts[preset.status ?? 'unset'] += 1

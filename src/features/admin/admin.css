@@ -85,24 +85,16 @@
 /* ── Preset Catalog: Preset Manager's three windows (library, preview, inspector) with admin-only additions ─────────────────────────────────────────── */
 .adm-pc { flex: 1; min-width: 0; min-height: 0; --adm-published: #64b98b; --adm-designing: #a98bff; --adm-draft: #ffb347; --adm-archived: #8fa3ab; --adm-unset: rgba(196, 212, 220, 0.5); }
 .adm-pc > .pmv-content { flex: 1; min-height: 0; }
-/* Presets and Packs are the same three windows, both mounted; the one not showing is hidden. */
-.adm-pane { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
-.adm-pane[hidden] { display: none; }
+/* The tabs and the catalog shell never move. Both content groups stay mounted;
+   collapse the outgoing group and reveal the incoming group in the same grid cell. */
+.adm-catalog-panels { flex: 1; min-height: 0; min-width: 0; display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); overflow: hidden; }
+.adm-pane { grid-area: 1 / 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; opacity: 1; clip-path: inset(0); visibility: visible; transition: opacity 180ms ease, clip-path 180ms ease, visibility 0s; }
+.adm-pane[data-active='false'] { opacity: 0; clip-path: inset(0 0 100% 0); visibility: hidden; pointer-events: none; transition: opacity 180ms ease, clip-path 180ms ease, visibility 0s 180ms; }
+@media (prefers-reduced-motion: reduce) { .adm-pane, .adm-pane[data-active='false'] { transition: none; } }
 .adm-browser { display: flex; flex-direction: column; min-height: 0; }
 .adm-subtabs.dv-underline-tabs { padding: 0; }
-/* The manager layout insets the search row by 26px; here it lines up with the dropdown rows under it (12px each side). */
 .adm-browser.vz-media-browser--manager .vz-md-search-row { padding-inline: 12px; }
-.adm-filter-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 4px 12px; padding: 4px 12px 0; }
 .adm-filter-grid .drm-dropdown__trigger { min-height: 30px !important; }
-
-/* Status chips: what clicking them shows is counted on them. */
-.adm-status-chips { display: flex; flex-wrap: wrap; gap: 5px; padding: 10px 12px 0; }
-.adm-status-chip { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border: 1px solid var(--color-border-subtle, rgba(154, 178, 188, 0.18)); border-radius: 999px; color: var(--color-text-muted, rgba(196, 212, 220, 0.66)); font: var(--type-record-meta); cursor: pointer; }
-.adm-status-chip span { color: var(--color-text-faint, rgba(196, 212, 220, 0.5)); font-variant-numeric: tabular-nums; }
-.adm-status-chip:hover { border-color: var(--color-border, rgba(154, 178, 188, 0.3)); color: var(--color-text-strong, #e8f4f8); }
-.adm-status-chip[aria-pressed='true'] { border-color: rgba(var(--color-primary-rgb, 74, 199, 219), 0.6); background: rgba(var(--color-primary-rgb, 74, 199, 219), 0.12); color: var(--color-text-strong, #e8f4f8); }
-.adm-status-chip[aria-pressed='true'] span { color: var(--color-primary, #4ac7db); }
-.adm-status-chip:focus-visible { outline: 2px solid var(--color-primary, #4ac7db); outline-offset: 2px; }
 
 .adm-list-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px 6px; }
 .adm-list-head .adm-count { margin-left: 0; }
@@ -158,21 +150,18 @@
 .adm-inapp-grid { width: 220px; height: 150px; }
 
 /* Right window. */
-.adm-publish { display: flex; margin-bottom: 6px; }
-.adm-publish .dv-icon-chip { flex: 1; justify-content: center; }
 .adm-note { margin: 0 0 4px; color: var(--color-text-muted, rgba(196, 212, 220, 0.66)); font: var(--type-field-value); line-height: 1.45; }
 .adm-tags { display: grid; gap: 4px; margin: 4px 0 8px; }
 .adm-inspector-body { flex: 1; min-height: 0; }
-.adm-inspector-notice { padding: 0 12px 12px; }
-.adm-inspector-notice:empty { display: none; }
 .adm-inspector-empty { padding: 16px 12px; }
 
 /* Presets tab: the User Accounts layout (table on the left, the open preset on the right). */
-.adm-pc > .adm-subtabs { padding: 8px 16px 0; max-width: 300px; }
+.adm-catalog-shell > .adm-subtabs, .adm-pc > .adm-subtabs { padding: 8px 16px 0; max-width: 300px; flex: 0 0 auto; }
 .adm-split--catalog { grid-template-columns: minmax(0, 1fr) 420px; }
 .adm-split--catalog .adm-toolbar { gap: 12px; }
-.adm-split--catalog .adm-filter-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 0; }
-.adm-split--catalog .adm-status-chips { padding: 0; }
+.adm-split--catalog .adm-filter-grid { display: grid; grid-template-columns: minmax(120px, 3fr) repeat(5, minmax(85px, 1fr)); align-items: end; gap: 8px; padding: 0; flex: 0 0 auto; overflow-x: auto; }
+.adm-filter-grid > * { min-width: 0; }
+.adm-filter-grid .adm-search { max-width: none; }
 .adm-status-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 12px; flex: 0 0 auto; }
 .adm-status-row .adm-link:disabled { opacity: 0.4; cursor: default; }
 .adm-split--catalog .adm-list { padding: 0; }
@@ -189,14 +178,23 @@
 .adm-row-name { overflow: hidden; text-overflow: ellipsis; }
 .adm-modified { padding: 0 6px; border: 1px solid currentColor; border-radius: 999px; color: var(--adm-draft); font: var(--type-record-meta); text-transform: uppercase; letter-spacing: 0.06em; }
 .adm-visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-.adm-summary { display: grid; gap: 12px; padding: 12px; }
-.adm-detail--preset > .adm-inspector-notice { position: sticky; top: 0; z-index: 3; padding: 8px 12px; background: var(--color-panel-alt, #0b1115); }
+/* Same rail inset, canonical title bar and control-group spacing as React.
+   The header stays fixed, with one scroll owner for artwork, facts and controls. */
+.adm-detail--preset { display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+.adm-detail-scroll { flex: 1; min-height: 0; padding: 12px var(--workspace-rail-inset, 12px) 0; }
+.adm-summary { display: grid; gap: var(--workspace-group-gap, 12px); padding: 0; }
 .adm-detail--preset .adm-inspector-body { flex: 0 0 auto; }
+.adm-detail--preset .rv-inspector > .rv-ctrl-group { padding-inline: var(--workspace-panel-inset, 6px); }
+.adm-detail--preset .rv-main-workspace-tabs.dv-underline-tabs { gap: 8px; margin-top: 25px; }
+.adm-detail--preset .adm-preview-title { flex-wrap: wrap; }
+.adm-detail--preset .adm-stage-preview { overflow: visible; display: grid; gap: var(--workspace-group-gap, 12px); }
+.adm-detail--preset .adm-pack-grid .adm-tile { aspect-ratio: 16 / 10; }
 
-@media (max-width: 900px) { .adm-pc > .pmv-content { grid-template-columns: minmax(0, 1fr); } .adm-pc .pmv-stage { display: none; } .adm-split--catalog { grid-template-columns: minmax(0, 1fr); } .adm-split--catalog .adm-filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+@media (max-width: 900px) { .adm-pc > .pmv-content { grid-template-columns: minmax(0, 1fr); } .adm-pc .pmv-stage { display: none; } .adm-split--catalog { grid-template-columns: minmax(0, 1fr); } }
 
 /* Packs tab */
-.adm-browser > .adm-new-pack { flex: 0 0 auto; max-width: none; padding: 10px 12px 0; }
+.adm-browser > .adm-new-pack { flex: 0 0 auto; max-width: 420px; padding: 0; }
 .adm-pad { padding: 6px 12px 0; margin: 0; }
 .adm-browser .adm-cards { overflow: visible; }
 .adm-pack-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }

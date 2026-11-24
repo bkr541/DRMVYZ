@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { AppIcon } from '../../../components/shared/icons/AppIcon'
 import type { Cinema2PresetId } from '../../../components/vyzualz/cinema2'
 import { presetArtworkBackdrop, PresetLibraryCard } from '../../../components/vyzualz/presetManager/PresetLibraryCard'
@@ -18,6 +18,7 @@ interface SummaryProps {
   packs: readonly CatalogPack[]
   /** The admin has unsaved changes to this preset. */
   changed: boolean
+  active?: boolean
 }
 
 function Fact({ label, children }: { label: string; children: ReactNode }) {
@@ -29,8 +30,9 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
  * on its own, so moving down 150 presets stays quiet) and the facts about it. Mount it with the preset's id as its key so the live preview stops when the
  * selection moves.
  */
-export function PresetCatalogSummary({ preset, shown, packs, changed }: SummaryProps) {
+export function PresetCatalogSummary({ preset, shown, packs, changed, active = true }: SummaryProps) {
   const [live, setLive] = useState(false)
+  useEffect(() => { if (!active) setLive(false) }, [active])
   const record = shown.record
   const canPlay = record.activation === 'cinema2' && CAN_HOST_CINEMA2_STAGE
   const version = presetVersionInfo(record)
@@ -39,7 +41,7 @@ export function PresetCatalogSummary({ preset, shown, packs, changed }: SummaryP
   return (
     <div className="adm-summary" role="group" aria-label={`${shown.name} preview`}>
       <div className="adm-preview-visual">
-        {live && canPlay
+        {active && live && canPlay
           ? <div className="pmv-preview-live"><Cinema2Stage presetId={record.sourceId as Cinema2PresetId} /></div>
           : <ReactPresetArtwork appearance="frame" id={record.sourceId} backdrop={presetArtworkBackdrop(record)} className="adm-preview-art" />}
         {canPlay && (

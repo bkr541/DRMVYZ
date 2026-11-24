@@ -1,9 +1,7 @@
 import { useState } from 'react'
-import { AppIcon } from '../../../components/shared/icons/AppIcon'
 import { RailTabs } from '../../../components/vyzualz/layout/RailTabs'
 import { DreamVizTextInput } from '../../../components/vyzualz/react/controls/DreamVizTextInput'
 import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
-import { NoticeCard } from '../../../components/vyzualz/react/controls/NoticeCard'
 import { TagPill } from '../../../components/vyzualz/react/controls/TagPill'
 import { Collapsible, SelectRow, TextAreaRow, TextInputRow } from '../../../components/vyzualz/react/ReactControlRows'
 import { parseTags, STATUS_DESCRIPTIONS, STATUS_LABELS, STATUS_ORDER, type AdminPreset, type CatalogPack, type EditProblems, type PresetEdit, type PublicationStatus } from './presetAdmin'
@@ -23,12 +21,9 @@ interface Props {
   shown: ShownPreset
   edit: PresetEdit
   problems: EditProblems
-  /** The edit differs from what is stored. */
-  changed: boolean
   busy: boolean
   packs: readonly CatalogPack[]
   onPatch: (patch: Partial<PresetEdit>) => void
-  onPublish: () => void
   onAddToPack: (packId: string) => void
   onRemoveFromPack: (packId: string) => void
 }
@@ -68,15 +63,13 @@ function TagEditor({ tagsText, onChange, error }: { tagsText: string; onChange: 
  * The editing half of the detail panel: one preset's details, with publishing first. Everything here edits an unsaved draft (so the admin can move to another preset and come
  * back); Save writes it, Publish sets the status to Published and writes the draft in one step.
  */
-export function PresetCatalogInspector({ preset, shown, edit, problems, changed, busy, packs, onPatch, onPublish, onAddToPack, onRemoveFromPack }: Props) {
+export function PresetCatalogInspector({ preset, shown, edit, problems, busy, packs, onPatch, onAddToPack, onRemoveFromPack }: Props) {
   const [tab, setTab] = useState<InspectorTab>('info')
   const [addPack, setAddPack] = useState('')
   const record = preset.record
   const version = presetVersionInfo(record)
   const memberOf = packs.filter(pack => preset.packIds.includes(pack.id))
   const available = packs.filter(pack => !preset.packIds.includes(pack.id))
-  const blocked = Object.keys(problems).length > 0
-  const published = edit.status === 'published'
 
   return (
     <>
@@ -88,10 +81,6 @@ export function PresetCatalogInspector({ preset, shown, edit, problems, changed,
               <>
                 <Collapsible label="Publishing">
                   <SelectRow label="Status" value={edit.status || 'unset'} onChange={value => onPatch({ status: value === 'unset' ? '' : value as PublicationStatus })} options={STATUS_OPTIONS} showOptionDescriptions disabled={busy} />
-                  <div className="adm-publish">
-                    <IconChipButton tone="primary" disabled={busy || blocked} onClick={onPublish}
-                      icon={<AppIcon kind="upload" size={12} color="currentColor" />}>{published && !changed ? 'Published' : changed ? 'Save & Publish' : 'Publish'}</IconChipButton>
-                  </div>
                 </Collapsible>
                 <Collapsible label="Preset Info">
                   <TextInputRow label="Name" value={edit.name} onChange={value => onPatch({ name: value })} maxLength={160} />
@@ -146,11 +135,4 @@ export function PresetCatalogInspector({ preset, shown, edit, problems, changed,
       </div>
     </>
   )
-}
-
-/** A notice for the inspector's footer: what just happened, or why it did not. */
-export function InspectorNotice({ notice, saved }: { notice: string | null; saved: string | null }) {
-  if (notice) return <NoticeCard tone="warning" title="Not saved" role="alert">{notice}</NoticeCard>
-  if (saved) return <NoticeCard tone="success" title="Saved" role="status">{saved}</NoticeCard>
-  return null
 }
