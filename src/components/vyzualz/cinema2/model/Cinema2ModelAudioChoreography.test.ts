@@ -5,14 +5,16 @@ import { Cinema2ChoreographyRuntime } from '../choreography/Cinema2ChoreographyR
 import { Cinema2VisualDirector } from '../director/Cinema2VisualDirector'
 import { Cinema2ParameterState } from '../parameters/Cinema2ParameterState'
 import { Cinema2FinalValueResolver } from '../parameters/Cinema2TargetRuntime'
-import { compileCinema2NativePreset } from '../presets/Cinema2PresetCompiler'
+import { compileCinema2NativePreset, type Cinema2CompiledPresetPlan } from '../presets/Cinema2PresetCompiler'
+import { cinema2NativePresetRegistry } from '../presets/Cinema2PresetRegistry'
+import { createCinema2UserModelPreset } from '../presets/Cinema2UserModelPresetFactory'
 import { CINEMA2_NATIVE_PRESET_SCHEMA_ID, CINEMA2_NATIVE_PRESET_SCHEMA_VERSION, type Cinema2NativePresetManifest, type Cinema2ParameterId, type Cinema2ParameterManifest } from '../contracts/Cinema2NativePresetManifest'
 import type { Cinema2ModuleFrameReadContext } from '../modules/Cinema2ModuleContracts'
 import { ifritMusicFixture, type IfritFixtureOptions } from '../../../../test/support/IfritMusicFixture'
 import { createCinema2ModelAudioParameters, MODEL_AUDIO_TARGETS, MODEL_AUDIO_SLOT_COUNT } from './Cinema2ModelAudioChoreography'
 import { CINEMA2_USER_MODEL_PREVIEWS, type Cinema2UserModelPreviewKind } from './Cinema2UserModelPreviewPatterns'
 
-function harness(kind: Cinema2UserModelPreviewKind = 'form') {
+function harness(kind: Cinema2UserModelPreviewKind = 'form', productionPlan?: Readonly<Cinema2CompiledPresetPlan>) {
   const id = (key: string) => `user-model-${kind}-${key.replace(/[A-Z]/g, c => '-' + c.toLowerCase())}` as Cinema2ParameterId
   const numeric: Cinema2ParameterManifest[] = MODEL_AUDIO_TARGETS.map(key => ({ id: id(key), label: key, type: 'float', defaultValue: 0, min: 0, max: 1, modulatable: true, choreographable: true }))
   const modes = Object.keys(CINEMA2_USER_MODEL_PREVIEWS), patterns = CINEMA2_USER_MODEL_PREVIEWS[kind]
@@ -21,7 +23,7 @@ function harness(kind: Cinema2UserModelPreviewKind = 'form') {
   const manifest = { schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID, schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION, id: `drmvyz.cinema2.phase-four-${kind}`, revision: 1, metadata: { name: 'Audio fixture' }, parameters: [...visual, ...createCinema2ModelAudioParameters(kind, visual)], modules: [{ id: 'fixture-module', typeId: 'three-scene', version: 1, config: { userModelPreview: kind }, parameters: { shardImpulse: 0, representation: 'default' }, parameterBindings: { shardImpulse: { $ref: id('shardImpulse') }, representation: { $ref: id('representation') } } }] } as unknown as Cinema2NativePresetManifest
   const compiled = compileCinema2NativePreset(manifest)
   if (!compiled.ok) throw new Error(JSON.stringify(compiled.diagnostics))
-  const plan = compiled.plan, state = new Cinema2ParameterState(plan.parameters)
+  const plan = productionPlan ?? compiled.plan, state = new Cinema2ParameterState(plan.parameters)
   const resolver = new Cinema2FinalValueResolver(plan.targets, { resolveBaseValue: t => t.parameterId ? state.getValue(t.parameterId) : t.authoredBaseValue })
   const runtime = new Cinema2ChoreographyRuntime(plan, state, resolver), director = new Cinema2VisualDirector()
   let t = 1, n = 1, fixture = ifritMusicFixture({ frameId: n, timeSec: t })
@@ -74,3 +76,18 @@ it('persists a triggered destination and reassembles on a fresh canonical event 
   h.frame({ event: 'beat', eventId: 77 }, .2); assert.equal(h.value('representation'), 'dust')
   h.frame({ event: 'beat', eventId: 78 }, .2); assert.equal(h.value('representation'), 'default')
 })
+
+for (const kind of Object.keys(CINEMA2_USER_MODEL_PREVIEWS) as Cinema2UserModelPreviewKind[]) {
+  it(`routes a canonical kick through the registered ${kind} preview without mutating saved state`, () => {
+    const compiled = cinema2NativePresetRegistry.compile(createCinema2UserModelPreset(kind).id)
+    if (!compiled.ok) throw new Error(JSON.stringify(compiled.diagnostics))
+    const h = harness(kind, compiled.plan)
+    h.enable(); h.frame(); h.frame({ event: 'kick', eventId: 2 })
+    assert.ok(Number(h.value('shardImpulse')) > .2)
+    // The persistent parameter has a .01 step; the module target retains continuous precision.
+    assert.ok(Math.abs(Number(h.value('shardImpulse')) - Number(h.value('shardImpulse', true))) <= .01)
+    assert.equal(h.state.getValue(h.id('shardImpulse')), 0)
+    h.edit('audioMappingsEnabled', false); h.frame()
+    assert.equal(h.value('shardImpulse'), 0)
+  })
+}

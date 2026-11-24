@@ -1,3 +1,4 @@
+import { validateCinema2RuntimeParameterConsumers } from './Cinema2RuntimeParameterConsumers'
 import { CINEMA2_DESIGN_PARENT_GROUP_IDS } from '../contracts/Cinema2NativePresetManifest'
 import type {
   Cinema2CapabilityId,
@@ -94,7 +95,9 @@ export function validateCinema2PresetAuthoringConventions(
     }
   }
 
-  const consumers = collectParameterConsumers(manifest)
+  const runtime = validateCinema2RuntimeParameterConsumers(manifest)
+  diagnostics.push(...runtime.diagnostics)
+  const consumers = new Set([...collectParameterConsumers(manifest), ...runtime.consumers])
   for (const [index, parameter] of (manifest.parameters ?? []).entries()) {
     if (!isUserFacingParameter(parameter.exposure)) continue
 
@@ -123,7 +126,7 @@ export function validateCinema2PresetAuthoringConventions(
     if (consumers.has(parameter.id)) continue
     diagnostics.push(error(
       'CINEMA2_PRESET_AUTHORING_CONTROL_UNCONSUMED',
-      `User-facing parameter "${parameter.id}" is not connected through a schema binding, control binding, choreography route, or authored target.`,
+      `User-facing parameter "${parameter.id}" is not connected through a schema binding, control binding, choreography route, authored target, or registered runtime parameter consumer.`,
       `$.parameters[${index}]`,
     ))
   }

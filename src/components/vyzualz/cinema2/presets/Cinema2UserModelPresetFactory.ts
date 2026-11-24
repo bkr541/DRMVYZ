@@ -122,6 +122,7 @@ export function createCinema2UserModelPreset(kind: Cinema2UserModelPreviewKind):
     ] },
     environment: { ...background, controls: { backgroundColor: cinema2Ref(id('background')), fogColor: cinema2Ref(id('cinematicFogColor')), fogDensity: cinema2Ref(id('cinematicFogDensity')) } },
     parameters: [...parameters, ...audioParameters],
+    runtimeParameterConsumers: [{ owner: 'model-audio-choreography', parameterIds: audioParameters.map(parameter => parameter.id) }],
     modules: [{ id: moduleId, typeId: CINEMA2_THREE_SCENE_MODULE_TYPE_ID, version: 1, parameters: { ...moduleParameters, userModel: 'default-model' }, parameterBindings: { ...bindings, userModel: cinema2Ref(id('model')) }, config: { ...base.moduleConfig, ...{ environment: CINEMA2_STUDIO_NEUTRAL_ENVIRONMENT_ASSET_ID, userModel: { ...base.moduleConfig.userModel, neutralFloor: false } }, userModelPreview: kind, hdr: true } }],
     ...createCinema2ModelCinematicGraph(prefix, id, base.root),
   }

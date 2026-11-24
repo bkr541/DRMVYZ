@@ -1,4 +1,5 @@
-import type { Cinema2ChoreographyContinuousSourcePath, Cinema2JsonValue, Cinema2ParameterId, Cinema2ParameterManifest } from '../contracts/Cinema2NativePresetManifest'
+import { MODEL_AUDIO_SLOT_COUNT, modelAudioSlotKey, modelAudioParameterId as idFor, resolveCinema2ModelAudioKind } from './Cinema2ModelAudioParameterContract'
+import type { Cinema2ChoreographyContinuousSourcePath, Cinema2JsonValue, Cinema2ParameterManifest } from '../contracts/Cinema2NativePresetManifest'
 import type { Cinema2ModuleFrameReadContext } from '../modules/Cinema2ModuleContracts'
 import type { Cinema2CompiledPresetPlan } from '../presets/Cinema2PresetCompiler'
 import type { Cinema2ParameterState } from '../parameters/Cinema2ParameterState'
@@ -28,13 +29,11 @@ const defaults: readonly [ModelAudioSource, ModelAudioTarget, number, number, nu
   ['snare', 'cinematicAccentIntensity', .35, 0, .25], ['bass', 'cinematicRim', .35, 0, .5], ['build', 'cinematicBloom', .35, .06, .22],
   ['build', 'dustTurbulence', .65, .1, .85], ['kick', 'dustImpulse', .75, 0, 1], ['build', 'hologramInterference', .55, 0, .7],
 ]
-export const MODEL_AUDIO_SLOT_COUNT = 12
 export const MODEL_AUDIO_CURVES = ['linear', 'easeIn', 'easeOut', 'easeInOut', 'exponential'] as const
 export const MODEL_AUDIO_QUANTIZATION = ['none', 'beat', 'bar', 'phrase'] as const
 export const MODEL_AUDIO_PROFILES = ['KINETIC', 'CASCADE', 'ORBIT', 'DISINTEGRATE', 'SIGNAL', 'METAMORPH'] as const
 const title = (s: string) => s.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/-/g, ' ').replace(/^./, c => c.toUpperCase())
-const idFor = (kind: Cinema2UserModelPreviewKind, key: string) => `user-model-${kind}-${key.replace(/[A-Z]/g, c => '-' + c.toLowerCase())}` as Cinema2ParameterId
-export const modelAudioSlotKey = (i: number, name: string) => `audioMap${i + 1}${name}`
+export { MODEL_AUDIO_SLOT_COUNT, modelAudioSlotKey } from './Cinema2ModelAudioParameterContract'
 
 /** Additive persistent schema, with no extra transport, Pattern or Trigger controls. */
 export function createCinema2ModelAudioParameters(kind: Cinema2UserModelPreviewKind, visual: readonly Cinema2ParameterManifest[]): Cinema2ParameterManifest[] {
@@ -129,8 +128,8 @@ export class Cinema2ModelAudioChoreography {
     }
   }
   static create(plan: Readonly<Cinema2CompiledPresetPlan>, state: Cinema2ParameterState): Cinema2ModelAudioChoreography | null {
-    const kind = plan.manifest.modules?.find(m => isCinema2UserModelPreview(m.config?.userModelPreview))?.config?.userModelPreview
-    return isCinema2UserModelPreview(kind) && state.getDefinition(idFor(kind, 'audioMappingsEnabled')) ? new Cinema2ModelAudioChoreography(kind, plan, state) : null
+    const kind = resolveCinema2ModelAudioKind(plan.manifest)
+    return kind && state.getDefinition(idFor(kind, 'audioMappingsEnabled')) ? new Cinema2ModelAudioChoreography(kind, plan, state) : null
   }
   reset(): void {
     this.routes.clear(); this.seen.clear(); this.last = null; this.mode = null; this.directorSignature = null; this.lastTransitionTime = -Infinity; this.phaseIndex = 0; this.sectionId = null; this.sectionMode = null; this.pendingMode = null; this.phraseMaterialActive = false; this.phraseMaterialSignature = null; this.manualTransitionSignature = null; this.manualTransitionActive = false; this.manualTransitionAt = -Infinity

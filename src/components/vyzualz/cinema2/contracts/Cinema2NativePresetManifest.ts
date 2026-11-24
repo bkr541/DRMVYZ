@@ -943,6 +943,13 @@ export interface Cinema2OutputManifest {
   config?: Cinema2JsonObject
 }
 
+/** Explicit input declaration for a registered direct runtime reader. */
+export interface Cinema2RuntimeParameterConsumerManifest {
+  /** Registered direct reader, not a module property or a modulation target. */
+  owner: 'model-audio-choreography'
+  parameterIds: readonly Cinema2ParameterId[]
+}
+
 /**
  * One native, versioned Cinema 2.0 preset shape. Optional subsystems stay truly
  * optional so a minimal preset is not forced to author unused engine domains.
@@ -955,6 +962,7 @@ export interface Cinema2NativePresetManifest {
   metadata: Cinema2PresetMetadataManifest
   capabilities?: readonly Cinema2CapabilityRequirement[]
   parameters?: readonly Cinema2ParameterManifest[]
+  runtimeParameterConsumers?: readonly Cinema2RuntimeParameterConsumerManifest[]
   mediaSlots?: readonly Cinema2MediaSlotManifest[]
   modules?: readonly Cinema2ModuleManifest[]
   scene?: Cinema2SceneManifest

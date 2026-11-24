@@ -1,3 +1,4 @@
+import { validateCinema2RuntimeParameterConsumers } from './Cinema2RuntimeParameterConsumers'
 import { validateCinema2MoodPolicyParameters } from '../conductor/Cinema2MoodPolicy'
 import {
   CINEMA2_CAPABILITY_IDS,
@@ -171,6 +172,7 @@ export function compileCinema2NativePreset(
   diagnostics.push(...expansion.diagnostics.map(diagnostic => ({ ...diagnostic, severity: 'error' as const })))
   const manifest = expansion.manifest
   validateOptionalContainers(manifest, diagnostics)
+  diagnostics.push(...validateCinema2RuntimeParameterConsumers(manifest).diagnostics)
   const index = buildManifestIndex(manifest, diagnostics)
   validateCapabilities(manifest, compileOptions, diagnostics)
   diagnostics.push(...validateCinema2ParameterDefinitions(manifest).map(diagnostic => ({ ...diagnostic, severity: 'error' as const })))
