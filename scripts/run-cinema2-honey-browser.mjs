@@ -4,7 +4,7 @@ import { mkdir,writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { chromium } from '@playwright/test'
 import sharp from 'sharp'
-const port=48500+process.pid%1000,url=`http://127.0.0.1:${port}/src/test/browser/cinema2-honey-production.html`,output=path.resolve('artifacts/cinema2-honey/p03')
+const port=48500+process.pid%1000,url=`http://127.0.0.1:${port}/src/test/browser/cinema2-honey-production.html`,output=path.resolve('artifacts/cinema2-honey/p04')
 const server=spawn(process.execPath,['node_modules/vite/bin/vite.js','--host','127.0.0.1','--port',String(port),'--strictPort'],{stdio:['ignore','pipe','pipe']})
 let log='',browser;server.stdout.on('data',v=>log+=v);server.stderr.on('data',v=>log+=v)
 try{
@@ -38,5 +38,21 @@ try{
   }
   for(let i=0;i<frames.length;i++)for(let j=i+1;j<frames.length;j++)assert(frames[i].some((v,k)=>v!==frames[j][k]),'Distinct pattern captures required')
   await api('pause');const held=await capture('paused');await page.waitForTimeout(400);assert.deepEqual(await capture('paused-hold'),held)
-  await api('stop');await api('reset');await api('prepare');await capture('returned-idle');await api('dispose');assert.deepEqual(errors,[]);console.log(`HONEY production captures: ${output}`)
+  await api('stop');await api('reset');await api('prepare');await capture('returned-idle');
+  await api('set','camera-motion',false);await api('play',120,false);await api('audioFixture');await page.waitForTimeout(250)
+  const audioInspect=async()=>{const s=await api('prepare');const audio=s.modules.modules.find(m=>m.moduleId==='honey-wall')?.inspection?.audio;assert(audio,'Expected native HONEY audio diagnostics');return audio}
+  await capture('audio-silence');const baselineAudio=await audioInspect();assert.equal(baselineAudio.available,true)
+  for(const band of ['sub','bass','lowMid','mid','high','air']){
+    await api('audioFixture',{band});await page.waitForTimeout(350);await capture(`audio-${band}`)
+    assert((await audioInspect()).channels[band]>.8,`Expected routed ${band}`)
+  }
+  await api('audioFixture',{band:'bass',vocal:true});await page.waitForTimeout(350);await capture('audio-vocal-restraint')
+  for(const cue of ['kick','snare','downbeat','phrase','drop']){
+    await api('audioFixture',{energy:.7});await page.waitForTimeout(100);const prior=(await audioInspect()).consumed
+    await api('audioFixture',{cue,energy:.7});await capture(`cue-${cue}`);const after=await audioInspect();assert.equal(after.consumed,prior+1,`Expected ${cue} once`)
+    await page.waitForTimeout(100);assert.equal((await audioInspect()).consumed,after.consumed,'Held event must not replay')
+  }
+  await api('set','audio-reactivity',0);await api('audioFixture',{band:'sub',cue:'kick'});await capture('audio-off');const muted=await audioInspect();assert.equal(muted.envelopes.length,0);assert(Object.values(muted.channels).every(v=>v===0))
+  await api('set','audio-reactivity',.8);await api('audioSeek',0);assert.equal((await audioInspect()).envelopes.length,0)
+  await api('stop');await api('reset');await api('prepare');await capture('audio-returned-idle');await api('dispose');assert.deepEqual(errors,[]);console.log(`HONEY production captures: ${output}`)
 }finally{await browser?.close();server.kill()}

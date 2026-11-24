@@ -24,6 +24,9 @@ describe('HONEY fixed industrial finishes',()=>{
     expect(HONEY_VERTEX).toContain('v_local=a_position')
     expect(HONEY_FRAGMENT).toContain('grain(v_local.xy,v_finish.y,finish)')
     expect(HONEY_FRAGMENT).toContain('fwidth(x)')
-    expect(HONEY_FRAGMENT).not.toMatch(/sampler2D\s+u_/)
+    // P03 introduced a runtime pose data texture, not a material asset. Guard all other 2D samplers.
+    expect([...HONEY_FRAGMENT.matchAll(/sampler2D\s+(u_\w+)/g)].map(m=>m[1])).toEqual(['u_poses'])
+    expect(HONEY_FRAGMENT).toContain('texelFetch(u_poses')
+    expect(HONEY_FRAGMENT).not.toMatch(/texture\s*\(\s*u_poses/)
   })
 })

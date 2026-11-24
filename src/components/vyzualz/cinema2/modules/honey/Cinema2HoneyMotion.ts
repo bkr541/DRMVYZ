@@ -40,3 +40,11 @@ export function advanceHoneyCell(state:HoneyCellState,target:HoneyVisualCell,dt:
   for(const key of keys)state.velocity[key]=(next.pose[key]-prior.pose[key])/dt
   state.current=next
 }
+
+/** Audio-only pose contribution, kept out of authored pattern state and transition snapshots. */
+export function honeyAudioPose(base:HoneyVisualCell,k:HoneyMotionControls,kinetic:number,z:number,tilt:number,lateral:number):HoneyPose{
+  if(k.motion===0||kinetic===0||(!z&&!tilt&&!lateral))return base.pose
+  const elevation=Math.max(HONEY_MIN_ELEVATION,Math.min(HONEY_MAX_ELEVATION,base.pose.elevation+Math.max(-.35,Math.min(.38,z))*kinetic*k.elevation))
+  const raised=clamp((elevation-.68)/.23)
+  return constrainHoneyPose({...base.pose,elevation,tiltX:base.pose.tiltX+Math.max(-.5,Math.min(.5,tilt))*kinetic*k.tilt*HONEY_MAX_TILT*raised,x:base.pose.x+lateral*kinetic*k.separation*raised})
+}

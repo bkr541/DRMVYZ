@@ -248,3 +248,70 @@ node scripts/run-cinema2-honey-browser.mjs
 ### P03 exact changed files
 
 C2: `modules/Cinema2HoneyNativeModule.ts`; `modules/honey/Cinema2HoneyLayout.ts`, `Cinema2HoneyMotion.ts`, `Cinema2HoneyOrchestration.ts`, `Cinema2HoneyPatterns.ts`, `Cinema2HoneyRenderer.ts`, `Cinema2HoneyShaders.ts`; `presets/Cinema2HoneyPreset.ts`; `__tests__/Cinema2HoneyPreset.test.ts`, `Cinema2HoneyControls.test.ts`, `Cinema2HoneyPatterns.test.ts`. Root: `docs/cinema2-honey.md`, `scripts/run-cinema2-honey-browser.mjs`, `src/test/browser/Cinema2HoneyProductionBrowserHarness.ts`. No other files, no binary assets or new libraries.
+
+## P04: standard Audio Intelligence and event choreography
+
+P04 builds on the supplied P03 baseline (`c1bd77e8b79f4209ed8619e32b377abec9ef18fd` ZIP comment). Arrival of this prompt approves earlier patches only; outstanding P03 production verification remains outstanding. P04 is an implementation candidate, not a human-approved visual or release gate. Identity, eight selectable patterns, camera, materials, geometry, renderer, resource ownership, effect graph, catalog role and previous saved values are unchanged. No shared file or other preset is modified.
+
+### A: continuous mapping and authority
+
+`presets/Cinema2HoneyChoreography.ts` declares ten unique `continuous` replace routes, using existing shared source paths, optional capabilities, and unbound native numeric module targets initialized to zero. The actual bridge, source-path union and shared choreography implementation support both `audio.bands.lowMid` and `audio.bands.air`; no substitute paths were needed. The shared resolver removes transient contributions when a signal is absent, so native targets return to neutral; `Cinema2HoneyAudio` reads resolved values only, with 75 ms visual attack / 220 ms release time constants. Its availability diagnostic distinguishes available measured zero from unavailable routed signals, without using raw audio values to duplicate shared routes. No independent clock, FFT, genre model or detector. `audio.transport`, `audio.bands`, `audio.features`, `music.vocal-presence`, `music.build`, and `music.section` are new optional declarations; all prior beat/rhythm/grid/drop capabilities are retained. The shared capability gate for build requires available structural build confidence; build progress itself is the separate canonical continuous signal.
+
+| Shared source | Module target | Native visual role |
+|---|---|---|
+| audio.bands.sub | sub | sustained axial pressure, varied underlight |
+| audio.bands.bass | bass | clustered extension/retraction, bounded local lateral offset and underlight |
+| audio.bands.lowMid | lowMid | regional plate activation and outer channels |
+| audio.bands.mid | mid | alternating small tilts and inner channels |
+| audio.bands.high | high | fine seeded inner-channel accents |
+| audio.bands.air | air | sparser independent fine glints |
+| audio.features.spectralFlux | flux | localized outer detail |
+| audio.features.overallEnergy | energy | expanding seeded regional light coverage |
+| audio.features.vocalPresence | vocal | attenuate kinetic audio additions, up to 55%, not authored pattern or palette |
+| audio.features.buildProgress | tension | restrained axial compression and underlight tension, no pattern takeover |
+
+New Master Controls / Motion slider `honey-audio-reactivity` (`audioReactivity`): 0–1, step .01, default .8, preset-persistent, reset to authored default, live binding to native module. Existing catalog coverage adds only its standard multiplicative mood drives (zero stays zero). Phase 05 adds the full Director/Auto Performance work; there are no new Director intensity routes in P04. Motion Amount zero holds actual prior rendered poses on ordinary updates; lighting still reacts. Reactivity zero clears audio state and removes audio overlays without feeding them into the base pose or pattern-transition snapshots; if both motion and reactivity are off, frozen poses take precedence until motion is permitted. Master Intensity and each physical channel gain remain applied once by the existing renderer; color edits remain independent. Per-cell additions are clamped to existing physical emitter ceilings and coverage; `honeyAudioPose` uses the existing solver and axis permissions. Fixed sleeves/finish/seed identity remain intact. No new user-facing light or geometry controls, no persistent writes. BPM sync remains composed by the native shared clock; no choreography tempo-sync declaration is added because that shared option substitutes clock ticks for canonical beat/bar/phrase sources. Thus unsynced procedural movement does not suppress ordinary canonical audio events.
+
+### B: canonical cue/action dispatch
+
+Hidden `honey-musical-cue` is a runtime-only trigger in React/Runtime, bound to module action `musicalCue`. Shared `spawn` dispatch uses the existing event ID plus the action ID, as in BLOCKSHIFT. HONEY consumes the typed action payload through `handleAction`, checks identity and recognized kind, then passes the bounded queue to native visual envelopes. Kick/snare strength is read from the same canonical dispatched rhythm event (not a second detector). Other spawn actions use fixed authored cue strength because the shared payload does not expose strength. Shared `not-silent` gates beat/downbeat/bar/phrase; drop and build remain canonical exceptions, as in existing shared authoring. Build cue uses shared threshold .6; section-change uses the shared Director transition identity only (no Phase 05 significance overlay). Visual envelope durations are seconds, independently authored attack/hold/release:
+
+| Cue | A/H/R (s) | Visual role |
+|---|---|---|
+| kick | .035/.045/.24 | localized extension and underlight |
+| snare | .025/.06/.23 | separate alternating cell retraction and inner flash |
+| beat | .045/.025/.15 | sparse cell accents |
+| downbeat | .07/.09/.40 | coordinated regional displacement and channels |
+| bar | .12/.10/.55 | regional tilt / outer detail |
+| phrase | .20/.18/.75 | contrasting regional elevation and underlight |
+| section-change | .18/.22/.85 | local tilt / inner accents |
+| build | .25/.20/.65 | local compression and underlight |
+| drop | .055/.14/.80 | bounded regional expansion, contrast and channels |
+
+Event masks derive from canonical action identity and immutable cell/cluster coordinates; no per-frame randomness. Envelopes are capped at 64, seen IDs at 2048; dedup is in addition to the shared dispatcher and is scoped to the current discontinuity. Paused frames consume held identities without firing and hold the existing visual state; resume, source/track/generation changes, seek/loop (including shared discontinuity flags), and relevant control edit revisions suppress the boundary event and clear volatile envelopes. Shared pattern switching continues independently (may legitimately occur on the same canonical event). No event changes saved pattern or overrides selected program. The base transition snapshot contains only procedural states, never the already-reactive output, preventing duplicate contributions. No new event bus or local trigger ladder is introduced. Explicit reset/stop returns to neutral base composition.
+
+### Validation and visual observations
+
+- Raw and catalog-coverage HONEY manifests compiled with `compileCinema2NativePreset`; `validateCinema2PresetAuthoringConventions({role:'reference',manifest})` passed both. Existing coverage test reports no unbound eligible controls or remaining coverage drives. Registry/catalog integration tests cannot import missing `@supabase/supabase-js` here; HONEY catalog entry and native registration remain unchanged.
+- New `Cinema2HoneyAudio.test.ts`: seven cases executed with the actual TypeScript implementations via a temporary transpilation loader and minimal local assertion adapter. The test fixture uses the real MI bridge, compiler, resolved target pipeline, Director, shared choreography dispatch, native module lifecycle and shared camera; renderer injection captures native cell records, not simulated pixels. Tests exercised unique target/capability bindings; all six bands plus flux, energy and tension at matched time; vocal attenuation; missing signals/available silence; all nine cues including build threshold, phrase/drop markers and Director section transition; held ID suppression; simultaneous pattern switch/cue; both BPM permissions disabled; saved-state invariance; mute/freeze/light; pause/resume/seek/track/Trigger edits/re-entry. Seven passed. Combined unchanged focused tests plus the HONEY-only material regression correction passed 66 cases using the adapter (not a Vitest execution). The previous material test rejected every `sampler2D`, which was already false in the P03 baseline because `u_poses` is a runtime pose data texture; the corrected test explicitly allows only that data sampler and guards against material texture sampling. No shared tests altered.
+- `npm ci --ignore-scripts --no-audit --no-fund --fetch-retries=0` did not complete installation (npm exit-handler error); `npm ci --offline --ignore-scripts --no-audit --no-fund` failed ENOTCACHED for `zustand@5.0.13`. `npm exec --offline -- vitest run src/components/vyzualz/cinema2/__tests__/Cinema2HoneyAudio.test.ts` failed ENOTCACHED for Vitest. Targeted strict `tsc` with temporary config excluding absent Vite types reported no HONEY production-file diagnostics; missing dependency/type errors remain (including Vitest, React and React DOM), so full typecheck is not passed. `node --check scripts/run-cinema2-honey-browser.mjs` passed. Production harness now injects actual typed MI bridge fixtures and captures bands/events/mute/seek on the real registered runtime, retaining P03 captures. Launch blocked by `ERR_MODULE_NOT_FOUND: @playwright/test`. Separate bare Chromium isolated WebGL launch also failed ANGLE EGL initialization. No production screenshot or actual track playback verified.
+- Isolated native GPU diagnostic: Mesa llvmpipe OpenGL ES 3.2 compiled and linked both unchanged actual HONEY world and shadow shaders. Eleven 640×360 depth-tested RGBA8 native world draws used the real authored mesh, camera matrix, resolved native module cell/neighbor/pose records and actual shader, with the renderer's fallback light values and fallback shadow texture, no shared postprocess or executed shadow pass. Zero GL errors. Visually inspected montage: dark graphite-blue cells and narrow warm channels remain throughout; sub lifts selected clusters, bass changes a different distribution of elevations, low-mid adds regional warmth, mid and high show restrained inner details, air is particularly subtle. Kick and snare affect distinct areas; drop opens a stronger regional depth contrast. The mute and available silence captures are pixel-identical. Mean absolute RGB differences versus silence (0–255 units): sub 7.885, bass 10.720, low-mid 1.695, mid .993, high .395, air .112, kick 3.164, snare 1.976, drop 6.311, muted 0. These diagnostics do not establish full production finishing, temporal aesthetic approval, or actual hardware FPS.
+- Only repository ZIP attached in this turn; prior source video was not available in the upload or recovered from Library title search. Original 6.2367 s reference observations recorded in P01 remain the design basis. No fresh decoding or claim of audio/instrument mapping from the reference. No video or diagnostic image included in the patch.
+
+| Gate | Result |
+|---|---|
+| A continuous mapping, target/capability binding and matched-time differentiation | Focused code and native draw diagnostics pass; production canvas/actual track and fresh reference decode unavailable. |
+| B canonical cue dispatch, identity, transport and authority | Focused runtime tests pass for all nine cues and lifecycle boundaries; full production playback/capture unverified. |
+| P04 regression | 66 focused cases pass via local adapter; real Vitest/full registry/typecheck blocked by unavailable packages. Native GPU diagnostic passes. |
+| P04 final | Candidate patch; complete production acceptance gate remains unverified. No human approval or release claim. |
+
+Next prerequisite: after applying P04, run actual Vitest and production browser captures with installed dependencies; inspect original reference and the combined real production output. Then P05 may extend shared Director significance and standard Auto Performance only, without revisiting the earlier patch unless a specific HONEY-only defect is discovered. Commands from project root:
+
+```sh
+npx vitest run src/components/vyzualz/cinema2/__tests__/Cinema2Honey{Audio,Preset,Layout,Geometry,Materials,Lighting,LocalLight,Controls,Patterns}.test.ts src/components/vyzualz/cinema2/__tests__/Cinema2{ChoreographyRuntime,TargetRegistryResolver,PatternControlPolicy,MainframePatternController,AutoPerformanceInventory}.test.ts
+node scripts/run-cinema2-honey-browser.mjs
+```
+
+P04 changed files (C2 relative unless root): `presets/Cinema2HoneyChoreography.ts`, `presets/Cinema2HoneyPreset.ts`, `modules/honey/Cinema2HoneyAudio.ts`, `modules/honey/Cinema2HoneyMotion.ts`, `modules/honey/Cinema2HoneyLighting.ts`, `modules/honey/Cinema2HoneyOrchestration.ts`, `modules/Cinema2HoneyNativeModule.ts`, `__tests__/Cinema2HoneyAudio.test.ts`, `__tests__/Cinema2HoneyMaterials.test.ts`; root `src/test/browser/Cinema2HoneyProductionBrowserHarness.ts`, `scripts/run-cinema2-honey-browser.mjs`, `docs/cinema2-honey.md`. No binaries, shared contract changes or additional dependencies.
+
+Single-patch verification: the staged whitespace check passed; `git apply --check` and actual indexed application succeeded on a pristine disposable worktree of the supplied baseline, and the resulting full-index binary diff matched the generated patch byte-for-byte.

@@ -35,3 +35,9 @@ export function honeyReadLightControls(get:(key:string)=>unknown):HoneyLightCont
     const value=get(key);return [key,typeof value==='number'&&Number.isFinite(value)?Math.max(0,Math.min(HONEY_LIGHT_RANGES[key as keyof HoneyLightControls],value)):base]
   })) as HoneyLightControls
 }
+
+/** Per-cell audio accents preserve authored hue and individual physical channel ceilings.
+ * The renderer still applies the user's independent gains and Master Intensity exactly once. */
+export function honeyAudioChannels(base:HoneyCell['channels'],accents:HoneyCell['channels'],gain:number,coverage:number):HoneyCell['channels']{
+  return accents.map((v,i)=>Math.max(0,Math.min(1,base[i]!+Math.min(.65,v)*gain*coverage*(1-base[i]!*.65)))) as [number,number,number]
+}

@@ -6,22 +6,26 @@ import type { Cinema2ModuleUpdateContext } from '../Cinema2ModuleContracts'
 import { HONEY_PATTERN_IDS } from './Cinema2HoneyDomain'
 import { sampleHoneyPattern,type HoneyPattern } from './Cinema2HoneyPatterns'
 import { advanceHoneyCell,blendHoneyCell,createHoneyCellState,HONEY_MOTION_DEFAULTS,targetHoneyCell,type HoneyMotionControls,type HoneyVisualCell } from './Cinema2HoneyMotion'
+import { Cinema2HoneyAudio,HONEY_AUDIO_DEFAULTS,HONEY_AUDIO_REACTIVITY,type HoneyAudioChannels,type HoneyCue } from './Cinema2HoneyAudio'
 import type { HoneyCell } from './Cinema2HoneyLayout'
 
 export class Cinema2HoneyOrchestration {
   private readonly clock=new Cinema2BeatClock()
   private readonly policy=new Cinema2PatternControlResolver<Cinema2AfterhoursTriggerId>()
   private readonly controller=new Cinema2MainframePatternController<HoneyPattern>(HONEY_PATTERN_IDS,'cascade')
+  private readonly audio=new Cinema2HoneyAudio()
+  private priorCueControls:string|null=null
   private states
   private identity='';private lastTime:number|null=null;private lastBeat:number|null=null;private phase=0;private activePattern:HoneyPattern='cascade';private authored:HoneyPattern='cascade'
   private snapshot:readonly HoneyVisualCell[]|null=null;private transitionBeat=0;private transitionLength=1
   private observedEvents=new Map<Cinema2AfterhoursTriggerId,string>();private wasActive=false
   cells:readonly HoneyVisualCell[]
   constructor(private readonly layout:readonly HoneyCell[]){this.states=layout.map(createHoneyCellState);this.cells=this.states.map(s=>s.current)}
-  update({frame,parameters}:Cinema2ModuleUpdateContext){
+  update({frame,parameters}:Cinema2ModuleUpdateContext,cues:readonly HoneyCue[]=[]){
+    const previousVisual=this.cells
     const time=frame.transport?.timeSec??frame.audio?.upstream.timeSec??frame.elapsedTimeSec
     const identity=JSON.stringify([frame.contextGeneration,frame.transport?.sourcePresent,frame.transport?.trackId,frame.audio?.upstream.sourceId,frame.audio?.upstream.publisherId,frame.audio?.discontinuity.generation,frame.audio?.upstream.analysisRevision,frame.audio?.upstream.timelineRevision])
-    const reset=identity!==this.identity||(this.lastTime!=null&&(time<this.lastTime-.035||time-this.lastTime>Math.max(1,frame.deltaTimeSec*6)))
+    const reset=identity!==this.identity||!!(frame.audio?.discontinuity.occurred&&frame.audio.discontinuity.reason!=='activation')||(this.lastTime!=null&&(time<this.lastTime-.035||time-this.lastTime>Math.max(1,frame.deltaTimeSec*6)))
     if(reset){this.clock.reset();this.policy.reset();this.controller.reset();this.lastBeat=null;this.phase=0;this.snapshot=null;this.observedEvents.clear();this.wasActive=false;this.states=this.layout.map(createHoneyCellState);this.cells=this.states.map(s=>s.current)}
     const active=frame.transport?frame.transport.sourcePresent&&frame.transport.playing&&frame.transport.animationActive&&!frame.transport.paused:!!frame.audio
     const present=frame.transport?.sourcePresent??!!frame.audio
@@ -40,12 +44,21 @@ export class Cinema2HoneyOrchestration {
     if(event)this.observedEvents.set(controls.trigger,event)
     const silentHold=!reset&&authored===this.authored&&auto&&controls.automatic&&!controls.patternChange&&(frame.mood?.silence??0)>.5
     const selected=silentHold?null:this.controller.update({authoredPattern:authored,patternChange:controls.patternChange,trigger:controls.trigger,triggerEventId:fresh&&this.wasActive?event:null,absoluteBeat:beat,reset})
-    if(selected&&selected.activePattern!==this.activePattern){this.snapshot=this.cells;this.transitionBeat=beat;this.transitionLength=[.5,1,2,4].includes(Number(k.transition))?Number(k.transition):1;this.phase=0;this.activePattern=selected.activePattern}
+    if(selected&&selected.activePattern!==this.activePattern){this.snapshot=this.states.map(s=>s.current);this.transitionBeat=beat;this.transitionLength=[.5,1,2,4].includes(Number(k.transition))?Number(k.transition):1;this.phase=0;this.activePattern=selected.activePattern}
     if(active&&this.lastBeat!=null)this.phase+=Math.max(0,Math.min(1,beat-this.lastBeat))*k.rate
+    const raw=parameters.get('audioReactivity'),reactivity=parameters.getAuthored('audioReactivity')===0?0:typeof raw==='number'&&Number.isFinite(raw)?Math.max(0,Math.min(1,raw)):HONEY_AUDIO_REACTIVITY
+    const cueControls=JSON.stringify([parameters.getEditRevision?.('audioReactivity')??reactivity,parameters.getEditRevision?.('trigger')??trigger,parameters.getEditRevision?.('patternChange')??(parameters.get('patternChange')===true),trigger,controls.trigger])
+    const boundary=this.priorCueControls!==null&&cueControls!==this.priorCueControls
+    this.priorCueControls=cueControls
+    const channels=Object.fromEntries(Object.keys(HONEY_AUDIO_DEFAULTS).map(key=>{const v=parameters.get(key);return [key,typeof v==='number'&&Number.isFinite(v)?v:0]})) as HoneyAudioChannels
+    const audio=frame.audio
+    // Availability is diagnostic only: values are read from shared resolved targets, never raw bands.
+    const available=!!audio&&(Object.values(audio.bands??{}).some(v=>v.available)||[audio.features?.spectralFlux,audio.features?.overallEnergy,audio.features?.vocalPresence,audio.features?.buildProgress].some(v=>v?.available))
+    this.audio.update({channels,cues,active:active&&!!audio,reset:reset||!audio||!present,boundary,deltaSeconds:dt,reactivity,available})
     if(active){
       const t=this.snapshot?Math.max(0,Math.min(1,(beat-this.transitionBeat)/this.transitionLength)):1
       const mix=t*t*(3-2*t),beatSeconds=60/(clock.locked&&clock.bpm?clock.bpm:120)
-      this.states.forEach((state,i)=>{const c=this.layout[i]!,sample=sampleHoneyPattern(this.activePattern,c,this.phase,k.width,k.delay,beatSeconds);let target=targetHoneyCell(c,sample,k);if(this.snapshot)target=blendHoneyCell(this.snapshot[i]!,target,mix);advanceHoneyCell(state,target,dt,k)});this.cells=this.states.map(s=>s.current)
+      this.states.forEach((state,i)=>{const c=this.layout[i]!,sample=sampleHoneyPattern(this.activePattern,c,this.phase,k.width,k.delay,beatSeconds);let target=targetHoneyCell(c,sample,k);if(this.snapshot)target=blendHoneyCell(this.snapshot[i]!,target,mix);advanceHoneyCell(state,target,dt,k)});this.cells=this.states.map((s,i)=>{const output=this.audio.apply(s.current,k);if(k.motion===0&&!reset){const pose=previousVisual[i]!.pose;return {...output,pose,elevation:pose.elevation}}return output})
       if(t===1)this.snapshot=null
     }
     // Explicit selection is also a deterministic still preview while stopped/paused.
@@ -58,7 +71,8 @@ export class Cinema2HoneyOrchestration {
         state.target=state.current;return state
       });this.cells=this.states.map(s=>s.current);this.snapshot=null
     }
+    if(!active&&reactivity===0){this.cells=this.states.map((s,i)=>k.motion===0&&!reset?{...s.current,pose:previousVisual[i]!.pose,elevation:previousVisual[i]!.pose.elevation}:s.current)}
     this.identity=identity;this.lastTime=time;this.lastBeat=beat;this.authored=authored;this.wasActive=active
   }
-  inspect(){return {...this.policy.inspect(),activePattern:this.activePattern,phase:this.phase,locked:this.clock.getState().locked,transitioning:this.snapshot!==null}}
+  inspect(){return {...this.policy.inspect(),activePattern:this.activePattern,phase:this.phase,locked:this.clock.getState().locked,transitioning:this.snapshot!==null,audio:this.audio.inspect()}}
 }
