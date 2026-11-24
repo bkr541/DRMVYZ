@@ -12,6 +12,7 @@ export class Cinema2UserModelHologram {
   readonly color: { value: Three.Color }
   readonly accent: { value: Three.Color }
   readonly strength = { value: 1 }
+  readonly lineDensity = { value: 1 }
   readonly echoes: Three.Group[] = []
   readonly materials: Three.LineBasicMaterial[] = []
   edgeProblem: string | null = null
@@ -31,13 +32,13 @@ export class Cinema2UserModelHologram {
       const local = { value: new T.Matrix4().makeScale(1 / prepared.extent, 1 / prepared.extent, 1 / prepared.extent).multiply(centered).multiply(mesh.matrixWorld) }
       material.onBeforeCompile = (shader, renderer) => {
         compile.call(material, shader, renderer)
-        Object.assign(shader.uniforms, { c2HoloRest: local, c2HoloAmount: this.amount, c2HoloPhase: this.phase, c2HoloMode: this.mode, c2HoloColor: this.color, c2HoloAccent: this.accent, c2HoloStrength: this.strength })
+        Object.assign(shader.uniforms, { c2HoloRest: local, c2HoloAmount: this.amount, c2HoloPhase: this.phase, c2HoloMode: this.mode, c2HoloColor: this.color, c2HoloAccent: this.accent, c2HoloStrength: this.strength, c2HoloLineDensity: this.lineDensity })
         shader.vertexShader = 'uniform mat4 c2HoloRest; varying vec3 vC2Holo;\n' + shader.vertexShader
         shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvC2Holo = (c2HoloRest * vec4(position, 1.)).xyz;')
-        shader.fragmentShader = 'uniform float c2HoloAmount, c2HoloPhase, c2HoloMode, c2HoloStrength; uniform vec3 c2HoloColor, c2HoloAccent; varying vec3 vC2Holo;\n' + shader.fragmentShader
+        shader.fragmentShader = 'uniform float c2HoloAmount, c2HoloPhase, c2HoloMode, c2HoloStrength, c2HoloLineDensity; uniform vec3 c2HoloColor, c2HoloAccent; varying vec3 vC2Holo;\n' + shader.fragmentShader
         shader.fragmentShader = shader.fragmentShader.replace('#include <opaque_fragment>', `
           float holoAxis = c2HoloMode > 4.5 ? vC2Holo.x + vC2Holo.y : vC2Holo.y;
-          float holoLines = .5 + .5 * sin(holoAxis * 280. - c2HoloPhase * 7.);
+          float holoLines = .5 + .5 * sin(holoAxis * 280. * c2HoloLineDensity - c2HoloPhase * 7.);
           float holoScan = pow(.5 + .5 * sin(holoAxis * 8. - c2HoloPhase * 2.), 18.);
           float holoPulse = c2HoloMode > 3.5 && c2HoloMode < 4.5 ? .65 + .35 * sin(c2HoloPhase * 3.) : 1.;
           float holoSignal = .88 + .12 * sin(floor(vC2Holo.y * 72.) * 17. + floor(c2HoloPhase * 8.));
@@ -47,7 +48,7 @@ export class Cinema2UserModelHologram {
           #include <opaque_fragment>
         `)
       }
-      material.customProgramCacheKey = () => baseKey + ':c2-model-hologram-v1'; material.needsUpdate = true
+      material.customProgramCacheKey = () => baseKey + ':c2-model-hologram-v2'; material.needsUpdate = true
       this.restore.push(() => { material.onBeforeCompile = compile; material.customProgramCacheKey = key; material.needsUpdate = true })
     }
     try {

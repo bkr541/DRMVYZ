@@ -22,14 +22,14 @@ export class Cinema2ShatteredUserModel {
     for (const cut of this.owned) cut.dispose()
     this.owned = []; this.group.clear(); this.fragments.length = 0; this.centers.length = 0; this.materials.length = 0
   }
-  static build(library: Cinema2ThreeLibrary, root: Three.Object3D, prepared: Cinema2PreparedUserModel, meshes: readonly Three.Mesh[]): Cinema2ShatteredUserModel {
+  static build(library: Cinema2ThreeLibrary, root: Three.Object3D, prepared: Cinema2PreparedUserModel, meshes: readonly Three.Mesh[], detail = 24): Cinema2ShatteredUserModel {
     const T = library.THREE, result = new Cinema2ShatteredUserModel(T), rest = new T.Group()
     root.updateWorldMatrix(true, true)
     const inverse = root.matrixWorld.clone().invert(), center = new T.Matrix4().makeTranslation(-prepared.center.x, -prepared.center.y, -prepared.center.z)
     for (const mesh of meshes) { const clone = new T.Mesh(mesh.geometry, mesh.material); clone.matrixAutoUpdate = false; clone.matrix.multiplyMatrices(center, new T.Matrix4().multiplyMatrices(inverse, mesh.matrixWorld)); rest.add(clone) }
     let regions: { group: Three.Group; owner?: Cinema2SlicedUserModel }[] = [{ group: rest }]
     try {
-      for (const [stage, count] of [4, 3, 2].entries()) {
+      for (const [stage, count] of (detail <= 4 ? [4] : detail <= 12 ? [4, 3] : [4, 3, 2]).entries()) {
         const next: typeof regions = [], owners: Cinema2SlicedUserModel[] = []
         try {
           for (let regionIndex = 0; regionIndex < regions.length; regionIndex++) {
@@ -67,7 +67,7 @@ export class Cinema2ShatteredUserModel {
   }
 }
 
-export function animateCinema2Shatter(model: Cinema2ShatteredUserModel, pattern: number, phase: number, spread: number, extent: number, movement: number, reaction: number): void {
+export function animateCinema2Shatter(model: Cinema2ShatteredUserModel, pattern: number, phase: number, spread: number, extent: number, movement: number, reaction: number, motion = 1): void {
   const amount = spread * (.35 + movement) * (1 + reaction * .12)
   for (let i = 0; i < model.fragments.length; i++) {
     const fragment = model.fragments[i], center = model.centers[i], x = center.x / extent, y = center.y / extent, z = center.z / extent
@@ -79,6 +79,6 @@ export function animateCinema2Shatter(model: Cinema2ShatteredUserModel, pattern:
     if (pattern === 4) { dx = Math.sin(y * 7 + phase) * .22; dy = y * .25; dz = Math.cos(x * 7 + phase) * .25 }
     if (pattern === 5) { dx = -x * .18; dy = y * .28; dz = (i % 2 ? 1 : -1) * .16 }
     fragment.position.x += dx * extent * amount; fragment.position.y += dy * extent * amount; fragment.position.z += dz * extent * amount
-    fragment.rotation.set(Math.sin(i * .7 + phase * .15) * amount * .45, Math.cos(i * .4 + phase * .1) * amount * .5, Math.sin(i) * amount * .3)
+    fragment.rotation.set(Math.sin(i * .7 + phase * .15) * amount * .45 * motion, Math.cos(i * .4 + phase * .1) * amount * .5 * motion, Math.sin(i) * amount * .3 * motion)
   }
 }

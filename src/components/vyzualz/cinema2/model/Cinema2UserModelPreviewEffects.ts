@@ -3,7 +3,7 @@ import type { Cinema2RenderQualityLevel } from '../contracts/Cinema2NativePreset
 import type { Cinema2ThreeLibrary } from '../modules/three/Cinema2ThreeLibrary'
 import type { Cinema2ModuleUpdateContext } from '../modules/Cinema2ModuleContracts'
 import { Cinema2MainframePatternController } from '../modules/mainframe/Cinema2MainframePatternController'
-import { Cinema2MainframeBeatClockResolver, computeCinema2MainframeBuildCharge, resolveCinema2MainframeTimeSec } from '../modules/mainframe/Cinema2MainframePatternEngine'
+import { Cinema2MainframeBeatClockResolver, computeCinema2MainframeBuildCharge, resolveCinema2MainframeTimeSec, type Cinema2MainframeBeatClockFrame } from '../modules/mainframe/Cinema2MainframePatternEngine'
 import { readCinema2MainframeContinuous } from '../modules/mainframe/Cinema2MainframeMusicAdapter'
 import { Cinema2PatternAutoPerformance } from '../modules/mainframe/Cinema2PatternAutoPerformance'
 import { resolveCinema2MainframeSourceIdentity, selectCinema2MainframeAudio, resolveCinema2MainframePlaybackState } from '../modules/mainframe/Cinema2MainframeAudioDelivery'
@@ -28,6 +28,7 @@ interface Attached {
   sliceProblem: string | null
   dissolve: Cinema2UserModelDustDissolve | null
   ranks: Float32Array
+  ownsPreparation: boolean
   prepared: Cinema2PreparedUserModel
   root: Three.Object3D; pivot: Three.Group; source: Three.Group; accent: Three.Mesh
   meshes: Three.Mesh[]; originals: Original[]; samples: Three.Vector3[]
@@ -65,6 +66,16 @@ export class Cinema2UserModelPreviewEffects {
   /** The pattern Auto Performance has on stage right now, or null while the authored/triggered one is. For inspection and tests. */
   performancePattern: string | null = null
   private controls: Controls = { tintModel: false, modelYaw: 0, modelScale: 1, pattern: 0, phase: 0, movement: 0.35, intensity: 0.8, opacity: 1, emission: 0.2, reaction: 0, primary: [0.55, 0.85, 1], secondary: [0.7, 0.3, 0.9], accent: [0.1, 0.9, 0.8] }
+  private shardMotion = 1
+  private manualPose = false
+  private hologramLines = 1
+  private density = 1
+  private dustDrift = 1
+  private dustFlow = 1
+  private sliceDirection = 'y'
+  private voxelDetail = 'auto'
+  private representedStart = false
+  startRepresented(): void { this.representedStart = true }
   private fallbackMotionBeats = 0
   private cycleStartBeat: number | null = null
   private lastStagePattern: string | null = null
@@ -72,20 +83,20 @@ export class Cinema2UserModelPreviewEffects {
   private dustCycle = cinema2DustCycle(0)
   private readonly dummy: Three.Object3D
   private readonly tint: Three.Color
-  constructor(private readonly library: Cinema2ThreeLibrary, readonly kind: Cinema2UserModelPreviewKind) {
+  constructor(private readonly library: Cinema2ThreeLibrary, readonly kind: Cinema2UserModelPreviewKind, private readonly shardDetail = 24) {
     this.patterns = new Cinema2MainframePatternController<string>(CINEMA2_USER_MODEL_PREVIEWS[kind], CINEMA2_USER_MODEL_PREVIEWS[kind][0])
     const programs = CINEMA2_USER_MODEL_AUTO_PERFORMANCE_PATTERNS[kind]
     this.autoPerformance = new Cinema2PatternAutoPerformance<string>({ buildPattern: programs.build, dropPattern: programs.drop })
     this.dummy = new library.THREE.Object3D(); this.tint = new library.THREE.Color()
   }
-  update({ frame, parameters }: Cinema2ModuleUpdateContext): void {
+  update({ frame, parameters }: Cinema2ModuleUpdateContext, sharedTiming?: Readonly<{ timing: Readonly<Cinema2MainframeBeatClockFrame>; motionBeats: number }>): void {
     const number = (name: string, fallback: number, min = 0, max = 1) => { const value = parameters.get(name); return typeof value === 'number' && Number.isFinite(value) ? clamp(value, min, max) : fallback }
     const color = (name: string, fallback: readonly number[]) => { const value = parameters.get(name); return Array.isArray(value) && value.length >= 3 && value.slice(0, 3).every(n => typeof n === 'number' && Number.isFinite(n)) ? value as number[] : fallback }
     const audio = selectCinema2MainframeAudio(frame.audio, frame.transport?.trackId)
     const time = resolveCinema2MainframeTimeSec(frame), identity = resolveCinema2MainframeSourceIdentity(frame, audio)
     const discontinuity = audio?.discontinuity.occurred ? JSON.stringify(audio.discontinuity) : null
     const reset = this.previousIdentity !== null && identity !== this.previousIdentity || this.previousTime !== null && (time < this.previousTime - 1e-6 || time - this.previousTime > 0.75) || this.previousGeneration !== null && frame.contextGeneration !== this.previousGeneration || discontinuity !== null && discontinuity !== this.previousDiscontinuity
-    const timing = this.clock.resolve(frame, parameters.get('bpmSync') !== false)
+    const timing = sharedTiming?.timing ?? this.clock.resolve(frame, parameters.get('bpmSync') !== false)
     const names: readonly string[] = CINEMA2_USER_MODEL_PREVIEWS[this.kind], value = parameters.get('pattern'), authored = typeof value === 'string' && names.includes(value) ? value : names[0]
     const triggerValue = parameters.get('trigger'), trigger = CINEMA2_AFTERHOURS_TRIGGER_IDS.includes(triggerValue as Cinema2AfterhoursTriggerId) ? triggerValue as Cinema2AfterhoursTriggerId : 'beat'
     const acceptedFrame = audio ? { ...frame, audio } : { ...frame, audio: null }
@@ -100,7 +111,7 @@ export class Cinema2UserModelPreviewEffects {
       if (reset || this.previousTime === null) this.fallbackMotionBeats = timing.beats
       else if (playing) this.fallbackMotionBeats += clamp(time - this.previousTime, 0, .25) * timing.bpm / 60
     }
-    const motionBeats = !audio ? this.fallbackMotionBeats : timing.beats
+    const motionBeats = sharedTiming?.motionBeats ?? (!audio ? this.fallbackMotionBeats : timing.beats)
     // Auto Performance (when on): the canonical drop identity and the shared build charge substitute a pattern for a bounded moment. The
     // authored Pattern, Pattern Change and Trigger keep running underneath; nothing is written back to the saved settings.
     const dropEventId = playing ? resolveCinema2AfterhoursTriggerEventIdentity(acceptedFrame, 'drop', this.previousTime) : null
@@ -124,6 +135,11 @@ export class Cinema2UserModelPreviewEffects {
     const speed = number('speed', 1, 0, 3), movement = number('movement', .35, 0, .8)
     if (this.cycleStartBeat === null || reset || sameValueEdit || onStage !== this.lastStagePattern) this.cycleStartBeat = motionBeats
     this.lastStagePattern = onStage
+    if (this.representedStart) {
+      const duration = number(this.kind === 'dust' ? 'cycleBeats' : this.kind === 'slices' ? 'sliceCycleBeats' : 'transformCycleBeats', 16, 8, 64)
+      this.cycleStartBeat = motionBeats - duration * .48 / Math.max(.01, number('speed', 1, 0, 3))
+      this.representedStart = false
+    }
     const cycleBeats = number('cycleBeats', 16, 8, 64), moving = speed > 0 && movement > 0
     this.dustCycle = cinema2DustCycle(moving ? Math.max(0, motionBeats - this.cycleStartBeat) * speed : 0, cycleBeats)
     if (moving && performing.reason === 'build') this.dustCycle = cinema2DustCycle((.66 + .22 * buildCharge) * cycleBeats, cycleBeats)
@@ -131,16 +147,33 @@ export class Cinema2UserModelPreviewEffects {
     this.sliceSpread = moving ? cinema2SliceSpread(Math.max(0, motionBeats - this.cycleStartBeat) * speed, number(this.kind === 'slices' ? 'sliceCycleBeats' : 'transformCycleBeats', 16, 8, 64)) : 0
     if (moving && performing.reason === 'build') this.sliceSpread = 1 - clamp(buildCharge)
     if (moving && performing.reason === 'drop') this.sliceSpread = clamp((8 - (timing.beats - performing.startBeat)) / 3)
-    this.controls = { tintModel: parameters.get('tintModel') === true, modelYaw: number('modelYaw', 0, -180, 180) * Math.PI / 180, modelScale: number('modelScale', 1, .5, 1.2), pattern: names.indexOf(onStage), phase: motionBeats * Math.PI * 0.25 * number('speed', 1, 0, 3) * (number('movement', .35, 0, .8) > 0 ? 1 : 0), movement: number('movement', 0.35, 0, 0.8), intensity: number('intensity', 0.8, 0, 2), opacity: number('opacity', 1, 0.1, 1), emission: number('emission', 0.2, 0, 2), reaction, primary: color('primary', this.controls.primary), secondary: color('secondary', this.controls.secondary), accent: color('accent', this.controls.accent) }
+    // Manual pose is opt-in; legacy presets retain the original musical transformation cycles.
+    const manualPose = parameters.get('effectPose') === 'representation'
+    if (manualPose) {
+      this.sliceSpread = 1
+      this.dustCycle = { ...this.dustCycle, dissolve: 1, spread: 1 }
+    }
+    this.shardMotion = number('shardMotion', 1)
+    this.density = number('dustDensity', 1, .1, 1)
+    this.dustDrift = number('dustDrift', 1, 0, 1)
+    this.dustFlow = number('dustFlow', 1, 0, 2)
+    this.sliceDirection = String(parameters.get('sliceDirection') ?? 'y')
+    this.voxelDetail = String(parameters.get('voxelDetail') ?? 'auto')
+    const separation = this.kind === 'shatter' ? number('shatterSpread', 1) : this.kind === 'slices' ? number('sliceSeparation', 1) : this.kind === 'voxel' ? number('voxelSeparation', 1) : 1
+    // Keep the representation visible at zero separation in manual pose, while preserving the legacy reassembly path.
+    this.sliceSpread *= separation
+    this.manualPose = manualPose
+    this.hologramLines = number('hologramLines', 1, .25, 2)
+    this.controls = { tintModel: this.kind === 'form' && parameters.get('formMaterial') === 'original' ? false : parameters.get('tintModel') === true || this.kind === 'form' && parameters.get('formMaterial') === 'palette', modelYaw: number('modelYaw', 0, -180, 180) * Math.PI / 180, modelScale: number('modelScale', 1, .5, 1.2), pattern: names.indexOf(onStage), phase: motionBeats * Math.PI * 0.25 * number('speed', 1, 0, 3) * (number('movement', .35, 0, .8) > 0 ? 1 : 0), movement: number('movement', 0.35, 0, 0.8), intensity: number('intensity', 0.8, 0, 2), opacity: number('opacity', 1, 0.1, 1) * (this.kind === 'hologram' ? 1 - number('hologramTransparency', 0, 0, .9) : 1), emission: number('emission', 0.2, 0, 2) + (this.kind === 'hologram' ? number('hologramGlow', 0, 0, 2) : 0), reaction, primary: color('primary', this.controls.primary), secondary: color('secondary', this.controls.secondary), accent: color('accent', this.controls.accent) }
     this.previousTime = time; this.previousIdentity = identity; this.previousGeneration = frame.contextGeneration; this.previousEdit = edit; this.previousDiscontinuity = discontinuity
   }
-  attach(root: Three.Object3D, userModel?: boolean): void {
+  attach(root: Three.Object3D, userModel?: boolean, sharedPreparation?: Cinema2PreparedUserModel): void {
     if (!userModel || this.attachments.has(root)) return
-    const T = this.library.THREE, prepared = prepareCinema2UserModel(this.library, root, this.kind === 'dust' ? CINEMA2_USER_MODEL_PROXY_LIMITS.high.dust : undefined)
+    const T = this.library.THREE, prepared = sharedPreparation ?? prepareCinema2UserModel(this.library, root, this.kind === 'dust' ? CINEMA2_USER_MODEL_PROXY_LIMITS.high.dust : undefined)
     const meshes: Three.Mesh[] = []
     root.traverse(object => { if ((object as Three.Mesh).isMesh) meshes.push(object as Three.Mesh) })
     const { center, size, extent } = prepared
-    const samples = Array.from({ length: prepared.samplePositions.length / 3 }, (_, index) => new T.Vector3().fromArray(prepared.samplePositions, index * 3))
+    const samples = Array.from({ length: this.kind === 'dust' || !sharedPreparation ? prepared.samplePositions.length / 3 : 0 }, (_, index) => new T.Vector3().fromArray(prepared.samplePositions, index * 3))
     const pivot = new T.Group(), source = new T.Group(); pivot.name = 'UserModelPreview'; pivot.position.copy(center); source.position.copy(center).multiplyScalar(-1)
     for (const child of [...root.children]) source.add(child)
     pivot.add(source); root.add(pivot)
@@ -171,7 +204,7 @@ export class Cinema2UserModelPreviewEffects {
         }
       } else if (this.kind === 'shatter' || this.kind === 'voxel') {
         try {
-          if (this.kind === 'shatter') { shatter = Cinema2ShatteredUserModel.build(this.library, root, prepared, meshes); pivot.add(shatter.group) }
+          if (this.kind === 'shatter') { shatter = Cinema2ShatteredUserModel.build(this.library, root, prepared, meshes, this.shardDetail); pivot.add(shatter.group) }
           else { voxels = new Cinema2VoxelizedUserModel(this.library, prepared, meshes); pivot.add(voxels.group) }
         } catch (error) { effectProblem = error instanceof Error ? error.message : 'Model transformation unavailable. The original model is kept visible.' }
       } else if (this.kind === 'slices') {
@@ -191,21 +224,23 @@ export class Cinema2UserModelPreviewEffects {
         if (m.isMeshStandardMaterial) originals.push({ material: m, color: m.color.clone(), emissive: m.emissive.clone(), intensity: m.emissiveIntensity, opacity: m.opacity, transparent: m.transparent, wireframe: m.wireframe, depthWrite: m.depthWrite })
       }
       const ranks = this.kind === 'dust' ? Float32Array.from(samples, point => cinema2DustSurfaceRank(point.x / extent, point.y / extent, point.z / extent)) : new Float32Array(0)
-      this.attachments.set(root, { shatter, voxels, hologram, effectProblem, cutModel, sliceProblem, dissolve, ranks, prepared, root, pivot, source, meshes, originals, samples, points, primary, secondary, pointMaterials, accent, geometries, materials, extent })
+      this.attachments.set(root, { shatter, voxels, hologram, effectProblem, cutModel, sliceProblem, dissolve, ranks, prepared, ownsPreparation: !sharedPreparation, root, pivot, source, meshes, originals, samples, points, primary, secondary, pointMaterials, accent, geometries, materials, extent })
     } catch (error) {
       for (const child of [...source.children]) root.add(child)
       root.remove(pivot)
       pivot.traverse(object => { if ((object as Three.InstancedMesh).isInstancedMesh) (object as Three.InstancedMesh).dispose() })
       for (const geometry of geometries) geometry.dispose()
       for (const material of materials) material.dispose()
-      shatter?.dispose(); voxels?.dispose(); hologram?.dispose(); cutModel?.dispose(); dissolve?.dispose(); prepared.dispose()
+      shatter?.dispose(); voxels?.dispose(); hologram?.dispose(); cutModel?.dispose(); dissolve?.dispose(); if (!sharedPreparation) prepared.dispose()
       throw error
     }
   }
+  setTransitionOpacity(opacity: number): void { this.transitionOpacity = clamp(opacity) }
+  private transitionOpacity = 1
   beforeDraw(quality: Cinema2RenderQualityLevel = 'high'): void {
-    const T = this.library.THREE, c = this.controls, p = c.pattern, phase = c.phase, m = c.movement, r = c.reaction
+    const T = this.library.THREE, c = { ...this.controls, opacity: this.controls.opacity * this.transitionOpacity }, p = c.pattern, phase = c.phase, m = c.movement, r = c.reaction
     for (const a of this.attachments.values()) {
-      a.source.visible = this.kind === 'form' || this.kind === 'hologram' || this.kind === 'dust' && this.dustCycle.dissolve < .99999 || this.kind === 'slices' && (!a.cutModel || this.sliceSpread < .00001) || this.kind === 'shatter' && (!a.shatter || this.sliceSpread < .00001) || this.kind === 'voxel' && (!a.voxels || this.sliceSpread < .15)
+      a.source.visible = this.kind === 'form' || this.kind === 'hologram' || this.kind === 'dust' && this.dustCycle.dissolve < .99999 || this.kind === 'slices' && (!a.cutModel || !this.manualPose && this.sliceSpread < .00001) || this.kind === 'shatter' && (!a.shatter || !this.manualPose && this.sliceSpread < .00001) || this.kind === 'voxel' && (!a.voxels || !this.manualPose && this.sliceSpread < .15)
       a.pivot.rotation.set(0, 0, 0); a.pivot.scale.setScalar(1); a.pivot.position.copy(a.prepared.center)
       const e = a.extent, oscillation = Math.sin(phase)
       if (this.kind === 'form') {
@@ -232,7 +267,7 @@ export class Cinema2UserModelPreviewEffects {
         if (o.material.name === 'Model Cut Face') o.material.color.copy(this.tint)
         o.material.color.multiplyScalar(c.intensity)
         o.material.emissive.copy(o.emissive); o.material.emissiveIntensity = o.intensity + c.emission
-        o.material.opacity = o.opacity * c.opacity * (this.kind === 'voxel' && a.voxels ? 1 - clamp(this.sliceSpread / .15) : 1)
+        o.material.opacity = o.opacity * c.opacity * (this.kind === 'voxel' && a.voxels ? 1 - (this.manualPose ? 1 : clamp(this.sliceSpread / .15)) : 1)
         const transparent = this.kind === 'hologram' || o.transparent || o.material.opacity < 1; if (o.material.transparent !== transparent) o.material.needsUpdate = true; o.material.transparent = transparent; o.material.depthWrite = o.depthWrite && o.material.opacity >= 1
       }
       for (const [material, rgb] of [[a.primary, c.primary], [a.secondary, c.secondary]] as const) { material.color.setRGB(rgb[0], rgb[1], rgb[2], T.SRGBColorSpace).multiplyScalar(c.intensity); material.emissive.copy(material.color); material.emissiveIntensity = c.emission + r * .25; material.opacity = c.opacity; if (material.transparent !== (c.opacity < 1)) material.needsUpdate = true; material.transparent = c.opacity < 1 }
@@ -241,29 +276,33 @@ export class Cinema2UserModelPreviewEffects {
       if (a.hologram) {
         a.pivot.rotation.z = p === 3 ? .25 * this.sliceSpread : 0
         if (p === 4) a.pivot.scale.multiplyScalar(1 + Math.cos(phase * 3) * m * .06 * this.sliceSpread)
+        a.hologram.lineDensity.value = this.hologramLines
         a.hologram.animate(p, phase, this.sliceSpread, e, c.opacity, c.intensity * (.6 + c.emission + r * .3), c.primary, c.accent)
       }
       if (a.shatter) {
-        a.shatter.group.visible = this.sliceSpread >= .00001
-        animateCinema2Shatter(a.shatter, p, phase, this.sliceSpread, e, m, r)
+        a.shatter.group.visible = this.manualPose || this.sliceSpread >= .00001
+        animateCinema2Shatter(a.shatter, p, phase, this.sliceSpread, e, m, r, this.shardMotion)
       }
       if (a.voxels) {
-        a.voxels.group.visible = this.sliceSpread > .00001
-        a.voxels.animate(quality, p, phase, this.sliceSpread, m, r, c.tintModel, c.primary, c.secondary, this.dummy, this.tint)
+        a.voxels.group.visible = this.manualPose || this.sliceSpread > .00001
+        const tiers = ['low', 'medium', 'high'] as const
+        const detail = tiers.findIndex(tier => tier === this.voxelDetail)
+        const voxelQuality = detail < 0 ? quality : tiers[Math.min(detail, tiers.indexOf(quality))]!
+        a.voxels.animate(voxelQuality, p, phase, this.sliceSpread, m, r, c.tintModel, c.primary, c.secondary, this.dummy, this.tint)
         const material = a.voxels.material
         material.color.setScalar(c.intensity); material.emissive.setScalar(1); material.emissiveIntensity = c.emission * .2
-        material.opacity = c.opacity * clamp(this.sliceSpread / .15)
+        material.opacity = c.opacity * (this.manualPose ? 1 : clamp(this.sliceSpread / .15))
         if (material.transparent !== (material.opacity < 1)) material.needsUpdate = true
         material.transparent = material.opacity < 1; material.depthWrite = material.opacity >= 1
       }
       for (let part = 0; part < a.points.length; part++) {
         const cloud = a.points[part], positions = cloud.geometry.attributes.position as Three.BufferAttribute
-        const alpha = cloud.geometry.attributes.c2DustAlpha as Three.BufferAttribute, count = CINEMA2_USER_MODEL_PROXY_LIMITS[quality].dust / 2
+        const alpha = cloud.geometry.attributes.c2DustAlpha as Three.BufferAttribute, count = Math.max(1, Math.floor(CINEMA2_USER_MODEL_PROXY_LIMITS[quality].dust / 2 * this.density))
         cloud.geometry.setDrawRange(0, count); cloud.visible = this.dustCycle.dissolve > .00001
         for (let i = 0; i < count; i++) {
           const sampleIndex = Math.floor((i * 2 + part) / (count * 2) * a.samples.length), rest = a.samples[sampleIndex]
           const release = clamp((this.dustCycle.dissolve - a.ranks[sampleIndex]) / .045 + .5)
-          cinema2DustPosition(this.dummy.position, rest, e, sampleIndex, p, phase, this.dustCycle.spread * release, m, r)
+          cinema2DustPosition(this.dummy.position, rest, e, sampleIndex, p, phase * this.dustFlow, this.dustCycle.spread * release * this.dustDrift, m, r)
           positions.setXYZ(i, this.dummy.position.x, this.dummy.position.y, this.dummy.position.z)
           alpha.setX(i, release)
         }
@@ -274,7 +313,7 @@ export class Cinema2UserModelPreviewEffects {
       }
       if (a.cutModel) {
         const cut = a.cutModel, spread = this.sliceSpread * (1 + r * .1), motion = .35 + m
-        cut.group.visible = spread >= .00001
+        cut.group.visible = this.manualPose || spread >= .00001
         a.pivot.rotation.y = c.modelYaw; a.pivot.scale.setScalar(c.modelScale)
         const cap = cut.capMaterial
         cap.color.setRGB(c.accent[0], c.accent[1], c.accent[2], T.SRGBColorSpace).multiplyScalar(c.intensity)
@@ -290,6 +329,8 @@ export class Cinema2UserModelPreviewEffects {
           if (p === 3) { layer.position.x += (i % 2 ? 1 : -1) * e * .25 * spread * motion; layer.position.y += y * e * .2 * spread }
           if (p === 4) { layer.position.x += Math.sin(y * 7 + phase) * e * .18 * spread * motion; layer.position.z += Math.cos(y * 5 + phase) * e * .15 * spread * motion; layer.rotation.y = Math.sin(phase + y * 3) * .18 * spread }
           if (p === 5) { layer.position.y *= 1 - .65 * spread; layer.position.z += y * e * .2 * spread; layer.rotation.z = -.12 * spread }
+          if (this.sliceDirection === 'x') { layer.position.x += layer.position.y - center; layer.position.y = center }
+          if (this.sliceDirection === 'z') { layer.position.z += layer.position.y - center; layer.position.y = center }
         }
       }
     }
@@ -304,10 +345,14 @@ export class Cinema2UserModelPreviewEffects {
       material.transparent = original.transparent; material.wireframe = original.wireframe; material.depthWrite = original.depthWrite
     }
     for (const child of [...a.source.children]) root.add(child)
-    root.remove(a.pivot); a.shatter?.dispose(); a.voxels?.dispose(); a.hologram?.dispose(); a.cutModel?.dispose(); a.dissolve?.dispose(); a.prepared.dispose(); for (const geometry of a.geometries) geometry.dispose(); for (const material of a.materials) material.dispose()
+    root.remove(a.pivot); a.shatter?.dispose(); a.voxels?.dispose(); a.hologram?.dispose(); a.cutModel?.dispose(); a.dissolve?.dispose(); if (a.ownsPreparation) a.prepared.dispose(); for (const geometry of a.geometries) geometry.dispose(); for (const material of a.materials) material.dispose()
     this.attachments.delete(root)
   }
   dispose(): void { for (const root of this.attachments.keys()) this.detach(root); this.patterns.reset(); this.clock.reset() }
+  hasUsableRepresentation(root: Three.Object3D): boolean {
+    const a = this.attachments.get(root)
+    return !!a && !a.effectProblem && !a.sliceProblem
+  }
   /** Points are not included by the bridge's mesh measurement; report their resident buffers separately. */
   estimateAdditionalGpuBytes(): number {
     let bytes = 0
@@ -325,5 +370,5 @@ export class Cinema2UserModelPreviewEffects {
       return messages
     })
   }
-  inspect() { return { transformSpread: this.sliceSpread, fragments: [...this.attachments.values()].flatMap(a => a.shatter ? [{ count: a.shatter.fragments.length, triangles: a.shatter.triangles, bytes: a.shatter.bytes }] : []), voxels: [...this.attachments.values()].flatMap(a => a.voxels ? [{ solid: a.voxels.solid, grids: [...a.voxels.grids].map(([quality, grid]) => ({ quality, count: grid.count })) }] : []), sliceSpread: this.kind === 'slices' ? this.sliceSpread : null, sliceGeometry: [...this.attachments.values()].flatMap(a => a.cutModel ? [{ layers: a.cutModel.meshes.length, triangles: a.cutModel.triangleCount, capTriangles: a.cutModel.capTriangles, openContours: a.cutModel.openContours, bytes: a.cutModel.byteLength }] : []), dustCycle: this.kind === 'dust' ? this.dustCycle : null, kind: this.kind, pattern: CINEMA2_USER_MODEL_PREVIEWS[this.kind][this.controls.pattern], phase: this.controls.phase, reaction: this.controls.reaction, attachmentCount: this.attachments.size, preparations: [...this.attachments.values()].map(a => ({ triangles: a.prepared.triangleCount, samples: a.samples.length, sections: a.prepared.sections.length, cpuBytes: a.prepared.byteLength, center: a.prepared.center.toArray(), size: a.prepared.size.toArray(), scaleToUnit: a.prepared.scaleToUnit })), limits: CINEMA2_USER_MODEL_PROXY_LIMITS } }
+  inspect() { return { transformSpread: this.sliceSpread, fragments: [...this.attachments.values()].flatMap(a => a.shatter ? [{ count: a.shatter.fragments.length, triangles: a.shatter.triangles, bytes: a.shatter.bytes }] : []), voxels: [...this.attachments.values()].flatMap(a => a.voxels ? [{ solid: a.voxels.solid, grids: [...a.voxels.grids].map(([quality, grid]) => ({ quality, count: grid.count })) }] : []), sliceSpread: this.kind === 'slices' ? this.sliceSpread : null, sliceGeometry: [...this.attachments.values()].flatMap(a => a.cutModel ? [{ layers: a.cutModel.meshes.length, triangles: a.cutModel.triangleCount, capTriangles: a.cutModel.capTriangles, openContours: a.cutModel.openContours, bytes: a.cutModel.byteLength }] : []), dustCycle: this.kind === 'dust' ? this.dustCycle : null, kind: this.kind, pattern: CINEMA2_USER_MODEL_PREVIEWS[this.kind][this.controls.pattern], phase: this.controls.phase, reaction: this.controls.reaction, attachmentCount: this.attachments.size, preparations: [...this.attachments.values()].map(a => ({ triangles: a.prepared.triangleCount, samples: a.prepared.samplePositions.length / 3, sections: a.prepared.sections.length, cpuBytes: a.prepared.byteLength, center: a.prepared.center.toArray(), size: a.prepared.size.toArray(), scaleToUnit: a.prepared.scaleToUnit })), limits: CINEMA2_USER_MODEL_PROXY_LIMITS } }
 }

@@ -7,6 +7,7 @@ export const CINEMA2_USER_MODEL_PREVIEWS = {
   voxel: ['Surface Blocks', 'Column Lift', 'Checker Split', 'Orbital Blocks', 'Wave Grid', 'Compact Blocks'],
 } as const
 export type Cinema2UserModelPreviewKind = keyof typeof CINEMA2_USER_MODEL_PREVIEWS
+export const cinema2RepresentationPatternProperty = (mode: Cinema2UserModelPreviewKind) => `patternFor${mode[0].toUpperCase()}${mode.slice(1)}`
 export const CINEMA2_USER_MODEL_PROXY_LIMITS = {
   low: { shatter: 24, dust: 1024, slices: 14, voxel: 20000 },
   medium: { shatter: 24, dust: 4096, slices: 14, voxel: 20000 },
@@ -18,5 +19,5 @@ export function isCinema2UserModelPreview(value: unknown): value is Cinema2UserM
 
 /** These report a usable model with a bounded effect or open-surface limitation, not a missing asset. */
 export function isCinema2UserModelPreparationDiagnostic(code: string): boolean {
-  return /^CINEMA2_USER_MODEL_(SLICES|SHATTER|HOLOGRAM|VOXEL)_/.test(code)
+  return /^CINEMA2_USER_MODEL_(FORM|DUST|SLICES|SHATTER|HOLOGRAM|VOXEL)_/.test(code)
 }

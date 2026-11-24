@@ -1,5 +1,7 @@
 # Phase 06 — Six user model reference previews
 
+**Historical record:** the six preview identifiers remain valid, but live representation selection and shared model ownership now follow [the unified 3D effects documentation](cinema2-unified-3d-effects.md).
+
 ## Authored behavior specification
 
 These are separately selectable reference previews, not keeper effects or physical
