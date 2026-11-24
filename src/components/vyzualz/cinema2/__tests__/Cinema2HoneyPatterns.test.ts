@@ -15,14 +15,14 @@ const visible=layout.filter(c=>Math.abs(c.x)<6&&Math.abs(c.y)<4)
 function fixture(){
   const engine=new Cinema2HoneyOrchestration(visible)
   const values:Record<string,Cinema2JsonValue>={...HONEY_MOTION_DEFAULTS,pattern:'cascade',patternChange:false,trigger:'bar4',bpmSync:true,autoPerformance:false}
-  let time=0
+  let time=0,patternRevision=0
   function tick(dt=1/60,overrides:Partial<Cinema2ModuleFrameReadContext>={},bpm=150,global=true){
     time+=dt
     const frame:Cinema2ModuleFrameReadContext={frameId:Math.round(time*120),timestampMs:time*1000,elapsedTimeSec:time,deltaTimeSec:dt,viewport:{width:960,height:540,dpr:1},contextGeneration:1,audio:null,director:null,transport:{sourcePresent:true,playing:true,animationActive:true,analysisActive:true,paused:false,trackId:'track',timeSec:time,bpm,bpmSync:global},...overrides}
-    engine.update({frame,parameters:{get:key=>values[key],getAuthored:key=>values[key],resolve:()=>null},targets:{} as Cinema2ModuleUpdateContext['targets']})
+    engine.update({frame,parameters:{get:key=>values[key],getAuthored:key=>values[key],getEditRevision:key=>key==='pattern'?patternRevision:0,resolve:()=>null},targets:{} as Cinema2ModuleUpdateContext['targets']})
     return frame
   }
-  return {engine,values,tick}
+  return {engine,values,tick,reselect:()=>{patternRevision++}}
 }
 function audioEvent(id:string,time:number):NonNullable<Cinema2ModuleFrameReadContext['audio']>{
   const event={id,strength:1,timeSec:time}
@@ -81,6 +81,29 @@ describe('HONEY motion and patterns',()=>{
       f.values.pattern='fracture';f.tick(.1,{audio:audioEvent('edit',.3)});expect(f.engine.inspect().activePattern).toBe('fracture')
       f.tick(.1,{audio:audioEvent('next',.4)});expect(f.engine.inspect().activePattern).toBe('alternating')
       expect(f.values.pattern).toBe('fracture')
+    }
+  })
+  it('honors an explicit same-value Pattern edit without consuming the held trigger',()=>{
+    const f=fixture();f.values.patternChange=true;f.values.trigger='kick'
+    f.tick(0,{audio:audioEvent('base',0)});f.tick(.1,{audio:audioEvent('new',.1)})
+    expect(f.engine.inspect().activePattern).toBe('shockwave')
+    f.reselect();f.tick(.1,{audio:audioEvent('edit',.2)})
+    expect(f.engine.inspect().activePattern).toBe('cascade')
+    f.tick(.1,{audio:audioEvent('edit',.2)})
+    expect(f.engine.inspect().activePattern).toBe('cascade')
+    f.tick(.1,{audio:audioEvent('next',.4)})
+    expect(f.engine.inspect().activePattern).toBe('shockwave')
+    expect(f.values.patternChange).toBe(true);expect(f.values.pattern).toBe('cascade')
+  })
+  it('uses both sync permissions at 90, 128, 140 and 150 BPM without changing the authored rate',()=>{
+    for(const bpm of [90,128,140,150]){
+      const locked=fixture(),hostOff=fixture(),presetOff=fixture();presetOff.values.bpmSync=false
+      for(let i=0;i<=60;i++){locked.tick(1/60,{},bpm);hostOff.tick(1/60,{},bpm,false);presetOff.tick(1/60,{},bpm)}
+      expect(locked.engine.inspect().locked).toBe(true)
+      expect(locked.engine.inspect().phase).toBeCloseTo(bpm/60,6)
+      expect(hostOff.engine.inspect().phase).toBeCloseTo(2,6)
+      expect(presetOff.engine.inspect().phase).toBeCloseTo(2,6)
+      expect(locked.values.rate).toBe(HONEY_MOTION_DEFAULTS.rate)
     }
   })
   it('uses the shared mood policy, holds in silence and falls back to the saved pair without a grid',()=>{

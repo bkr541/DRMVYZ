@@ -18,6 +18,7 @@ export class Cinema2HoneyOrchestration {
   private readonly audio=new Cinema2HoneyAudio()
   private priorCueControls:string|null=null
   private priorAuto=false
+  private patternEditRevision:number|null=null
   private states
   private identity='';private lastTime:number|null=null;private lastBeat:number|null=null;private phase=0;private activePattern:HoneyPattern='cascade';private authored:HoneyPattern='cascade'
   private snapshot:readonly HoneyVisualCell[]|null=null;private transitionBeat=0;private transitionLength=1
@@ -34,6 +35,11 @@ export class Cinema2HoneyOrchestration {
     const active=frame.transport?frame.transport.sourcePresent&&frame.transport.playing&&frame.transport.animationActive&&!frame.transport.paused:!!frame.audio
     const present=frame.transport?.sourcePresent??!!frame.audio
     const authored=HONEY_PATTERN_IDS.find(p=>p===parameters.get('pattern'))??'cascade'
+    // A manual edit can select the already-saved base after an automatic advance.
+    // Treat the shared revision as a controller boundary without resetting the beat clock.
+    const revision=parameters.getEditRevision?.('pattern')??0
+    const patternEdited=this.patternEditRevision!==null&&revision!==this.patternEditRevision
+    this.patternEditRevision=revision
     const trigger=CINEMA2_AFTERHOURS_TRIGGER_IDS.find(t=>t===parameters.get('trigger'))??'bar4'
     const auto=parameters.get('autoPerformance')===true&&present
     const autoReleased=this.priorAuto&&!auto
@@ -48,8 +54,8 @@ export class Cinema2HoneyOrchestration {
     // Observe even muted/reset events so a held identity cannot replay after silence or resume.
     const fresh=event!==null&&event!==this.observedEvents.get(controls.trigger)
     if(event)this.observedEvents.set(controls.trigger,event)
-    const silentHold=!reset&&authored===this.authored&&auto&&controls.automatic&&!controls.patternChange&&(frame.mood?.silence??0)>=.5
-    const selected=silentHold?null:this.controller.update({authoredPattern:authored,patternChange:controls.patternChange,trigger:controls.trigger,triggerEventId:fresh&&this.wasActive?event:null,absoluteBeat:beat,reset:reset||autoReleased})
+    const silentHold=!reset&&!patternEdited&&authored===this.authored&&auto&&controls.automatic&&!controls.patternChange&&(frame.mood?.silence??0)>=.5
+    const selected=silentHold?null:this.controller.update({authoredPattern:authored,patternChange:controls.patternChange,trigger:controls.trigger,triggerEventId:fresh&&this.wasActive?event:null,absoluteBeat:beat,reset:reset||autoReleased||patternEdited})
     if(selected&&selected.activePattern!==this.activePattern){this.snapshot=this.states.map(s=>s.current);this.transitionBeat=beat;this.transitionLength=[.5,1,2,4].includes(Number(k.transition))?Number(k.transition):1;this.phase=0;this.activePattern=selected.activePattern}
     if(active&&this.lastBeat!=null)this.phase+=Math.max(0,Math.min(1,beat-this.lastBeat))*k.rate
     const raw=parameters.get('audioReactivity'),reactivity=typeof raw==='number'&&Number.isFinite(raw)?Math.max(0,Math.min(1,raw)):HONEY_AUDIO_REACTIVITY
@@ -72,7 +78,7 @@ export class Cinema2HoneyOrchestration {
     }
     // Explicit selection is also a deterministic still preview while stopped/paused.
     // Default Cascade with no source preserves the P02 static composition.
-    if(!active&&(authored!==this.authored||(reset&&!present&&authored!=='cascade'))){
+    if(!active&&(patternEdited||authored!==this.authored||(reset&&!present&&authored!=='cascade'))){
       this.states=this.layout.map((cell,i)=>{
         const state=createHoneyCellState(cell)
         state.current=authored==='cascade'&&!present?state.current:targetHoneyCell(cell,sampleHoneyPattern(authored,cell,1.25,k.width,k.delay),k)

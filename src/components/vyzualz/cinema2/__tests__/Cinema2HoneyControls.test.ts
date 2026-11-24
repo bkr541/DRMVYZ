@@ -30,6 +30,33 @@ describe('HONEY shared inspector and camera controls',()=>{
       expect(state.reset(p.id).ok).toBe(true);expect(state.getValue(p.id)).toBe(p.defaultValue)
     }
   })
+  it('round-trips every palette, toggle and enum option and preserves the complete shared lock inventory',()=>{
+    const state=new Cinema2ParameterState(plan.parameters)
+    for(const p of manifest.parameters??[]){
+      if(p.persistence!=='preset'||p.type==='float')continue
+      const candidates=p.type==='color'?[[0,0,0,1],[1,1,1,1]]:p.type==='boolean'?[false,true]:p.type==='enum'?(p.options??[]).map(o=>o.value):[]
+      for(const value of candidates){
+        expect(state.setPersistentValue(p.id,value).ok).toBe(true)
+        const restored=new Cinema2ParameterState(plan.parameters);expect(restored.restore(state.serialize()).ok).toBe(true)
+        expect(restored.getValue(p.id)).toEqual(value)
+      }
+      expect(state.reset(p.id).ok).toBe(true);expect(state.getValue(p.id)).toEqual(p.defaultValue)
+    }
+    state.setPersistentValue(honeyParameterId('pattern-change'),true)
+    state.setPersistentValue(honeyParameterId('camera-motion'),true)
+    const unlocked=controls(state)
+    expect(unlocked.filter(c=>c.definition.designParentGroup==='palette')).toHaveLength(8)
+    state.setPersistentValue(honeyParameterId('auto-performance'),true)
+    const locked=controls(state)
+    expect(locked.map(c=>c.definition.id)).toEqual(unlocked.map(c=>c.definition.id))
+    for(const c of locked){
+      const editable=c.definition.designParentGroup==='palette'||c.definition.id===honeyParameterId('auto-performance')||c.definition.id===honeyParameterId('bpm-sync')
+      expect(c.enabled).toBe(editable)
+      if(c.definition.id!==honeyParameterId('auto-performance'))expect(c.value).toEqual(unlocked.find(u=>u.definition.id===c.definition.id)?.value)
+    }
+    state.setPersistentValue(honeyParameterId('auto-performance'),false)
+    expect(controls(state).map(c=>[c.definition.id,c.value,c.enabled])).toEqual(unlocked.map(c=>[c.definition.id,c.value,c.enabled]))
+  })
   it('uses the real shared camera with slight lateral sway, constant lens and hard-off permissions',()=>{
     const state=new Cinema2ParameterState(plan.parameters),resolver=new Cinema2FinalValueResolver(plan.targets,{resolveBaseValue:t=>t.parameterId==null?t.authoredBaseValue:state.getValue(t.parameterId)}),spatial=new Cinema2SpatialRuntime(plan.scene,plan.targets.targets,resolver),camera=new Cinema2CameraRuntime(plan,state,resolver,spatial)
     const frame=(i:number):Cinema2ModuleFrameReadContext=>({frameId:i,timestampMs:i*1000/60,deltaTimeSec:1/60,elapsedTimeSec:i/60,viewport:{width:960,height:540,dpr:1},contextGeneration:1,audio:null,director:null,transport:{sourcePresent:true,playing:true,analysisActive:true,animationActive:true,paused:false,trackId:'track',timeSec:i/60,bpm:120,bpmSync:true}})

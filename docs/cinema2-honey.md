@@ -108,8 +108,8 @@ No source: fully composed static wall; no fabricated event, no audio motion. P03
 | P03 | real controls, mechanical motion, eight patterns, shared timing/pattern policy | supplied/applied; prior approval conveyed by subsequent prompt |
 | P04 | standard Audio Intelligence and event choreography | supplied/applied; prior approval conveyed by subsequent prompt |
 | P05 | Director and full Auto Performance | supplied/applied; prior approval conveyed by P06 prompt |
-| P06 | shared finishing, atmosphere, optimization | implementation candidate; isolated source gates pass; production visual/performance/output gate blocked, not human-approved |
-| P07 | production validation, human acceptance, release | pending |
+| P06 | shared finishing, atmosphere, optimization | supplied/applied; prior human approval conveyed by P07 prompt; production visual/performance/output gate remains blocked |
+| P07 | production validation, human acceptance, release | technical release blocked; HONEY-specific pattern-authority correction and regression checks; remains selectable reference |
 
 ### P01 validation and exact changed files
 
@@ -446,3 +446,72 @@ node scripts/run-cinema2-honey-browser.mjs --p06
 ```
 
 Exact P06 paths (C2 relative except root): `modules/Cinema2HoneyNativeModule.ts`, `modules/honey/Cinema2HoneyParticles.ts`, `modules/honey/Cinema2HoneyOrchestration.ts`, `modules/honey/Cinema2HoneyRenderer.ts`, `modules/honey/Cinema2HoneyShaders.ts`, `presets/Cinema2HoneyPreset.ts`, `presets/Cinema2HoneyFinishing.ts`, `__tests__/Cinema2HoneyParticles.test.ts`, `__tests__/Cinema2HoneyFinishing.test.ts`, `__tests__/Cinema2HoneyRenderer.test.ts`; root `src/test/browser/Cinema2HoneyProductionBrowserHarness.ts`, `scripts/run-cinema2-honey-browser.mjs`, `docs/cinema2-honey.md`. Next prerequisite: apply candidate, run actual tests and inspect default and effect/quality/output captures, resolve remaining visual/performance gates and obtain user approval before release. Phase 07 not implemented.
+
+## P07 | Production validation and release assessment (release blocked)
+
+### Baseline and disposition
+
+The supplied `STAGELESS-Studio-main (8).zip` contains the P01–P06 source and reports, including P06 particles, finishing and optimization. An isolated Git baseline was committed before editing. The P07 prompt conveys human approval of the previous six patches, including the P06 checkpoint. It does not establish that the previous unexecuted production tests passed. No new human approval is claimed for P07. The original reference MOV is not in this upload or the repository; a Library search did not recover it. P01's documented 692 × 1070, 6.24-second visual observations are historical, not a new decode. No track specific to HONEY was supplied. No new production screenshot, comparative visual judgment, real track playback, hardware performance measurement or remote casting parity was obtained.
+
+**Decision: retain `reference`.** Stable preset `drmvyz.cinema2.honey`, module `honey-native@1`, instance `honey-wall`, manifest revision 1; tags `cinematic`, `3d`, `audio-reactive`. The existing catalog, native registry and public barrel registration are present and unchanged; no static/internal tag. The first-party selector path is unchanged. This is a source-level corrective candidate and release assessment, not a keeper promotion. No changes to default materials, geometry, palette, camera, lighting, audio mapping, effects, quality or pattern library.
+
+### HONEY-specific correction and regression evidence
+
+`Cinema2HoneyOrchestration.update` previously compared the authored Pattern string only. After automatic advancement, an explicit edit selecting the already-saved base would not reset the runtime selection; on a simultaneous fresh trigger the runtime could advance again instead. `Cinema2ParameterState.setPersistentValues` increments the existing shared edit revision even for a successful same-value edit. HONEY now tracks the revision from `parameters.getEditRevision?.('pattern')`, treats a changed revision as a shared pattern-controller reset boundary (not a beat clock or transport reset), and permits the existing deterministic stopped/paused preview for that explicit edit. It observes the current trigger identity before the boundary so the edited frame and held publication cannot re-advance. Saved Pattern Change and Trigger remain untouched; a later fresh event advances normally. Silence hold does not veto the explicit edit. This changes only selection authority in that case; no new program, effect or control.
+
+`Cinema2HoneyPatterns.test.ts`: added same-value reselection and held/new event regression plus 90/128/140/150 BPM tests with both permissions on, host off and preset off. The updated pattern test file was also executed against the pristine P06 source in a disposable worktree: seven cases passed, the new reselection case failed (`expected cascade, got fracture`). Against P07 source the same eight cases pass using the limited source-test adapter described below. `Cinema2HoneyControls.test.ts`: added all preset-persistent nonnumeric palette/toggle/enum values, serialization/restoration/reset and complete visible shared Inspector model lock/unlock inventory. Existing float min/max and camera tests remain unchanged. This is parameter-state and Inspector-model evidence, not proof of perceptual output, actual DOM edit prevention or layout stability.
+
+### Current implementation inventory and gate reconciliation
+
+Earlier P03/P04/P05/P06 parameter tables are the current authority and supersede P01's proposed controls; no P07 parameter/range changes. The covered manifest has 26 floats, eight colors, seven booleans, four enums (including shared quality) and one hidden runtime trigger. All 26 eligible numeric controls are covered by existing authored shared Mood drives: `computeCinema2AutoCoverage(withCinema2AutoCoverage(manifest))` returned no added drives and no skipped controls. Palette is independently saved and editable under Auto; hard permission switches remain booleans. Standard quality, Pattern, Pattern Change and Trigger maintain the existing shared Inspector and effective policy. P04/P05 build/drop acts on native cue envelopes/Director significance, **not** temporary selection of a different named pattern; the P01 proposed pattern substitution is not an implemented behavior. The authored eight programs and shared canonical trigger switching remain the only selection paths. The shared camera's fixed-reference slight sway is documented in P03; the native governed wall clock composes host and preset BPM Sync. No shared timing or camera behavior changed.
+
+The fixed 625-cell layout was enumerated from `buildHoneyLayout()`: graphite 347 (55.52%), brushed steel 129 (20.64%), carbon fiber 90 (14.40%), satin ceramic 59 (9.44%); stable assignments, no material controls. Wall and stationary sleeves use native depth-tested instancing and the existing shadow provider. P06's bounded world-space particle pool and shared scene-depth AO, atmosphere, DOF, HDR bloom, grading and AA chain remain. No runtime asset or dependency added. The target 60 fps at 1080p on capable hardware, with approximately 30 fps fallback, is a target only; there is no measured frame rate or casting evidence for release.
+
+| Acceptance requirement | P07 evidence / disposition |
+|---|---|
+| Native solid hexes, bevels, chambers, safe clearance, fixed finishes and palette | Source geometry/layout/material/lighting tests executed; actual appearance/reference and crop comparison blocked. |
+| Eight patterns and independent mechanical axes | Source spatial signatures, clearance, damping, and phase tests executed; real rendered motion and visual distinctness unverified. |
+| 11 exact triggers, manual selection, shared effective policy, saved values | Source event tests and P07 regression executed; same-value defect fixed. Actual in-app selection/event replay and perceptual response unverified. |
+| BPM permissions and 90/128/140/150 BPM | Native shared-clock deterministic source regression executed; real-track and production-canvas timing not verified. |
+| Audio/Director/Mood/Auto, silence/missing capabilities, play/pause/seek/loop/source/re-entry | Existing canonical bridge, resolver, choreography and native state fixture cases executed. Browser differential, actual source switch and full output lifecycle blocked. |
+| Four parent groups, min/default/max, eight independent colors, lock and persistence/reset | All declared float limits, enum options, boolean states and palette endpoints round-trip/reset in source tests; shared Inspector model lock inventory checked. Every visible control's perceptual effect, actual locked UI interaction and live readout layout/no-shift unverified. |
+| AO/bloom/DOF/haze/particles, hard permissions and independent illumination | Compiled graph, HONEY source and mock GL/lease cases executed; actual effect output, depth occlusion and production captures blocked. |
+| Quality tiers, resize, context recovery, recording and casting | Source/fixture evidence only; production aspect/quality matrix, real re-entry/context loss, canvas stream and remote cast not executed. No FPS data. |
+| Human approval | P01–P06 approval accepted per incoming prompt; original video not available for fresh comparison and P07 corrective behavior not newly human-reviewed. |
+| Full test/build and production release | **NOT PASSED** (see commands below). Keep selectable `reference`, not keeper. |
+
+### Executed checks (Node v22.16.0)
+
+| Command / method | Actual result |
+|---|---|
+| `npm ci --ignore-scripts --fetch-retries=0 --fetch-timeout=15000` | Exit 1: npm `Exit handler never called!`; no usable dependencies installed. |
+| `npm run repo:hygiene` | Pass: 5,145 tracked files, no forbidden paths. |
+| `npm run cinema:legacy-boundary:check` | Pass: zero legacy source importers. |
+| `npm run assets:check` | Pass: 45 assets, 159.22 MB shipped. |
+| `npm run cinema2:decoders:check` | Fail: installed Three.js Draco and Basis decoder files unavailable. |
+| `npm run test:assets` | 40 pass, 7 fail; identical named failures and counts on pristine baseline (missing glTF/Three/TypeScript dependencies and extension check). Not a passed gate. |
+| `npm run test:native` | 138 pass, 2 fail; same two `native/diagnostics/preloadDiagnostics.test.cjs` watcher cases fail on pristine baseline (`undefined.includes`). No HONEY change to native tests. |
+| `npm run lint` | Blocked: ESLint executable missing. |
+| `npm run typecheck`, `npm run build` | Both exit 2: TS2688, missing `vite/client`; no completed build. Temporary targeted strict TypeScript check excluding absent Vite ambient types also exits 2 with dependency diagnostics; only missing Vitest declarations reported in the edited test files, no diagnostics in edited production orchestrator. |
+| `npm exec --offline -- vitest run` (HONEY glob + Director/choreography/pattern-policy tests) | ENOTCACHED for Vitest. No actual Vitest execution. |
+| `npm test` | First partition aborts because `node_modules/vitest/vitest.mjs` is missing. |
+| `node --check scripts/run-cinema2-honey-browser.mjs` | Pass (syntax only). |
+| `node scripts/run-cinema2-honey-browser.mjs` and `node scripts/run-cinema2-honey-browser.mjs --p06` | Both fail before launch: missing `@playwright/test`. No production pixels inspected. System Chromium availability cannot substitute for the missing production dependencies. |
+| `npm run test:e2e:smoke` | Fail: available executable reports unknown command `test`; project Playwright not installed. |
+| `npm audit --offline --audit-level=high` | Exit 0, reports zero vulnerabilities, but no installed dependencies/current advisory retrieval; not sufficient for release security clearance. |
+| Isolated actual compiler + authoring validator + coverage audit | Pass: compiled covered HONEY manifest, reference authoring validation, 26 covered numeric controls, zero added/skipped drives. Full registered catalog import not established. |
+| Temporary TypeScript transpilation loader + limited synchronous assertion/mock adapter | **125 executed cases pass, zero executed assertion failures, three suite imports blocked**. This is NOT Vitest, a real browser, or a substitute for full regression. Loaded real source and unchanged test bodies; loader resolves extensionless imports and JSON, substitutes Vite ambient environment for test execution. Includes HONEY, Visual Director, choreography, pattern policy, pattern Auto and Inspector lock suites. Blocked: `Cinema2HoneyPreset` (missing opentype.js), `Cinema2AutoCoverage` and `Cinema2AutoPerformanceInventory` (Vite GLB imports unsupported by adapter). |
+
+### Remaining release prerequisite and reproduction
+
+Install dependencies on a supported Node 22 environment; run the actual full suite and both existing HONEY production harness paths. Review the actual images, all control endpoint/perceptual cases, shared Inspector layout, real in-app switching and output at supported aspect ratios. Complete the real-track, 1080p hardware performance and remote receiver/cast checks. Compare with the original video and approved P06 output; if any material visual change occurs, obtain fresh visual acceptance. The two existing browser harness paths do not by themselves establish every Section 19 gate (notably full perceptual endpoint sweep, real track and remote receiver); those require additional actual acceptance evidence, not a relaxation of the contract. Do not promote until all applicable stop-ship conditions in sections 19–25 are cleared.
+
+```sh
+npm ci
+npx vitest run src/components/vyzualz/cinema2/__tests__/Cinema2Honey*.test.ts src/components/vyzualz/cinema2/__tests__/Cinema2{VisualDirector,ChoreographyRuntime,RenderGraph,RenderGraphExecutor,RenderQualityAndPool,PatternControlPolicy,PatternAutoPerformance,AutoPerformanceLock,AutoCoverage,AutoPerformanceInventory}.test.ts
+npm run verify
+node scripts/run-cinema2-honey-browser.mjs
+node scripts/run-cinema2-honey-browser.mjs --p06
+```
+
+Exact P07 changes: `src/components/vyzualz/cinema2/modules/honey/Cinema2HoneyOrchestration.ts`, `src/components/vyzualz/cinema2/__tests__/Cinema2HoneyPatterns.test.ts`, `src/components/vyzualz/cinema2/__tests__/Cinema2HoneyControls.test.ts`, and `docs/cinema2-honey.md`. No shared file, catalog role, other preset, test harness, dependency or generated artifact changed. Packaging uses a staged full-index binary unified diff against the supplied P06 baseline; clean application and staged-tree comparison are verified separately at handoff. P07 is the final numbered phase, but release itself remains blocked.
