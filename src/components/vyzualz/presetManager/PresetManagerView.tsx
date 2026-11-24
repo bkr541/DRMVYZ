@@ -493,12 +493,17 @@ export function PresetManagerView() {
             </div>
           </WorkspaceRail>
           <div className="pmv-stage fw-surface" aria-label="Preset Manager detail workspace">
+            <RailWindowHeader
+              side="left"
+              icon={<AppIcon kind="monitor" size={15} color="currentColor" aria-hidden="true" />}
+              label="Preset Preview"
+            />
             <UnderlineTabs
               tabs={PRESET_MANAGER_STAGE_TABS}
               activeTab={stageTab}
               onChange={setStageTab}
               ariaLabel="Preset Manager workspace views"
-              className="pmv-stage-tabs"
+              className="rv-main-workspace-tabs pmv-preview-tabs"
             />
             {stageTab === 'store' ? (
               <LivePresetStore />

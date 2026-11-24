@@ -54,8 +54,31 @@
   box-sizing: border-box;
 }
 
-.pmv-content .rw-window-header {
+/* Only the padded side rails need to pull their headers to the window edge. */
+.pmv-content > .vz-inspector .rw-window-header {
   margin: -8px -12px 0;
+}
+
+.pmv-stage > .rw-window-header {
+  border-radius: var(--fw-surface-radius, var(--radius-group)) var(--fw-surface-radius, var(--radius-group)) 0 0;
+}
+
+/* The preview tabs use the Inspector's canonical row, inset from the window
+   edge by the same amount as the padded side rails. Keep their existing icons. */
+.pmv-preview-tabs {
+  margin-inline: var(--workspace-rail-inset, 12px);
+}
+
+.pmv-preview-tabs .dv-underline-tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.pmv-preview-tabs .dv-underline-tab svg {
+  flex-shrink: 0;
 }
 
 .pmv-browser {
@@ -315,8 +338,13 @@
   content: none;
 }
 
-[data-workspace-layout='floating']:is([data-app-workspace='presetManager'], [data-app-workspace='admin']) .pmv-stage {
+[data-workspace-layout='floating'][data-app-workspace='admin'] .pmv-stage {
   background: #070c14;
+}
+
+/* Match the Performance Manager window surface behind the header and tabs. */
+[data-workspace-layout='floating'][data-app-workspace='presetManager'] .pmv-stage {
+  background: var(--fw-surface-background);
 }
 
 [data-workspace-layout='floating']:is([data-app-workspace='presetManager'], [data-app-workspace='admin']) .pmv-stage-tabs {

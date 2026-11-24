@@ -56,12 +56,18 @@ function typeInto(input: HTMLInputElement | null | undefined, value: string) {
 
 describe('Preset Manager stage tabs', () => {
   it('nests the visualizer, Store and My Downloads in the middle window and leaves both rails alone', () => {
+    const stage = container!.querySelector('.pmv-stage.fw-surface')!
+    const header = stage.firstElementChild!
+    expect(header.matches('.rw-window-header.rw-window-header--left')).toBe(true)
+    expect(header.querySelector('.rw-window-header-label')?.textContent).toBe('Preset Preview')
+    expect(header.nextElementSibling?.matches('.rv-main-workspace-tabs.dv-underline-tabs[role="tablist"]')).toBe(true)
     expect([...(container?.querySelectorAll('[aria-label="Preset Manager workspace views"] [role="tab"]') ?? [])].map(tab => tab.textContent))
       .toEqual(['Visualizer', 'Store', 'My Downloads'])
     expect(stageTab('Visualizer')?.getAttribute('aria-selected')).toBe('true')
     expect(container?.querySelector('.pmv-stage .pmv-selection-summary, .pmv-stage .rv-cinema2-stage')).not.toBeNull()
 
     openStore()
+    expect(stage.firstElementChild).toBe(header)
     expect(container?.querySelector('.pmv-stage .pms-root')).not.toBeNull()
     expect(container?.querySelector('.pmv-stage .pmv-selection-summary')).toBeNull()
     expect(container?.querySelector('[aria-label="Preset Library"]')).not.toBeNull()
@@ -69,6 +75,7 @@ describe('Preset Manager stage tabs', () => {
     expect(container?.querySelectorAll('.pmv-content > .fw-surface')).toHaveLength(3)
 
     act(() => stageTab('My Downloads')?.click())
+    expect(stage.firstElementChild).toBe(header)
     expect(container?.querySelector('.pms-downloads')?.textContent).toContain('Coming soon')
 
     act(() => stageTab('Visualizer')?.click())

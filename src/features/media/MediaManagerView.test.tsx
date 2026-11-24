@@ -115,7 +115,11 @@ describe('MediaManagerView', () => {
 
     const workspace = container.querySelector('.mmv-content')!
     const library = container.querySelector('[data-testid="media-library-browser"]')
-    const stage = container.querySelector('.mmv-stage-area')
+    const stage = container.querySelector('.mmv-stage-area')!
+    const previewHeader = stage.firstElementChild!
+    expect(previewHeader.matches('.rw-window-header.rw-window-header--left')).toBe(true)
+    expect(previewHeader.querySelector('.rw-window-header-label')?.textContent).toBe('Media Preview')
+    expect(previewHeader.nextElementSibling).not.toBeNull()
     const inspector = container.querySelector('[data-testid="inspector"]')
     expect(container.querySelectorAll('.mmv-content > .fw-surface')).toHaveLength(3)
     expect(workspace.getAttribute('data-left-collapsed')).toBe('false')
@@ -128,6 +132,7 @@ describe('MediaManagerView', () => {
     expect(workspace.getAttribute('data-right-collapsed')).toBe('true')
     expect(container.querySelector('[data-testid="media-library-browser"]')).toBe(library)
     expect(container.querySelector('.mmv-stage-area')).toBe(stage)
+    expect(stage.firstElementChild).toBe(previewHeader)
     expect(container.querySelector('[data-testid="inspector"]')).toBe(inspector)
     expect(container.querySelectorAll('.vz-inspector--collapsed')).toHaveLength(2)
   })

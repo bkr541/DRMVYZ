@@ -285,6 +285,11 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
           </WorkspaceRail>
 
           <div className="mmv-stage-area fw-surface" aria-label="Selected media preview">
+            <RailWindowHeader
+              side="left"
+              icon={<AppIcon kind="image" size={15} color="currentColor" aria-hidden="true" />}
+              label="Media Preview"
+            />
             {modelSelected ? <Suspense fallback={<div role="status">Loading 3D viewport…</div>}><ModelEditorStage /></Suspense> : <MediaManagerStage media={selectedMedia} track={selectedTrack} font={selectedFont} />}
           </div>
 

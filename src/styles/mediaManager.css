@@ -96,7 +96,7 @@
    the rail's own 8px/12px padding so it sits flush/edge-to-edge with the
    rail's true corners, matching Lyric Manager's Track Workspace/Document
    Workspace treatment. */
-.mmv-content .rw-window-header {
+.mmv-content > .vz-inspector .rw-window-header {
   margin: -8px -12px 0;
 }
 
@@ -106,7 +106,12 @@
   min-width: 0;
   min-height: 0;
   display: flex;
+  flex-direction: column;
   background: #070c14;
+}
+
+.mmv-stage-area > .rw-window-header {
+  border-radius: var(--fw-surface-radius, var(--radius-group)) var(--fw-surface-radius, var(--radius-group)) 0 0;
 }
 
 .mms-stage {
@@ -1140,10 +1145,10 @@
   background: #070c14;
 }
 
-/* Preserve the existing upper preview and lower media-edit/timeline group.
-   The stage is the only painted region clipped to the new curved corners. */
-[data-workspace-layout='floating'][data-app-workspace='media'] .mmv-stage-area > .mms-stage {
-  border-radius: calc(var(--fw-surface-radius) - 1px);
+/* The header owns the top corners. Keep the existing preview and timeline
+   (or 3D editor) inside the remaining height and round only the bottom edge. */
+[data-workspace-layout='floating'][data-app-workspace='media'] .mmv-stage-area > :is(.mms-stage, .mm-model-stage) {
+  border-radius: 0 0 calc(var(--fw-surface-radius) - 1px) calc(var(--fw-surface-radius) - 1px);
 }
 
 /* Below three comfortable columns, put Inspector below the live preview
