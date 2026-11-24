@@ -13,6 +13,8 @@ import { isCanvasFramePublisher, isCanvasFrameReady, notifyCanvasFrameRendered }
 import { drawTransitionFrame } from '../../../lib/stageTransition'
 import type { PresetTransitionStyle } from '../../../lib/presetTransitions'
 import { startRelayFramePump } from './output/relayFramePump'
+import { matchesPerformanceAspect, performanceTransitionSize, type PerformanceSize } from './output/performanceOutputGeometry'
+import type { OutputAspectRatio } from '../../../native/outputBridge'
 
 export const STAGE_TAP_FPS = 20
 /** The picture a transition starts from may be this old at most; older means nothing was drawing, so there is nothing worth fading from. */
@@ -45,6 +47,8 @@ export class StageTransitionController {
   private stopTap: (() => void) | null = null
   private lastTapAt = Number.NEGATIVE_INFINITY
   private active: ActiveTransition | null = null
+  private aspectRatio: OutputAspectRatio | null = null
+  private lockedSize: PerformanceSize | null = null
   private enabled = false
   private disposed = false
   private readonly now: () => number
@@ -61,6 +65,15 @@ export class StageTransitionController {
 
   /** The canvas the stage currently publishes (null between engines). */
   setSource(canvas: HTMLCanvasElement | null): void { this.sourceRef.current = canvas }
+
+  /** Never reuse a snapshot from a different performance format. */
+  setAspectRatio(aspectRatio: OutputAspectRatio | null): void {
+    if (this.aspectRatio === aspectRatio) return
+    this.aspectRatio = aspectRatio
+    this.lockedSize = aspectRatio ? performanceTransitionSize(aspectRatio, MAX_EDGE) : null
+    this.finish()
+    this.lastTapAt = Number.NEGATIVE_INFINITY
+  }
 
   setEnabled(enabled: boolean): void {
     if (this.disposed || enabled === this.enabled) return
@@ -109,9 +122,10 @@ export class StageTransitionController {
 
   private copyTap(source: HTMLCanvasElement | null): void {
     if (!this.tapCtx || !source || source.width <= 0 || source.height <= 0 || !isCanvasFrameReady(source)) return
+    if (this.lockedSize && !matchesPerformanceAspect(source, this.lockedSize)) return
     const scale = Math.min(1, MAX_EDGE / Math.max(source.width, source.height))
-    const width = Math.max(2, Math.round(source.width * scale))
-    const height = Math.max(2, Math.round(source.height * scale))
+    const width = this.lockedSize?.width ?? Math.max(2, Math.round(source.width * scale))
+    const height = this.lockedSize?.height ?? Math.max(2, Math.round(source.height * scale))
     if (this.tap.width !== width || this.tap.height !== height) { this.tap.width = width; this.tap.height = height }
     try { this.tapCtx.drawImage(source, 0, 0, width, height) } catch { return /* A canvas mid-teardown cannot be drawn; the next frame can. */ }
     this.lastTapAt = this.now()
@@ -121,6 +135,7 @@ export class StageTransitionController {
     if (this.active !== transition || !this.blendCtx) return
     const now = this.now()
     const ready = !!live && live.width > 0 && live.height > 0 && isCanvasFrameReady(live)
+      && (!this.lockedSize || matchesPerformanceAspect(live, this.lockedSize))
       && (isCanvasFramePublisher(live) || now - transition.triggeredAt >= STAGE_SETTLE_MS)
     if (transition.startedAt === null && (ready || now - transition.triggeredAt >= STAGE_READY_TIMEOUT_MS)) transition.startedAt = now
     const progress = transition.startedAt === null ? 0 : Math.min(1, (now - transition.startedAt) / transition.durationMs)

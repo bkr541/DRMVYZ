@@ -1,3 +1,4 @@
+import { measurePerformanceSurface, performanceRenderDpr } from './output/performanceOutputGeometry'
 import { useRef, useEffect } from 'react'
 import { AudioFeatureBus } from '../../../features/musicIntelligence/AudioFeatureBus'
 import { LyricPlaybackBus } from '../../../features/lyrics/runtime/LyricPlaybackBus'
@@ -367,11 +368,11 @@ export function ReactPlaceholderCanvas({
 
     function resize() {
       if (disposed || !ownership.isCurrent() || !canvas) return
-      const r = canvas.getBoundingClientRect()
+      const r = measurePerformanceSurface(canvas)
       const next = resolveCanvasResolution({
         cssWidth: r.width,
         cssHeight: r.height,
-        devicePixelRatio: window.devicePixelRatio,
+        devicePixelRatio: performanceRenderDpr(canvas),
         quality: 'high',
         previous: canvasResolution,
       })

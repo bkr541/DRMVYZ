@@ -1,3 +1,4 @@
+import { measurePerformanceSurface, performanceRenderDpr } from '../../output/performanceOutputGeometry'
 import { useEffect, useRef, type RefObject } from 'react'
 import type { SharedPerformanceContext } from '../../../../../features/performanceCore'
 import type { CanvasFitMode, CanvasMediaItem, CanvasPresetSettings } from '../../ReactTypes'
@@ -147,10 +148,10 @@ export function CanvasLaserImageFxLayer({
       if (playback.isPlaying && !playback.isPaused) manualTimeSec += deltaSec
 
       if (!contextLost) {
-        const rect = canvas.getBoundingClientRect()
+        const rect = measurePerformanceSurface(canvas)
         const cssWidth = Math.max(1, Math.round(rect.width || canvas.clientWidth || 1))
         const cssHeight = Math.max(1, Math.round(rect.height || canvas.clientHeight || 1))
-        const dpr = Math.min(1.75, Math.max(1, window.devicePixelRatio || 1))
+        const dpr = Math.min(1.75, Math.max(1, performanceRenderDpr(canvas)))
         let rendered = false
         try {
           renderer.resize(Math.round(cssWidth * dpr), Math.round(cssHeight * dpr))

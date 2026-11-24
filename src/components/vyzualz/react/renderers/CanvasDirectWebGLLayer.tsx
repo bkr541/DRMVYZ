@@ -1,3 +1,4 @@
+import { measurePerformanceSurface, performanceRenderDpr } from '../output/performanceOutputGeometry'
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import type { SharedPerformanceContext } from '../../../../features/performanceCore'
 import type { CanvasFitMode, CanvasMediaItem } from '../ReactTypes'
@@ -87,7 +88,7 @@ export function CanvasDirectWebGLLayer<Settings, Frame>(props: DirectWebGLLayerP
       const delta = Math.max(0, Math.min(0.1, (now - previousMs) / 1000))
       previousMs = now
       const current = live.current
-      const viewport = canvas.getBoundingClientRect()
+      const viewport = measurePerformanceSurface(canvas)
       if (renderer && !document.hidden && viewport.width > 0 && viewport.height > 0) {
         const source = current.sourceRef.current
         // Keep the last drawable frame until the existing decoder resolves a seek.
@@ -104,7 +105,7 @@ export function CanvasDirectWebGLLayer<Settings, Frame>(props: DirectWebGLLayerP
           try {
             publish(renderer.render({
               source, settings: current.settings, frame, fitMode: current.fitMode,
-              transform: current.sourceTransform, viewport, dpr: window.devicePixelRatio || 1,
+              transform: current.sourceTransform, viewport, dpr: performanceRenderDpr(canvas),
             }))
           } catch (error) {
             fail(error instanceof Error ? error.message : `${adapter.label} rendering failed`)

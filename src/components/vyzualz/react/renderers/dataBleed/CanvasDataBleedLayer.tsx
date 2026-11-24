@@ -1,3 +1,4 @@
+import { measurePerformanceSurface, performanceRenderDpr } from '../../output/performanceOutputGeometry'
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import type { SharedPerformanceContext } from '../../../../../features/performanceCore'
 import type { CanvasFitMode, CanvasMediaItem } from '../../ReactTypes'
@@ -52,7 +53,7 @@ export function CanvasDataBleedLayer(props: {
     const tick = (now: number) => {
       if (stopped) return
       const delta = Math.max(0, Math.min(0.1, (now - previousMs) / 1000)); previousMs = now
-      const current = live.current, rect = canvas.getBoundingClientRect()
+      const current = live.current, rect = measurePerformanceSurface(canvas)
       if (!document.hidden && rect.width > 0 && rect.height > 0) {
         try {
           const source = current.sourceRef.current
@@ -68,12 +69,12 @@ export function CanvasDataBleedLayer(props: {
           const decision = controller.update({ settings: current.settings, context: current.performanceContextRef.current, timeSec: time, deltaSec: delta, paused: current.isPaused, audioActive: current.audioActive })
           if (decision.reset) renderer.resetHistory()
           const t = current.sourceTransform
-          const geometry = `${rect.width}:${rect.height}:${window.devicePixelRatio}:${current.fitMode}:${t.scale}:${t.positionX}:${t.positionY}:${t.rotation}`
+          const geometry = `${rect.width}:${rect.height}:${performanceRenderDpr(canvas)}:${current.fitMode}:${t.scale}:${t.positionX}:${t.positionY}:${t.rotation}`
           const holding = current.isPaused || current.settings.freezeHistory
           if (holding && !decision.positionReset && !cleared && published && geometry === lastGeometry && (current.settings.freezeHistory || lastSettings === current.settings)) {
             frameId = window.requestAnimationFrame(tick); return
           }
-          const plan = resolveDataBleedPlan(current.settings, rect.width, rect.height, window.devicePixelRatio || 1)
+          const plan = resolveDataBleedPlan(current.settings, rect.width, rect.height, performanceRenderDpr(canvas))
           renderer.resize(plan.output.width, plan.output.height)
           const rendered = renderer.render({ source, settings: current.settings, performance: decision, timeSec: time, deltaSec: delta, fitMode: current.fitMode, sourceTransform: t, viewport: rect })
           if (rendered) {

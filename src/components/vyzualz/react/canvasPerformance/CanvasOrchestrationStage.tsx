@@ -1,3 +1,4 @@
+import { measurePerformanceSurface, performanceRenderDpr } from '../output/performanceOutputGeometry'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { TrackIntelligenceAnalysis } from '../../../../features/musicIntelligence/types'
 import type { BrandKit } from '../../../../features/personalization/BrandKitTypes'
@@ -578,10 +579,10 @@ function CanvasGenericOrchestrationStage({
     const draw = () => {
       const liveFrame = frameRef.current
       const liveProps = propsRef.current
-      const rect = shell.getBoundingClientRect()
+      const rect = measurePerformanceSurface(shell)
       const cssWidth = Math.max(1, Math.round(rect.width || 1280))
       const cssHeight = Math.max(1, Math.round(rect.height || 720))
-      const dpr = Math.min(2, Math.max(1, window.devicePixelRatio || 1))
+      const dpr = Math.min(2, Math.max(1, performanceRenderDpr(shell)))
       const outputWidth = Math.max(1, Math.round(cssWidth * dpr))
       const outputHeight = Math.max(1, Math.round(cssHeight * dpr))
       const now = performance.now()

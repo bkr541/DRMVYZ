@@ -6,6 +6,7 @@ import { resolveTransitionDurationMs } from '../../../lib/stageTransition'
 import { useVisualStore } from '../../../stores/visualStore'
 import { StageTransitionController } from './StageTransitionController'
 import './StageTransitionLayer.css'
+import type { OutputAspectRatio } from '../../../native/outputBridge'
 
 export interface StageTransitionTempoHints {
   /** The loaded track's tempo, if any. */
@@ -19,11 +20,12 @@ export interface StageTransitionTempoHints {
  * `identity` is the engine plus its selected preset (useStageIdentity); any change to it starts a transition, wherever the change came from. The blend is drawn on a canvas
  * over the stage, and `onActiveCanvasChange` hands that canvas to the cast while it runs so the audience sees the same blend as the operator.
  */
-export function StageTransitionLayer({ sourceCanvas, identity, onActiveCanvasChange, getTempoHints }: {
+export function StageTransitionLayer({ sourceCanvas, identity, onActiveCanvasChange, getTempoHints, aspectRatio = null }: {
   sourceCanvas: HTMLCanvasElement | null
   identity: string
   onActiveCanvasChange: (canvas: HTMLCanvasElement | null) => void
   getTempoHints: () => StageTransitionTempoHints
+  aspectRatio?: OutputAspectRatio | null
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const controllerRef = useRef<StageTransitionController | null>(null)
@@ -49,6 +51,7 @@ export function StageTransitionLayer({ sourceCanvas, identity, onActiveCanvasCha
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  useLayoutEffect(() => { controllerRef.current?.setAspectRatio(aspectRatio) }, [aspectRatio])
   useLayoutEffect(() => { controllerRef.current?.setSource(sourceCanvas) }, [sourceCanvas])
 
   // A change of what is on stage. This is a layout effect on purpose: it runs in the commit that carries the change, before the old preset's renderer is torn down.

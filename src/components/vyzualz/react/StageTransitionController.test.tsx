@@ -65,6 +65,28 @@ describe('stage transition controller', () => {
     expect(last.image).toBe(source); expect(last.alpha).toBe(1)
   })
 
+  it('invalidates pre-cast snapshots and holds the chosen aspect through engine handoff', () => {
+    controller.setEnabled(true)
+    controller.setSource(source2d(200, 100))
+    vi.advanceTimersByTime(200)
+    controller.setAspectRatio('9:16')
+    vi.advanceTimersByTime(200)
+    expect(controller.trigger('dissolve', 400)).toBe(false)
+    const portrait = source2d(720, 1280)
+    controller.setSource(portrait)
+    vi.advanceTimersByTime(200)
+    expect(controller.trigger('dissolve', 400)).toBe(true)
+    expect(blend.width / blend.height).toBe(9 / 16)
+    const wrong = source2d(1920, 1080)
+    controller.setSource(wrong)
+    vi.advanceTimersByTime(STAGE_SETTLE_MS + 200)
+    expect(drawsOf(blend).some(call => call.image === wrong)).toBe(false)
+    controller.setSource(portrait)
+    vi.advanceTimersByTime(600)
+    expect(controller.running).toBe(false)
+    expect(drawsOf(blend).at(-1)?.image).toBe(portrait)
+  })
+
   it('holds the old picture until the new engine has produced a frame, then blends, so a switch never shows a gap', () => {
     controller.setEnabled(true); controller.setSource(source2d())
     vi.advanceTimersByTime(200)

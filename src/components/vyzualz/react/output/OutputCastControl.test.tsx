@@ -250,6 +250,24 @@ describe('OutputCastControl', () => {
     })
   })
 
+  it('locks the selected performance format before native start and releases it on stop', async () => {
+    const onAspect = vi.fn()
+    await act(async () => root.render(<OutputCastControl canvas={canvas} onPerformanceAspectChange={onAspect} />))
+    startCast.mockImplementationOnce(async (request: OutputCastRequest) => {
+      expect(onAspect).toHaveBeenLastCalledWith('9:16')
+      return { id: 'portrait', targetId: request.targetId, targetName: 'Stage Screen', windowMode: request.windowMode,
+        aspectRatio: request.aspectRatio, state: 'connecting' as const, error: null }
+    })
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Cast visual output"]')?.click())
+    await act(async () => buttonWithText('Full Screen').click())
+    await act(async () => buttonWithText('9:16').click())
+    await act(async () => buttonWithText('Stage Screen').click())
+    expect(startCast).toHaveBeenCalledWith({ targetId: 'display:2', windowMode: 'fullscreen', aspectRatio: '9:16' })
+    expect(onAspect).toHaveBeenLastCalledWith('9:16')
+    await act(async () => buttonWithText('Stop Output').click())
+    expect(onAspect).toHaveBeenLastCalledWith(null)
+  })
+
   it('shows discovered network receivers in the same chooser', async () => {
     const trigger = container.querySelector<HTMLButtonElement>('[aria-label="Cast visual output"]')
     await act(async () => trigger?.click())
@@ -267,6 +285,7 @@ describe('OutputCastControl', () => {
     const originalPeer = globalThis.RTCPeerConnection
     const drawImage = vi.fn()
     const captureStream = vi.fn()
+    let relayCanvas: HTMLCanvasElement | null = null
     let animationFrame: FrameRequestCallback | null = null
     const track = {
       kind: 'video',
@@ -278,7 +297,7 @@ describe('OutputCastControl', () => {
       getVideoTracks: () => [track],
       getTracks: () => [track],
     } as unknown as MediaStream
-    captureStream.mockReturnValue(stream)
+    captureStream.mockImplementation(function (this: HTMLCanvasElement) { relayCanvas = this; return stream })
 
     Object.defineProperty(HTMLCanvasElement.prototype, 'captureStream', { configurable: true, value: captureStream })
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
@@ -315,13 +334,13 @@ describe('OutputCastControl', () => {
 
     try {
       await act(async () => {
-        receiverRequested?.({ sessionId: 'renderer-transition-session' })
+        receiverRequested?.({ sessionId: 'renderer-transition-session', aspectRatio: '16:9' })
         await Promise.resolve()
         await Promise.resolve()
         await Promise.resolve()
       })
       expect(captureStream).toHaveBeenCalledTimes(1)
-      expect(drawImage).toHaveBeenCalledWith(canvas, 0, 0, 1280, 720)
+      expect(drawImage).toHaveBeenCalledWith(canvas, 0, 0, 1920, 1080)
 
       let frameTime = performance.now()
       const tick = () => {
@@ -332,6 +351,16 @@ describe('OutputCastControl', () => {
         callback?.(frameTime)
         expect(animationFrame).not.toBeNull()
       }
+      expect(relayCanvas).toMatchObject({ width: 1920, height: 1080 })
+      const beforeLayoutChange = drawImage.mock.calls.length
+      canvas.width = 700
+      canvas.height = 720
+      tick()
+      expect(drawImage).toHaveBeenCalledTimes(beforeLayoutChange)
+      expect(relayCanvas).toMatchObject({ width: 1920, height: 1080 })
+      canvas.width = 1280
+      canvas.height = 720
+      tick()
       const copyCount = drawImage.mock.calls.length
       await act(async () => root.render(<OutputCastControl canvas={null} />))
       tick()
@@ -360,6 +389,7 @@ describe('OutputCastControl', () => {
 
       expect(captureStream).toHaveBeenCalledTimes(1)
       expect(drawImage).toHaveBeenLastCalledWith(nextCanvas, 0, 0, 1920, 1080)
+      expect(relayCanvas).toMatchObject({ width: 1920, height: 1080 })
     } finally {
       if (originalCaptureStream) Object.defineProperty(HTMLCanvasElement.prototype, 'captureStream', originalCaptureStream)
       else Reflect.deleteProperty(HTMLCanvasElement.prototype, 'captureStream')
@@ -415,6 +445,7 @@ describe('OutputCastControl', () => {
     const originalMediaRecorder = globalThis.MediaRecorder
     const drawImage = vi.fn()
     const captureStream = vi.fn()
+    let relayCanvas: HTMLCanvasElement | null = null
     let animationFrame: FrameRequestCallback | null = null
     const track = {
       kind: 'video',
@@ -427,7 +458,7 @@ describe('OutputCastControl', () => {
       getVideoTracks: () => [track],
       getTracks: () => [track],
     } as unknown as MediaStream
-    captureStream.mockReturnValue(stream)
+    captureStream.mockImplementation(function (this: HTMLCanvasElement) { relayCanvas = this; return stream })
 
     class FakeMediaRecorder extends EventTarget {
       static isTypeSupported = vi.fn(() => true)
@@ -503,6 +534,16 @@ describe('OutputCastControl', () => {
         callback?.(frameTime)
         expect(animationFrame).not.toBeNull()
       }
+      expect(relayCanvas).toMatchObject({ width: 1280, height: 720 })
+      const beforeLayoutChange = drawImage.mock.calls.length
+      canvas.width = 700
+      canvas.height = 720
+      tick()
+      expect(drawImage).toHaveBeenCalledTimes(beforeLayoutChange)
+      expect(relayCanvas).toMatchObject({ width: 1280, height: 720 })
+      canvas.width = 1280
+      canvas.height = 720
+      tick()
       const copyCount = drawImage.mock.calls.length
       await act(async () => root.render(<OutputCastControl canvas={null} />))
       tick()
@@ -530,6 +571,7 @@ describe('OutputCastControl', () => {
       expect(startCast).not.toHaveBeenCalled()
       expect(captureStream).toHaveBeenCalledTimes(1)
       expect(drawImage).toHaveBeenLastCalledWith(nextCanvas, 0, 0, 1280, 720)
+      expect(relayCanvas).toMatchObject({ width: 1280, height: 720 })
     } finally {
       if (originalCaptureStream) Object.defineProperty(HTMLCanvasElement.prototype, 'captureStream', originalCaptureStream)
       else Reflect.deleteProperty(HTMLCanvasElement.prototype, 'captureStream')

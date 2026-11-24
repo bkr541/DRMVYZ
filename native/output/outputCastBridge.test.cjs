@@ -306,6 +306,7 @@ test('LAN service failure is isolated from local display output and shutdown rel
 
   const screen = new FakeScreen()
   const boundHosts = []
+  let localRelayServer
   const installed = installOutputCastBridge({
     app,
     BrowserWindow: FakeBrowserWindow,
@@ -316,9 +317,9 @@ test('LAN service failure is isolated from local display output and shutdown rel
     googleCastSenderUrl: 'https://cast.example.test/sender/',
     openGoogleCastCompanion: async () => {},
     isTrustedAppUrl: () => true,
-    listenHttpServer: async (_server, host) => {
+    listenHttpServer: async (server, host) => {
       boundHosts.push(host)
-      if (host === '127.0.0.1') return 43123
+      if (host === '127.0.0.1') { localRelayServer = server; return 43123 }
       throw new Error('simulated LAN bind failure')
     },
   })
@@ -327,6 +328,8 @@ test('LAN service failure is isolated from local display output and shutdown rel
   sender.id = 41
   sender.getURL = () => 'file:///app/index.html'
   sender.isDestroyed = () => false
+  const sent = []
+  sender.send = (channel, payload) => sent.push({ channel, payload })
   const event = { sender, senderFrame: { url: 'file:///app/index.html' } }
 
   try {
@@ -335,13 +338,22 @@ test('LAN service failure is isolated from local display output and shutdown rel
     const session = await startCast(event, {
       targetId: 'display:1',
       windowMode: 'fullscreen',
-      aspectRatio: '16:9',
+      aspectRatio: '9:16',
     })
 
     assert.equal(session.providerId, 'local-display')
     assert.equal(createdWindows.length, 1)
     assert.match(createdWindows[0].loadedUrl, /^http:\/\/127\.0\.0\.1:43123\/receiver\?/)
     assert.deepEqual(boundHosts, ['127.0.0.1', '0.0.0.0'])
+    const receiverUrl = new URL(createdWindows[0].loadedUrl)
+    const registerUrl = `/api/sessions/${encodeURIComponent(session.id)}/register?token=${receiverUrl.searchParams.get('token')}`
+    let statusCode
+    localRelayServer.emit('request', { method: 'POST', url: registerUrl, headers: { host: receiverUrl.host }, socket: { remoteAddress: '127.0.0.1' } }, {
+      writeHead: status => { statusCode = status }, end() {},
+    })
+    assert.equal(statusCode, 204)
+    assert.deepEqual(sent, [{ channel: 'drmvyz:output:receiver-requested', payload: { sessionId: session.id, aspectRatio: '9:16' } }])
+
 
     for (let attempt = 0; attempt < 10; attempt += 1) await new Promise(resolve => setImmediate(resolve))
     const snapshot = await handlers.get('drmvyz:output:get-target-snapshot')(event)

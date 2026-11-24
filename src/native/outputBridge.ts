@@ -95,6 +95,7 @@ export interface OutputCastSession {
 
 export interface OutputReceiverRequest {
   sessionId: string
+  aspectRatio: OutputAspectRatio
 }
 
 export interface NativeOutputBridge {

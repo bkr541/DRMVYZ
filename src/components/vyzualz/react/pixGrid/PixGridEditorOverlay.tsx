@@ -150,9 +150,9 @@ export function PixGridEditorOverlay({ liveCanvas }: PixGridEditorOverlayProps) 
 
   const pointFromEvent = useCallback((event: React.PointerEvent<HTMLCanvasElement>, shouldClamp = false) => {
     const rect = canvasRef.current?.getBoundingClientRect()
-    if (!rect) return null
-    return pixGridViewPointToCell(event.clientX - rect.left, event.clientY - rect.top, viewport(), shouldClamp)
-  }, [viewport])
+    if (!rect || rect.width <= 0 || rect.height <= 0) return null
+    return pixGridViewPointToCell((event.clientX - rect.left) * size.width / rect.width, (event.clientY - rect.top) * size.height / rect.height, viewport(), shouldClamp)
+  }, [viewport, size])
 
   useEffect(() => () => {
     if (operationRef.current) cancelHistory()
@@ -382,9 +382,12 @@ export function PixGridEditorOverlay({ liveCanvas }: PixGridEditorOverlayProps) 
     const current = useReactStore.getState().pixGridState
     if (operation.tool === 'pan') {
       const output = resolvePixGridOutputRect(viewport(current))
+      const rect = event.currentTarget.getBoundingClientRect()
+      const scaleX = rect.width > 0 ? size.width / rect.width : 1
+      const scaleY = rect.height > 0 ? size.height / rect.height : 1
       updateEditor({
-        panX: operation.basePanX + (event.clientX - operation.startClientX) / Math.max(1, output.width),
-        panY: operation.basePanY + (event.clientY - operation.startClientY) / Math.max(1, output.height),
+        panX: operation.basePanX + (event.clientX - operation.startClientX) * scaleX / Math.max(1, output.width),
+        panY: operation.basePanY + (event.clientY - operation.startClientY) * scaleY / Math.max(1, output.height),
       })
       return
     }

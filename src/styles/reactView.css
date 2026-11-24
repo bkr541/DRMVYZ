@@ -1046,6 +1046,21 @@
   overflow: hidden;
 }
 
+/* The preview scales, not the engine's layout/backing-store measurements. */
+.rv-performance-viewport {
+  display: contents;
+}
+.rv-performance-viewport[data-performance-geometry-locked='true'] {
+  display: block;
+  position: absolute;
+  overflow: hidden;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%) scale(var(--performance-preview-scale, 1));
+  transform-origin: center;
+  background: #000;
+}
+
 .rv-preview-canvas {
   width: 100%;
   height: 100%;
@@ -4929,7 +4944,8 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   letter-spacing: 0.04em;
 }
 
-.rv-canvas-wrap > .rv-lazy-fallback {
+.rv-canvas-wrap > .rv-lazy-fallback,
+.rv-performance-viewport > .rv-lazy-fallback {
   min-height: 100%;
 }
 

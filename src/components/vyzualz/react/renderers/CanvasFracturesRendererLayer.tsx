@@ -1,3 +1,4 @@
+import { measurePerformanceSurface, performanceRenderDpr } from '../output/performanceOutputGeometry'
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import { AudioFeatureBus } from '../../../../features/musicIntelligence/AudioFeatureBus'
 import type { TrackIntelligenceAnalysis } from '../../../../features/musicIntelligence/types'
@@ -183,10 +184,10 @@ export function CanvasFracturesRendererLayer(props: CanvasFracturesRendererLayer
       const qualityProfile = resolveCanvasFracturesQualityProfile(resolvedQuality)
       canvas.dataset.fracturesRequestedQuality = lastQualityMode
       canvas.dataset.fracturesResolvedQuality = resolvedQuality
-      const bounds = canvas.parentElement?.getBoundingClientRect()
+      const bounds = canvas.parentElement ? measurePerformanceSurface(canvas.parentElement) : undefined
       const cssWidth = Math.max(1, Math.round(bounds?.width || 1280))
       const cssHeight = Math.max(1, Math.round(bounds?.height || 720))
-      renderer.resize(cssWidth, cssHeight, Math.min(window.devicePixelRatio || 1, qualityProfile.dprCap))
+      renderer.resize(cssWidth, cssHeight, Math.min(performanceRenderDpr(canvas), qualityProfile.dprCap))
 
       const frameNowSec = finitePosition(frameNowMs / 1000)
       const analysisActive = (live.analysisActive ?? live.isPlaying) && !live.isPaused

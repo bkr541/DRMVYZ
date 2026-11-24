@@ -1,3 +1,4 @@
+import { measurePerformanceSurface, performanceRenderDpr } from '../output/performanceOutputGeometry'
 import type { HeadlinerBackdropFrame } from './HeadlinerBackdrop'
 import {
   applyCanvasResolution,
@@ -532,7 +533,7 @@ export class HeadlinerFullscreenCompositor {
   }
 
   private resolveBackingResolution(): CanvasResolution | null {
-    const rect = this.canvas.getBoundingClientRect()
+    const rect = measurePerformanceSurface(this.canvas)
     const cssWidth = rect.width || this.canvas.clientWidth
     const cssHeight = rect.height || this.canvas.clientHeight
     if (cssWidth <= 0 || cssHeight <= 0) return null
@@ -542,7 +543,7 @@ export class HeadlinerFullscreenCompositor {
     const resolution = resolveCanvasResolution({
       cssWidth,
       cssHeight,
-      devicePixelRatio: window.devicePixelRatio || 1,
+      devicePixelRatio: performanceRenderDpr(this.canvas),
       quality: 'high',
       resolutionScale: scale,
       maxPixelCount,

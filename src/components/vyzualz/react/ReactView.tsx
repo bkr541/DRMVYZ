@@ -38,6 +38,8 @@ import { resolvePositiveDuration } from '../../../features/timeline/timelineView
 import { ReactPerformancePads } from './ReactPerformancePads'
 import { ReactGlobalOutputControls } from './ReactGlobalOutputControls'
 import { OutputCastControl } from './output/OutputCastControl'
+import { PerformanceViewport } from './output/PerformanceViewport'
+import type { OutputAspectRatio } from '../../../native/outputBridge'
 import {
   ReactDesignWorkspacePanel,
   ReactOutputWorkspacePanel,
@@ -384,6 +386,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager, onOpenPreset
     : (lowerSurfaces[0] ?? 'trackMap')
   const leftTab = isReactLeftTabAvailable(preferredLeftTab, workspaceComposition) ? preferredLeftTab : defaultLeftTab
   const [stageFocus, setStageFocus] = useState(false)
+  const [performanceAspectRatio, setPerformanceAspectRatio] = useState<OutputAspectRatio | null>(null)
   const [trackMapLaneIconsExpanded, setTrackMapLaneIconsExpanded] = useState(false)
   const [trackTimelineOpen, setTrackTimelineOpen] = useState(false)
   const mediaSourceCapability = getReactMediaSourceCapability(activeReactEngineId)
@@ -820,6 +823,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager, onOpenPreset
         {/* Center — canvas + pads + track map */}
         <div className="rv-center-col">
           <div className="rv-canvas-wrap">
+            <PerformanceViewport aspectRatio={performanceAspectRatio}>
             {activeReactEngineId === 'cinema2' ? (
               <Cinema2Stage
                 presetId={cinema2PresetId}
@@ -956,10 +960,12 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager, onOpenPreset
               identity={stageIdentity}
               onActiveCanvasChange={setTransitionCanvas}
               getTempoHints={getTransitionTempoHints}
+              aspectRatio={performanceAspectRatio}
             />
             {!backgrounded && shouldShowPixGridEditorOverlay(activeReactEngineId, pixGridState.authoringOverlayVisible) && (
               <PixGridEditorOverlay liveCanvas={pixGridOutputCanvas} />
             )}
+            </PerformanceViewport>
             {!backgrounded && showDirectorStageEditorVisible && (
               <div className="rv-show-director-stage-overlay" aria-label="Show Director center visualizer editor">
                 <LaserDmxShowDirectorCanvas
@@ -1042,7 +1048,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager, onOpenPreset
                         <TrackMapLaneIconsToggleIcon />
                       </button>
                     )}
-                    <OutputCastControl canvas={transitionCanvas ?? outputCanvas} capability={outputCapability} />
+                    <OutputCastControl canvas={transitionCanvas ?? outputCanvas} capability={outputCapability} onPerformanceAspectChange={setPerformanceAspectRatio} />
                     <button
                       type="button"
                       className={`rv-stage-focus-btn${stageFocus ? ' is-active' : ''}`}

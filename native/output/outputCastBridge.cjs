@@ -782,8 +782,17 @@ function installOutputCastBridge({
         }
         const action = sessionMatch[2]
         if (request.method === 'POST' && action === 'register') {
+          const managed = currentSession()
+          const source = session.sourceWebContents
+          if (managed?.id !== session.id || !['connecting', 'connected'].includes(managed.state)
+            || !source || source.isDestroyed() || !isTrustedAppUrl(source.getURL())) {
+            emptyResponse(response, 404)
+            return
+          }
           session.receiverRegisteredAt = Date.now()
-          sendToTrustedRenderers('drmvyz:output:receiver-requested', { sessionId: session.id })
+          // Only the renderer that owns this session may publish its offer. The
+          // validated format travels with registration, independent of IPC timing.
+          source.send('drmvyz:output:receiver-requested', { sessionId: session.id, aspectRatio: session.aspectRatio })
           emptyResponse(response)
           return
         }
@@ -851,6 +860,7 @@ function installOutputCastBridge({
 
     const signalSession = {
       id: crypto.randomUUID(),
+      aspectRatio: request.aspectRatio,
       token: crypto.randomBytes(24).toString('base64url'),
       createdAt: Date.now(),
       offer: null,

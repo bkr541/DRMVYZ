@@ -1,3 +1,4 @@
+import { measurePerformanceSurface, performanceRenderDpr } from '../output/performanceOutputGeometry'
 import { hasCanvasFrameListeners, notifyCanvasFrameRendered } from '../../../../lib/canvasFrameReadiness'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactPreset, ReactTrackSection } from '../ReactTypes'
@@ -1571,11 +1572,11 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
       if (!ownership.isCurrent() || lifecycle.disposed) return
       const dimensions = resolvePixGridMatrixDimensions(runtimeQualityRef.current)
       setPixGridDeckRuntimeResolution(deckRuntimeResolutionOwner.current, dimensions.width, dimensions.height)
-      const bounds = (gpuCanvas.hidden ? fallbackCanvas : gpuCanvas).getBoundingClientRect()
+      const bounds = measurePerformanceSurface(gpuCanvas.hidden ? fallbackCanvas : gpuCanvas)
       const next = resolveCanvasResolution({
         cssWidth: bounds.width,
         cssHeight: bounds.height,
-        devicePixelRatio: window.devicePixelRatio,
+        devicePixelRatio: performanceRenderDpr(gpuCanvas.hidden ? fallbackCanvas : gpuCanvas),
         quality: propsRef.current.previewOnly ? 'low' : canvasQuality(runtimeQualityRef.current),
         maxPixelCount: propsRef.current.previewOnly ? PREVIEW_MAX_PIXELS : undefined,
         previous: resolution,

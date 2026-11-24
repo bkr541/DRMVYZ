@@ -1,3 +1,4 @@
+import { measurePerformanceSurface, performanceRenderDpr } from '../../output/performanceOutputGeometry'
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import type { SharedPerformanceContext } from '../../../../../features/performanceCore'
 import type { CanvasFitMode, CanvasMediaItem } from '../../ReactTypes'
@@ -89,7 +90,7 @@ export function CanvasMutagenLayer(props: {
       const delta = Math.max(0, Math.min(0.1, (now - previousMs) / 1000))
       previousMs = now
       const current = live.current
-      const rect = canvas.getBoundingClientRect()
+      const rect = measurePerformanceSurface(canvas)
       if (!document.hidden && rect.width > 0 && rect.height > 0) {
         const shared = current.performanceContextRef.current
         // Ambient motion when stopped uses elapsed animation time only. Musical
@@ -100,14 +101,14 @@ export function CanvasMutagenLayer(props: {
           const decision = controller.update({ settings: current.settings, context: shared, audioActive: current.audioActive ?? current.isPlaying, paused: current.isPaused, timeSec: audioTime, deltaSec: delta })
           if (decision.reset) renderer.resetHistory()
           const transform = current.sourceTransform
-          const geometry = `${window.devicePixelRatio || 1}:${rect.width}:${rect.height}:${current.fitMode}:${transform.scale}:${transform.positionX}:${transform.positionY}:${transform.rotation}`
+          const geometry = `${performanceRenderDpr(canvas)}:${rect.width}:${rect.height}:${current.fitMode}:${transform.scale}:${transform.positionX}:${transform.positionY}:${transform.rotation}`
           // Reuse the last usable snapshot while paused. Sampling a cleared
           // non-preserved GL drawing buffer or advancing feedback would not freeze.
           if (current.isPaused && !decision.positionReset && published && lastRenderedRecipe === current.settings && lastRenderedGeometry === geometry) {
             frameId = window.requestAnimationFrame(tick)
             return
           }
-          const size = resolveMutagenRenderSize(rect.width, rect.height, window.devicePixelRatio || 1, current.settings.mutation === 0 || current.settings.sourceMix === 1 ? 'balanced' : current.settings.quality)
+          const size = resolveMutagenRenderSize(rect.width, rect.height, performanceRenderDpr(canvas), current.settings.mutation === 0 || current.settings.sourceMix === 1 ? 'balanced' : current.settings.quality)
           renderer.resize(size.width, size.height)
           const rendered = renderer.render({
             source: sourceRef.current,

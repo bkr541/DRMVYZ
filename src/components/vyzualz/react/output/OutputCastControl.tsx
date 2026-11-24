@@ -3,6 +3,7 @@ import { BRAND_RECEIVERS } from '../../../../brand'
 import { isCanvasFrameReady } from '../../../../lib/canvasFrameReadiness'
 import { FrameCadence } from '../../../../lib/frameCadence'
 import { startRelayFramePump } from './relayFramePump'
+import { copyPerformanceFrame, performanceOutputSize } from './performanceOutputGeometry'
 import { recordPerformanceEvent, setPerformanceCastActive } from '../../../../lib/performanceTelemetry'
 import { CastLoadShedder, bindCadenceToPressure } from '../../../../lib/castLoadShedding'
 import { CastReconnector } from '../../../../lib/castSelfHealing'
@@ -20,7 +21,7 @@ import {
   type CSSProperties,
   type MutableRefObject,
 } from 'react'
-import { createPortal } from 'react-dom'
+import { createPortal, flushSync } from 'react-dom'
 import { DrawerNotice } from '../../shared/DrawerNotice'
 import {
   CANVAS_OUTPUT_AVAILABLE,
@@ -116,31 +117,16 @@ interface RelayCapture {
   stop: () => void
 }
 
-const RECEIVER_MAX_LONG_EDGE = 1920
-const RECEIVER_MAX_SHORT_EDGE = 1080
 const RECEIVER_MAX_FPS = 60
 const RECEIVER_MAX_BITRATE_BPS = 12_000_000
 const RECEIVER_STATS_INTERVAL_MS = 2_000
 const RECEIVER_DISCONNECT_GRACE_MS = 3_000
 
-function fitRelaySize(width: number, height: number): { width: number; height: number } {
-  const safeWidth = Math.max(2, width || 1920)
-  const safeHeight = Math.max(2, height || 1080)
-  const landscape = safeWidth >= safeHeight
-  const maxWidth = landscape ? RECEIVER_MAX_LONG_EDGE : RECEIVER_MAX_SHORT_EDGE
-  const maxHeight = landscape ? RECEIVER_MAX_SHORT_EDGE : RECEIVER_MAX_LONG_EDGE
-  const scale = Math.min(1, maxWidth / safeWidth, maxHeight / safeHeight)
-  return {
-    width: Math.max(2, Math.round(safeWidth * scale)),
-    height: Math.max(2, Math.round(safeHeight * scale)),
-  }
-}
-
-function createRelayCapture(sourceRef: MutableRefObject<HTMLCanvasElement | null>): RelayCapture {
+function createRelayCapture(sourceRef: MutableRefObject<HTMLCanvasElement | null>, aspectRatio: OutputAspectRatio): RelayCapture {
   const relay = document.createElement('canvas')
-  const initial = fitRelaySize(sourceRef.current?.width ?? 1920, sourceRef.current?.height ?? 1080)
-  relay.width = initial.width
-  relay.height = initial.height
+  const size = performanceOutputSize(aspectRatio)
+  relay.width = size.width
+  relay.height = size.height
   const context = relay.getContext('2d', { alpha: false })
   if (!context || typeof relay.captureStream !== 'function') {
     throw new Error('Canvas streaming is unavailable in this runtime')
@@ -150,18 +136,7 @@ function createRelayCapture(sourceRef: MutableRefObject<HTMLCanvasElement | null
   // At severe overload (a cast that cannot keep up, a GPU that just restarted) the relay copies and encodes half as many frames until it passes.
   const unbindPressure = bindCadenceToPressure(cadence, RECEIVER_MAX_FPS)
   const copyFrame = (source: HTMLCanvasElement | null) => {
-    if (source && source.width > 0 && source.height > 0) {
-      if (!isCanvasFrameReady(source)) return
-      const next = fitRelaySize(source.width, source.height)
-      if (relay.width !== next.width || relay.height !== next.height) {
-        relay.width = next.width
-        relay.height = next.height
-      }
-      context.drawImage(source, 0, 0, relay.width, relay.height)
-    } else {
-      context.fillStyle = '#000'
-      context.fillRect(0, 0, relay.width, relay.height)
-    }
+    if (source && isCanvasFrameReady(source)) copyPerformanceFrame(context, source, size)
   }
   const stopPump = startRelayFramePump({ sourceRef, cadence, copy: copyFrame, onError: error => console.warn('[cast] relay frame copy failed', error) })
   const stream = relay.captureStream(RECEIVER_MAX_FPS)
@@ -271,13 +246,12 @@ function useOutputBroadcaster(
 
   useEffect(() => {
     if (!bridge) return
-    return bridge.onReceiverRequested(({ sessionId }) => {
+    return bridge.onReceiverRequested(({ sessionId, aspectRatio }) => {
       void (async () => {
         closeActive()
         try {
-          if (!canvasRef.current) throw new Error('The live visualizer has not published an output canvas yet')
           if (typeof RTCPeerConnection === 'undefined') throw new Error('WebRTC output is unavailable in this runtime')
-          const relay = createRelayCapture(canvasRef)
+          const relay = createRelayCapture(canvasRef, aspectRatio)
           const peer = new RTCPeerConnection({ iceServers: [] })
           activeRef.current = { sessionId, peer, relay, statsTimer: null, disconnectTimer: null }
           previewSourceRef.current = relay.canvas
@@ -340,7 +314,7 @@ function useOutputBroadcaster(
           }
         } catch (error) {
           const message = error instanceof Error ? error.message : 'The output stream could not start'
-          closeActive()
+          if (activeRef.current?.sessionId === sessionId) closeActive()
           await bridge.failSession(sessionId, message).catch(() => false)
         }
       })()
@@ -350,47 +324,21 @@ function useOutputBroadcaster(
   useEffect(() => closeActive, [closeActive])
 }
 
-const GOOGLE_CAST_MAX_LONG_EDGE = 1280
-const GOOGLE_CAST_MAX_SHORT_EDGE = 720
 const GOOGLE_CAST_MAX_FPS = 30
 const GOOGLE_CAST_VIDEO_BITRATE_BPS = 6_000_000
 const GOOGLE_CAST_CHUNK_INTERVAL_MS = 250
 
-function fitGoogleCastRelaySize(width: number, height: number): { width: number; height: number } {
-  const safeWidth = Math.max(2, width || 1280)
-  const safeHeight = Math.max(2, height || 720)
-  const landscape = safeWidth >= safeHeight
-  const maxWidth = landscape ? GOOGLE_CAST_MAX_LONG_EDGE : GOOGLE_CAST_MAX_SHORT_EDGE
-  const maxHeight = landscape ? GOOGLE_CAST_MAX_SHORT_EDGE : GOOGLE_CAST_MAX_LONG_EDGE
-  const scale = Math.min(1, maxWidth / safeWidth, maxHeight / safeHeight)
-  return {
-    width: Math.max(2, Math.round(safeWidth * scale)),
-    height: Math.max(2, Math.round(safeHeight * scale)),
-  }
-}
-
-function createGoogleCastRelayCapture(sourceRef: MutableRefObject<HTMLCanvasElement | null>): RelayCapture {
+function createGoogleCastRelayCapture(sourceRef: MutableRefObject<HTMLCanvasElement | null>, aspectRatio: OutputAspectRatio): RelayCapture {
   const relay = document.createElement('canvas')
-  const initial = fitGoogleCastRelaySize(sourceRef.current?.width ?? 1280, sourceRef.current?.height ?? 720)
-  relay.width = initial.width
-  relay.height = initial.height
+  const size = performanceOutputSize(aspectRatio, 'google-cast-webm')
+  relay.width = size.width
+  relay.height = size.height
   const context = relay.getContext('2d', { alpha: false })
   if (!context || typeof relay.captureStream !== 'function') throw new Error('Canvas capture is unavailable for Google Cast in this runtime')
 
   const cadence = new FrameCadence(GOOGLE_CAST_MAX_FPS)
   const copyFrame = (source: HTMLCanvasElement | null) => {
-    if (source && source.width > 0 && source.height > 0) {
-      if (!isCanvasFrameReady(source)) return
-      const next = fitGoogleCastRelaySize(source.width, source.height)
-      if (relay.width !== next.width || relay.height !== next.height) {
-        relay.width = next.width
-        relay.height = next.height
-      }
-      context.drawImage(source, 0, 0, relay.width, relay.height)
-    } else {
-      context.fillStyle = '#000'
-      context.fillRect(0, 0, relay.width, relay.height)
-    }
+    if (source && isCanvasFrameReady(source)) copyPerformanceFrame(context, source, size)
   }
   const stopPump = startRelayFramePump({ sourceRef, cadence, copy: copyFrame, onError: error => console.warn('[cast] Google Cast relay frame copy failed', error) })
   const stream = relay.captureStream(GOOGLE_CAST_MAX_FPS)
@@ -456,8 +404,9 @@ function useGoogleCastBroadcaster(
     ? session.id
     : null
 
+  const activeAspectRatio = activeSessionId ? session?.aspectRatio : null
   useEffect(() => {
-    if (!bridge || !activeSessionId) {
+    if (!bridge || !activeSessionId || !activeAspectRatio) {
       closeActive()
       return
     }
@@ -470,13 +419,12 @@ function useGoogleCastBroadcaster(
     void (async () => {
       let pendingRelay: RelayCapture | null = null
       try {
-        if (!canvasRef.current) throw new Error('The live visualizer has not published an output canvas yet')
         if (!bridge.beginGoogleCastStream || !bridge.publishGoogleCastChunk || !bridge.endGoogleCastStream) {
           throw new Error('This STAGELESS build does not expose the Google Cast live media bridge')
         }
         const mimeType = chooseGoogleCastMimeType()
         if (!mimeType) throw new Error('This Chromium runtime cannot encode a Google Cast compatible WebM stream')
-        const relay = createGoogleCastRelayCapture(canvasRef)
+        const relay = createGoogleCastRelayCapture(canvasRef, activeAspectRatio)
         pendingRelay = relay
         const recorder = new MediaRecorder(relay.stream, {
           mimeType,
@@ -564,7 +512,7 @@ function useGoogleCastBroadcaster(
       cancelled = true
       if (activeRef.current?.sessionId === sessionId) closeActive()
     }
-  }, [activeSessionId, bridge, closeActive, previewSourceRef])
+  }, [activeSessionId, activeAspectRatio, bridge, closeActive, previewSourceRef])
 
   useEffect(() => closeActive, [closeActive])
 }
@@ -987,11 +935,13 @@ function OutputCastPopover({
 export interface OutputCastControlProps {
   canvas: HTMLCanvasElement | null
   capability?: CanvasOutputCapability
+  onPerformanceAspectChange?: (aspectRatio: OutputAspectRatio | null) => void
 }
 
 export function OutputCastControl({
   canvas,
   capability = CANVAS_OUTPUT_AVAILABLE,
+  onPerformanceAspectChange,
 }: OutputCastControlProps) {
   const backgrounded = useReactBackgrounded()
   const bridge = useMemo(() => getNativeOutputBridge(), [])
@@ -999,6 +949,7 @@ export function OutputCastControl({
   const safeCanvas = outputAvailable ? canvas : null
   const outputAvailableRef = useRef(outputAvailable)
   const refreshGenerationRef = useRef(0)
+  const sessionRevisionRef = useRef(0)
   const unmountStopTimerRef = useRef<number | null>(null)
   const triggerRef = useRef<HTMLButtonElement | null>(null)
   const [open, setOpen] = useState(false)
@@ -1008,6 +959,14 @@ export function OutputCastControl({
   const [previewSessionId, setPreviewSessionId] = useState<string | null>(null)
   const [targets, setTargets] = useState<OutputTarget[]>([])
   const [session, setSession] = useState<OutputCastSession | null>(null)
+  // Lock before asking native to open a receiver; native registration can race the startCast reply.
+  const [pendingAspectRatio, setPendingAspectRatio] = useState<OutputAspectRatio | null>(null)
+  const activeAspectRatio = outputAvailable ? pendingAspectRatio ?? (
+    session && (session.state === 'connecting' || session.state === 'connected' || session.state === 'disconnecting')
+      ? session.aspectRatio : null
+  ) : null
+  useLayoutEffect(() => { onPerformanceAspectChange?.(activeAspectRatio) }, [activeAspectRatio, onPerformanceAspectChange])
+  useLayoutEffect(() => () => onPerformanceAspectChange?.(null), [onPerformanceAspectChange])
   // Self-healing: remembers the cast the user started and brings it back (same target, window and aspect ratio) if the session fails on its own.
   const bridgeRef = useRef(bridge)
   bridgeRef.current = bridge
@@ -1018,11 +977,19 @@ export function OutputCastControl({
       start: async (request) => {
         const active = bridgeRef.current
         if (!active || !outputAvailableRef.current || !canvasAvailableRef.current) return false
-        await active.stopCast().catch(() => null)
-        const next = await active.startCast(request)
-        if (!outputAvailableRef.current) { await active.stopCast().catch(() => null); return false }
-        setSession(next)
-        return next !== null && next.state !== 'failed'
+        sessionRevisionRef.current += 1
+        flushSync(() => setPendingAspectRatio(request.aspectRatio))
+        try {
+          await active.stopCast().catch(() => null)
+          if (!outputAvailableRef.current) return false
+          const revision = sessionRevisionRef.current
+          const next = await active.startCast(request)
+          if (!outputAvailableRef.current) { await active.stopCast().catch(() => null); return false }
+          if (revision === sessionRevisionRef.current) { sessionRevisionRef.current += 1; setSession(next) }
+          return next !== null && next.state !== 'failed'
+        } finally {
+          setPendingAspectRatio(null)
+        }
       },
     })
   }
@@ -1094,7 +1061,9 @@ export function OutputCastControl({
     setProviderStatuses([])
     setLoading(false)
     setError(null)
+    sessionRevisionRef.current += 1
     setSession(null)
+    setPendingAspectRatio(null)
     reconnectorRef.current?.forget()
     if (bridge) void bridge.stopCast().catch(() => null)
   }, [bridge, outputAvailable])
@@ -1108,11 +1077,12 @@ export function OutputCastControl({
       const snapshot = bridge.getTargetSnapshot
         ? await bridge.getTargetSnapshot()
         : { targets: await bridge.listTargets(), providers: [] }
+      const revision = sessionRevisionRef.current
       const nextSession = await bridge.getSession()
       if (!outputAvailableRef.current || generation !== refreshGenerationRef.current) return
       setTargets(snapshot.targets)
       setProviderStatuses(snapshot.providers)
-      setSession(nextSession)
+      if (revision === sessionRevisionRef.current) setSession(nextSession)
     } catch (value) {
       if (outputAvailableRef.current && generation === refreshGenerationRef.current) {
         setError(value instanceof Error ? value.message : 'Could not discover output devices')
@@ -1133,7 +1103,7 @@ export function OutputCastControl({
       setProviderStatuses(snapshot.providers)
     })
     const unsubscribeSession = bridge.onSessionChanged((nextSession) => {
-      if (outputAvailableRef.current) setSession(nextSession)
+      if (outputAvailableRef.current) { sessionRevisionRef.current += 1; setSession(nextSession) }
     })
     void refresh()
     return () => {
@@ -1167,8 +1137,12 @@ export function OutputCastControl({
     if (!bridge?.performProviderAction || !outputAvailable) return
     setError(null)
     try {
+      const revision = sessionRevisionRef.current
       const result = await bridge.performProviderAction(providerId, actionId, payload)
-      if (result.session && outputAvailableRef.current) setSession(result.session)
+      if (result.session && outputAvailableRef.current && revision === sessionRevisionRef.current) {
+        sessionRevisionRef.current += 1
+        setSession(result.session)
+      }
       await refresh()
     } catch (value) {
       if (outputAvailableRef.current) {
@@ -1186,18 +1160,23 @@ export function OutputCastControl({
     setError(null)
     const request: OutputCastRequest = { targetId: target.id, windowMode, aspectRatio }
     reconnectorRef.current?.remember(request)
+    sessionRevisionRef.current += 1
+    flushSync(() => setPendingAspectRatio(aspectRatio))
     try {
+      const revision = sessionRevisionRef.current
       const nextSession = await bridge.startCast(request)
       if (!outputAvailableRef.current) {
         await bridge.stopCast().catch(() => null)
         return
       }
-      setSession(nextSession)
+      if (revision === sessionRevisionRef.current) { sessionRevisionRef.current += 1; setSession(nextSession) }
     } catch (value) {
       reconnectorRef.current?.forget()
       if (outputAvailableRef.current) {
         setError(value instanceof Error ? value.message : 'Could not start output')
       }
+    } finally {
+      setPendingAspectRatio(null)
     }
   }, [bridge, outputAvailable, safeCanvas])
 
@@ -1205,9 +1184,12 @@ export function OutputCastControl({
     if (!bridge) return
     setError(null)
     reconnectorRef.current?.forget()
+    sessionRevisionRef.current += 1
     try {
       await bridge.stopCast()
+      sessionRevisionRef.current += 1
       setSession(null)
+      setPendingAspectRatio(null)
     } catch (value) {
       setError(value instanceof Error ? value.message : 'Could not stop output')
     }

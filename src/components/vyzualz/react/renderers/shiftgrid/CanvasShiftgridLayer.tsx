@@ -1,3 +1,4 @@
+import { measurePerformanceSurface, performanceRenderDpr } from '../../output/performanceOutputGeometry'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { SharedPerformanceContext } from '../../../../../features/performanceCore'
 import { DrawerNotice } from '../../../shared/DrawerNotice'
@@ -158,10 +159,10 @@ export function CanvasShiftgridLayer({ settings, activeMediaId, activePool, medi
     canvas.addEventListener('webglcontextlost', contextLost)
 
     const frame = (now: number) => {
-      const rect = canvas.getBoundingClientRect(); const width = Math.max(1, rect.width || canvas.clientWidth || 1); const height = Math.max(1, rect.height || canvas.clientHeight || 1)
+      const rect = measurePerformanceSurface(canvas); const width = Math.max(1, rect.width || canvas.clientWidth || 1); const height = Math.max(1, rect.height || canvas.clientHeight || 1)
       const live = settingsRef.current
       const deltaMs = Math.min(64, Math.max(0, now - previousAt))
-      const dpr = Math.max(0.5, Math.min(2, window.devicePixelRatio || 1) * live.renderScale)
+      const dpr = Math.max(0.5, Math.min(2, performanceRenderDpr(canvas)) * live.renderScale)
       renderer.resize(width, height, dpr)
       const primary = loadedSources[Math.max(0, live.primaryTargetMediaId ? sourceIds.indexOf(live.primaryTargetMediaId) : initialPrimaryIndex)] ?? loadedSources[0]!
       const dimensions = resolveShiftgridGridDimensions({ settings: live, sourceWidth: primary.image.naturalWidth, sourceHeight: primary.image.naturalHeight, viewportWidth: width, viewportHeight: height })

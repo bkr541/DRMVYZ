@@ -1,3 +1,4 @@
+import { measurePerformanceSurface, performanceRenderDpr } from '../../output/performanceOutputGeometry'
 import { useEffect, useRef, type RefObject } from 'react'
 import { createSharedPerformanceFallbackContext, type SharedPerformanceContext } from '../../../../../features/performanceCore'
 import { useMediaStore } from '../../../../../stores/mediaStore'
@@ -171,10 +172,10 @@ export function CanvasCutbankLayer({
 
       if (!contextLost && composeCtx) {
         try {
-          const rect = canvas.getBoundingClientRect()
+          const rect = measurePerformanceSurface(canvas)
           const cssW = Math.max(1, Math.round(rect.width || canvas.clientWidth || 1))
           const cssH = Math.max(1, Math.round(rect.height || canvas.clientHeight || 1))
-          const dpr = Math.min(1.5, Math.max(1, window.devicePixelRatio || 1))
+          const dpr = Math.min(1.5, Math.max(1, performanceRenderDpr(canvas)))
           const scale = Math.min(1, MAX_RENDER_WIDTH / Math.max(1, cssW * dpr))
           const width = Math.max(2, Math.round(cssW * dpr * scale))
           const height = Math.max(2, Math.round(cssH * dpr * scale))

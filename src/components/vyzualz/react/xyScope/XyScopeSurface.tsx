@@ -1,3 +1,4 @@
+import { measurePerformanceSurface, performanceRenderDpr } from '../output/performanceOutputGeometry'
 import { useEffect, useRef, useState } from 'react'
 import type { StereoScopeAudioTap } from '../../../../audio/scope/StereoScopeAudioTap'
 import { AudioFeatureBus } from '../../../../features/musicIntelligence/AudioFeatureBus'
@@ -91,8 +92,8 @@ export function XyScopeSurface({
     const monoTap = new XyScopeTextV2MonoTap()
 
     const measure = () => {
-      const rect = host.getBoundingClientRect()
-      runtime.resize(rect.width, rect.height, window.devicePixelRatio || 1)
+      const rect = measurePerformanceSurface(host)
+      runtime.resize(rect.width, rect.height, performanceRenderDpr(host))
     }
     measure()
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure)

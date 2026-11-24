@@ -1,3 +1,4 @@
+import { performanceRenderDpr } from '../../output/performanceOutputGeometry'
 import { resolveCanvasResolution, type CanvasResolution } from '../../rendering/canvasResolution'
 import { ShaderWebGLRuntime } from '../../shaders/runtime/ShaderWebGLRuntime'
 import type { WebGLContextDisposalMode } from '../../shaders/runtime/WebGLContextLifecycle'
@@ -993,7 +994,7 @@ export class LaserDmxWebGLRuntime {
 
   private resize(frame: LaserDmxSceneFrame): void {
     const outputCanvas = this.outputContext.canvas
-    const dpr = Math.max(0.5, frame.quality.devicePixelRatio)
+    const dpr = Math.max(0.5, performanceRenderDpr(outputCanvas, frame.quality.devicePixelRatio))
     const cssWidth =
       outputCanvas.clientWidth > 0 ? outputCanvas.clientWidth : outputCanvas.width / dpr
     const cssHeight =

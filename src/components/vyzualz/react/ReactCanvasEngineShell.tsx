@@ -1,3 +1,4 @@
+import { measurePerformanceSurface, performanceRenderDpr } from './output/performanceOutputGeometry'
 import { resolveCanvasResolution, type CanvasResolution } from './rendering/canvasResolution'
 import { recordPerformanceEvent } from '../../../lib/performanceTelemetry'
 import { AppIcon } from '../../shared/icons/AppIcon'
@@ -945,7 +946,7 @@ function CanvasParticleAuraLayer({
 
       const tick = () => {
         if (disposed) return
-        const rect = canvas.getBoundingClientRect()
+        const rect = measurePerformanceSurface(canvas)
         const cssWidth = Math.max(1, Math.round(rect.width || canvas.clientWidth || 1))
         const cssHeight = Math.max(1, Math.round(rect.height || canvas.clientHeight || 1))
         const liveSettings = settingsRef.current
@@ -957,7 +958,7 @@ function CanvasParticleAuraLayer({
           renderer.clear()
         }
         const profile = resolveCanvasParticleQualityProfile(runtimeQuality)
-        const dpr = Math.min(profile.maxDpr, Math.max(1, window.devicePixelRatio || 1))
+        const dpr = Math.min(profile.maxDpr, Math.max(1, performanceRenderDpr(canvas)))
         renderer.resize(Math.round(cssWidth * dpr), Math.round(cssHeight * dpr))
 
         const nowMs = typeof performance !== 'undefined' ? performance.now() : Date.now()
@@ -1013,7 +1014,7 @@ function CanvasParticleAuraLayer({
 
     const tick = () => {
       if (disposed) return
-      const rect = canvas.getBoundingClientRect()
+      const rect = measurePerformanceSurface(canvas)
       const cssWidth = Math.max(1, Math.round(rect.width || canvas.clientWidth || 1))
       const cssHeight = Math.max(1, Math.round(rect.height || canvas.clientHeight || 1))
       const liveSettings = settingsRef.current
@@ -1026,7 +1027,7 @@ function CanvasParticleAuraLayer({
         lastSampleAt = 0
       }
       const profile = resolveCanvasParticleQualityProfile(runtimeQuality)
-      const dpr = Math.min(1.25, Math.max(1, window.devicePixelRatio || 1))
+      const dpr = Math.min(1.25, Math.max(1, performanceRenderDpr(canvas)))
       const targetWidth = Math.round(cssWidth * dpr)
       const targetHeight = Math.round(cssHeight * dpr)
       if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
@@ -2069,11 +2070,11 @@ export function CanvasEngineSurface({
     const drawSource = () => {
       const liveSettings = liveSettingsRef.current
       const liveOutputContract = liveOutputContractRef.current
-      const visibleRect = outputRef.current?.getBoundingClientRect()
+      const visibleRect = outputRef.current ? measurePerformanceSurface(outputRef.current) : undefined
       const cssWidth = Math.max(1, Math.round(visibleRect?.width || 1280))
       const cssHeight = Math.max(1, Math.round(visibleRect?.height || 720))
       const resolution = resolveCanvasResolution({ cssWidth, cssHeight,
-        devicePixelRatio: window.devicePixelRatio, quality: 'ultra', previous: previousCaptureResolution })
+        devicePixelRatio: performanceRenderDpr(outputRef.current), quality: 'ultra', previous: previousCaptureResolution })
       if (!resolution.valid) return
       const targetWidth = resolution.backingWidth
       const targetHeight = resolution.backingHeight

@@ -1,3 +1,4 @@
+import { measurePerformanceSurface, performanceRenderDpr } from './output/performanceOutputGeometry'
 import { GraphicsHealer } from '../../../lib/graphicsSelfHealing'
 import { markCanvasFramePending, markCanvasFrameReady, notifyCanvasFrameRendered } from '../../../lib/canvasFrameReadiness'
 import { recordPerformanceEvent } from '../../../lib/performanceTelemetry'
@@ -127,11 +128,11 @@ export function Cinema2Stage({
 
     const resize = () => {
       if (retired) return
-      const bounds = canvas.getBoundingClientRect()
+      const bounds = measurePerformanceSurface(canvas)
       const resolution = resolveCanvasResolution({
         cssWidth: bounds.width,
         cssHeight: bounds.height,
-        devicePixelRatio: window.devicePixelRatio,
+        devicePixelRatio: performanceRenderDpr(canvas),
         quality: 'high',
         previous: lastResolution,
       })
