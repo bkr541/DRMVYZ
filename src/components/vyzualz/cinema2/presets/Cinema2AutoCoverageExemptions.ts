@@ -13,6 +13,17 @@ const MAPPED_BY_RULE = 'The preset maps this saved value to its targets through 
 const NEVER_ZOOMS = 'Open Decks never zooms or turns: its only camera movement is the slight left and right sway authored in the preset.'
 
 export const CINEMA2_AUTO_COVERAGE_EXEMPT: Readonly<Record<string, Readonly<Record<string, string>>>> = Object.freeze({
+  allstar: Object.freeze({
+    'allstar-tunnel-width': 'Changing the physical corridor radius during a recycled segment pass breaks the fixed architectural framing.',
+    'allstar-tunnel-depth': 'Changing segment spacing changes the recycling period and causes a discontinuous spatial jump.',
+    'allstar-frame-thickness': 'Fixed architectural rib dimensions are authored geometry.',
+    'allstar-structural-detail': 'Crosses the threshold for recruiting additional structural parts.',
+    'allstar-surface-roughness': 'Authored material finish must remain constant.',
+    'allstar-geometry-layers': 'Discrete capacity; live count changes can pop in or remove depth layers.',
+    'allstar-geometric-separation': 'Changing the recycling period jumps the independent outlines in depth.',
+    'allstar-geometry-thickness': 'Fixed physical thickness of the authored light bars.',
+    'allstar-reactivity': 'User-owned strength of the shared choreography, not an automation target.',
+  }),
   blockshift: Object.freeze({
     'blockshift-block-size': BLOCK_GEOMETRY, 'blockshift-spread': BLOCK_GEOMETRY, 'blockshift-depth': BLOCK_GEOMETRY, 'blockshift-rotation-range': BLOCK_GEOMETRY,
   }),

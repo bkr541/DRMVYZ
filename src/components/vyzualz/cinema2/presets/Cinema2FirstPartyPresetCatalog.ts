@@ -50,6 +50,7 @@ import { CINEMA2_ANCIENT_MACHINE_PRESET_MANIFEST } from './Cinema2AncientMachine
 import { CINEMA2_EVENT_HORIZON_PRESET_MANIFEST } from './Cinema2EventHorizonPreset'
 import { CINEMA2_CONSTELLATION_PRESET_MANIFEST } from './Cinema2ConstellationPreset'
 import { CINEMA2_SIXFOLD_PRESET_MANIFEST } from './Cinema2SixfoldPreset'
+import { CINEMA2_ALLSTAR_PRESET_MANIFEST } from './Cinema2AllstarPreset'
 import { CINEMA2_HYPNOTIZE_PRESET_MANIFEST } from './Cinema2HypnotizePreset'
 import { CINEMA2_STARTERS_PRESET_MANIFEST } from './Cinema2StartersPreset'
 import { CINEMA2_CANOPY_PRESET_MANIFEST } from './Cinema2CanopyPreset'
@@ -64,6 +65,8 @@ import { CINEMA2_TRIPPY_BRO_PRESET_MANIFEST } from './Cinema2TrippyBroPreset'
  * the runtime and schema-driven Inspector remain preset-agnostic.
  */
 const AUTHORED_PRESET_DECLARATIONS = Object.freeze([
+  // Native review entry: promote only after production and human visual acceptance.
+  defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_ALLSTAR_PRESET_MANIFEST }),
   ...CINEMA2_CRATE_PRESET_MANIFESTS.map(manifest => defineCinema2FirstPartyPreset({ role: 'reference', manifest })),
   defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_CHAMBER_PRESET_MANIFEST }),
   // Complete native implementation; human visual acceptance pending.

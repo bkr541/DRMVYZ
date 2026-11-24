@@ -1523,3 +1523,6 @@ export { CINEMA2_SUBMERGE_MODULE_TYPE_ID, cinema2SubmergeNativeModuleDefinition 
 
 export { CINEMA2_ORBITAL_PRESET_ID, CINEMA2_ORBITAL_PRESET_MANIFEST } from './presets/Cinema2OrbitalPreset'
 export { CINEMA2_ORBITAL_MODULE_TYPE_ID, cinema2OrbitalNativeModuleDefinition } from './modules/Cinema2OrbitalNativeModule'
+
+export { CINEMA2_ALLSTAR_PRESET_ID, CINEMA2_ALLSTAR_PRESET_MANIFEST } from './presets/Cinema2AllstarPreset'
+export { CINEMA2_ALLSTAR_NATIVE_MODULE_TYPE_ID, cinema2AllstarNativeModuleDefinition } from './modules/Cinema2AllstarNativeModule'
