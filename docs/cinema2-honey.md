@@ -1,0 +1,130 @@
+# HONEY | Cinema 2.0 native preset
+
+## P01: native foundation and selectable static geometry
+
+Status: implementation staged for technical review; no human approval. Full production visual acceptance is blocked in this environment (see gate record). Phase 02 is not included. Stable identity: `drmvyz.cinema2.honey`, module type `honey-native@1`, module instance `honey-wall`, manifest revision 1. The first-party declaration is `reference`, tags `cinematic`, `3d`, `static`. The real `Cinema2PresetsPanel` uses `cinema2NativePresetRegistry.list()`, filters `internal` and calls `resolvePresetScope`; new IDs without private catalog rows are system presets. No database entry or parallel picker is needed. Remove `static` in P03 only after actual motion is implemented; promotion to keeper requires the final human and technical gates.
+
+### Reference observations (not an audio analysis)
+
+Original supplied MOV decoded at 692 × 1070, video duration 6.2367 s (audio stream 6.1653 s). Inspection at approximately 0, 1, 2, 3, 4, 5 s and the final portion: close crop of flat-top solid graphite-blue hexagonal plates; a plate occupies roughly 1/3 of the portrait width (roughly 3–4 across with cropped edge tiles). Narrow orange gaps and selectively brighter outer bands, occasional thin inner rings, recessed dark wells, visible thick vertical sides and bottom bands, uneven elevations, subtle surface markings and warm light spilling onto neighbors. Camera mostly frontal with slight obliqueness and changing depth; no perimeter appears. Fine scattered warm particles and restrained glow are secondary to real geometry. These are visual observations, not evidence of kick, snare, beat, phrase, or instrument timing. P01 deliberately omits the final material and emissive treatment; P02 will add it. No source media is shipped.
+
+### Ownership and source audit
+
+Read root `AGENTS.md`, `AI_IMPLEMENTATION_CONTRACT.md`, `DRMVYZ_Cinema_2_0_Preset_Creation_Contract.md`, and `docs/documentation-index.md`. Implementation uses BLOCKSHIFT's native WebGL2 instanced-provider architecture (`modules/Cinema2BlockshiftNativeModule.ts`, `modules/blockshift/Cinema2BlockshiftRenderer.ts`), not its models or musical behaviors. EVERYWHERE, OPEN DECKS, AFTERHOURS and MAINFRAME supply existing examples of manifest/scene binding, camera, shared triggers, and mood authoring. OPEN DECKS uses the shared Three scene bridge for imported assets; HONEY needs no imported models or Three bridge. Static graph follows the native Switch It / Glassfall review topology but is a public reference, not a private study. All C2 paths below are under `src/components/vyzualz/cinema2/`.
+
+- `contracts/Cinema2NativePresetManifest.ts`: `cinema2NamespacedId<T>`, `cinema2StableId<T>`, `cinema2Ref`, `Cinema2NativePresetManifest`, `Cinema2ParameterManifest`; use the shared IDs and schema version. Current required capabilities are `render.webgl2`, `render.depth`, `scene.3d`, `camera.world`. P02/P06 add optional `render.hdr` with rgba8 fallback only when HDR finishing actually exists; optional `lighting` only if shared lighting consumed. Current neutral shader is native local lighting, not a shared light rig.
+- `presets/Cinema2PresetCompiler.ts`: `compileCinema2NativePreset(value, options?)`; `presets/Cinema2PresetAuthoring.ts`: `validateCinema2PresetAuthoringConventions(declaration)` checks actual schema consumers and capabilities. Registry compiles all declarations; `withCinema2AutoCoverage` returns unchanged if no Auto Performance parameter. `Cinema2AutoPerformanceInventory.test.ts` recognizes legitimate reference/static scenes, not an exemption for performance presets.
+- `modules/Cinema2ModuleContracts.ts`: `Cinema2ModuleTypeDefinition.create(context: Cinema2ModuleCreateContext)` returns lifecycle and render provider; `context.parameters.get(name): Cinema2JsonValue | undefined` reads resolved values; `getAuthored`, `getEditRevision?` distinguish edits. Provider `execute(execution: Cinema2ModuleRenderExecutionContext)` receives engine-bound target, `depthAvailable`, final `camera.viewProjectionMatrix`, frame, resolved spatial nodes and lighting. No independently owned canvas, loop, store, camera or framebuffer. World node at identity; transforms currently cell-local, future moving transforms apply only to cap vertices. Shared scene graph and camera are the owners of world placement and projection. `context.resources.acquire<T>(key, kind, create(gl), dispose)` and `reportGpuBytes(bytes)` track GPU ownership; `Cinema2ModuleResourceScope.disposeAll()` retires on switch/context loss. HONEY reacquires in a fresh module generation; no textures are needed in P01. Future shipped maps may use `context.textures?: Cinema2AssetTextureService` after audit of its concrete loader API; no runtime network assets.
+- `Cinema2ModuleFrameReadContext` carries audio, director, mood, transport, viewport, timestamp, elapsed time and contextGeneration. `context.randomness.sample(purpose,index?,substream?)` and event streams are shared randomness facets; fixed authored cell assignment instead uses a stable axial integer hash, independent of session/frame and not a musical RNG. `handleAction(action,event)` receives explicitly bound canonical events; no action is bound in P01. `Cinema2BeatClock.update(frame,syncEnabled,referenceBpm=120)` and `reset()`, `resolveCinema2AfterhoursTriggerEventIdentity(frame,trigger,previousTimeSec)`, `Cinema2MainframePatternController<Pattern>.update(input)`, `Cinema2PatternControlResolver<T>.update({saved,mood,autoPerformance})`/`inspect()`/`reset()` are the P03 route, not new trigger machinery. `withCinema2MoodDrives(manifest,spec)` tags shared policy and creates continuous routes, `withCinema2AutoCoverage` is applied by the catalog; no changes to shared policies or Inspector. P04 capabilities to declare only when consumed: `audio.transport`, `audio.bands`, `audio.features`, `music.beat`, `music.downbeat`, `music.rhythm-events`, `music.bar`, `music.phrase`, `music.section`, `music.drop`, `music.build`, `music.vocal-presence`; P05 `visual-director.significance`. No `audio.spectrum` or local detector required.
+
+### Geometry and clearance lock
+
+Native single instanced draw: 625 cells, 25 × 25 staggered axial coverage, 11 mesh parts, 192 triangles per cell (120,000 instanced triangles), 576 shared vertices × 8 floats plus 625 × 7 instance floats = 35,932 buffer bytes, excluding shader/VAO overhead. No rebuild on resize/color edits. Flat-top XY, +Z faces viewer; pitch is nearest center distance 1.8; centers `(sqrt(3)/2 * pitch*q, pitch*(r+q/2))`. IDs `q:r`, six reciprocal neighbor directions, immutable seed salts. Substrate tiles meet along exact hex boundaries at radius pitch/sqrt(3); substrate z=-.165; stationary cavity floor z=-.10; sleeve inner radius .985, outer 1.027, lip .42; actual sleeve edge gap `pitch - sqrt(3)*1.027 ≈ .0212`; cap radius .97, cap gap ≈ .1199; cap thickness .18, bevel .035, inner channel radius .79–.812, cut .009; separate outer side seat and lower sleeve channel seat. No coplanar duplicated surfaces; annular strips and separate walls share boundary vertices. Body underside and cavity floor are distinct. Five authored elevations .12/.32/.49/.75/.98; deepest bottom -.06 clears floor. The camera position [.32,.85,13], target [0,0,.25], FOV 40°, near .1/far 100; fixed vertical FOV retains close tile size and crops portrait naturally. Rectangular interior [-16,16] × [-19,19] overscans the viewport at 16:9, square and portrait; later sway must remain inside overscan. No orbit/dolly/alternate camera modes.
+
+Pose bounds: elevation [.12,1.05], axial rotation and each tilt ±6° (radians internally), lateral displacement magnitude ≤.025. These conservative limits replace the proposed ±12/±10/.12, since closer packing would make those unsafe. `honeyPoseCorners` applies tilt X, tilt Y, then rotation Z about top center; `isHoneyPoseSafe` checks all twelve prism corners against floor and six half-planes. If the lowest point is below lip+.015, require all corners within sleeve inner apothem minus .003; otherwise own Voronoi half-space minus .006. Adjacent caps cannot enter each other's envelope, even with opposite rotations, since each is confined to its own half-spaces. `constrainHoneyPose` scales angular/lateral offsets toward neutral and clamps elevation, with a final safe result. P03 must use this function for every interpolated pose (not interpolate unchecked endpoints), keep sleeve geometry fixed and update instanced pose data without a topology rebuild. Limits can be refined only with equivalent clearance tests. No live motion controls yet.
+
+Fixed finish assignment is implemented as clustered deterministic metadata, not a material shader in P01. P02 must make graphite industrial metal, brushed steel, carbon-fiber composite and dark satin ceramic actually visible using compact original analytic texture or HONEY-only procedural maps (no texture picker or distribution controls). Stable `finish` and `tone` persist with the cell across every future pose, resize, seek and re-entry. Neutral face shading and muted channel-seat pigments are implemented now, not emission, AO, texture, or spill.
+
+### Parameter inventory and phase of exposure
+
+IDs below are `honey-<id>` except shared `quality-mode`. All color values are normalized RGBA; color controls have preset persistence and no automation. P01 only exposes rows with actual consumers. Proposed later rows are specifications, not currently registered controls. Numeric values clamp at listed bounds and use shared targets. Four canonical parents, no generic UI modifications.
+
+| Parent | ID / label | Type; default; range | Consumer / authority / phase |
+|---|---|---|---|
+| Master Controls | quality-mode / Quality / Performance | enum auto; auto/performance/balanced/quality | Shared quality policy, user preference, P01 |
+| Palette | face / Face | color #202C36; 0–1 | plate-face, user, P01 |
+| Palette | edge / Edge / Sleeve | color #354650; 0–1 | bevel/rim/exterior, user, P01 |
+| Palette | cavity / Cavity / Body | color #080D13; 0–1 | interior/floor/body, user, P01 |
+| Palette | substrate / Substrate / Background | color #0E1318; 0–1 | substrate and environment clear, user, P01 |
+| Palette | outer / Outer Channel Seat | color #FF791B; 0–1 | side seat pigment P01; outer emitter P02, user |
+| Palette | inner / Inner Channel Seat | color #FFC373; 0–1 | inner seat pigment P01; inner emitter P02, user |
+| Palette | under / Lower Channel Seat | color #E35D0E; 0–1 | lower seat pigment P01; under emitter P02, user |
+| Master Controls | master-intensity / Master Intensity | float 1; 0–2 | light/scene gain, base+modulation, P03 |
+| Master Controls | bpm-sync / BPM Sync | bool true | shared tempo permission, user P03 |
+| Master Controls | auto-performance / Auto Performance | bool false | shared mood policy/Inspector, user P03, full drives P05 |
+| Master Controls | motion-amount / Motion Amount | float .55; 0–1 | governed motion envelope incl. camera, base+modulation P03; zero hard-off |
+| Master Controls | audio-reactivity / Audio Reactivity | float .8; 0–1 | governed audio overlay gain, P04; zero hard-off |
+| Master Controls | camera-motion / Camera Motion | bool true | shared camera drift permission, user P03 |
+| Master Controls | camera-motion-intensity / Camera Motion Intensity | float .25; 0–1 | shared camera drift, base+modulation P03; visible if enabled |
+| Design | pattern / Pattern | enum cascade; eight below | module controller; user base + effective shared switch, P03 |
+| Design | pattern-change / Pattern Change | bool false | shared effective pattern policy, user saved / intelligence effective, P03 |
+| Design | trigger / Trigger | enum bar4; shared 11 options | conditional on saved Pattern Change, user saved / intelligence effective, P03 |
+| Design | travel / Axial Travel | float .65; 0–1 | elevation envelope, base+modulation P03 |
+| Design | rotation-range / Rotation Range | float 4; 0–6 degrees | local normal angle, base+modulation P03 |
+| Design | tilt-range / Tilt Range | float 4; 0–6 degrees | two-axis angles, base+modulation P03 |
+| Design | separation / Lateral Separation | float .012; 0–.025 world units | local displacement envelope, base+modulation P03 |
+| Design | motion-rate / Motion Rate | float 1; .25–2 | shared beat clock phase scaling, base+modulation P03 |
+| Design | transition-length / Transition Length | enum 1; .5/1/2/4 beats | module eased pose blends, user P03 |
+| Effects | outer-intensity / Outer Channel Intensity | float .8; 0–2 | emitter gain P02, base+modulation later |
+| Effects | inner-intensity / Inner Channel Intensity | float .55; 0–2 | emitter gain P02, base+modulation later |
+| Effects | under-intensity / Underlighting | float .5; 0–2 | lower emitter gain P02, base+modulation later |
+| Effects | camera-float-speed / Float Speed | float .7; .25–2 | shared camera motion speed P03 |
+| Effects | bloom / Bloom | float .3; 0–1 | shared HDR bloom P06 |
+| Effects | light-spill / Light Spill | float .3; 0–1 | bounded local neighbor illumination P02/P06 |
+| Effects | atmosphere / Atmosphere | float .01; 0–.05 | shared depth haze P06 |
+| Effects | particles / Ember Amount | float .15; 0–1 | bounded HONEY ember instances P06 |
+| Effects | depth-of-field / Depth of Field | float .1; 0–1 | actual shared supported depth effect only P06 |
+| Palette | particles-color / Ember Color | color #FF9C48; 0–1 | ember pigment, user P06 |
+
+Future controls may be adjusted to actual shared effect parameter ranges after owner inspection. Never add a placebo or a new shared effect. No camera FOV/orbit control, no material selector, no genre or shape selector. Audio hidden targets (P04, runtime-only, not user knobs): sub/bass pressure, mid texture, high detail, energy, vocal presence, event action `musicalCue`; Director (P05): significance/build/drop, section contrast and mood drives. Exact target routes to be bound against canonical source paths/capability availability, not inferred from the clip.
+
+### Eight pattern signatures (P03 planned, not running)
+
+| ID | Geometry | Lighting choreography |
+|---|---|---|
+| cascade (default) | diagonal sequential axial rises, settle | moving bands of outer seats, restrained lower follow |
+| shockwave | concentric outward displacement ripple | short warm wavefront, fading inner ring |
+| fracture | bounded contiguous clusters tilt/rotate with separation | jagged selective boundary illumination |
+| alternating | interleaved axial groups rise/retract opposite | alternating outer/inner roles, no global pulse |
+| convergence | peripheral waves travel toward center | brightness concentrates at converging groups |
+| current | flowing directional wave with phase offsets | asymmetric running inner highlights |
+| submerge | local pockets sink below fixed lip and return | darker chamber with soft underlight |
+| overdrive | layered fast but bounded waves and clusters | strong accents on selected paths, never whitewash |
+
+All patterns preserve IDs, fixed sleeves/finishes, and phase-safe transitions. P03 use `CINEMA2_AFTERHOURS_TRIGGER_OPTIONS` exactly: beat, kick, snare, downbeat, beat2, beat4, bar, bar4, bar8, phrase, drop. Manual choice establishes base immediately, even with Pattern Change ON; only next fresh qualifying event advances; saved values never rewritten. Effective shared policy derives from mood/grid with Auto ON; fallback exactly saved with unavailable mood/grid or Auto OFF; silence holds per shared policy. P05 may temporarily substitute a pattern for a distinct build/drop; manual choice invalidates prior event; base resumes. Use shared pattern policy and controller, not local ladder; shared Inspector locks edits under Auto and displays effective choices.
+
+### Authority and timing matrix
+
+| Domain | User / manual | Audio | Director | Auto / fallback |
+|---|---|---|---|---|
+| Geometry identity/material | Fixed authored seed; no distribution knob | none | none | never changes |
+| Motion permission | amount zero freezes; travel/angle envelopes saved | continuous bass/energy, transient kick/snare bounded by amount/reactivity | significance scales accent only | eligible numeric base modulation; never exceeds pose constraint |
+| Pattern | saved base/permission/trigger; immediate fresh manual edit | canonical qualifying event only | meaningful build/drop cue only | effective shared policy and temporary substitution; restore base; no saved edits |
+| Camera | sway permission/intensity; near-frontal fixed FOV | shared beat clock only for drift | no orbit/dolly/cut | shared camera drift modulation, hard-off respected |
+| Channel lights/effects | editable gains and hard-off; palette user-only | selective kicks outer, snares inner, highs fine accents, bass lower, vocal space; no global pulse | meaning/peak/build modulates allowed gain | bounded shared drives; zero stays zero; no automatic palette |
+| Quality | shared user preference | none | none | shared quality adaptation, not preset-local FPS logic |
+| BPM/transport | preset and global BPM Sync both must be true for governed lock; otherwise shared 120 reference clock | unrelated audio routes continue | no timing ownership | no competing clock |
+
+No source: fully composed static wall; no fabricated event, no audio motion. P03 manual authored preview may move only under deliberate native preview permission consistent with existing transport contract; no-source defaults still. Pause holds musical state; seek/loop/source/analysis/track/context generation discontinuities clear pending cues, reset shared controller and establish deterministic pose without replaying stale publication. Re-entry builds same cells, resets transient state, retains serialized parameter base. P04 route continuous and cue events through native choreographic targets; P05 uses `withCinema2MoodDrives` with actual patternControls and Auto toggle, canonical mood drives and Inspector. Do not change shared policies or hard permission semantics. P06 engine-owned HDR/depth effects and standard quality lifecycle; target ~60fps at 1080p capable hardware and ~30 fallback, no measurements yet.
+
+### Sequence and checkpoint ledger
+
+| Phase | Scope | Status |
+|---|---|---|
+| P01 | audit, registration, static geometry, palette, pose limits | code present; local compiler/geometry/lease checks pass; production gate unverified |
+| P02 | mixed finishes, lighting, real emission, static visual baseline | pending |
+| P03 | real controls, mechanical motion, eight patterns, shared timing/pattern policy | pending; remove static tag when moving |
+| P04 | standard Audio Intelligence and event choreography | pending |
+| P05 | Director and full Auto Performance | pending |
+| P06 | shared finishing, atmosphere, optimization | pending |
+| P07 | production validation, human acceptance, release | pending |
+
+### P01 validation and exact changed files
+
+Commands run: `ffprobe` + `ffmpeg` reference sampling; temporary Node/TypeScript transpilation of actual repository domain/layout/mesh, `compileCinema2NativePreset`, `validateCinema2PresetAuthoringConventions`, `Cinema2ParameterState`, `Cinema2CameraRuntime`, native module/resource scope (Vite DEV/BASE_URL substituted only in temporary loader, no shared source edits). Results: 625 unique deterministic cells, all four finish IDs, 3,552 reciprocal directed neighbor links within allocation, all five static elevations safe, 1,944 combined constrained pose cases safe, 11 finite mesh parts / 192 triangles per cell, unit normals; real compiler and authoring gate passed, all seven palette values persist, camera projected overscan passed at 960×540, 540×960, 640×640; injected renderer resource seam passed acquire once/live palette/retire once. These are not production GPU screenshots. `tsc --noEmit --skipLibCheck --strict --target es2022 --module esnext --moduleResolution bundler --lib es2022,dom --typeRoots /tmp/honey-empty-types ...Cinema2HoneyNativeModule.ts ...Cinema2HoneyPreset.ts` reports missing external Supabase and Vite environment declarations, no diagnostics in HONEY files; not a full typecheck pass. `npm ci --ignore-scripts --no-audit --no-fund --fetch-retries=0` failed (registry DNS EAI_AGAIN, npm exit handler never called). Vitest/catalog inventory and full production browser checks therefore cannot execute here. No actual app capture, selector interaction, GPU/console acceptance or z-fighting inspection claimed. `node --check scripts/run-cinema2-honey-browser.mjs` passed. The browser harness mounts `Cinema2Runtime.create` with real registry/compiler/renderer, actual `Cinema2PresetsPanel` and `Cinema2InspectorPanel`; no mock render. Run locally with dependencies installed:
+
+```sh
+npx vitest run src/components/vyzualz/cinema2/__tests__/Cinema2Honey{Preset,Layout,Geometry}.test.ts src/components/vyzualz/cinema2/__tests__/Cinema2AutoPerformanceInventory.test.ts
+node scripts/run-cinema2-honey-browser.mjs
+```
+
+Inspect captures under `artifacts/cinema2-honey/p01`: selector, baseline, 16:9/square/portrait, seven palette variants, inspector, re-entry. Compare depth without bloom, crop, plate scale, dark sleeve, narrow gap, topology silhouette and console; a pixel change alone does not establish visual quality. Later phases extend harness for pose/motion, controls, shared audio/trigger discontinuities, Auto lock/authority, quality and performance. P01 final gate remains **unverified** until production canvas and regression checks run successfully. Human approval pending; next prerequisite is review of P01 and actual production acceptance before P02. No unrelated source changes.
+
+Changed files (relative C2 unless marked root):
+
+- `presets/Cinema2HoneyPreset.ts`, `modules/Cinema2HoneyNativeModule.ts`, `modules/honey/Cinema2HoneyDomain.ts`, `Cinema2HoneyLayout.ts`, `Cinema2HoneyGeometry.ts`, `Cinema2HoneyRenderer.ts` (last three in same honey directory).
+- additive `modules/Cinema2ModuleRegistry.ts`, `presets/Cinema2FirstPartyPresetCatalog.ts`, `index.ts`.
+- `__tests__/Cinema2HoneyPreset.test.ts`, `Cinema2HoneyLayout.test.ts`, `Cinema2HoneyGeometry.test.ts`.
+- root `src/test/browser/Cinema2HoneyProductionBrowserHarness.ts`, `src/test/browser/cinema2-honey-production.html`, `scripts/run-cinema2-honey-browser.mjs`, `docs/cinema2-honey.md`, `docs/documentation-index.md`.
+
+Final delivery checks: explicit Vitest invocation failed because `node_modules/vitest/vitest.mjs` is missing; the production browser runner failed to resolve `@playwright/test`. An additional isolated native-shader diagnostic using the system Chromium and the actual engine camera matrices could not produce a screenshot because SwiftShader/EGL initialization failed (`EGL_NOT_INITIALIZED`). The staged patch passes `git diff --cached --check`, and `git apply --check` plus actual `git apply` were performed against a clean detached worktree of the supplied baseline. Only the 17 paths listed above are included. No production screenshot or user visual acceptance is implied by these checks.

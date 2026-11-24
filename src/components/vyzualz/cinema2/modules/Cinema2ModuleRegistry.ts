@@ -1,3 +1,4 @@
+import { cinema2HoneyNativeModuleDefinition } from './Cinema2HoneyNativeModule'
 import { cinema2BeamLatticeModuleDefinition } from './Cinema2BeamLatticeNativeModule'
 import { cinema2MoireOrbModuleDefinition } from './Cinema2MoireOrbNativeModule'
 import { cinema2GlyphSphereModuleDefinition } from './Cinema2GlyphSphereNativeModule'
@@ -306,4 +307,9 @@ function moduleDiagnosticPath(index: number, path: string): string {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
+}
+
+const honeyRegistration = cinema2NativeModuleRegistry.register(cinema2HoneyNativeModuleDefinition)
+if (!honeyRegistration.ok) {
+  throw new Error(`Cinema 2.0 HONEY native module registration failed: ${honeyRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
 }
