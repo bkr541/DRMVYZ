@@ -1,5 +1,6 @@
 import { AppIcon } from '../../../shared/icons/AppIcon'
 import { Children, Fragment, isValidElement, type ReactNode } from 'react'
+import { IconChipButton } from './IconChipButton'
 import './canonicalControls.css'
 
 // ── NoticeCard ────────────────────────────────────────────────────────────
@@ -66,17 +67,13 @@ export function NoticeCard({
         <span className="dv-notice-icon"><NoticeCardIcon /></span>
         <strong className="dv-notice-title">{hasNoticeText(title) ? title : FALLBACK_COPY[tone].title}</strong>
         {onDismiss && (
-          <button type="button" className="dv-notice-dismiss" onClick={onDismiss} aria-label={dismissLabel}>
-            <AppIcon kind="close" size={12} />
-          </button>
+          <IconChipButton className="dv-notice-dismiss" onClick={onDismiss} aria-label={dismissLabel} icon={<AppIcon kind="close" size={12} />} />
         )}
       </div>
       <div className="dv-notice-body">{!hasNoticeText(children) && <>{FALLBACK_COPY[tone].body}{' '}</>}{children}</div>
       {onOpen && (
         <div className="dv-notice-actions">
-          <button type="button" className="dv-notice-open" onClick={onOpen} aria-label={openLabel} title={openLabel}>
-            <AppIcon kind="open" size={12} />
-          </button>
+          <IconChipButton className="dv-notice-open" onClick={onOpen} aria-label={openLabel} title={openLabel} icon={<AppIcon kind="open" size={12} />} />
         </div>
       )}
     </div>

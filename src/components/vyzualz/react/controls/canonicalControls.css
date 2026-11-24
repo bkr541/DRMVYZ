@@ -504,26 +504,12 @@ label:has(> .dv-icon-morph-checkbox) {
   pointer-events: none;
   flex: 0 0 auto;
   margin-left: auto;
-  border: 0;
-  background: transparent;
-  color: rgba(196, 207, 211, 0.45);
-  font-size: 17px;
-  line-height: 1;
-  cursor: pointer;
-  padding: 2px 5px;
-  border-radius: 3px;
-  transition: opacity 120ms ease, color 120ms ease, background 120ms ease;
 }
 
 .dv-notice:hover .dv-notice-dismiss,
 .dv-notice-dismiss:focus-visible {
   opacity: 1;
   pointer-events: auto;
-}
-
-.dv-notice-dismiss:hover {
-  color: rgba(232, 244, 248, 0.85);
-  background: rgba(255, 255, 255, 0.06);
 }
 
 /* Not a flex column: children can be plain inline text (a sentence with an
@@ -1214,22 +1200,7 @@ label:has(> .dv-icon-morph-checkbox) {
 }
 
 
-/* Navigation actions share the dismiss button's right edge and hit area. */
+/* Navigation actions share the dismiss button's right edge; visual styling
+   comes from IconChipButton for both controls. */
 .dv-notice-actions { display: flex; justify-content: flex-end; }
-.dv-notice-open {
-  flex: 0 0 auto;
-  margin-left: auto;
-  padding: 2px 5px;
-  border: 0;
-  border-radius: 3px;
-  background: transparent;
-  color: #7ed9e8;
-  font-size: 17px;
-  line-height: 1;
-  cursor: pointer;
-}
-.dv-notice-open:hover,
-.dv-notice-open:focus-visible {
-  color: rgba(232, 244, 248, 0.85);
-  background: rgba(255, 255, 255, 0.06);
-}
+.dv-notice-open { flex: 0 0 auto; margin-left: auto; }

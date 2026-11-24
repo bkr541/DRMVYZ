@@ -95,6 +95,7 @@ import { resolvePixGridMotionDynamics, resolvePixGridMotionProfile } from './Pix
 import { getPixGridRegisteredSequenceDeckByPresetId } from './PixGridPresetRegistry'
 import { clearPixGridDevelopmentDiagnostics, publishPixGridDevelopmentDiagnostics } from './PixGridDevelopmentDiagnostics'
 import { DrawerNotice } from '../../shared/DrawerNotice'
+import { IconChipButton } from '../controls/IconChipButton'
 
 function activeDeckSourceId(state: PixGridState, sceneId?: string | null): string | null {
   const scene = state.scenes.find(candidate => candidate.id === (sceneId ?? state.selectedSceneId))
@@ -1722,17 +1723,17 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
       {fatalRenderError && (
         <DrawerNotice className="rv-pix-grid-diagnostic" tone="warning" role="status" title="PixGrid preview stopped">
           {fatalRenderError.reason}{' '}
-          <button type="button" onClick={() => { setFatalRenderError(null); setRendererAttempt(value => value + 1) }}>
+          <IconChipButton onClick={() => { setFatalRenderError(null); setRendererAttempt(value => value + 1) }}>
             Restart PixGrid
-          </button>
+          </IconChipButton>
         </DrawerNotice>
       )}
       {!fatalRenderError && fallbackActive && diagnostics.fallbackReason && (
         <DrawerNotice className="rv-pix-grid-diagnostic" tone="warning" role="status" title="PixGrid is using the fallback renderer">
           {diagnostics.fallbackReason}{' '}
-          <button type="button" onClick={() => retryGpuRef.current()}>
+          <IconChipButton onClick={() => retryGpuRef.current()}>
             Retry GPU
-          </button>
+          </IconChipButton>
         </DrawerNotice>
       )}
     </div>

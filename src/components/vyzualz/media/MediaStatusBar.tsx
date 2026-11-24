@@ -89,7 +89,6 @@ export function MediaStatusBar({ includeAudio = false }: { includeAudio?: boolea
     >
       {operationLabels[mutationFailure.operation]}: {mutationFailure.message}{' '}
       <IconChipButton
-        className="vz-media-status-action"
         onClick={() => { void (mutationFailure.status === 'conflict'
           ? reapplyMediaMutation(mutationFailure.itemId, mutationFailure.operation)
           : retryMediaMutation(mutationFailure.itemId, mutationFailure.operation)) }}
@@ -107,14 +106,14 @@ export function MediaStatusBar({ includeAudio = false }: { includeAudio?: boolea
       onDismiss={() => clearCollectionReorderError(reorderFailure.collectionId)}
     >
       Collection order: {reorderFailure.message}{' '}
-      <IconChipButton className="vz-media-status-action" onClick={() => { void retryCollectionReorder(reorderFailure.collectionId) }}>Retry</IconChipButton>
+      <IconChipButton onClick={() => { void retryCollectionReorder(reorderFailure.collectionId) }}>Retry</IconChipButton>
     </DrawerNotice>
   )
 
   if (uploadCleanupState) return (
     <DrawerNotice tone={uploadCleanupState.status === 'failed' ? 'error' : 'warning'} role="alert" title="Upload cleanup needs attention">
       Failed upload cleanup: {uploadCleanupState.message ?? `${uploadCleanupState.completedPaths.length}/${uploadCleanupState.storagePaths.length} objects removed.`}{' '}
-      <IconChipButton className="vz-media-status-action" onClick={() => { void retryUploadCleanup(uploadCleanupState.jobId) }}>Retry cleanup</IconChipButton>
+      <IconChipButton onClick={() => { void retryUploadCleanup(uploadCleanupState.jobId) }}>Retry cleanup</IconChipButton>
     </DrawerNotice>
   )
 
@@ -124,7 +123,7 @@ export function MediaStatusBar({ includeAudio = false }: { includeAudio?: boolea
         ? `Media deletion cleanup needs attention: ${deletionState.message ?? 'Retry the remaining storage objects.'}`
         : `Deleting media safely (${deletionState.completedPaths.length}/${deletionState.storagePaths.length} objects)…`}
       {deletionState.status === 'failed' && (
-        <> <IconChipButton className="vz-media-status-action" onClick={() => { void retryDeletion(deletionState.itemId) }}>Retry</IconChipButton></>
+        <> <IconChipButton onClick={() => { void retryDeletion(deletionState.itemId) }}>Retry</IconChipButton></>
       )}
     </DrawerNotice>
   )

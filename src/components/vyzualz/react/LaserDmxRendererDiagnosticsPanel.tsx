@@ -38,7 +38,7 @@ export function LaserDmxRendererNotice() {
       {canRetry && (
         <>
           {' '}
-          <IconChipButton className="vz-media-status-action" onClick={() => requestLaserDmxWebGLRetry()}>Retry WebGL</IconChipButton>
+          <IconChipButton onClick={() => requestLaserDmxWebGLRetry()}>Retry WebGL</IconChipButton>
         </>
       )}
     </DrawerNotice>

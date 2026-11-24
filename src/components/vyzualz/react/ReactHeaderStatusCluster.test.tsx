@@ -62,6 +62,11 @@ describe('Option E React header readouts', () => {
     await render()
     const chip = (system: string) => container.querySelector(`[data-health-system="${system}"]`)?.getAttribute('data-health')
     expect(['cast', 'audio', 'graphics'].map(chip)).toEqual(['idle', 'ok', 'ok'])
+    const health = container.querySelector('[data-health-readout]')!
+    expect(health.closest('.vz-header-readout')?.querySelector('.vz-header-readout-label')?.textContent).toBe('HEALTH')
+    expect([...health.querySelectorAll('.vz-header-readout-primary')].map(el => el.textContent)).toEqual(['CAST', 'AUDIO', 'GFX'])
+    expect(health.querySelectorAll('.vz-header-readout-led')).toHaveLength(3)
+    expect(health.querySelector('em')).toBeNull()
     await act(async () => { useHealthStore.getState().setHealth('audio', 'healing', 'Audio output stopped') })
     expect(chip('audio')).toBe('healing')
     expect(container.querySelector('[data-health-readout]')?.getAttribute('aria-label')).toContain('Audio: failed; repairing itself')

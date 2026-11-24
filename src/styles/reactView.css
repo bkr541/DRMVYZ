@@ -778,23 +778,21 @@
 .rv-preset-blueprint-scene > .rv-preset-thumb { background: transparent !important; }
 .rv-preset-blueprint-scene .rv-preset-thumb-fallback { visibility: hidden; }
 
-/* Shared owning-engine badge: neutral glyph on the same dark surface as the selection marker. */
+/* Shared owning-engine glyph: transparent, with a shadow following the artwork. */
 .rv-preset-engine-badge {
   display: grid;
   place-items: center;
   flex: none;
-  width: 20px;
-  height: 20px;
-  border-radius: 4px;
-  background: #091217;
+  width: 14px;
+  height: 14px;
 }
 
 .rv-preset-engine-badge > img {
   display: block;
-  width: 14px;
-  height: 14px;
+  width: 11px;
+  height: 11px;
   object-fit: contain;
-  filter: brightness(0) invert(1);
+  filter: brightness(0) invert(1) drop-shadow(0 1px 3px #000);
   opacity: .9;
 }
 
@@ -807,7 +805,7 @@
 
 /* Leave a fixed slot for the icon without overlapping status or action controls. */
 .rv-preset-spotlight-card--poster:has(> .rv-preset-engine-badge) + .rv-preset-poster-header {
-  right: 32px;
+  right: 26px;
 }
 
 .rv-preset-poster-header {
@@ -11545,8 +11543,6 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 .rv-canvas-override-flag__action.dv-icon-chip {
   flex: 0 0 auto;
-  padding: 5px 9px;
-  font-size: 8px;
 }
 
 /* Frame stutter is driven by video timing, never by filtering the source element. */
@@ -12683,18 +12679,6 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.rv-pix-grid-diagnostic button {
-  flex: 0 0 auto;
-  min-height: 24px;
-  padding: 0 8px;
-  border: 1px solid rgba(74, 199, 219, 0.38);
-  border-radius: 5px;
-  background: rgba(74, 199, 219, 0.1);
-  color: rgba(221, 249, 255, 0.9);
-  font: inherit;
-  cursor: pointer;
 }
 
 /* ── PixGrid image/SVG conversion controls ──────────────────────────────── */

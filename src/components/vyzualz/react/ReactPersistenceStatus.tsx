@@ -30,7 +30,7 @@ export function ReactPersistenceStatus({ presentation = 'chip', page = 'react', 
 
   const failureNotice = phase === 'error' ? (<DrawerNotice tone="error" role="alert" title="Changes not safely stored">
           Your latest React view changes could not be saved{error ? `: ${error}` : '.'}{' '}
-          <IconChipButton className="vz-media-status-action" onClick={() => { void retry() }} disabled={retryPending}>
+          <IconChipButton onClick={() => { void retry() }} disabled={retryPending}>
             {retryPending ? 'Retrying…' : 'Retry save'}
           </IconChipButton>
         </DrawerNotice>) : null

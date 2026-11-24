@@ -87,7 +87,7 @@ export function MessagesTab() {
           <IconChipButton tone="primary" onClick={startNew}>New Announcement</IconChipButton>
           <span className="adm-count" role="status"><strong>{items.length}</strong> announcement{items.length === 1 ? '' : 's'}</span>
         </div>
-        {status === 'error' && <NoticeCard tone="warning" title="Announcements could not be loaded" role="alert">{error} <button type="button" className="adm-link" onClick={load}>Try again</button></NoticeCard>}
+        {status === 'error' && <NoticeCard tone="warning" title="Announcements could not be loaded" role="alert">{error} <IconChipButton onClick={load}>Try again</IconChipButton></NoticeCard>}
         {status === 'loading' && <p className="adm-empty" role="status">Loading announcements…</p>}
         {status === 'ready' && items.length === 0 && <p className="adm-empty">No announcements yet. Create one to show users what is new.</p>}
         <ul className="adm-cards">

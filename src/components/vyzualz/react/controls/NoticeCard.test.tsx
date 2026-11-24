@@ -28,6 +28,8 @@ it('preserves authored explanations, rich content, and notice actions', async ()
     Reconnect <strong>your audio device</strong> and retry.
   </NoticeCard>))
   expect(container.querySelector('.dv-notice-body')?.textContent).toBe('Reconnect your audio device and retry.')
+  expect(container.querySelector('.dv-notice-dismiss')?.classList.contains('dv-icon-chip')).toBe(true)
+  expect(container.querySelector('.dv-notice-open')?.classList.contains('dv-icon-chip')).toBe(true)
   await act(async () => { container.querySelector<HTMLButtonElement>('.dv-notice-dismiss')!.click(); container.querySelector<HTMLButtonElement>('.dv-notice-open')!.click() })
   expect(dismiss).toHaveBeenCalledOnce()
   expect(open).toHaveBeenCalledOnce()

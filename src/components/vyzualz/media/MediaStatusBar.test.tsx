@@ -63,6 +63,19 @@ describe('MediaStatusBar mutation recovery', () => {
     expect(mocks.mediaState.reapplyMediaMutation).toHaveBeenCalledWith('db-media-1', 'edit')
   })
 
+  it('uses the canonical action button for upload cleanup and preserves retry', () => {
+    mocks.mediaState.uploadCleanupStates = {
+      'upload-1': { jobId: 'upload-1', status: 'failed', message: 'Upload has not been finalized.', updatedAt: 30 },
+    }
+    mocks.mediaState.retryUploadCleanup = vi.fn()
+    act(() => root.render(<MediaStatusBar />))
+    const button = container.querySelector<HTMLButtonElement>('.dv-notice-body button.dv-icon-chip')!
+    expect(button?.textContent).toBe('Retry cleanup')
+    expect(button.classList.contains('vz-media-status-action')).toBe(false)
+    act(() => button.click())
+    expect(mocks.mediaState.retryUploadCleanup).toHaveBeenCalledWith('upload-1')
+  })
+
   it('shows rejected collection order with a retry action', () => {
     mocks.mediaState.collectionOrderMutations = {
       'collection-1': {

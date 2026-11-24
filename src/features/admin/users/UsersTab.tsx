@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { LibrarySearchRow } from '../../../components/vyzualz/react/controls/LibrarySearchRow'
 import { DatePicker } from '../../../components/shared/DatePicker'
+import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
 import { NoticeCard } from '../../../components/vyzualz/react/controls/NoticeCard'
 import { Collapsible, TextInputRow } from '../../../components/vyzualz/react/ReactControlRows'
 import { formatDate, formatDateTime } from '../formatting'
@@ -84,7 +85,7 @@ export function UsersTab() {
             <strong>{users.length.toLocaleString()}</strong> registered{visible.length !== users.length ? ` · ${visible.length.toLocaleString()} shown` : ''}
           </span>
         </div>
-        {status === 'error' && <NoticeCard tone="warning" title="Users could not be loaded" role="alert">{error} <button type="button" className="adm-link" onClick={load}>Try again</button></NoticeCard>}
+        {status === 'error' && <NoticeCard tone="warning" title="Users could not be loaded" role="alert">{error} <IconChipButton onClick={load}>Try again</IconChipButton></NoticeCard>}
         {status === 'loading' && <p className="adm-empty" role="status">Loading users…</p>}
         {status === 'ready' && (
           <div className="adm-table-wrap">

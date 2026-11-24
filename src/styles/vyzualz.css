@@ -6551,20 +6551,6 @@ input[type='range'].vz-slider::-webkit-slider-thumb {
   background: rgba(5, 10, 16, 0.88);
 }
 
-.vz-media-status-action {
-  border: 1px solid var(--dv-notice-tone, currentColor);
-  border-radius: 4px;
-  background: transparent;
-  color: var(--dv-notice-tone, currentColor);
-  cursor: pointer;
-  flex-shrink: 0;
-  font: inherit;
-  padding: 2px 6px;
-  margin-left: 6px;
-  opacity: 0.9;
-}
-.vz-media-status-action:hover { opacity: 1; background: rgba(255,255,255,0.05); }
-
 .vz-media-mutation-state {
   display: inline-flex;
   align-items: center;

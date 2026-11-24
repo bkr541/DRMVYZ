@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { WorkspaceSurface } from '../../../components/vyzualz/layout/FloatingWorkspace'
+import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
 import { NoticeCard } from '../../../components/vyzualz/react/controls/NoticeCard'
 import { UnderlineTabs } from '../../../components/vyzualz/react/controls/UnderlineTabs'
 import { PRESET_MANAGER_PRESETS } from '../../../components/vyzualz/presetManager/presetManagerCatalog'
@@ -103,7 +104,7 @@ export function PresetsTab() {
 
   const sections = <UnderlineTabs ariaLabel="Preset catalog sections" activeTab={section} onChange={setSection} tabs={[{ id: 'presets', label: 'Presets' }, { id: 'packs', label: 'Packs' }]} className="pmv-tabs vz-filter-tabs dv-underline-tabs--equal adm-subtabs" />
   const notices = <>
-    {status === 'error' && <NoticeCard tone="warning" title="The catalog could not be loaded" role="alert">{error} <button type="button" className="adm-link" onClick={load}>Try again</button></NoticeCard>}
+    {status === 'error' && <NoticeCard tone="warning" title="The catalog could not be loaded" role="alert">{error} <IconChipButton onClick={load}>Try again</IconChipButton></NoticeCard>}
     {status === 'loading' && <p className="adm-empty" role="status">Loading the catalog…</p>}
   </>
 

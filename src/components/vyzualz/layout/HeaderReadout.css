@@ -70,10 +70,11 @@
   .rv-header-status { width: clamp(340px, 37vw, 390px); }
 }
 
-/* HEALTH: three chips (cast, audio, graphics), each a light and a short name in the readout's secondary role. */
-.vz-health-chips { display: flex; align-items: center; gap: 7px; min-width: 0; }
-.vz-health-chip { display: inline-flex; align-items: center; gap: 3px; flex: none; overflow: visible; font-style: normal; color: #90909c; }
-.vz-health-chip[data-health='idle'] { color: #666873; }
+/* HEALTH uses the same primary value role and spacing as the other readouts.
+   The status LEDs retain their individual state colours. */
+.vz-health-chips { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.vz-health-chip { display: inline-flex; align-items: center; gap: 3px; flex: none; overflow: visible; color: inherit; }
+.vz-health-chip[data-health='idle'] { color: #90909c; }
 .vz-health-chip[data-health='idle'] .vz-header-readout-led { background: #4a4b55; }
 .vz-health-chip[data-health='ok'] .vz-header-readout-led { background: #a0cbb7; }
 .vz-health-chip[data-health='degraded'] { color: #e4b66a; }
