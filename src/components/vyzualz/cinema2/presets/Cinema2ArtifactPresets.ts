@@ -27,8 +27,8 @@ import { CINEMA2_CINEMATIC_FINISH_EFFECT_TYPE_ID } from '../effects/Cinema2Cinem
 import { CINEMA2_HDR_BLOOM_EFFECT_TYPE_ID } from '../effects/Cinema2HdrBloomEffect'
 import { CINEMA2_VOLUMETRIC_ATMOSPHERE_EFFECT_TYPE_ID } from '../effects/Cinema2VolumetricAtmosphereEffect'
 import { artifactModuleTypeId } from '../modules/Cinema2ArtifactNativeModule'
-import { ARTIFACT_SPECS } from '../modules/artifacts/ArtifactSpecs'
-import { defaults, type ArtifactSpec } from '../modules/artifacts/ArtifactDomain'
+import { ARTIFACT_SPECS } from '../modules/artifactSculptures/ArtifactSpecs'
+import { defaults, type ArtifactSpec } from '../modules/artifactSculptures/ArtifactDomain'
 import type { Cinema2ParameterManifest } from '../contracts/Cinema2NativePresetManifest'
 import type { Cinema2ChoreographyContinuousSourcePath } from '../contracts/Cinema2NativePresetManifest'
 import type { Cinema2MoodDrive } from './Cinema2MoodConductorAuthoring'
@@ -164,7 +164,7 @@ const parameters:readonly Cinema2ParameterManifest[]=[
   toggle('cameraMotion','Camera Motion','Hard permission for camera travel.',true,'design','Camera',2),
   scalar('cameraSpeed','Camera Speed','Rate of the shared cinematic path.',.72,0,1.4,.01,'design','Camera',3),
   scalar('cameraAmount','Camera Motion Intensity','Scale of the shared camera motion.',.9,0,1,.01,'design','Camera',4),
-  scalar('fov','Field of View','Base perspective angle.',55,42,74,1,'design','Camera',5),
+  scalar('fov','Field of View','Base perspective angle.',spec.camera.fov,42,74,1,'design','Camera',5),
   scalar('bloom','Bloom','Halo from luminous truss edges.',.55,0,1,.01,'effects','Illumination',1),
   scalar('atmosphereMix','Atmosphere Mix','Blend the shared atmospheric effect.',1,0,1,.01,'effects','Atmosphere',2),
   scalar('finishMix','Finish Mix','Blend the shared cinematic finish.',1,0,1,.01,'effects','Finish',3),
@@ -188,11 +188,11 @@ const authored:Readonly<Cinema2NativePresetManifest>={
   parameterBindings:Object.fromEntries(moduleKeys.map(key=>[key,bind(key)]))}],
  scene:{nodes:[{id:ROOT_NODE_ID,kind:'group',coordinateSpace:'world'},{id:MODEL_NODE_ID,kind:'module',parent:cinema2Ref(ROOT_NODE_ID),module:cinema2Ref(MODULE_ID)}],roots:[cinema2Ref(ROOT_NODE_ID)]},
  layers:[{id:WORLD_LAYER_ID,label:`${name} Chamber`,source:cinema2Ref(ROOT_NODE_ID),role:'world',depthPolicy:'read-write',order:0}],
- cameras:[{id:CAMERA_ID,label:`${name} Cinematic Camera`,projection:'perspective',fovDegrees:55,minAspect:16/9,minAspectAnchor:0,near:.12,far:60,transform:{position:vec3(...spec.camera.wide)},target:FOCUS,
+ cameras:[{id:CAMERA_ID,label:`${name} Cinematic Camera`,projection:'perspective',fovDegrees:spec.camera.fov,minAspect:16/9,minAspectAnchor:0,near:.12,far:60,transform:{position:vec3(...spec.camera.wide)},target:FOCUS,
   rig:{kind:'path',points:path,durationSeconds:58,loop:true},rigVariants:{director:{kind:'path',points:path,durationSeconds:58,loop:true},orbit:{kind:'orbit',radius:Math.hypot(...spec.camera.wide),azimuthDegrees:0,elevationDegrees:8,angularVelocityDegreesPerSecond:5},macro:{kind:'path',points:macro,durationSeconds:38,loop:true},manual:{kind:'static'}},
   motion:{idleMotion:true,interpolation:'spline',constantSpeed:true,tempo:{referenceBpm:100,flightSpeed:true,weave:.045,bob:.035,punch:.55}},
   controls:{rigMode:bind('cameraMode'),motionEnabled:bind('cameraMotion'),motionSpeed:bind('cameraSpeed'),motionAmount:bind('cameraAmount'),masterMotionAmount:bind('motionAmount'),motionSafety:bind('motionSafety'),tempoSync:bind('bpmSync'),fovDegrees:bind('fov')},
-  smoothingMs:150,safety:{minPosition:vec3(-14,-4,-14),maxPosition:vec3(14,8,16),maxPositionOffset:vec3(.2,.2,.2),minFovDegrees:39,maxFovDegrees:89,minNear:.12,maxFar:60}}],
+  smoothingMs:150,safety:{minPosition:vec3(-16,-4,-16),maxPosition:vec3(16,8,17),maxPositionOffset:vec3(.2,.2,.2),minFovDegrees:39,maxFovDegrees:89,minNear:.12,maxFar:60}}],
  defaults:{camera:cinema2Ref(CAMERA_ID)},
  choreography:{tempoSyncParameter:bind('bpmSync'),rules:[
     moduleContinuousRule('overallEnergy','audio.features','audio.features.overallEnergy','overallEnergy',200),

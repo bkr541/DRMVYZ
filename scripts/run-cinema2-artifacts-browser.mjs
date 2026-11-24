@@ -22,10 +22,15 @@ try{
   const api=(method,...args)=>page.evaluate(({method,args})=>window.__artifactProduction[method](...args),{method,args})
   const capture=async(name)=>{const b=Buffer.from((await api('capture')).split(',')[1],'base64');if(name)await writeFile(path.join(output,`${name}.png`),b);return sharp(b).removeAlpha().raw().toBuffer()}
   const inspect=s=>s.modules.modules.find(m=>m.inspection?.performingPattern)?.inspection
-  const report=[];await api('prepare');await api('set',{'auto-performance':false,'motion-safety':'lockoff','camera-motion':false});const captures=[]
+  const report=[];await api('prepare');await capture('hero');await api('set',{'auto-performance':false,'motion-safety':'lockoff','camera-motion':false});const captures=[]
   for(const pattern of library){await api('set',{pattern});const raw=await capture(pattern);assert(raw.some(v=>v>15),`${id}/${pattern}: no visible output`);captures.push(raw)}
   for(let i=0;i<captures.length;i++)for(let j=0;j<i;j++)assert(delta(captures[i],captures[j])>.03,`${id}: ${library[i]} and ${library[j]} must differ`)
   assert.equal(inspect(await api('status')).shadowLights,2)
+  assert.equal(inspect(await api('status')).overflow,0)
+  await api('set',{'bloom':0,'atmosphere-mix':0,'finish-mix':0});await capture('effects-disabled')
+  await api('set',{'motion-safety':'full','camera-motion':false});
+  for(const pattern of library){await api('set',{pattern});await api('advance',.35);const a=await capture(`${pattern}-motion-a`);await api('advance',.75);const b=await capture(`${pattern}-motion-b`);report.push({pattern,motionDelta:delta(a,b)});assert(delta(a,b)>.001,`${id}/${pattern}: fixed-camera motion absent`)}
+  await api('reset');await api('set',{'camera-mode':'orbit'});await api('advance',1);await capture('orbit');await api('set',{'camera-mode':'macro'});await api('advance',1);await capture('close-detail')
   for(const key of ['background','metal','secondary','strand','core','haze-tint']){await api('reset');await api('set',{'motion-safety':'lockoff','camera-motion':false});const a=await capture();await api('set',{[key]:[.05,1,.12,1]});const difference=delta(a,await capture());report.push({color:key,difference});assert(difference>.001,`${id}/${key}: unchanged pixels`)}
   await api('reset');await api('set',{'camera-motion':false});await api('music',{energy:.2,bass:.1,timeSec:10,bpm:120});await api('advance',.4);const quiet=await capture('quiet');await api('music',{energy:.9,bass:.9,high:.7,timeSec:10.4});await api('advance',.4);assert(delta(quiet,await capture('driving'))>.01)
   await api('set',{'bpm-sync':true});assert.equal(inspect(await api('status')).beatLocked,true);await api('set',{'bpm-sync':false});assert.equal(inspect(await api('status')).beatLocked,false)

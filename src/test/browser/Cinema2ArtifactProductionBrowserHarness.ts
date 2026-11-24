@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { Cinema2InspectorPanel } from '../../components/vyzualz/react/Cinema2InspectorPanel'
 import { Cinema2Runtime } from '../../components/vyzualz/cinema2/runtime/Cinema2Runtime'
 import { artifactPresetId } from '../../components/vyzualz/cinema2/presets/Cinema2ArtifactPresets'
-import { ARTIFACT_SPECS } from '../../components/vyzualz/cinema2/modules/artifacts/ArtifactSpecs'
+import { ARTIFACT_SPECS } from '../../components/vyzualz/cinema2/modules/artifactSculptures/ArtifactSpecs'
 const key=new URLSearchParams(location.search).get('preset')??'seraph'
 if(!ARTIFACT_SPECS.some(s=>s.id===key))throw new Error(`Unknown artifact preset ${key}`)
 const ARTIFACT_PRESET_ID=artifactPresetId(key)

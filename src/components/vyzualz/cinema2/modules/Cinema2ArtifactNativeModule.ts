@@ -3,10 +3,10 @@ import { cinema2StableId, type Cinema2ModuleTypeId } from '../contracts/Cinema2N
 import type { Cinema2ModuleDiagnostic, Cinema2ModuleInstance, Cinema2ModuleTypeDefinition } from './Cinema2ModuleContracts'
 import { Cinema2BeatClock } from './Cinema2BeatClock'
 import { CINEMA2_AFTERHOURS_TRIGGER_IDS, resolveCinema2AfterhoursTriggerEventIdentity, type Cinema2AfterhoursTriggerId } from './Cinema2AfterhoursNativeModule'
-import { defaults, clamp, type ArtifactSpec, type ArtifactState, type Color, type Palette } from './artifacts/ArtifactDomain'
-import { ARTIFACT_SPECS } from './artifacts/ArtifactSpecs'
-import { ArtifactSelection } from './artifacts/ArtifactSelection'
-import { ArtifactRenderer } from './artifacts/ArtifactRenderer'
+import { defaults, clamp, type ArtifactSpec, type ArtifactState, type Color, type Palette } from './artifactSculptures/ArtifactDomain'
+import { ARTIFACT_SPECS } from './artifactSculptures/ArtifactSpecs'
+import { ArtifactSelection } from './artifactSculptures/ArtifactSelection'
+import { ArtifactRenderer } from './artifactSculptures/ArtifactRenderer'
 import { loadCinema2ThreeLibrary, getLoadedCinema2ThreeLibrary, type Cinema2ThreeLibrary } from './three/Cinema2ThreeLibrary'
 
 export const artifactModuleTypeId=(id:string)=>cinema2StableId<Cinema2ModuleTypeId>(`${id}-native`)

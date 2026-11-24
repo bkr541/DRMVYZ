@@ -1,122 +1,97 @@
-# RELIC | Monumental skeletal artifact
+# RELIC | Industrial skeletal machine
 
-## Visual specification and acceptance boundary
+## Status and forensic boundary
 
-Selectable first-party **reference** preset, not a keeper. The supplied written specification is the visual target; no separate concept image was attached to this implementation request. Geometry-derived near-field shadow projections, independently shaded solid struts, a luminous heart, a world-space architectural chamber and shared camera movement are required. No static image, video, new engine or separate audio clock.
+Selectable first-party **reference**, not a keeper. This reconstruction is based on the supplied written visual specification; original concept images were not present in the supplied archive or visible attachments. Screenshot shows a small mostly frontal skull with shallow sockets and separated thin arcs. Exact reference parity and production visual acceptance are pending.
 
-## Native implementation and design
+The supplied ZIP omitted `modules/artifacts/` entirely. Its unanchored `artifacts/` ignore rule matches source directories as well as output. The actual former sculpture code therefore could not be audited. Imports now target the non-ignored `modules/artifactSculptures/`; the original preset IDs, module IDs, pattern IDs and catalog role remain unchanged. No unrelated preset or ORGANISM source was changed.
 
-- Sculpture: Four cranial rings with diagonals, paired open eye socket loops, cheeks, nasal triangle, lower jaw with a hinge, separately attached upper/lower teeth, internal cage and optional segmented containment rings.
-- Environment: Heavy square vault, thick pillars and ceiling girders, containment platform and low fixtures.
-- Shared preset-family infrastructure: `modules/artifacts/ArtifactDomain.ts`, `ArtifactRenderer.ts`, `ArtifactSelection.ts`, `Cinema2ArtifactNativeModule.ts`, and `Cinema2ArtifactPresets.ts`. The geometry and parameter/pattern specification lives in its own `Relic.ts`; the four independent manifest and native type IDs are not variations of ORGANISM.
-- Three instanced cylinder batches: primary structural metal, secondary braces, emissive channels. Each is a true shadow caster. Independent core mesh, chamber wall/floor materials, shared atmospheric tint. Chamber color also supplies the environment background. No per-frame GPU geometry or material recreation; sampled CPU point arrays are currently regenerated each frame.
-- Two independently orbiting physical spotlights, position driven by the projection distance, profile, shared rhythmic/Director accents and phase. Fixed 256/512/1024 shadow maps at low/medium/high quality. Bias and normal bias, PCF radius control, controlled ambient/overhead fill. These lights target different wall regions, not guaranteed simultaneous whole-chamber coverage. Actual projected contrast and visibility must be reviewed on the production canvas.
-- Camera uses shared static, director path, orbit and close-detail rigs. FOV 42–74 degrees, near .12 and far 60; bounded shared positions and small offset. Close-detail approaches stay outside the intended central envelope where possible; there is no collision solver or verified interior traversal. The camera hard motion toggle and shared motion safety remain authoritative.
-- The native world provider renders into the existing depth-enabled scene pass, followed by shared depth-aware atmosphere, HDR bloom and cinematic finish. Existing production output/casting path is used; casting itself has not been exercised.
+| Target | Prior evidence / gap | Correction | Validation |
+|---|---|---|---|
+| Sculpture silhouette, volume and scale | Screenshot shows a small mostly frontal skull with shallow sockets and separated thin arcs. | Rear cranial hoops, crown/temple arches, deep sockets, brow and cheekbone trusses, upper teeth, hinged lower jaw/teeth, separable connected assemblies and segmented containment trusses. | Finite/bounded geometry; production capture pending |
+| Architecture | Written brief and visible screenshots describe a generic enclosure | Armored orthogonal vault with deep machine bays, gantries, armored columns and segmented containment platform. | Separate primitive builders; neutral visual comparison pending |
+| Physical choreography | Prior geometry files absent, prior motion not directly inspectable | Preset-specific centerlines, local roots and assemblies; shared signal bindings | Coordinate checks; visual motion pending |
+| Shadows and materials | Screenshot shadows limited to one prominent projection | Two real shadow maps, three solid strut roles and separate core | Production shadow fidelity pending |
+| Camera | Prior screenshot composition lacks monumentality | Individually authored wide and close paths, narrower lens and pose envelope | Collision/occupancy and visual framing pending |
 
-## Eight pattern profiles
+## Native geometry
 
-DORMANT: restrained assembly; AWAKEN: opening jaw; ROAR: larger hinge rotation and closer projector; FRACTURE: paired facial plates separate; RECONSTRUCT: separation cycles inward; POSSESSION: faster yaw/jaw motion; SIEGE: expanded cage with rings; CATACLYSM: maximum fragmentation profile and reconstruction pulse.
+Rear cranial hoops, crown/temple arches, deep sockets, brow and cheekbone trusses, upper teeth, hinged lower jaw/teeth, separable connected assemblies and segmented containment trusses.
 
-Manual pattern selection rebases immediately. Automatic transitions interpolate the profile over .55 seconds (PARADOX also interpolates sampled path positions), using the shared mainframe pattern controller. Pattern Change defaults OFF; the saved Trigger is hidden while OFF, not reset. The eleven canonical triggers are Beat, Kick, Snare, Downbeat, Every 2 Beats, Every 4 Beats, Bar, Every 4 Bars, Every 8 Bars, Phrase and Drop. Shared resolver selects effective values; qualified identities are deduplicated, and drop is not silence-gated. Auto build/drop overrides are temporary (4/1.5 seconds), never write saved parameters, and restore the base. Patterns are profile-driven structural compositions; the exact cinematic sequencing and visual fidelity are not established by the offline tests.
+Armored orthogonal vault with deep machine bays, gantries, armored columns and segmented containment platform.
 
-## Authority and musical mapping
+The native world provider uses three dynamic instanced cylinder batches (primary, secondary and emissive). Architectural boxes and beams are static instance batches grouped by primitive/material; rings and platforms use solid geometry. CPU centerlines and strut endpoints are regenerated on update; there is no per-frame GPU geometry/material creation. A uniform emergency envelope fit prevents extreme poses from crossing the floor or radial bounds without disconnecting individual struts; this can constrain combined maximum settings.
 
-| Domain | Manual authority | Shared music / Auto Performance |
-|---|---|---|
-| Master gain, reactivity, motion | Authored base; motion safety and flash settings limit spatial or transient motion | Shared envelope strength and mood drives. Auto locks numeric controls; Auto and BPM remain editable. |
-| Pattern/Pattern Change/Trigger | Authored base, conditional Trigger, canonical shared events | Effective pattern policy; temporary build/drop override. Manual takeover cancels stale override. |
-| Structure, articulation, core | Authored parameter ranges; optional geometry enable is a hard permission | Bounded structural response, shared Director and mood contributions; no saved edits. |
-| Shadows | Authored distance, speed, intensity, softness | Bass/Director magnification, kick/snare direction, phrase travel and drop accent. |
-| Camera | Authored rig, motion permission, speed, amount, FOV | Shared tempo path, shared drop FOV envelope and Auto coverage; no separate camera clock. |
-| Effects | Authored mix, exposure, haze, bloom, contrast, vignette | Shared effect targets and mood coverage. |
-| Palette | Six independent authored colors | Never automatically rewritten; editable during Auto. |
+## Pattern choreography
 
-Sub expands; bass increases yaw; kick drives bounded jaw hinge; snare accents opposite sockets; low mid changes plate separation; build/drop drive fragment separation. Shared high/air/mid/flux drive selective strut illumination, vocal reduces movement, Director momentum/variation modifies phase, intensity modifies the core, impact affects projection distance and energy. Idle uses reduced free-running phase. BPM Sync requires preset and dock permission for the native beat clock; shared camera uses its canonical tempo controls. Native free-running reference is 100 BPM. Source, track, publication, analysis and seek discontinuities rebase clock, selection and event identities. Pause freezes phase; no previous-track event should advance the base.
+DORMANT: assembled pose; AWAKEN: jaw activation; ROAR: wide jaw; FRACTURE: connected parts separate; RECONSTRUCT: cyclic return; POSSESSION: asymmetrical articulation; SIEGE: containment motion; CATACLYSM: broad separation and reassembly.
 
-Shared choreography defines continuous replacement of dedicated zero-default transient channels, with reactivity as strength and not-silent condition: overall energy 200 ms; sub 140; bass 90; low-mid 140; mid 110; high 65; air 120; flux 85; vocal 220; Director intensity 120, momentum 95, build 140, impact 45 and variation 120. Shared once-per-event envelopes (attack/hold/release seconds): beat .02/.025/.18; kick .015/.04/.32; snare .015/.03/.25; downbeat .025/.08/.35; bar .05/.1/.4; phrase .08/.2/.65; section .1/.1/.75; drop .03/.15/1.1. Drop is not silence-gated. Camera drop FOV add -3 degrees, .08/.1/.8 seconds, gated by camera motion. All target values are transient and bounded by runtime resolution.
+Manual pattern selection rebases immediately; automatic transitions ease over 0.55 seconds using the shared pattern controller. Pattern Change defaults OFF; Trigger is conditionally hidden without resetting the authored value. Eleven canonical triggers and temporary build/drop overrides are reused from the native module. Overrides are runtime-only, never persistence writes. Pattern trajectories are authored, but production differentiation, timing, collision freedom and cinematic quality remain unverified.
 
-### Mood drive table
+## Shared systems and authority
 
-| Target | Source | Operation | Strength at full mood |
-|---|---|---|---:|
-| jawOpening | mood.peak | add | 0.35 |
-| fragmentSeparation | mood.build | add | 0.4 |
-| cranialArticulation | mood.calm | multiply | 0.35 |
-| motionRate | mood.momentum | multiply | 1.4 |
-| motionRate | mood.calm | multiply | 0.65 |
-| projectionIntensity | mood.peak | multiply | 1.25 |
-| intensity | mood.silence | multiply | 0.12 |
-| bloom | mood.peak | multiply | 1.25 |
-| haze | mood.tense | multiply | 1.35 |
+The existing native manifest continues to use the four Inspector parent groups, canonical controls, six palette channels, shared Audio Intelligence and Visual Director target rules, the shared BPM clock, shared Mood Conductor authoring and Auto coverage. Palette remains user-authored. Structural controls are user base plus transient automation; camera and optional structure enable toggles remain hard permissions. The shared camera/effect pipeline remains unchanged. No separate clock, global animation loop or engine is introduced.
 
-Shared catalog Auto coverage supplies remaining numeric drives. Reactivity scales authored mood drives; the shared pattern-control resolver receives automatic authority only with reactivity above zero. The shared Inspector owns locking, live resolved values and reset availability. Neither local inspector code nor persistence is modified.
+Two independently moving real spotlights illuminate the animated lattice and architectural receivers. Quality-tier map sizes are 512/1024/2048. Shadow bias, normal bias and PCF filtering are explicit; the renderer saves/restores shared GL state and releases owned resources on lease retirement. Shadow appearance and GPU cost have not been measured. Camera paths are conservative exterior close-detail paths, not collision-certified interior traversal.
 
-## Parameter inventory (authored manifest)
+## Validation and keeper gate
 
-| Parent | Control | Default | Range / step | Visible target |
-|---|---|---|---|---|
-| shared | Quality / Performance | `"auto"` | discrete/color | Auto adapts render cost to frame time. Performance favors headroom; Quality favors detail. |
-| master-controls | Auto Performance | `false` | discrete/color | Let the shared Mood Conductor control the show. |
-| master-controls | BPM Sync | `true` | discrete/color | Lock mechanical phase when the Audio Dock permits it; camera uses the shared tempo control. |
-| master-controls | Motion Safety | `"full"` | discrete/color | Limit or freeze spatial animation. |
-| master-controls | Flash Accents | `"reduced"` | discrete/color | Restrict direct transient illumination. |
-| master-controls | Music Reactivity | `1` | 0–1 / 0.01 | Shared audio envelopes and mood response. |
-| master-controls | Motion Amount | `0.8` | 0–1 / 0.01 | Extent of breathing and camera movement. |
-| master-controls | Master Intensity | `1` | 0–1.6 / 0.01 | Core, luminous struts and projection light gain. |
-| design | Pattern | `"dormant"` | discrete/color | Select the authored pattern; automatic changes never save over it. |
-| design | Pattern Change | `false` | discrete/color | Advance on new qualifying musical events. |
-| design | Trigger | `"bar4"` | discrete/color | Canonical shared event that advances the runtime pattern. |
-| design | Skull Scale | `1` | 0.7–1.2 / 0.01 | Overall skull size. |
-| design | Jaw Opening | `0.3` | 0–1 / 0.01 | Rotation of the hinged mandibular assembly. |
-| design | Jaw Motion Speed | `0.65` | 0–1 / 0.01 | Rate of jaw articulation. |
-| design | Jaw Reactivity | `0.7` | 0–1 / 0.01 | Amount of kick-driven jaw movement. |
-| design | Cranial Articulation | `0.45` | 0–1 / 0.01 | Motion of paired cranial plates. |
-| design | Head Rotation | `0.5` | 0–1 / 0.01 | Bounded head yaw. |
-| design | Fragment Separation | `0.45` | 0–1 / 0.01 | Distance between articulated bone assemblies. |
-| design | Fragment Rotation | `0.4` | 0–1 / 0.01 | Rotation of separated assemblies. |
-| design | Reconstruction Speed | `0.65` | 0–1 / 0.01 | Rate of separation and return. |
-| design | Eye Socket Intensity | `0.8` | 0–1.5 / 0.01 | Gain on socket borders. |
-| design | Containment Ring Speed | `0.5` | 0–1 / 0.01 | Rotation rate of the ring assemblies. |
-| design | Containment Ring Enable | `true` | discrete/color | Show segmented containment rings. |
-| design | Structural Density | `0.85` | 0–1 / 0.05 | Amount of secondary diagonal bracing. |
-| design | Mechanical Motion Speed | `0.7` | 0–1.5 / 0.01 | Rate of the shared mechanical phase. |
-| design | Strut Thickness | `0.045` | 0.018–0.075 / 0.001 | Actual radius of solid lattice rods. |
-| design | Core Scale | `1` | 0.7–1.3 / 0.01 | Scale of central cage and heart. |
-| design | Core Intensity | `1` | 0–1.6 / 0.01 | Emission gain of central heart. |
-| design | Projection Intensity | `0.85` | 0–1.6 / 0.01 | Light illuminating the walls through the lattice. |
-| design | Projection Distance | `5.8` | 4.8–7.8 / 0.05 | Move the two light sources closer to enlarge the wall projections. |
-| design | Projection Speed | `0.5` | 0–1.2 / 0.01 | Speed of the shadow-casting fixtures around the sculpture. |
-| design | Shadow Softness | `1` | 0–3 / 0.05 | Filter radius of the real geometry shadow maps. |
-| design | Camera Mode | `"director"` | discrete/color | Select cinematic reveal, horizontal orbit, macro or locked composition. |
-| design | Camera Motion | `true` | discrete/color | Hard permission for camera travel. |
-| design | Camera Speed | `0.72` | 0–1.4 / 0.01 | Rate of the shared cinematic path. |
-| design | Camera Motion Intensity | `0.9` | 0–1 / 0.01 | Scale of the shared camera motion. |
-| design | Field of View | `55` | 42–74 / 1 | Base perspective angle. |
-| effects | Bloom | `0.55` | 0–1 / 0.01 | Halo from luminous truss edges. |
-| effects | Atmosphere Mix | `1` | 0–1 / 0.01 | Blend the shared atmospheric effect. |
-| effects | Finish Mix | `1` | 0–1 / 0.01 | Blend the shared cinematic finish. |
-| effects | Atmosphere | `0.018` | 0–0.06 / 0.001 | Depth-aware atmospheric scattering. |
-| effects | Contrast | `1.13` | 0.8–1.4 / 0.01 | Shared cinematic contrast. |
-| effects | Exposure | `1` | 0.55–1.5 / 0.01 | Shared cinematic exposure multiplier. |
-| effects | Vignette | `0.25` | 0–0.65 / 0.01 | Peripheral darkening. |
-| palette | Vault | `[0.11, 0.13, 0.16, 1]` | discrete/color | Independent Vault color. |
-| palette | Primary Skeletal Structure | `[0.43, 0.47, 0.51, 1]` | discrete/color | Independent Primary Skeletal Structure color. |
-| palette | Secondary Mechanical Structure | `[0.28, 0.38, 0.49, 1]` | discrete/color | Independent Secondary Mechanical Structure color. |
-| palette | Eye and Structural Emission | `[0.77, 0.91, 1, 1]` | discrete/color | Independent Eye and Structural Emission color. |
-| palette | Internal Core | `[0.87, 0.96, 1, 1]` | discrete/color | Independent Internal Core color. |
-| palette | Atmosphere | `[0.3, 0.4, 0.55, 1]` | discrete/color | Independent Atmosphere color. |
+- Offline strict TypeScript check of pure geometry, architecture and specifications; finite-coordinate sweeps at three quality levels; authored and Auto-covered manifest compiler and authoring checks using the actual repository code in a transpile-only runner. Auto skipped-target count was zero for all four presets.
+- Full application typecheck, Vitest, production browser captures, casting, actual parameter pixels, camera collisions, shadow fidelity and resource/performance profiling remain blocked or unexecuted. Dependency installation failed (offline cache missing `zustand`; online DNS lookup failed). No visual keeper claim is made.
+- Run `npx vitest run src/components/vyzualz/cinema2/__tests__/Cinema2ArtifactPresets.test.ts` and `node scripts/run-cinema2-artifacts-browser.mjs` in a dependency-complete checkout. Compare the captured frames with the actual original references before accepting or promoting the preset.
 
-## Validation and release status
+## Authored parameter inventory
 
-- Actual repository authoring validator and native compiler passed for each authored and shared Auto-covered manifest in the available offline TypeScript execution path; Auto coverage reported zero skipped targets.
-- Strict standalone TypeScript check of the pure geometry modules passed. Eight distinct coordinate signatures and 24 pattern/quality combinations per preset with high audio channels were checked for finite bounded geometry and rod counts. Shared pattern controller was checked for all eleven trigger IDs, duplicate suppression and manual takeover.
-- `npm ci --offline` failed with ENOTCACHED (zustand); online `npm ci` failed with registry DNS EAI_AGAIN. Attempting the full native registry import offline was blocked by missing `@supabase/supabase-js`. Full TypeScript typecheck, Vitest, production browser and WebGL tests, runtime/cast/resize/Inspector visual acceptance and GPU profiling remain unexecuted.
-- Added `Cinema2ArtifactPresets.test.ts` and a production runtime/Inspector browser harness for the four presets. With dependencies and Playwright Chromium installed, run:
-
-```bash
-npx vitest run src/components/vyzualz/cinema2/__tests__/Cinema2ArtifactPresets.test.ts
-node scripts/run-cinema2-artifacts-browser.mjs
-```
-
-Review static, idle, quiet/vocal, driving, build, drop, phrase, wide, close detail and monumental shadow captures, control extrema and all 32 pattern transitions. Verify actual shadow fidelity, light clipping, camera clearances, per-control visible changes, pause/seek/loop, shared Auto and Inspector semantics, production output and casting; repeat switching including ORGANISM. No capture was fabricated. The preset remains an unapproved reference. No shared-engine changes other than additive registration/exports.
+| Parent | Stable ID | Label | Default | Range / step | Visible intent |
+|---|---|---|---|---|---|
+| shared | `quality-mode` | Quality / Performance | "auto" | enum | Auto adapts render cost to frame time. Performance favors headroom; Quality favors detail. |
+| master-controls | `relic-auto-performance` | Auto Performance | false | boolean | Let the shared Mood Conductor control the show. |
+| master-controls | `relic-bpm-sync` | BPM Sync | true | boolean | Lock mechanical phase when the Audio Dock permits it; camera uses the shared tempo control. |
+| master-controls | `relic-motion-safety` | Motion Safety | "full" | enum | Limit or freeze spatial animation. |
+| master-controls | `relic-flash-accents` | Flash Accents | "reduced" | enum | Restrict direct transient illumination. |
+| master-controls | `relic-reactivity` | Music Reactivity | 1 | 0–1 / 0.01 | Shared audio envelopes and mood response. |
+| master-controls | `relic-motion-amount` | Motion Amount | 0.8 | 0–1 / 0.01 | Extent of breathing and camera movement. |
+| master-controls | `relic-intensity` | Master Intensity | 1 | 0–1.6 / 0.01 | Core, luminous struts and projection light gain. |
+| design | `relic-pattern` | Pattern | "dormant" | enum | Select the authored pattern; automatic changes never save over it. |
+| design | `relic-pattern-change` | Pattern Change | false | boolean | Advance on new qualifying musical events. |
+| design | `relic-trigger` | Trigger | "bar4" | enum | Canonical shared event that advances the runtime pattern. |
+| design | `relic-skull-scale` | Skull Scale | 1 | 0.7–1.2 / 0.01 | Overall skull size. |
+| design | `relic-jaw-opening` | Jaw Opening | 0.3 | 0–1 / 0.01 | Rotation of the mandibular assembly. |
+| design | `relic-jaw-motion-speed` | Jaw Motion Speed | 0.65 | 0–1 / 0.01 | Rate of jaw articulation. |
+| design | `relic-jaw-reactivity` | Jaw Reactivity | 0.7 | 0–1 / 0.01 | Kick-driven jaw movement. |
+| design | `relic-cranial-articulation` | Cranial Articulation | 0.45 | 0–1 / 0.01 | Motion of paired cranial plates. |
+| design | `relic-head-rotation` | Head Rotation | 0.5 | 0–1 / 0.01 | Bounded head yaw. |
+| design | `relic-fragment-separation` | Fragment Separation | 0.45 | 0–1 / 0.01 | Distance between articulated bone assemblies. |
+| design | `relic-fragment-rotation` | Fragment Rotation | 0.4 | 0–1 / 0.01 | Rotation of separated assemblies. |
+| design | `relic-reconstruction-speed` | Reconstruction Speed | 0.65 | 0–1 / 0.01 | Rate of separation and return. |
+| design | `relic-eye-intensity` | Eye Socket Intensity | 0.8 | 0–1.5 / 0.01 | Gain on socket borders. |
+| design | `relic-ring-speed` | Containment Ring Speed | 0.5 | 0–1 / 0.01 | Rotation of segmented rings. |
+| design | `relic-ring-separation` | Containment Ring Separation | 0.5 | 0–1 / 0.01 | Radial deployment of containment arcs. |
+| design | `relic-ring-enable` | Containment Ring Enable | true | boolean | Show the containment arcs. |
+| design | `relic-density` | Structural Density | 0.85 | 0–1 / 0.05 | Amount of secondary diagonal bracing. |
+| design | `relic-motion-rate` | Mechanical Motion Speed | 0.7 | 0–1.5 / 0.01 | Rate of the shared mechanical phase. |
+| design | `relic-strand-thickness` | Strut Thickness | 0.045 | 0.018–0.075 / 0.001 | Actual radius of solid lattice rods. |
+| design | `relic-core-scale` | Core Scale | 1 | 0.7–1.3 / 0.01 | Scale of central cage and heart. |
+| design | `relic-core-intensity` | Core Intensity | 1 | 0–1.6 / 0.01 | Emission gain of central heart. |
+| design | `relic-projection-intensity` | Projection Intensity | 0.85 | 0–1.6 / 0.01 | Light illuminating the walls through the lattice. |
+| design | `relic-light-distance` | Projection Distance | 5.8 | 4.8–7.8 / 0.05 | Move the two light sources closer to enlarge the wall projections. |
+| design | `relic-projection-speed` | Projection Speed | 0.5 | 0–1.2 / 0.01 | Speed of the shadow-casting fixtures around the sculpture. |
+| design | `relic-shadow-softness` | Shadow Softness | 1 | 0–3 / 0.05 | Filter radius of the real geometry shadow maps. |
+| design | `relic-camera-mode` | Camera Mode | "director" | enum | Select cinematic reveal, horizontal orbit, macro or locked composition. |
+| design | `relic-camera-motion` | Camera Motion | true | boolean | Hard permission for camera travel. |
+| design | `relic-camera-speed` | Camera Speed | 0.72 | 0–1.4 / 0.01 | Rate of the shared cinematic path. |
+| design | `relic-camera-amount` | Camera Motion Intensity | 0.9 | 0–1 / 0.01 | Scale of the shared camera motion. |
+| design | `relic-fov` | Field of View | 46 | 42–74 / 1 | Base perspective angle. |
+| effects | `relic-bloom` | Bloom | 0.55 | 0–1 / 0.01 | Halo from luminous truss edges. |
+| effects | `relic-atmosphere-mix` | Atmosphere Mix | 1 | 0–1 / 0.01 | Blend the shared atmospheric effect. |
+| effects | `relic-finish-mix` | Finish Mix | 1 | 0–1 / 0.01 | Blend the shared cinematic finish. |
+| effects | `relic-haze` | Atmosphere | 0.018 | 0–0.06 / 0.001 | Depth-aware atmospheric scattering. |
+| effects | `relic-contrast` | Contrast | 1.13 | 0.8–1.4 / 0.01 | Shared cinematic contrast. |
+| effects | `relic-exposure` | Exposure | 1 | 0.55–1.5 / 0.01 | Shared cinematic exposure multiplier. |
+| effects | `relic-vignette` | Vignette | 0.25 | 0–0.65 / 0.01 | Peripheral darkening. |
+| palette | `relic-background` | Architecture | [0.18,0.19,0.2,1] | color | Independent Architecture color. |
+| palette | `relic-metal` | Primary Structural Metal | [0.56,0.61,0.67,1] | color | Independent Primary Structural Metal color. |
+| palette | `relic-secondary` | Secondary Structural Metal | [0.31,0.37,0.45,1] | color | Independent Secondary Structural Metal color. |
+| palette | `relic-strand` | Structural Emission | [0.78,0.91,1,1] | color | Independent Structural Emission color. |
+| palette | `relic-core` | Energy Core | [0.9,0.96,1,1] | color | Independent Energy Core color. |
+| palette | `relic-haze-tint` | Atmosphere | [0.3,0.4,0.55,1] | color | Independent Atmosphere color. |
