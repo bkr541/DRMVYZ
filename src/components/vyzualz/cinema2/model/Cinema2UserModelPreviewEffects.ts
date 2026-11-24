@@ -66,6 +66,17 @@ export class Cinema2UserModelPreviewEffects {
   /** The pattern Auto Performance has on stage right now, or null while the authored/triggered one is. For inspection and tests. */
   performancePattern: string | null = null
   private controls: Controls = { tintModel: false, modelYaw: 0, modelScale: 1, pattern: 0, phase: 0, movement: 0.35, intensity: 0.8, opacity: 1, emission: 0.2, reaction: 0, primary: [0.55, 0.85, 1], secondary: [0.7, 0.3, 0.9], accent: [0.1, 0.9, 0.8] }
+  private shardImpulse = 0
+  private dustImpulse = 0
+  private dustSparkle = 0
+  private dustBrightness = 0
+  private holoFlash = 0
+  private holoInterference = 0
+  private holoEcho = 0
+  private holoDistortion = 0
+  private scanPhase = 0
+  private dustPhase = 0
+  private previousVisualPhase: number | null = null
   private shardMotion = 1
   private debris = .35
   private shardCracks = 0
@@ -85,6 +96,8 @@ export class Cinema2UserModelPreviewEffects {
   private density = 1
   private dustDrift = 1
   private dustFlow = 1
+  private dustFlowDirection = 0
+  private musicalDirector = false
   private sliceDirection = 'y'
   private voxelDetail = 'auto'
   private representedStart = false
@@ -99,7 +112,8 @@ export class Cinema2UserModelPreviewEffects {
   constructor(private readonly library: Cinema2ThreeLibrary, readonly kind: Cinema2UserModelPreviewKind, private readonly shardDetail = 24, private readonly sliceCount = 14, private readonly sliceAxis = 'y') {
     this.patterns = new Cinema2MainframePatternController<string>(CINEMA2_USER_MODEL_PREVIEWS[kind], CINEMA2_USER_MODEL_PREVIEWS[kind][0])
     const programs = CINEMA2_USER_MODEL_AUTO_PERFORMANCE_PATTERNS[kind]
-    this.autoPerformance = new Cinema2PatternAutoPerformance<string>({ buildPattern: programs.build, dropPattern: programs.drop })
+    const patterns = CINEMA2_USER_MODEL_PREVIEWS[kind]
+    this.autoPerformance = new Cinema2PatternAutoPerformance<string>({ buildPattern: programs.build, dropPattern: programs.drop, mood: { options: { calm: [patterns[0], patterns[5]], driving: [patterns[1], patterns[2]], tense: [patterns[3], patterns[4]], peak: [patterns[0], patterns[3]] }, minHoldSec: 4 } })
     this.dummy = new library.THREE.Object3D(); this.tint = new library.THREE.Color()
   }
   update({ frame, parameters }: Cinema2ModuleUpdateContext, sharedTiming?: Readonly<{ timing: Readonly<Cinema2MainframeBeatClockFrame>; motionBeats: number }>): void {
@@ -132,6 +146,7 @@ export class Cinema2UserModelPreviewEffects {
     const performing = this.autoPerformance.update({
       enabled: parameters.get('autoPerformance') === true && playing, absoluteBeat: timing.beats, buildCharge, dropEventId,
       patternEdited: this.previousAuthored != null && authored !== this.previousAuthored || sameValueEdit, reset,
+      mood: parameters.get('audioRepresentationDirector') === true ? frame.mood : null, deltaTimeSec: frame.deltaTimeSec, basePattern: selection.activePattern, patternChange: parameters.get('patternChange') === true, seed: identity,
     })
     this.performancePattern = performing.pattern
     this.previousAuthored = authored
@@ -153,19 +168,29 @@ export class Cinema2UserModelPreviewEffects {
       this.cycleStartBeat = motionBeats - duration * .48 / Math.max(.01, number('speed', 1, 0, 3))
       this.representedStart = false
     }
+    this.musicalDirector = parameters.get('audioRepresentationDirector') === true && parameters.get('autoPerformance') === true
+    const enhanced = this.musicalDirector || parameters.get('audioMappingsEnabled') === true
     const cycleBeats = number('cycleBeats', 16, 8, 64), moving = speed > 0 && movement > 0
     this.dustCycle = cinema2DustCycle(moving ? Math.max(0, motionBeats - this.cycleStartBeat) * speed : 0, cycleBeats)
-    if (moving && performing.reason === 'build') this.dustCycle = cinema2DustCycle((.66 + .22 * buildCharge) * cycleBeats, cycleBeats)
+    if (moving && performing.reason === 'build') this.dustCycle = cinema2DustCycle((enhanced ? .05 + .29 * buildCharge : .66 + .22 * buildCharge) * cycleBeats, cycleBeats)
     if (moving && performing.reason === 'drop') this.dustCycle = cinema2DustCycle((.34 + .54 * clamp((timing.beats - performing.startBeat) / 8)) * cycleBeats, cycleBeats)
     this.sliceSpread = moving ? cinema2SliceSpread(Math.max(0, motionBeats - this.cycleStartBeat) * speed, number(this.kind === 'slices' ? 'sliceCycleBeats' : 'transformCycleBeats', 16, 8, 64)) : 0
-    if (moving && performing.reason === 'build') this.sliceSpread = 1 - clamp(buildCharge)
-    if (moving && performing.reason === 'drop') this.sliceSpread = clamp((8 - (timing.beats - performing.startBeat)) / 3)
+    if (moving && performing.reason === 'build') this.sliceSpread = enhanced ? .08 + .72 * clamp(buildCharge) : 1 - clamp(buildCharge)
+    if (moving && performing.reason === 'drop') this.sliceSpread = clamp((8 - (timing.beats - performing.startBeat)) / 3) * (enhanced ? clamp((timing.beats - performing.startBeat) / .25) : 1)
     // Manual pose is opt-in; legacy presets retain the original musical transformation cycles.
     const manualPose = parameters.get('effectPose') === 'representation'
     if (manualPose) {
       this.sliceSpread = 1
       this.dustCycle = { ...this.dustCycle, dissolve: 1, spread: 1 }
     }
+    this.shardImpulse = number('shardImpulse', 0)
+    this.dustImpulse = number('dustImpulse', 0)
+    this.dustSparkle = number('dustSparkle', 0)
+    this.dustBrightness = number('dustBrightness', 0)
+    this.holoFlash = number('hologramFlash', 0)
+    this.holoInterference = number('hologramInterference', 0)
+    this.holoEcho = number('hologramEcho', 0)
+    this.holoDistortion = number('hologramDistortion', 0)
     this.shardMotion = number('shardMotion', 1)
     this.debris = number('shardDebris', .35)
     this.shardCracks = number('shardCracks', 0)
@@ -183,15 +208,32 @@ export class Cinema2UserModelPreviewEffects {
     this.density = number('dustDensity', 1, .1, 1)
     this.dustDrift = number('dustDrift', 1, 0, 1)
     this.dustFlow = number('dustFlow', 1, 0, 2)
+    this.dustFlowDirection = number('dustFlowDirection', 0, -1, 1)
     this.sliceDirection = String(parameters.get('sliceDirection') ?? 'y')
     this.voxelDetail = String(parameters.get('voxelDetail') ?? 'auto')
     const separation = this.kind === 'shatter' ? number('shatterSpread', 1) : this.kind === 'slices' ? number('sliceSeparation', 1) : this.kind === 'voxel' ? number('voxelSeparation', 1) : 1
     // Keep the representation visible at zero separation in manual pose, while preserving the legacy reassembly path.
     this.sliceSpread *= separation
-    if (this.kind === 'shatter') this.sliceSpread = Math.max(this.sliceSpread, this.shardCracks * .006)
+    if (this.kind === 'shatter') {
+      const reassembly = 1 - number('shardReassembly', 0)
+      this.shardImpulse *= reassembly
+      this.sliceSpread = Math.max(this.sliceSpread, this.shardCracks * .006, this.shardImpulse * .55) * reassembly
+    }
+    if (this.kind === 'dust') {
+      const reassembly = 1 - number('dustReassembly', 0)
+      this.dustImpulse *= reassembly
+      this.dustCycle = { ...this.dustCycle, dissolve: clamp(Math.max(this.dustCycle.dissolve, this.dustImpulse * .65) * reassembly), spread: clamp(Math.max(this.dustCycle.spread, this.dustImpulse * .55) * reassembly) }
+    }
+    if (this.kind === 'hologram') this.sliceSpread = Math.max(this.sliceSpread, this.holoFlash * .35)
     this.manualPose = manualPose
     this.hologramLines = number('hologramLines', 1, .25, 2)
     this.controls = { tintModel: this.kind === 'form' && parameters.get('formMaterial') === 'original' ? false : parameters.get('tintModel') === true || this.kind === 'form' && parameters.get('formMaterial') === 'palette', modelYaw: number('modelYaw', 0, -180, 180) * Math.PI / 180, modelScale: number('modelScale', 1, .5, 1.2), pattern: names.indexOf(onStage), phase: motionBeats * Math.PI * 0.25 * number('speed', 1, 0, 3) * (number('movement', .35, 0, .8) > 0 ? 1 : 0), movement: number('movement', 0.35, 0, 0.8), intensity: number('intensity', 0.8, 0, 2), opacity: number('opacity', 1, 0.1, 1) * (this.kind === 'hologram' ? 1 - number('hologramTransparency', 0, 0, .9) : 1), emission: number('emission', 0.2, 0, 2) + (this.kind === 'hologram' ? number('hologramGlow', 0, 0, 2) : 0), reaction, primary: color('primary', this.controls.primary), secondary: color('secondary', this.controls.secondary), accent: color('accent', this.controls.accent) }
+    // Integrate modulation of motion rates using the already-resolved shared musical phase.
+    // Changing a rate changes velocity, not absolute position; no independent clock is introduced.
+    const phase = this.controls.phase
+    if (reset || this.previousVisualPhase === null) { this.dustPhase = phase * this.dustFlow; this.scanPhase = phase * this.holoScanSpeed }
+    else { const advance = phase - this.previousVisualPhase; this.dustPhase += advance * this.dustFlow; this.scanPhase += advance * this.holoScanSpeed }
+    this.previousVisualPhase = phase
     this.previousTime = time; this.previousIdentity = identity; this.previousGeneration = frame.contextGeneration; this.previousEdit = edit; this.previousDiscontinuity = discontinuity
   }
   attach(root: Three.Object3D, userModel?: boolean, sharedPreparation?: Cinema2PreparedUserModel): void {
@@ -278,8 +320,10 @@ export class Cinema2UserModelPreviewEffects {
   private transitionOpacity = 1
   beforeDraw(quality: Cinema2RenderQualityLevel = 'high'): void {
     const T = this.library.THREE, c = { ...this.controls, opacity: this.controls.opacity * this.transitionOpacity }, p = c.pattern, phase = c.phase, m = c.movement, r = c.reaction
+    const assembly = this.musicalDirector ? this.transitionOpacity : 1
+    const drawSpread = this.sliceSpread * assembly, drawDissolve = this.dustCycle.dissolve * assembly
     for (const a of this.attachments.values()) {
-      a.source.visible = this.kind === 'form' || this.kind === 'hologram' || this.kind === 'dust' && this.dustCycle.dissolve < .99999 || this.kind === 'slices' && (!a.cutModel || this.sliceSpread < .00001) || this.kind === 'shatter' && (!a.shatter || this.sliceSpread < .00001) || this.kind === 'voxel' && (!a.voxels || !this.manualPose && this.sliceSpread < .15)
+      a.source.visible = this.kind === 'form' || this.kind === 'hologram' || this.kind === 'dust' && drawDissolve < .99999 || this.kind === 'slices' && (!a.cutModel || this.sliceSpread < .00001) || this.kind === 'shatter' && (!a.shatter || drawSpread < .00001) || this.kind === 'voxel' && (!a.voxels || !this.manualPose && this.sliceSpread < .15)
       a.pivot.rotation.set(0, 0, 0); a.pivot.scale.setScalar(1); a.pivot.position.copy(a.prepared.center)
       const e = a.extent, oscillation = Math.sin(phase)
       if (this.kind === 'form') {
@@ -301,7 +345,7 @@ export class Cinema2UserModelPreviewEffects {
       }
       if (this.kind === 'dust') {
         a.pivot.rotation.y = c.modelYaw; a.pivot.scale.setScalar(c.modelScale)
-        a.dissolve!.amount.value = this.dustCycle.dissolve
+        a.dissolve!.amount.value = drawDissolve
         a.dissolve!.edgeColor.value.setRGB(c.accent[0], c.accent[1], c.accent[2], T.SRGBColorSpace)
         a.dissolve!.edgeStrength.value = c.emission * .5
       }
@@ -326,11 +370,14 @@ export class Cinema2UserModelPreviewEffects {
         a.hologram.qualityScale = quality === 'low' ? .35 : quality === 'medium' ? .65 : 1
         a.hologram.thickness.value = this.holoThickness; a.hologram.scanWidth.value = this.holoScanWidth
         a.hologram.rim.value = this.holoRim; a.hologram.scanSpeed.value = this.holoScanSpeed; a.hologram.direction.value = Math.max(0, this.holoDirection)
+        a.hologram.scanOffset.value = this.scanPhase - phase * this.holoScanSpeed
+        a.hologram.flash.value = this.holoFlash; a.hologram.interference.value = this.holoInterference
+        a.hologram.echoAmount.value = this.holoEcho; a.hologram.distortion.value = this.holoDistortion
         a.hologram.animate(p, phase, this.sliceSpread, e, c.opacity, c.intensity * (.6 + c.emission + r * .3), c.primary, c.accent)
       }
       if (a.shatter) {
-        a.shatter.group.visible = this.sliceSpread >= .00001
-        animateCinema2Shatter(a.shatter, p, phase, this.sliceSpread * (.35 + .65 * this.transitionOpacity), e, m, r, this.shardMotion, this.debris)
+        a.shatter.group.visible = drawSpread >= .00001
+        animateCinema2Shatter(a.shatter, p, phase, drawSpread * (.35 + .65 * this.transitionOpacity), e, m, r, this.shardMotion, this.debris, this.shardImpulse * this.transitionOpacity)
       }
       if (a.voxels) {
         a.voxels.group.visible = this.manualPose || this.sliceSpread > .00001
@@ -346,14 +393,14 @@ export class Cinema2UserModelPreviewEffects {
       }
       if (a.points.length) {
         const u = a.dustUniforms
-        u.c2Release.value = this.dustCycle.dissolve; u.c2Spread.value = this.dustCycle.spread * this.dustDrift * (.35 + .65 * this.transitionOpacity)
-        u.c2Time.value = phase * this.dustFlow; u.c2Pattern.value = p; u.c2Motion.value = m + r * .2
+        u.c2Release.value = drawDissolve; u.c2Spread.value = this.dustCycle.spread * assembly * this.dustDrift * (.35 + .65 * this.transitionOpacity)
+        u.c2Time.value = this.dustPhase; u.c2FlowBias.value = this.dustFlowDirection; u.c2Impulse.value = this.dustImpulse; u.c2Sparkle.value = this.dustSparkle; u.c2Pattern.value = p; u.c2Motion.value = m + r * .2
         u.c2Turbulence.value = this.dustTurbulence; u.c2Density.value = this.density
         for (let part = 0; part < a.points.length; part++) {
           const cloud = a.points[part], count = Math.max(1, Math.floor(CINEMA2_USER_MODEL_PROXY_LIMITS[quality].dust / 2 * this.density))
-          cloud.geometry.setDrawRange(0, Math.min(count, cloud.geometry.attributes.position.count)); cloud.visible = this.dustCycle.dissolve > .00001
+          cloud.geometry.setDrawRange(0, Math.min(count, cloud.geometry.attributes.position.count)); cloud.visible = drawDissolve > .00001
           const mat = a.pointMaterials[part], rgb = part ? c.secondary : c.primary
-          mat.color.setRGB(rgb[0], rgb[1], rgb[2], T.SRGBColorSpace).multiplyScalar(c.intensity * (1 + c.emission + r * .4))
+          mat.color.setRGB(rgb[0], rgb[1], rgb[2], T.SRGBColorSpace).multiplyScalar(c.intensity * (1 + c.emission + r * .4 + this.dustBrightness * .6))
           mat.opacity = c.opacity * this.dustOpacity; mat.size = e * (quality === 'low' ? .009 : quality === 'medium' ? .006 : .0045) * this.dustSize * (1 + r * m * .3)
         }
       }

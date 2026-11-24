@@ -1,3 +1,4 @@
+import { createCinema2ModelAudioParameters, MODEL_AUDIO_PROFILES, MODEL_AUDIO_TARGETS } from '../model/Cinema2ModelAudioChoreography'
 import { createCinema2ModelCinematicParameters, createCinema2ModelCinematicGraph } from './Cinema2ModelCinematicAuthoring'
 import { CINEMA2_NATIVE_PRESET_SCHEMA_ID, CINEMA2_NATIVE_PRESET_SCHEMA_VERSION, cinema2NamespacedId, cinema2Ref, cinema2StableId, type Cinema2ModuleId, type Cinema2NativePresetManifest, type Cinema2ParameterId, type Cinema2ParameterManifest, type Cinema2PresetId } from '../contracts/Cinema2NativePresetManifest'
 import { createCinema2UserModelBaseEnvironment, createCinema2UserModelParameter } from '../model/Cinema2UserModelBaseEnvironment'
@@ -38,10 +39,10 @@ export function createCinema2UserModelPreset(kind: Cinema2UserModelPreviewKind):
     parameter('cameraElevation', 'Camera Elevation', 'float', Math.atan2(.35, 5.8) * 180 / Math.PI, 'design', { group: 'Camera', order: 1, min: -60, max: 60, unit: '°' }),
     parameter('cameraZoom', 'Camera Distance', 'float', Math.hypot(.35, 5.8), 'design', { group: 'Camera', order: 2, min: 3, max: 12 }),
     parameter('cameraTarget', 'Camera Target Offset', 'vec3', [0, 0, 0], 'design', { group: 'Camera', order: 3, min: -2, max: 2, step: .01 }),
-    parameter('pattern', 'Pattern', 'enum', CINEMA2_USER_MODEL_PREVIEWS[kind][0], 'design', { group: `${options.find(option => option.value === kind)!.label} Patterns`, order: 1, options: CINEMA2_USER_MODEL_PREVIEWS[kind].map(label => ({ value: label, label })) }),
+    parameter('pattern', 'Pattern', 'enum', CINEMA2_USER_MODEL_PREVIEWS[kind][0], 'design', { group: 'Performance Pattern', order: 1, options: CINEMA2_USER_MODEL_PREVIEWS[kind].map((label, index) => ({ value: label, label: `${label} / ${MODEL_AUDIO_PROFILES[index]}` })), description: 'The existing six motions also select the musical representation sequence when Musical Representation Transitions is enabled.' }),
     ...modes.filter(mode => mode !== kind).map(mode => parameter(cinema2RepresentationPatternProperty(mode), `${options.find(option => option.value === mode)!.label} Pattern`, 'enum', CINEMA2_USER_MODEL_PREVIEWS[mode][0], 'design', { group: `${options.find(option => option.value === mode)!.label} Patterns`, order: 1, options: CINEMA2_USER_MODEL_PREVIEWS[mode].map(label => ({ value: label, label })) })),
-    parameter('patternChange', 'Pattern Change', 'boolean', false, 'design', { order: 2 }),
-    parameter('trigger', 'Trigger', 'enum', 'beat', 'design', { order: 3, options: CINEMA2_AFTERHOURS_TRIGGER_OPTIONS, visibleWhen: [{ kind: 'parameter-equals', parameterId: id('patternChange'), value: true }] }),
+    parameter('patternChange', 'Pattern Change', 'boolean', false, 'design', { group: 'Performance Pattern', order: 2 }),
+    parameter('trigger', 'Trigger', 'enum', 'beat', 'design', { group: 'Performance Pattern', order: 3, options: CINEMA2_AFTERHOURS_TRIGGER_OPTIONS, visibleWhen: [{ kind: 'parameter-equals', parameterId: id('patternChange'), value: true }] }),
     parameter('movement', 'Movement Amount', 'float', .35, 'design', { order: 4, min: 0, max: .8, step: .01 }),
     parameter('speed', 'Movement Speed', 'float', 1, 'design', { order: 5, min: 0, max: 3, step: .01 }),
     ...[parameter('tintModel', 'Tint Model from Palette', 'boolean', false, 'effects', { order: 2, description: 'Off preserves the saved PBR material colors. On multiplies them by Primary and Secondary.' }),
@@ -61,6 +62,7 @@ export function createCinema2UserModelPreset(kind: Cinema2UserModelPreviewKind):
     parameter('shardCracks', 'Fine Crack Separation', 'float', 0, 'effects', { group: 'Shatter', order: 4, min: 0, max: 1, step: 0.01, modulatable: true, choreographable: true }),
     parameter('dustDensity', 'Particle Density', 'float', 1, 'effects', { modulatable: true, choreographable: true, group: 'Dust', order: 0, min: .1, max: 1, step: .01 }),
     parameter('dustDrift', 'Particle Drift', 'float', 1, 'effects', { modulatable: true, choreographable: true, group: 'Dust', order: 1, min: 0, max: 1, step: .01 }),
+    parameter('dustFlowDirection', 'Particle Vertical Flow Bias', 'float', 0, 'effects', { group: 'Dust', order: 8, min: -1, max: 1, step: .01 }),
     parameter('dustFlow', 'Particle Flow', 'float', 1, 'effects', { modulatable: true, choreographable: true, group: 'Dust', order: 2, min: 0, max: 2, step: .01 }),
     parameter('dustSize', 'Particle Size', 'float', 1, 'effects', { group: 'Dust', order: 3, min: 0.25, max: 3, step: 0.01, modulatable: true, choreographable: true }),
     parameter('dustTurbulence', 'Particle Turbulence', 'float', 0.5, 'effects', { group: 'Dust', order: 4, min: 0, max: 2, step: 0.01, modulatable: true, choreographable: true }),
@@ -81,6 +83,11 @@ export function createCinema2UserModelPreset(kind: Cinema2UserModelPreviewKind):
     parameter('voxelSeparation', 'Block Separation', 'float', 1, 'effects', { modulatable: true, choreographable: true, group: 'Voxel', order: 1, min: 0, max: 1, step: .01 }),
     parameter('voxelRotation', 'Block Rotation', 'float', 0.5, 'effects', { group: 'Voxel', order: 2, min: 0, max: 1, step: 0.01, modulatable: true, choreographable: true }),
     parameter('voxelVariation', 'Block Size Variation', 'float', 0.2, 'effects', { group: 'Voxel', order: 3, min: 0, max: 1, step: 0.01, modulatable: true, choreographable: true }),
+    ...([
+      ['shardImpulse', 'Fragment Impulse', 'Shatter'], ['shardReassembly', 'Fragment Reassembly', 'Shatter'],
+      ['dustImpulse', 'Particle Expansion Wave', 'Dust'], ['dustSparkle', 'Particle Sparkle', 'Dust'], ['dustBrightness', 'Particle Brightness', 'Dust'], ['dustReassembly', 'Particle Reassembly', 'Dust'],
+      ['hologramFlash', 'Scan Flash', 'Hologram'], ['hologramInterference', 'Signal Interference', 'Hologram'], ['hologramEcho', 'Contour Echo', 'Hologram'], ['hologramDistortion', 'Scan Distortion', 'Hologram'],
+    ] as const).map(([key, label, group], index) => parameter(key, label, 'float', 0, 'effects', { group, order: 10 + index, min: 0, max: 1, step: .01, modulatable: true, choreographable: true })),
     ...createCinema2ModelCinematicParameters(id),
     parameter('background', 'Background', 'color', [.025, .035, .045, 1], 'palette', { order: 0 }),
     parameter('primary', 'Primary', 'color', kind === 'shatter' ? [1, .55, .22, 1] : [.4, .8, 1, 1], 'palette', { order: 1, description: 'Primary dust grains and hologram projection, or optional model/voxel tint.' }),
@@ -89,7 +96,9 @@ export function createCinema2UserModelPreset(kind: Cinema2UserModelPreviewKind):
     parameter('reactivity', 'Reactive Strength', 'float', .6, undefined, { section: 'React', group: 'Model Response', order: 0, min: 0, max: 1, step: .01 }),
     parameter('response', 'Response Decay', 'float', .35, undefined, { section: 'React', group: 'Model Response', order: 1, min: .05, max: 1.5, step: .01, unit: 's' }),
   ]
-  const moduleParameters = Object.fromEntries(parameters.filter(p => !['model', 'background', 'cameraOrbit', 'cameraElevation', 'cameraZoom', 'cameraTarget'].some(key => id(key) === p.id) && p.id !== CINEMA2_QUALITY_MODE_PARAMETER.id).map(p => [String(p.id).slice(prefix.length + 1).replace(/-([a-z])/g, (_, letter: string) => letter.toUpperCase()), p.defaultValue!]))
+  for (const definition of parameters) if (MODEL_AUDIO_TARGETS.some(key => id(key) === definition.id)) { definition.modulatable = true; definition.choreographable = true }
+  const audioParameters = createCinema2ModelAudioParameters(kind, parameters)
+  const moduleParameters = Object.fromEntries([...parameters, ...audioParameters.filter(p => p.id === id('audioRepresentationDirector') || p.id === id('audioMappingsEnabled'))].filter(p => !['model', 'background', 'cameraOrbit', 'cameraElevation', 'cameraZoom', 'cameraTarget'].some(key => id(key) === p.id) && p.id !== CINEMA2_QUALITY_MODE_PARAMETER.id).map(p => [String(p.id).slice(prefix.length + 1).replace(/-([a-z])/g, (_, letter: string) => letter.toUpperCase()), p.defaultValue!]))
   const bindings = Object.fromEntries(Object.keys(moduleParameters).map(property => [property, cinema2Ref(id(property))]))
   const background = base.authored.environment!
   return {
@@ -105,7 +114,7 @@ export function createCinema2UserModelPreset(kind: Cinema2UserModelPreviewKind):
       ...(['Key','Fill','StageRim'] as const).map((name, index) => ({ id: cinema2StableId<import('../contracts/Cinema2NativePresetManifest').Cinema2LightId>(`${prefix}-${name === 'StageRim' ? 'rim' : name.toLowerCase()}`), type: 'directional' as const, color: [1,1,1,1] as const, intensity: index === 0 ? 1.2 : .5, targetNode: cinema2Ref(base.node), transform: { position: [3,6,4] as const }, controls: { color: cinema2Ref(id(`cinematic${name}Color`)), intensity: cinema2Ref(id(`cinematic${name}Intensity`)), position: cinema2Ref(id(`cinematic${name}Position`)) } })),
     ] },
     environment: { ...background, controls: { backgroundColor: cinema2Ref(id('background')), fogColor: cinema2Ref(id('cinematicFogColor')), fogDensity: cinema2Ref(id('cinematicFogDensity')) } },
-    parameters,
+    parameters: [...parameters, ...audioParameters],
     modules: [{ id: moduleId, typeId: CINEMA2_THREE_SCENE_MODULE_TYPE_ID, version: 1, parameters: { ...moduleParameters, userModel: 'default-model' }, parameterBindings: { ...bindings, userModel: cinema2Ref(id('model')) }, config: { ...base.moduleConfig, ...{ environment: CINEMA2_STUDIO_NEUTRAL_ENVIRONMENT_ASSET_ID, userModel: { ...base.moduleConfig.userModel, neutralFloor: false } }, userModelPreview: kind, hdr: true } }],
     ...createCinema2ModelCinematicGraph(prefix, id, base.root),
   }

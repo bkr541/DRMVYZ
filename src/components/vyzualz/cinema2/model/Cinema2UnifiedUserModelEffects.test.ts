@@ -100,3 +100,28 @@ describe('unified private-model representations', () => {
     const restored = new Cinema2ParameterState(compiled.plan.parameters); expect(restored.restore(state.serialize()).ok).toBe(true); expect(restored.getSnapshot().persistentValues).toEqual(state.getSnapshot().persistentValues)
   })
 })
+
+// Phase 04: verify the actual first-party manifest and resident geometry, not only the routing fixture.
+it.each(modes)('exposes persisted audio mapping targets and a musical director on %s', kind => {
+  const manifest = createCinema2UserModelPreset(kind)
+  const find = (key: string) => manifest.parameters!.find(p => p.id === cinema2UserModelPreviewParameterId(kind, key))!
+  expect(find('audioMappingsEnabled')).toMatchObject({ defaultValue: false, designParentGroup: 'effects', persistence: 'preset' })
+  expect(find('audioRepresentationDirector')).toMatchObject({ defaultValue: false, designParentGroup: 'design', persistence: 'preset' })
+  for (const key of ['shardImpulse', 'dustImpulse', 'hologramFlash', 'cinematicBloom', 'cameraZoom']) {
+    expect(find('audioMap1Target').options!.some(o => o.value === key)).toBe(true)
+    expect(find(key).choreographable).toBe(true)
+  }
+  const compiled = cinema2NativePresetRegistry.compile(manifest.id)
+  expect(compiled.ok).toBe(true)
+})
+it('changes actual derived fragment geometry and reassembles it without mutating the source', () => {
+  const root = car(), controller = new Cinema2UnifiedUserModelEffects(library, 'shatter')
+  controller.attach(root, true, [], identity)
+  draw(controller, 'shatter', 1, { shatterSpread: .3, shardImpulse: 0 })
+  const spread = controller.inspect().activeRepresentation
+  expect(spread).toBe('shatter')
+  const positions = () => { const result: number[][] = []; root.getObjectByName('UnifiedRepresentation:shatter')!.traverseVisible(o => { if ((o as THREE.Mesh).isMesh) result.push(o.position.toArray()) }); return result }
+  const before = positions(); draw(controller, 'shatter', 1.05, { shatterSpread: .3, shardImpulse: 1 }); expect(positions()).not.toEqual(before)
+  draw(controller, 'shatter', 1.1, { shatterSpread: .3, shardImpulse: 1, shardReassembly: 1 }); expect(visibleGeometry(root)).toBeGreaterThan(0)
+  controller.dispose()
+})

@@ -84,7 +84,7 @@ export function decorateCinema2DustPoints(material: Three.PointsMaterial, unifor
     shader.vertexShader = 'attribute float c2DustAlpha; varying float vC2DustAlpha;\n' + shader.vertexShader
     if (uniforms) {
       Object.assign(shader.uniforms, uniforms)
-      shader.vertexShader = `attribute float c2Seed; uniform float c2Extent, c2Release, c2Spread, c2Time, c2Pattern, c2Motion, c2Turbulence, c2Density; varying float vC2Seed;
+      shader.vertexShader = `attribute float c2Seed; uniform float c2Extent, c2Release, c2Spread, c2Time, c2Pattern, c2Motion, c2Turbulence, c2Density, c2Impulse, c2FlowBias; varying float vC2Seed;
 ` + shader.vertexShader
       shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
         vec3 q = position / c2Extent;
@@ -100,23 +100,28 @@ export function decorateCinema2DustPoints(material: Three.PointsMaterial, unifor
         // Divergence-free periodic field (each component varies on the other axes).
         vec3 curl = vec3(sin(q.y*11.+t*.7)-cos(q.z*9.-t*.5), sin(q.z*9.+t*.6)-cos(q.x*10.+t*.4), sin(q.x*10.-t*.8)-cos(q.y*11.+t*.3));
         target += curl * .12 * c2Turbulence;
+        // Stable radial expansion: the shared kick envelope drives a spatially staggered wave.
+        float radial = length(q);
+        float wave = .55 + .45 * sin(radial * 12. - c2Impulse * 4.);
+        target += q / max(.12, radial) * c2Impulse * wave * .25;
+        target.y += c2FlowBias * c2Spread * .5;
         target /= max(1., length(target)/.92);
         transformed = mix(position, target*c2Extent, c2Spread*release);
         vC2Seed = c2Seed;
       `)
       shader.vertexShader = shader.vertexShader.replace('gl_PointSize = size;', 'gl_PointSize = size * mix(.55, 1.55, c2Seed);')
-      shader.fragmentShader = 'varying float vC2Seed; uniform float c2Density;\n' + shader.fragmentShader
+      shader.fragmentShader = 'varying float vC2Seed; uniform float c2Density, c2Sparkle, c2Time;\n' + shader.fragmentShader
     }
     shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', uniforms ? '#include <begin_vertex>\nvC2DustAlpha = smoothstep(c2DustAlpha - .035, c2DustAlpha + .035, c2Release); if(c2Release >= .99999) vC2DustAlpha = 1.;' : '#include <begin_vertex>\nvC2DustAlpha = c2DustAlpha;')
     shader.fragmentShader = 'varying float vC2DustAlpha;\n' + shader.fragmentShader
     shader.fragmentShader = shader.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
       float dustRadius = length(gl_PointCoord - vec2(.5)) * 2.0;
       diffuseColor.a *= vC2DustAlpha * (1.0 - smoothstep(.15, 1.0, dustRadius));
-      ${uniforms ? 'diffuseColor.rgb *= mix(.65, 1.35, vC2Seed); diffuseColor.a *= mix(.7, 1., vC2Seed) * mix(1., .7, c2Density);' : ''}
+      ${uniforms ? 'diffuseColor.rgb *= mix(.65, 1.35, vC2Seed) * (1. + c2Sparkle * .4 * pow(.5 + .5 * sin(vC2Seed * 89. + c2Time * 2.), 4.)); diffuseColor.a *= mix(.7, 1., vC2Seed) * mix(1., .7, c2Density);' : ''}
       if (diffuseColor.a < .004) discard;
     `)
   }
-  material.customProgramCacheKey = () => uniforms ? 'c2-model-dust-grain-gpu-v2' : 'c2-model-dust-grain-v1'
+  material.customProgramCacheKey = () => uniforms ? 'c2-model-dust-grain-gpu-v3' : 'c2-model-dust-grain-v1'
 }
 
 /** A progressive permutation of the existing area-stratified surface samples. */
@@ -140,6 +145,6 @@ export function cinema2GrainSeed(index: number): number {
   return ((n ^ (n >>> 16)) >>> 0) / 4294967296
 }
 export function createCinema2DustUniforms(extent: number) {
-  return { c2Extent: { value: extent }, c2Release: { value: 0 }, c2Spread: { value: 0 }, c2Time: { value: 0 }, c2Pattern: { value: 0 }, c2Motion: { value: .35 }, c2Turbulence: { value: .5 }, c2Density: { value: 1 } }
+  return { c2Extent: { value: extent }, c2Release: { value: 0 }, c2Spread: { value: 0 }, c2Time: { value: 0 }, c2Pattern: { value: 0 }, c2Motion: { value: .35 }, c2Turbulence: { value: .5 }, c2Density: { value: 1 }, c2Impulse: { value: 0 }, c2FlowBias: { value: 0 }, c2Sparkle: { value: 0 } }
 }
 export type Cinema2DustUniforms = ReturnType<typeof createCinema2DustUniforms>

@@ -21,6 +21,11 @@ export class Cinema2UserModelHologram {
   readonly rim = { value: 1 }
   readonly scanSpeed = { value: 1 }
   readonly direction = { value: 0 }
+  readonly scanOffset = { value: 0 }
+  readonly flash = { value: 0 }
+  readonly interference = { value: 0 }
+  readonly echoAmount = { value: 0 }
+  readonly distortion = { value: 0 }
   private wire: LineSegmentsGeometry | null = null
   private wireCount = 0
   private contours: LineSegmentsGeometry | null = null
@@ -45,24 +50,25 @@ export class Cinema2UserModelHologram {
       const local = { value: new T.Matrix4().makeScale(1 / prepared.extent, 1 / prepared.extent, 1 / prepared.extent).multiply(centered).multiply(mesh.matrixWorld) }
       material.onBeforeCompile = (shader, renderer) => {
         compile.call(material, shader, renderer)
-        Object.assign(shader.uniforms, { c2HoloRest: local, c2HoloAmount: this.amount, c2HoloPhase: this.phase, c2HoloMode: this.mode, c2HoloColor: this.color, c2HoloAccent: this.accent, c2HoloStrength: this.strength, c2HoloLineDensity: this.lineDensity, c2HoloWidth: this.scanWidth, c2HoloRim: this.rim, c2HoloSpeed: this.scanSpeed, c2HoloDirection: this.direction })
+        Object.assign(shader.uniforms, { c2HoloRest: local, c2HoloAmount: this.amount, c2HoloPhase: this.phase, c2HoloMode: this.mode, c2HoloColor: this.color, c2HoloAccent: this.accent, c2HoloStrength: this.strength, c2HoloLineDensity: this.lineDensity, c2HoloWidth: this.scanWidth, c2HoloRim: this.rim, c2HoloSpeed: this.scanSpeed, c2HoloDirection: this.direction, c2HoloScanOffset: this.scanOffset, c2HoloFlash: this.flash, c2HoloInterference: this.interference, c2HoloDistortion: this.distortion })
         shader.vertexShader = 'uniform mat4 c2HoloRest; varying vec3 vC2Holo, vC2HoloNormal, vC2HoloView;\n' + shader.vertexShader
         shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvC2Holo = (c2HoloRest * vec4(position, 1.)).xyz; vC2HoloNormal = normalMatrix * normal; vC2HoloView = -(modelViewMatrix * vec4(position, 1.)).xyz;')
-        shader.fragmentShader = 'uniform float c2HoloAmount, c2HoloPhase, c2HoloMode, c2HoloStrength, c2HoloLineDensity, c2HoloWidth, c2HoloRim, c2HoloSpeed, c2HoloDirection; uniform vec3 c2HoloColor, c2HoloAccent; varying vec3 vC2Holo, vC2HoloNormal, vC2HoloView;\n' + shader.fragmentShader
+        shader.fragmentShader = 'uniform float c2HoloAmount, c2HoloPhase, c2HoloMode, c2HoloStrength, c2HoloLineDensity, c2HoloWidth, c2HoloRim, c2HoloSpeed, c2HoloDirection, c2HoloScanOffset, c2HoloFlash, c2HoloInterference, c2HoloDistortion; uniform vec3 c2HoloColor, c2HoloAccent; varying vec3 vC2Holo, vC2HoloNormal, vC2HoloView;\n' + shader.fragmentShader
         shader.fragmentShader = shader.fragmentShader.replace('#include <opaque_fragment>', `
           float holoAxis = c2HoloDirection > 2.5 || c2HoloMode > 4.5 ? (vC2Holo.x + vC2Holo.y)*.707 : c2HoloDirection > 1.5 ? vC2Holo.z : c2HoloDirection > .5 ? vC2Holo.x : vC2Holo.y;
+          holoAxis += c2HoloDistortion * .035 * sin(vC2Holo.z * 38. + c2HoloPhase * 2.);
           float holoLines = .5 + .5 * sin(holoAxis * 280. * c2HoloLineDensity - c2HoloPhase * 7.);
-          float holoScan = 1. - smoothstep(c2HoloWidth*.25, c2HoloWidth, abs(holoAxis - (.5 + .65*sin(c2HoloPhase*c2HoloSpeed) - .5)));
+          float holoScan = 1. - smoothstep(c2HoloWidth*.25, c2HoloWidth, abs(holoAxis - (.5 + .65*sin(c2HoloPhase*c2HoloSpeed + c2HoloScanOffset) - .5)));
           float holoRim = pow(clamp(1. - abs(dot(vC2HoloNormal, vC2HoloView) / max(length(vC2HoloNormal)*length(vC2HoloView), .00001)), 0., 1.), 2.5) * c2HoloRim;
           float holoPulse = c2HoloMode > 3.5 && c2HoloMode < 4.5 ? .65 + .35 * sin(c2HoloPhase * 3.) : 1.;
-          float holoSignal = .88 + .12 * sin(floor(vC2Holo.y * 72.) * 17. + floor(c2HoloPhase * 8.));
-          vec3 holoLight = (c2HoloColor * (c2HoloMode < .5 ? .045 : .16 + .4 * holoLines) + c2HoloAccent * holoScan * (c2HoloMode < .5 ? .15 : 1.)) * holoPulse * c2HoloStrength;
+          float holoSignal = (.88 + .12 * sin(floor(vC2Holo.y * 72.) * 17. + floor(c2HoloPhase * 8.))) * (1. - .2 * c2HoloInterference * (.5 + .5 * sin(holoAxis * 95. + c2HoloPhase * 4.)));
+          vec3 holoLight = (c2HoloColor * (c2HoloMode < .5 ? .045 : .16 + .4 * holoLines) + c2HoloAccent * holoScan * ((c2HoloMode < .5 ? .15 : 1.) + c2HoloFlash * 1.2)) * holoPulse * c2HoloStrength;
           outgoingLight = mix(outgoingLight, outgoingLight * .05 + holoLight + c2HoloColor * holoRim * c2HoloStrength, c2HoloAmount);
           diffuseColor.a *= mix(1., (.08 + .18 * holoLines + .32 * holoScan + .25 * min(holoRim, 1.)) * holoSignal, c2HoloAmount);
           #include <opaque_fragment>
         `)
       }
-      material.customProgramCacheKey = () => baseKey + ':c2-model-hologram-v3'; material.needsUpdate = true
+      material.customProgramCacheKey = () => baseKey + ':c2-model-hologram-v4'; material.needsUpdate = true
       this.restore.push(() => { material.onBeforeCompile = compile; material.customProgramCacheKey = key; material.needsUpdate = true })
     }
     try {
@@ -107,10 +113,10 @@ export class Cinema2UserModelHologram {
     if (this.wire) this.wire.instanceCount = Math.floor(this.wireCount * Math.min(1, this.lineDensity.value / 2) * this.qualityScale)
     for (let i = 0; i < this.echoes.length; i++) {
       const echo = this.echoes[i], material = this.materials[i]
-      echo.visible = amount > .00001 && (i === 0 || pattern === 2 || pattern === 5)
-      echo.position.set(i ? (i === 1 ? -1 : 1) * extent * .1 * amount * (1 + .15 * Math.sin(phase)) : 0, pattern === 5 && i ? (i === 1 ? -1 : 1) * extent * .08 * amount : 0, 0)
-      material.color.copy(i ? this.accent.value : this.color.value).multiplyScalar(strength)
-      material.opacity = opacity * amount * (i ? .2 : pattern === 0 ? .8 : .45)
+      echo.visible = amount > .00001 && (i === 0 || pattern === 2 || pattern === 5 || this.echoAmount.value > .001)
+      echo.position.set(i ? (i === 1 ? -1 : 1) * extent * .1 * amount * (1 + .15 * Math.sin(phase) + this.echoAmount.value * .7) : 0, pattern === 5 && i ? (i === 1 ? -1 : 1) * extent * .08 * amount : 0, 0)
+      material.color.copy(i ? this.accent.value : this.color.value).multiplyScalar(strength * (1 + this.flash.value * .35))
+      material.opacity = opacity * amount * (i ? (pattern === 2 || pattern === 5 ? .2 : 0) + this.echoAmount.value * .2 : pattern === 0 ? .8 : .45)
       material.linewidth = this.thickness.value * (i ? .75 : 1.25)
     }
   }

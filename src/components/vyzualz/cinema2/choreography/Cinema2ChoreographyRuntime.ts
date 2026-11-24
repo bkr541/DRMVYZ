@@ -1,3 +1,4 @@
+import { Cinema2ModelAudioChoreography, type ModelAudioEventSource } from '../model/Cinema2ModelAudioChoreography'
 import { Cinema2BeatClock, CINEMA2_BEAT_CLOCK_REFERENCE_BPM } from '../modules/Cinema2BeatClock'
 import type {
   Cinema2CapabilityId,
@@ -140,6 +141,7 @@ const EVENT_ONLY_OPERATIONS = new Set(['pulse', 'envelope', 'toggle', 'trigger',
  * and publishes every writable value through Cinema2FinalValueResolver.
  */
 export class Cinema2ChoreographyRuntime {
+  private readonly modelAudio: Cinema2ModelAudioChoreography | null
   private readonly choreographyTargets = new Map<string, Readonly<Cinema2CompiledChoreographyTargetHandle>>()
   private readonly parameterTargets = new Map<Cinema2ParameterId, Readonly<Cinema2TargetHandle>>()
   private readonly moduleTargets = new Map<string, Readonly<Cinema2TargetHandle>>()
@@ -178,6 +180,7 @@ export class Cinema2ChoreographyRuntime {
       stateKey: parameterState.serialize(),
     }),
   ) {
+    this.modelAudio = Cinema2ModelAudioChoreography.create(plan, parameterState)
     for (const target of plan.targets.choreographyTargets) this.choreographyTargets.set(target.actionId, target)
     for (const target of plan.targets.targets) {
       if (target.kind === 'parameter' && target.property === 'value') this.parameterTargets.set(target.ownerId as Cinema2ParameterId, target)
@@ -239,6 +242,7 @@ export class Cinema2ChoreographyRuntime {
 
     this.emitActiveState(frame, submissions)
     this.emitActiveVariation(submissions)
+    if (this.modelAudio) submissions.push(...this.modelAudio.update(frame, { sample: sampleContinuousPath, events: modelAudioEvents }))
     const publication = this.resolver.replaceTransientContributions('choreography', submissions)
     for (const diagnostic of publication.diagnostics) this.diagnosticOnce(diagnostic.code, diagnostic.message, diagnostic.path)
     const targetIds = new Set(submissions.map(submission => submission.targetId))
@@ -278,6 +282,8 @@ export class Cinema2ChoreographyRuntime {
   }
 
   private resetTransientState(_reason: string): void {
+    // The model extension observes the same bridge discontinuity generation itself, so it can recover the section pose on seek.
+    if (_reason !== 'audio-discontinuity') this.modelAudio?.reset()
     this.ruleSourceValues.clear()
     this.smoothedSourceValues.clear()
     this.lastActionBeat.clear()
@@ -980,6 +986,21 @@ export function cinema2CanonicalPhraseEvents(
     return Object.freeze(crossed.map(item => Object.freeze({ id: item.id, strength: clamp01(item.confidence), confidence: item.confidence })))
   }
   return fromAudioEvent(audio.rhythm.fixedClocks[16].boundary)
+}
+
+/** The model mapping editor consumes the same canonical event functions as authored rules. */
+function modelAudioEvents(source: ModelAudioEventSource, frame: Readonly<Cinema2ModuleFrameReadContext>, previousAudioTime: number | null): readonly Readonly<Cinema2CanonicalEvent>[] {
+  const audio = frame.audio
+  if (!audio) return []
+  if (source === 'drop') return cinema2CanonicalDropEvents(audio, frame.director, previousAudioTime)
+  if (source === 'phrase') return cinema2CanonicalPhraseEvents(audio, previousAudioTime)
+  if (source === 'section-change') {
+    const transition = frame.director?.context.transition
+    return transition?.occurred && transition.kind === 'section-change' && transition.eventId
+      ? [{ id: transition.eventId, strength: transition.authority, confidence: transition.confidence }] : []
+  }
+  if (source === 'bar') return fromAudioEvent(audio.rhythm.fixedClocks[4].boundary)
+  return fromAudioEvent(audio.rhythm[source])
 }
 
 function crossedItems<T extends { readonly id: string; readonly timeSec: number }>(

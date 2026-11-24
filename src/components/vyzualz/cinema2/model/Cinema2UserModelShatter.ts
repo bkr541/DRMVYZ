@@ -86,7 +86,7 @@ export class Cinema2ShatteredUserModel {
   }
 }
 
-export function animateCinema2Shatter(model: Cinema2ShatteredUserModel, pattern: number, phase: number, spread: number, extent: number, movement: number, reaction: number, motion = 1, debris = .35): void {
+export function animateCinema2Shatter(model: Cinema2ShatteredUserModel, pattern: number, phase: number, spread: number, extent: number, movement: number, reaction: number, motion = 1, debris = .35, impulse = 0): void {
   const amount = spread * (.35 + movement) * (1 + reaction * .12)
   for (let i = 0; i < model.fragments.length; i++) {
     const fragment = model.fragments[i], center = model.centers[i], x = center.x / extent, y = center.y / extent, z = center.z / extent
@@ -100,6 +100,10 @@ export function animateCinema2Shatter(model: Cinema2ShatteredUserModel, pattern:
     const seed = cinema2GrainSeed(i), jitter = .65 + seed * .85, chip = model.debris[i] ? 1 + debris * 1.7 : 1
     const travel = amount * jitter * chip
     fragment.position.x += dx * extent * travel; fragment.position.y += dy * extent * travel; fragment.position.z += dz * extent * travel
+    // The pulse is a continuous bounded radial offset, independent of the chosen movement path.
+    const burst = Math.max(0, Math.min(1, impulse)) * extent * .25 * jitter
+    const radial = Math.max(.12, Math.hypot(x, y, z))
+    fragment.position.x += x / radial * burst; fragment.position.y += y / radial * burst; fragment.position.z += z / radial * burst
     const spin = amount * motion * (1.15 + seed * 2) * chip
     fragment.rotation.set(Math.sin(i * .7 + phase * .15) * spin, Math.cos(i * .4 + phase * .1) * spin, Math.sin(i + phase * .12) * spin)
     if (model.debris[i]) fragment.scale.setScalar(1 - spread * (1 - debris) * .85)

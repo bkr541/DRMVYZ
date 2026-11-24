@@ -284,7 +284,7 @@ export class Cinema2UnifiedUserModelEffects {
           if (material.transparent !== translucent) material.needsUpdate = true
           material.transparent = translucent; material.depthWrite = depthWrite && !translucent
         }
-        resident.cinematic.apply(p, context.frame.timestampMs / 1000)
+        resident.cinematic.apply(p, context.frame.elapsedTimeSec)
       } catch (error) {
         a.failed.set(resident.key, error instanceof Error ? error.message : 'Representation draw failed.')
         a.problem = a.failed.get(resident.key)!
