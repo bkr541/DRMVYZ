@@ -195,6 +195,7 @@ function StandardReactPresetCard({
   return (
     <ReactPresetCard
       id={preset.id}
+      engineId={preset.engine}
       title={preset.name}
       description={isActive && modified
         ? `Source preset: ${preset.description} Current values have diverged from this recipe.`
@@ -450,6 +451,7 @@ function ShowDirectorPerformanceCards({ presets }: { presets: readonly (typeof L
           <ReactPresetCard
             key={preset.id}
             id={preset.id}
+            engineId="laserDmx"
             title={preset.name}
             description={preset.description}
             chips={[
@@ -512,6 +514,7 @@ function ShowDirectorRigLayoutCards({ templates }: { templates: readonly LaserDm
           <ReactPresetCard
             key={template.id}
             id={template.id}
+            engineId="laserDmx"
             title={template.name}
             description={template.description}
             chips={getShowDirectorTemplateChips(template)}

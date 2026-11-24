@@ -4,6 +4,13 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useReactStore } from '../../../../stores/reactStore'
 import { ReactPresetCard } from '../ReactPresetCard'
+import { REACT_ENGINE_IDS, REACT_ENGINE_CATALOG } from '../reactEngineCatalog'
+import cinema2Icon from '../../../../assets/preset-engine-icons/icon_Cinema20.svg'
+import canvasIcon from '../../../../assets/preset-engine-icons/icon_canvas.svg'
+import laserDmxIcon from '../../../../assets/preset-engine-icons/icon_laserdmx.svg'
+import pixGridIcon from '../../../../assets/preset-engine-icons/icon_pixgrid.svg'
+import headlinerIcon from '../../../../assets/preset-engine-icons/icon_headliner.svg'
+import soundDrawingIcon from '../../../../assets/preset-engine-icons/icon_sounddrawing.svg'
 import {
   filterLaserDmxBeamMatrixPresets,
   LaserDmxBeamMatrixPresetBrowser,
@@ -112,6 +119,47 @@ describe('canonical React preset card architecture', () => {
     expect(activate).toHaveBeenCalledOnce()
   })
 
+  it('maps every live engine to its supplied SVG, independently of preset identity or selection', async () => {
+    const expectedIcons = {
+      cinema2: cinema2Icon, canvas: canvasIcon, laserDmx: laserDmxIcon,
+      pixGrid: pixGridIcon, headliner: headlinerIcon,
+      oscilloscope: soundDrawingIcon, xyScope: soundDrawingIcon,
+    }
+    const activate = vi.fn()
+    const favorite = vi.fn()
+    await render(<div data-preset-grid>
+      {REACT_ENGINE_IDS.map(engineId => (
+        <ReactPresetCard key={engineId} id={`future-${engineId}`} engineId={engineId}
+          title="New preset" description="" activateLabel="Load new preset" onActivate={activate}
+          isActive={engineId === 'cinema2'} isModified={engineId === 'cinema2'}
+          onToggleFavorite={favorite} />
+      ))}
+      <ReactPresetCard id="row" engineId="canvas" layout="row" title="Row" description=""
+        activateLabel="Load row" onActivate={activate} />
+      <ReactPresetCard id="unscoped" title="Unscoped" description=""
+        activateLabel="Load unscoped" onActivate={activate} />
+    </div>)
+    for (const engineId of REACT_ENGINE_IDS) {
+      const card = container.querySelector(`[data-preset-card][data-preset-card-id="future-${engineId}"]`)!
+      const badge = card.querySelector(`[data-preset-engine-badge="${engineId}"]`)
+      const image = badge?.querySelector('img')
+      expect(card.querySelectorAll('[data-preset-engine-badge]')).toHaveLength(1)
+      expect(image?.getAttribute('src')).toBe(expectedIcons[engineId])
+      expect(image?.alt).toBe(REACT_ENGINE_CATALOG[engineId].label)
+      expect(card.getAttribute('aria-describedby')?.split(' ')).toContain(image?.id)
+    }
+    const active = container.querySelector('[data-preset-card-shell][data-preset-card-id="future-cinema2"]')!
+    expect(active.querySelector('.rv-preset-poster-selection')).not.toBeNull()
+    expect(active.textContent).toContain('Modified')
+    await click(active.querySelector('[data-preset-engine-badge] img')!)
+    expect(activate).toHaveBeenCalledOnce()
+    await click(active.querySelector('.rv-preset-spotlight-action--favorite')!)
+    expect(favorite).toHaveBeenCalledOnce()
+    expect(activate).toHaveBeenCalledOnce()
+    expect(container.querySelector('[data-preset-card][data-preset-card-id="row"] [data-preset-engine-badge="canvas"]')).not.toBeNull()
+    expect(container.querySelector('[data-preset-card][data-preset-card-id="unscoped"] [data-preset-engine-badge]')).toBeNull()
+  })
+
   it('preserves canonical keyboard navigation between cards', async () => {
     await render(
       <div data-preset-grid>
@@ -146,6 +194,7 @@ describe('canonical React preset card architecture', () => {
     await render(<LaserDmxBeamMatrixPresetBrowser />)
 
     const card = container.querySelector('[data-preset-card-id="minimal-crossfire"][data-preset-card]')!
+    expect(card.querySelector('[data-preset-engine-badge="laserDmx"]')).not.toBeNull()
     expect(card.classList.contains('rv-preset-card')).toBe(true)
     expect(card.className).not.toContain('rv-laser-dmx-preset-card')
     // The shared poster uses a preset-specific renderer frame behind its centered title.
@@ -211,6 +260,7 @@ describe('canonical React preset card architecture', () => {
     }
     for (const retained of ['Particle Aura', 'Fractures', 'Laser Image FX', 'CUTBANK']) {
       expect(container.querySelector(`[aria-label="Load ${retained}"]`)).not.toBeNull()
+      expect(container.querySelector(`[aria-label="Load ${retained}"] [data-preset-engine-badge="canvas"]`)).not.toBeNull()
     }
 
     expect(useReactStore.getState().selectedCanvasPresetId).toBe('canvas-bass-bloom')
@@ -239,7 +289,11 @@ describe('canonical React preset card architecture', () => {
     })
     await render(<ReactPresetsPanel />)
 
+    const laserCards = [...container.querySelectorAll('[data-preset-card]')]
+    expect(laserCards.length).toBeGreaterThan(0)
+    expect(laserCards.every(card => card.querySelector('[data-preset-engine-badge="laserDmx"]'))).toBe(true)
     const card = container.querySelector('[data-preset-card-id="small-club-rig"][data-preset-card]')!
+    expect(card.querySelector('[data-preset-engine-badge="laserDmx"]')).not.toBeNull()
     expect(card.classList.contains('rv-preset-card')).toBe(true)
     expect(card.className).not.toContain('rv-show-director-template-preset-card')
     expect(card.classList.contains('rv-preset-spotlight-card--poster')).toBe(true)
@@ -294,6 +348,16 @@ describe('canonical React preset card architecture', () => {
     })
   })
 
+  it('labels every visible PixGrid preset using its owning engine', async () => {
+    await act(async () => {
+      useReactStore.getState().selectReactEngine('pixGrid')
+    })
+    await render(<ReactPresetsPanel />)
+    const cards = [...container.querySelectorAll('[data-preset-card]')]
+    expect(cards.length).toBeGreaterThan(0)
+    expect(cards.every(card => card.querySelector('[data-preset-engine-badge="pixGrid"]'))).toBe(true)
+  })
+
   it('renders Sound Drawing presets through the shared Spotlight card, same as every other engine', async () => {
     await act(async () => {
       useReactStore.getState().selectReactEngine('oscilloscope')
@@ -301,6 +365,7 @@ describe('canonical React preset card architecture', () => {
     await render(<ReactPresetsPanel />)
 
     const card = container.querySelector<HTMLElement>('[data-preset-card]')!
+    expect(card.querySelector('[data-preset-engine-badge="oscilloscope"]')).not.toBeNull()
     expect(card.classList.contains('rv-preset-card')).toBe(true)
     expect(card.classList.contains('rv-preset-spotlight-card')).toBe(true)
     expect(card.classList.contains('rv-shader-scene-card')).toBe(false)

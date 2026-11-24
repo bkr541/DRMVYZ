@@ -300,6 +300,7 @@ export function LaserDmxBeamMatrixPresetBrowser({ externalQuery, presetFilter, s
               <ReactPresetCard
                 key={preset.id}
                 id={preset.id}
+                engineId="laserDmx"
                 title={preset.name}
                 description={preset.description}
                 chips={getBeamMatrixPresetChips(preset)}

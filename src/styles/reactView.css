@@ -778,6 +778,38 @@
 .rv-preset-blueprint-scene > .rv-preset-thumb { background: transparent !important; }
 .rv-preset-blueprint-scene .rv-preset-thumb-fallback { visibility: hidden; }
 
+/* Shared owning-engine badge: neutral glyph on the same dark surface as the selection marker. */
+.rv-preset-engine-badge {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  background: #091217;
+}
+
+.rv-preset-engine-badge > img {
+  display: block;
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
+  filter: brightness(0) invert(1);
+  opacity: .9;
+}
+
+.rv-preset-spotlight-card--poster > .rv-preset-engine-badge {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  z-index: 3;
+}
+
+/* Leave a fixed slot for the icon without overlapping status or action controls. */
+.rv-preset-spotlight-card--poster:has(> .rv-preset-engine-badge) + .rv-preset-poster-header {
+  right: 32px;
+}
+
 .rv-preset-poster-header {
   position: absolute;
   inset: 8px 8px auto;

@@ -4,6 +4,25 @@ import { PresetBlueprintImage } from './PresetBlueprintImage'
 import { hasPresetBlueprintArtwork, PresetBlueprintArtwork } from './PresetBlueprintArtwork'
 
 import { Badge } from './controls/Badge'
+import type { ReactEngineId } from './ReactTypes'
+import { isSelectableReactEngineId, REACT_ENGINE_CATALOG, type ReactLiveEngineId } from './reactEngineCatalog'
+import cinema2Icon from '../../../assets/preset-engine-icons/icon_Cinema20.svg'
+import canvasIcon from '../../../assets/preset-engine-icons/icon_canvas.svg'
+import laserDmxIcon from '../../../assets/preset-engine-icons/icon_laserdmx.svg'
+import pixGridIcon from '../../../assets/preset-engine-icons/icon_pixgrid.svg'
+import headlinerIcon from '../../../assets/preset-engine-icons/icon_headliner.svg'
+import soundDrawingIcon from '../../../assets/preset-engine-icons/icon_sounddrawing.svg'
+
+// Keyed by the owning engine, never by preset ID, title, palette, or active engine.
+const PRESET_ENGINE_ICONS: Record<ReactLiveEngineId, string> = {
+  cinema2: cinema2Icon,
+  oscilloscope: soundDrawingIcon,
+  xyScope: soundDrawingIcon,
+  canvas: canvasIcon,
+  laserDmx: laserDmxIcon,
+  pixGrid: pixGridIcon,
+  headliner: headlinerIcon,
+}
 
 export type ReactPresetCardChipTone = 'mode' | 'switch'
 
@@ -37,6 +56,8 @@ export type ReactPresetCardLayout = 'poster' | 'row'
 
 export interface ReactPresetCardProps {
   id: string
+  /** Owning engine for the shared badge. Omit for unrelated study/catalog surfaces. */
+  engineId?: ReactEngineId
   title: string
   description: string
   /** Row layout only: the small thumbnail beside the name. */
@@ -138,6 +159,7 @@ export function ReactPresetArtwork({ id, backdrop, className = '', appearance = 
 
 export function ReactPresetCard({
   id,
+  engineId,
   title,
   thumbnail,
   backdrop,
@@ -163,7 +185,14 @@ export function ReactPresetCard({
   const switchChip = visibleChips.find(chip => chip.tone === 'switch')
   const chipLine = visibleChips.filter(chip => chip.tone !== 'switch').map(chip => chip.label).join(' · ')
   const statusId = useId()
+  const engineBadgeId = useId()
   const hasStatusText = Boolean(switchChip || isModified || chipLine)
+  const engineBadge = isSelectableReactEngineId(engineId) ? (
+    <span className="rv-preset-engine-badge" data-preset-engine-badge={engineId}>
+      <img id={engineBadgeId} src={PRESET_ENGINE_ICONS[engineId]} alt={REACT_ENGINE_CATALOG[engineId].label} draggable={false} />
+    </span>
+  ) : null
+  const describedBy = [poster && hasStatusText ? statusId : null, engineBadge ? engineBadgeId : null].filter(Boolean).join(' ') || undefined
   const actions = (onToggleFavorite || secondaryActions.length > 0) ? (
     <div className="rv-preset-spotlight-actions" aria-label={`${title} preset actions`}>
       {onToggleFavorite && (
@@ -220,7 +249,7 @@ export function ReactPresetCard({
         aria-pressed={isActive}
         aria-current={isActive ? 'true' : undefined}
         aria-label={activateLabel}
-        aria-describedby={poster && hasStatusText ? statusId : undefined}
+        aria-describedby={describedBy}
       >
         {poster ? (
           <>
@@ -255,6 +284,7 @@ export function ReactPresetCard({
             </span>
           </>
         )}
+        {engineBadge}
       </button>
 
       {poster ? (isActive || hasStatusText || actions) && (

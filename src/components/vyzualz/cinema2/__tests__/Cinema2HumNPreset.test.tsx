@@ -255,6 +255,7 @@ describe('Cinema 2.0 HUM:N native 3D figure preset', () => {
     await act(async () => root?.render(<Harness />))
     const humButtons = host?.querySelectorAll<HTMLButtonElement>(`[data-cinema2-preset-id="${CINEMA2_HUMN_PRESET_ID}"]`) ?? []
     expect(humButtons).toHaveLength(1)
+    expect(humButtons[0]?.querySelector('[data-preset-engine-badge="cinema2"]')).not.toBeNull()
     expect(humButtons[0]?.textContent).toContain('HUM:N')
 
     await act(async () => humButtons[0]?.click())

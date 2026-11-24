@@ -542,6 +542,7 @@ describe('Sound Drawing XY source, presets and React tab', () => {
     await act(async () => root.render(<XyScopePresetsPanel />))
     const card = (id: string) => container.querySelector<HTMLElement>(`[data-xyscope-preset-id="${id}"]`)
     expect(['conversation', 'clean-scope', 'storm'].every(id => card(id) !== null)).toBe(true)
+    expect(card('storm')?.querySelector('[data-preset-engine-badge="xyScope"]')).not.toBeNull()
     await act(async () => card('storm')?.click())
     const settings = useReactStore.getState().xyScopeSettings
     expect(settings.presetId).toBe('storm')

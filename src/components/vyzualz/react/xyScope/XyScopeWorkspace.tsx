@@ -296,6 +296,7 @@ export function XyScopePresetsPanel() {
             <ReactPresetCard
               key={preset.id}
               id={preset.id}
+              engineId="xyScope"
               title={preset.name}
               description={preset.description}
               palette={[{ color: String(beamColor) }]}

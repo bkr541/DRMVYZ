@@ -50,6 +50,7 @@ export function Cinema2PresetsPanel({ activePresetId, onSelectPreset, catalog }:
             <ReactPresetCard
               key={manifest.id}
               id={manifest.id}
+              engineId="cinema2"
               title={manifest.metadata.name}
               description={manifest.metadata.description ?? manifest.metadata.name}
               palette={[{ color: CINEMA2_PRESET_TONES[index % CINEMA2_PRESET_TONES.length] }]}

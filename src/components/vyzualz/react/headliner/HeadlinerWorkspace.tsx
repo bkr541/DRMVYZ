@@ -387,6 +387,7 @@ export function HeadlinerPresetsPanel() {
             <ReactPresetCard
               key={preset.id}
               id={preset.id}
+              engineId="headliner"
               title={preset.name}
               description={preset.description}
               palette={[{ color: preset.tone }]}
