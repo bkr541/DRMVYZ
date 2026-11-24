@@ -15,6 +15,7 @@ import { cinema2OrbitalNativeModuleDefinition } from './Cinema2OrbitalNativeModu
 import { cinema2SubmergeNativeModuleDefinition } from './Cinema2SubmergeNativeModule'
 import { cinema2LivewireNativeModuleDefinition } from './Cinema2LivewireNativeModule'
 import { cinema2CorridorNativeModuleDefinition } from './Cinema2CorridorNativeModule'
+import { cinema2OverdriveNativeModuleDefinition } from './Cinema2OverdriveNativeModule'
 import { cinema2EverywhereNativeModuleDefinition } from './Cinema2EverywhereNativeModule'
 import { cinema2PsyloNativeModuleDefinition } from './Cinema2PsyloNativeModule'
 import { cinema2GlassfallNativeModule } from './glassfall/Cinema2GlassfallNativeModule'
@@ -335,3 +336,6 @@ for(const definition of artifactNativeModuleDefinitions){
  const registration=cinema2NativeModuleRegistry.register(definition)
  if(!registration.ok) throw new Error(`Cinema 2.0 artifact module registration failed: ${registration.diagnostics.map(d=>d.message).join('; ')}`)
 }
+
+const overdriveRegistration = cinema2NativeModuleRegistry.register(cinema2OverdriveNativeModuleDefinition)
+if (!overdriveRegistration.ok) throw new Error('Cinema 2.0 OVERDRIVE module registration failed.')

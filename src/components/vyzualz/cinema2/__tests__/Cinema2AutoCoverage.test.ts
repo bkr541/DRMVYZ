@@ -92,6 +92,7 @@ describe('what Auto Performance does not move, and why', () => {
       'open-decks': ['Camera Distance (exempt)', 'Camera Elevation (exempt)', 'Camera Heading (exempt)'],
       orbital: ['Camera Motion (authority)', 'Glyph Scale (exempt)', 'Line Spacing (exempt)', 'Tracking (exempt)'],
       psylo: ['Fog Density (exempt)', 'Light Strength (exempt)'],
+      overdrive: ['Reactivity (authority)'],
       reactor: ['Reactivity (authority)'],
       'say-it': ['Camera Motion (authority)', 'Glyph Scale (exempt)', 'Line Spacing (exempt)', 'Random Seed (structural)', 'Tracking (exempt)'],
       sixfold: ['Music Reactivity (authority)'],

@@ -1540,3 +1540,5 @@ export { CINEMA2_ORGANISM_NATIVE_MODULE_TYPE_ID, cinema2OrganismNativeModuleDefi
 
 export { ARTIFACT_PRESET_MANIFESTS, artifactPresetId, artifactParameterId, CINEMA2_SERAPH_PRESET_MANIFEST, CINEMA2_PARADOX_PRESET_MANIFEST, CINEMA2_RELIC_PRESET_MANIFEST, CINEMA2_MONOLITH_PRESET_MANIFEST } from './presets/Cinema2ArtifactPresets'
 export { artifactModuleTypeId, artifactNativeModuleDefinitions } from './modules/Cinema2ArtifactNativeModule'
+
+export { CINEMA2_OVERDRIVE_PRESET_ID, CINEMA2_OVERDRIVE_PRESET_MANIFEST, CINEMA2_OVERDRIVE_MEDIA_SLOT } from './presets/Cinema2OverdrivePreset'

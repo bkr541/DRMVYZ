@@ -38,7 +38,7 @@ export function Cinema2MediaSourcePanel({ runtime, onOpenMediaManager }: Cinema2
   )
   const [selectedSlotId, setSelectedSlotId] = useState<string>('')
   const [actionMenu, setActionMenu] = useState<({ mediaId: string } & MediaLibraryCardActionAnchor) | null>(null)
-  const everywhere = snapshot.slots.some(slot => slot.id === 'everywhere-screen-media')
+  const poolCapable = snapshot.slots.some(slot => slot.id === 'everywhere-screen-media' || slot.id === 'overdrive-core-media')
   const activePool = useReactStore(state => state.canvasOrchestrationSettings.mediaPools.find(pool => pool.id === state.canvasOrchestrationSettings.activeMediaPoolId) ?? null)
   const request = useRef(0)
   useEffect(() => { setActionMenu(null); return () => { request.current++ } }, [runtime])
@@ -65,7 +65,7 @@ export function Cinema2MediaSourcePanel({ runtime, onOpenMediaManager }: Cinema2
       if (!media) return
       const source = cinema2MediaSourceFromLibraryItem(media)
       if (!source || getCinema2MediaDisabledReason(media, selectedSlot.accepts)) {
-        if (everywhere) notify('react', { tone: 'error', title: 'Media could not be loaded', message: 'Media is unavailable or unsupported.' })
+        if (poolCapable) notify('react', { tone: 'error', title: 'Media could not be loaded', message: 'Media is unavailable or unsupported.' })
         return
       }
       void mediaRuntime.replace(selectedSlot.id as Cinema2MediaSlotId, source)
@@ -76,7 +76,7 @@ export function Cinema2MediaSourcePanel({ runtime, onOpenMediaManager }: Cinema2
           if (ticket === request.current) notify('react', { tone: 'error', title: 'Media could not be loaded', message: `${selectedSlot.label}: ${error instanceof Error ? error.message : String(error)}` })
         })
     }
-    if (!everywhere) { assign(); return }
+    if (!poolCapable) { assign(); return }
     setActionMenu(null)
     useReactStore.getState().setActiveCanvasMediaPool(null)
     void useMediaStore.getState().ensureMediaSigned([mediaId], 'visible').then(assign).catch(error => {
@@ -88,19 +88,19 @@ export function Cinema2MediaSourcePanel({ runtime, onOpenMediaManager }: Cinema2
     <div className="rv-canvas-engine-panel" data-cinema2-media-source="slots">
       <div className="rv-canvas-library-shell">
         <MediaLibraryBrowser
-          activeMediaId={everywhere && activePool ? null : selectedSlot.source?.id ?? null}
+          activeMediaId={poolCapable && activePool ? null : selectedSlot.source?.id ?? null}
           onSelect={makeActive}
-          onCardActionRequest={everywhere ? (mediaId, anchor) => setActionMenu({ mediaId, ...anchor }) : undefined}
+          onCardActionRequest={poolCapable ? (mediaId, anchor) => setActionMenu({ mediaId, ...anchor }) : undefined}
           context="canvas"
           title="Media Library"
-          capabilities={everywhere ? CANVAS_ENGINE_MEDIA_LIBRARY_CAPABILITIES : CANVAS_MEDIA_LIBRARY_CAPABILITIES}
+          capabilities={poolCapable ? CANVAS_ENGINE_MEDIA_LIBRARY_CAPABILITIES : CANVAS_MEDIA_LIBRARY_CAPABILITIES}
           onOpenMediaManager={onOpenMediaManager}
-          getDisabledReason={media => everywhere && media.storagePath && !media.uploading && media.lifecycleStatus !== 'deletion_pending'
+          getDisabledReason={media => poolCapable && media.storagePath && !media.uploading && media.lifecycleStatus !== 'deletion_pending'
             ? null : getCinema2MediaDisabledReason(media, selectedSlot.accepts)}
         />
       </div>
-      {everywhere && actionMenu && (
-        <ContextActionMenu x={actionMenu.x} y={actionMenu.y} ariaLabel="EVERYWHERE media actions"
+      {poolCapable && actionMenu && (
+        <ContextActionMenu x={actionMenu.x} y={actionMenu.y} ariaLabel="Cinema 2.0 media actions"
           onClose={() => setActionMenu(null)} items={[
             { id: 'make-active', label: 'Make Active', onSelect: () => makeActive(actionMenu.mediaId) },
             { id: 'add-to-pool', label: 'Add to Pool', submenu: <MediaAddToPoolPicker targetIds={[actionMenu.mediaId]}
@@ -119,7 +119,7 @@ export function Cinema2MediaSourcePanel({ runtime, onOpenMediaManager }: Cinema2
           onChange={setSelectedSlotId}
         />
       )}
-      {everywhere && activePool ? (
+      {poolCapable && activePool ? (
         <div className="rv-canvas-panel-status"><span>Active Pool</span><strong>{activePool.name}</strong></div>
       ) : selectedSlot.source && (
         <div className="rv-canvas-panel-status">
