@@ -1,3 +1,4 @@
+import { artifactNativeModuleDefinitions } from './Cinema2ArtifactNativeModule'
 import { cinema2OrganismNativeModuleDefinition } from './Cinema2OrganismNativeModule'
 import { cinema2HudNativeModuleDefinition } from './Cinema2HudNativeModule'
 import { cinema2HoneyNativeModuleDefinition } from './Cinema2HoneyNativeModule'
@@ -329,3 +330,8 @@ if (!hudRegistration.ok) {
 
 const organismRegistration = cinema2NativeModuleRegistry.register(cinema2OrganismNativeModuleDefinition)
 if (!organismRegistration.ok) throw new Error(`Cinema 2.0 ORGANISM native module registration failed: ${organismRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
+
+for(const definition of artifactNativeModuleDefinitions){
+ const registration=cinema2NativeModuleRegistry.register(definition)
+ if(!registration.ok) throw new Error(`Cinema 2.0 artifact module registration failed: ${registration.diagnostics.map(d=>d.message).join('; ')}`)
+}

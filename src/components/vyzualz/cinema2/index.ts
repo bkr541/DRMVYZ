@@ -1537,3 +1537,6 @@ export { CINEMA2_HUD_NATIVE_MODULE_TYPE_ID, cinema2HudNativeModuleDefinition } f
 
 export { CINEMA2_ORGANISM_PRESET_ID, CINEMA2_ORGANISM_PRESET_MANIFEST, CINEMA2_ORGANISM_MODULE_ID, organismParameterId } from './presets/Cinema2OrganismPreset'
 export { CINEMA2_ORGANISM_NATIVE_MODULE_TYPE_ID, cinema2OrganismNativeModuleDefinition } from './modules/Cinema2OrganismNativeModule'
+
+export { ARTIFACT_PRESET_MANIFESTS, artifactPresetId, artifactParameterId, CINEMA2_SERAPH_PRESET_MANIFEST, CINEMA2_PARADOX_PRESET_MANIFEST, CINEMA2_RELIC_PRESET_MANIFEST, CINEMA2_MONOLITH_PRESET_MANIFEST } from './presets/Cinema2ArtifactPresets'
+export { artifactModuleTypeId, artifactNativeModuleDefinitions } from './modules/Cinema2ArtifactNativeModule'

@@ -1,3 +1,4 @@
+import { ARTIFACT_PRESET_MANIFESTS } from './Cinema2ArtifactPresets'
 import { CINEMA2_ORGANISM_PRESET_MANIFEST } from './Cinema2OrganismPreset'
 import { CINEMA2_HUD_PRESET_MANIFEST } from './Cinema2HudPreset'
 import { CINEMA2_HONEY_PRESET_MANIFEST } from './Cinema2HoneyPreset'
@@ -69,6 +70,7 @@ import { CINEMA2_TRIPPY_BRO_PRESET_MANIFEST } from './Cinema2TrippyBroPreset'
  * the runtime and schema-driven Inspector remain preset-agnostic.
  */
 const AUTHORED_PRESET_DECLARATIONS = Object.freeze([
+  ...ARTIFACT_PRESET_MANIFESTS.map(manifest=>defineCinema2FirstPartyPreset({role:'reference',manifest})),
   // ORGANISM is a selectable review preset; keeper promotion requires visual acceptance.
   defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_ORGANISM_PRESET_MANIFEST }),
   defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_HONEY_PRESET_MANIFEST }),
