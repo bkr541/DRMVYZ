@@ -1,7 +1,6 @@
 import { AppIcon } from '../../shared/icons/AppIcon'
 import { BubbleRevealSlider } from '../react/controls/BubbleRevealSlider'
 import { IconMorphToggle } from '../react/controls/IconMorphToggle'
-import { IconChipButton } from '../react/controls/IconChipButton'
 import { LiveInputDock } from './LiveInputDock'
 import { isDockBlankSpace } from './dockBlankSpace'
 import { useId, useState, useRef, useEffect, useCallback, useSyncExternalStore, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
@@ -1037,6 +1036,25 @@ export function VyzualzAudioDock({
     </InfoPopover>
   )
 
+  // Both input modes use the same icon-only button and visual states.
+  const audioSourceControl = (
+    <>
+      <button
+        ref={audioSourceTriggerRef}
+        type="button"
+        className="vz-dock-source-trigger"
+        onClick={toggleAudioSourcePopover}
+        aria-haspopup="dialog"
+        aria-expanded={audioSourcePopoverOpen}
+        aria-label={liveInputSelected ? 'Audio Source' : 'Audio source & Rekordbox'}
+        title={liveInputSelected ? 'Audio Source' : 'Audio source & Rekordbox'}
+      >
+        <AppIcon kind="sliders" size="16" />
+      </button>
+      {audioSourcePopover}
+    </>
+  )
+
   return (
     <>
     {!liveInputSelected && rekordboxMenuPortalTarget && createPortal(rekordboxMenu, rekordboxMenuPortalTarget)}
@@ -1053,12 +1071,7 @@ export function VyzualzAudioDock({
         analyser={engine.analyserMaster}
         fftSize={engine.fftSize}
         onToggleCapture={handleTogglePlayback}
-        sourceControl={<>
-          <IconChipButton ref={audioSourceTriggerRef} aria-haspopup="dialog" aria-expanded={audioSourcePopoverOpen}
-            aria-label="Audio Source" tone={audioSourcePopoverOpen ? 'primary' : 'default'}
-            icon={<AppIcon kind="sliders" size={14} />} onClick={toggleAudioSourcePopover}>Source</IconChipButton>
-          {audioSourcePopover}
-        </>}
+        sourceControl={audioSourceControl}
       /> : <>
       {/* ── LEFT: sidebar + left-inspector footprint ─────────────────── */}
       <div className="vz-dock-region">
@@ -1365,21 +1378,7 @@ export function VyzualzAudioDock({
         </div>{/* end vz-dock-bpm-wrap */}
 
         {showAudioSourceControl ? (
-          <>
-            <button
-              ref={audioSourceTriggerRef}
-              type="button"
-              className="vz-dock-source-trigger"
-              onClick={toggleAudioSourcePopover}
-              aria-haspopup="dialog"
-              aria-expanded={audioSourcePopoverOpen}
-              aria-label="Audio source & Rekordbox"
-              title="Audio source & Rekordbox"
-            >
-              <AppIcon kind="sliders" size="16" />
-            </button>
-            {audioSourcePopover}
-          </>
+          audioSourceControl
         ) : (
           !rekordboxMenuPortalTarget && rekordboxMenu
         )}

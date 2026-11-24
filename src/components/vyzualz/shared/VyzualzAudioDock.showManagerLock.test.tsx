@@ -322,7 +322,7 @@ describe('Show Manager Audio Dock source lock integration', () => {
     expect(drawer).toContain('React or Media Manager')
   })
 
-  it('shows a live meter and expandable spectrum in place of the track controls', async () => {
+  it('shows both live meters in the track waveform region with the standard source key', async () => {
     await renderView('react')
     fixture.engine.source = 'microphone'
     fixture.engine.liveInputActive = true
@@ -340,16 +340,19 @@ describe('Show Manager Audio Dock source lock integration', () => {
     expect(dock?.querySelector('[data-testid="waveform"]')).toBeNull()
     expect(container?.querySelector<HTMLInputElement>('input[type="file"][accept="audio/*"]')?.disabled).toBe(true)
     expect(dock?.querySelector('[role="meter"]')?.getAttribute('aria-valuenow')).toBe('-48')
-    const spectrum = dock?.querySelector<HTMLButtonElement>('button[aria-controls]')
-    if (!spectrum) throw new Error('Expected the Live Input spectrum button')
-    const spectrumPanel = document.getElementById(spectrum.getAttribute('aria-controls')!)!
-    expect(spectrumPanel.hidden).toBe(true)
-    await act(async () => spectrum.click())
-    expect(spectrum.getAttribute('aria-expanded')).toBe('true')
-    expect(spectrumPanel.textContent).toBe('LowMidHigh')
-    expect(spectrumPanel.querySelectorAll('i')).toHaveLength(36)
-    await act(async () => spectrum.click())
-    expect(spectrumPanel.hidden).toBe(true)
+    const regions = dock?.querySelectorAll(':scope > .vz-dock-region')
+    expect(regions).toHaveLength(3)
+    const meterGroup = regions?.[1]?.querySelector('.vz-dock-center > .vz-dock-waveform-wrap.vz-live-dock-meters')
+    expect(meterGroup?.querySelector('[role="meter"]')).not.toBeNull()
+    const spectrumPanel = meterGroup?.querySelector<HTMLElement>('.vz-live-dock-spectrum')
+    expect(spectrumPanel?.hidden).toBe(false)
+    expect(spectrumPanel?.textContent).toBe('LowMidHigh')
+    expect(spectrumPanel?.querySelectorAll('i')).toHaveLength(36)
+    expect(dock?.querySelector('button[aria-controls]')).toBeNull()
+    const source = regions?.[2]?.querySelector<HTMLButtonElement>('.vz-dock-source-trigger')
+    expect(source?.getAttribute('aria-label')).toBe('Audio Source')
+    expect(source?.textContent).toBe('')
+    expect(source?.querySelector('[data-app-icon="sliders"]')).not.toBeNull()
 
     await act(async () => dock?.querySelector<HTMLButtonElement>('[aria-label="Stop Live Input"]')?.click())
     expect(fixture.engine.setLiveInputGate).toHaveBeenCalledWith(false)

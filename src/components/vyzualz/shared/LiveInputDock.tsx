@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { AppIcon } from '../../shared/icons/AppIcon'
 import { IconChipButton } from '../react/controls/IconChipButton'
 import { Badge } from '../react/controls/Badge'
@@ -48,8 +48,6 @@ interface LiveInputDockProps {
 export function LiveInputDock({
   active, deviceLabel, analyser, fftSize, onToggleCapture, sourceControl,
 }: LiveInputDockProps) {
-  const [spectrumExpanded, setSpectrumExpanded] = useState(false)
-  const spectrumId = useId()
   const meterRef = useRef<HTMLDivElement>(null)
   const spectrumRef = useRef<HTMLDivElement>(null)
 
@@ -68,10 +66,10 @@ export function LiveInputDock({
       return
     }
 
-    // Read the engine's existing analyser. Only the expanded view requests FFT data.
+    // Both meters read the engine's existing analyser in one animation loop.
     const waveform = new Float32Array(fftSize)
-    const spectrum = spectrumExpanded ? new Float32Array(analyser.frequencyBinCount) : null
-    const ranges = spectrumExpanded ? spectrumRanges(analyser, fftSize) : []
+    const spectrum = new Float32Array(analyser.frequencyBinCount)
+    const ranges = spectrumRanges(analyser, fftSize)
     let frame = 0
     let lastTime = 0
     let heldPeak = METER_FLOOR_DB
@@ -98,15 +96,13 @@ export function LiveInputDock({
         lastMeterValue = meterValue
       }
 
-      if (spectrum) {
-        analyser.getFloatFrequencyData(spectrum)
-        bars?.forEach((bar, index) => {
-          const { start, end } = ranges[index]!
-          let db = -Infinity
-          for (let bin = start; bin < end; bin += 1) db = Math.max(db, spectrum[bin]!)
-          bar.style.setProperty('--vz-live-bar', String(scaleDecibels(db, SPECTRUM_FLOOR_DB, SPECTRUM_CEILING_DB)))
-        })
-      }
+      analyser.getFloatFrequencyData(spectrum)
+      bars?.forEach((bar, index) => {
+        const { start, end } = ranges[index]!
+        let db = -Infinity
+        for (let bin = start; bin < end; bin += 1) db = Math.max(db, spectrum[bin]!)
+        bar.style.setProperty('--vz-live-bar', String(scaleDecibels(db, SPECTRUM_FLOOR_DB, SPECTRUM_CEILING_DB)))
+      })
       frame = requestAnimationFrame(draw)
     }
     frame = requestAnimationFrame(draw)
@@ -114,40 +110,48 @@ export function LiveInputDock({
       cancelAnimationFrame(frame)
       reset()
     }
-  }, [active, analyser, fftSize, spectrumExpanded])
+  }, [active, analyser, fftSize])
 
   const captureAction = active ? 'Stop Live Input' : 'Start Live Input'
 
-  return <div className="vz-live-dock" data-spectrum-expanded={spectrumExpanded}>
-    <div className="vz-live-dock-row">
-      <IconChipButton className="vz-live-dock-transport" tone={active ? 'primary' : 'default'} aria-label={captureAction} title={captureAction}
-        icon={<AppIcon kind={active ? 'stop' : 'play'} size={14} />} onClick={onToggleCapture} />
-      <div className="vz-live-dock-device">
-        <span>Live Input</span>
-        <strong title={deviceLabel}>{deviceLabel}</strong>
-      </div>
-      <div role="status" className="vz-live-dock-status">
-        {active ? <StatusBadge tone="playing">Live</StatusBadge> : <Badge label="Stopped" tone="#a0aeb4" />}
-      </div>
-      <div className="vz-live-dock-meter" ref={meterRef} role="meter" aria-label="Live input level in dBFS"
-        aria-valuemin={METER_FLOOR_DB} aria-valuemax={0} aria-valuenow={METER_FLOOR_DB}>
-        <div className="vz-live-dock-meter-track" aria-hidden="true"><i /><b /></div>
-        <div className="vz-live-dock-meter-scale" aria-hidden="true"><span>−48</span><span>−24</span><span>−12</span><span>0 dBFS</span></div>
-      </div>
-      <div className="vz-live-dock-actions">
-        <IconChipButton tone={spectrumExpanded ? 'primary' : 'default'} aria-expanded={spectrumExpanded} aria-controls={spectrumId}
-          onClick={() => setSpectrumExpanded(current => !current)} icon={<AppIcon kind={spectrumExpanded ? 'chevronUp' : 'chevronDown'} size={13} />}>
-          Spectrum
-        </IconChipButton>
-        {sourceControl}
+  // Use the same direct grid regions, center card and waveform footprint as
+  // Track Input. The shared dock layout owns the horizontal alignment.
+  return <>
+    <div className="vz-dock-region">
+      <div className="vz-dock-card vz-live-dock-device-card">
+        <IconChipButton className="vz-live-dock-transport" tone={active ? 'primary' : 'default'} aria-label={captureAction} title={captureAction}
+          icon={<AppIcon kind={active ? 'stop' : 'play'} size={14} />} onClick={onToggleCapture} />
+        <div className="vz-live-dock-device">
+          <span>Live Input</span>
+          <strong title={deviceLabel}>{deviceLabel}</strong>
+        </div>
+        <div role="status" className="vz-live-dock-status">
+          {active ? <StatusBadge tone="playing">Live</StatusBadge> : <Badge label="Stopped" tone="#a0aeb4" />}
+        </div>
       </div>
     </div>
-    <div id={spectrumId} className="vz-live-dock-spectrum" ref={spectrumRef} hidden={!spectrumExpanded}
-      role="img" aria-label="Live input spectrum showing low, mid and high frequency levels">
-      {spectrumExpanded && BANDS.map(({ label }) => <div key={label} className="vz-live-dock-band" aria-hidden="true">
-        <div>{barPositions.map(index => <i key={index} />)}</div>
-        <span>{label}</span>
-      </div>)}
+    <div className="vz-dock-region">
+      <div className="vz-dock-center vz-dock-card">
+        <div className="vz-dock-waveform-wrap vz-live-dock-meters">
+          <div className="vz-live-dock-spectrum" ref={spectrumRef}
+            role="img" aria-label="Live input spectrum showing low, mid and high frequency levels">
+            {BANDS.map(({ label }) => <div key={label} className="vz-live-dock-band" aria-hidden="true">
+              <div>{barPositions.map(index => <i key={index} />)}</div>
+              <span>{label}</span>
+            </div>)}
+          </div>
+          <div className="vz-live-dock-meter" ref={meterRef} role="meter" aria-label="Live input level in dBFS"
+            aria-valuemin={METER_FLOOR_DB} aria-valuemax={0} aria-valuenow={METER_FLOOR_DB}>
+            <div className="vz-live-dock-meter-track" aria-hidden="true"><i /><b /></div>
+            <div className="vz-live-dock-meter-scale" aria-hidden="true"><span>−48</span><span>−24</span><span>−12</span><span>0 dBFS</span></div>
+          </div>
+        </div>
+      </div>
     </div>
-  </div>
+    <div className="vz-dock-region">
+      <div className="vz-dock-card vz-live-dock-actions">
+        <div className="vz-live-dock-source-slot">{sourceControl}</div>
+      </div>
+    </div>
+  </>
 }
