@@ -2,10 +2,10 @@ import type * as Three from 'three'
 import type { Cinema2ThreeLibrary } from '../modules/three/Cinema2ThreeLibrary'
 import type { Cinema2PreparedUserModel } from './Cinema2UserModelPreparation'
 
-export const CINEMA2_SLICE_LIMITS = Object.freeze({ sections: 14, triangles: 400_000, bytes: 64 * 1024 * 1024, segments: 100_000, contours: 2048, groups: 8192 })
+export const CINEMA2_SLICE_LIMITS = Object.freeze({ sections: 14, maxSections: 24, triangles: 400_000, bytes: 64 * 1024 * 1024, segments: 100_000, contours: 2048, groups: 8192 })
 type Vertex = number[] // position xyz, normal xyz, uv0, color rgba, uv1/uv2/uv3
 interface Segment { a: Vertex; b: Vertex }
-const STRIDE = 18, CHUNK = STRIDE * 3 * 1024
+const STRIDE = 18, CHUNK = STRIDE * 3 * 128
 
 /** Typed chunks bound temporary output; no oversized JS number arrays or per-frame geometry. */
 class SurfaceBuffer {
@@ -145,18 +145,25 @@ export class Cinema2SlicedUserModel {
 }
 
 /** Clip actual source triangles, then cap closed cut contours with hole-aware triangulation. */
-export function buildCinema2UserModelSlices(library: Cinema2ThreeLibrary, prepared: Cinema2PreparedUserModel, meshes: readonly Three.Mesh[], sectionCount: number = CINEMA2_SLICE_LIMITS.sections): Cinema2SlicedUserModel {
+export function buildCinema2UserModelSlices(library: Cinema2ThreeLibrary, prepared: Cinema2PreparedUserModel, meshes: readonly Three.Mesh[], sectionCount: number = CINEMA2_SLICE_LIMITS.sections, axis = 'y', irregularity = 0, seed = 0): Cinema2SlicedUserModel {
   const T = library.THREE, result = new Cinema2SlicedUserModel(T), count = sectionCount
   try {
-    if (!Number.isInteger(count) || count < 2 || count > CINEMA2_SLICE_LIMITS.sections) throw new Error('Slice partition count is outside its bounded range.')
-    const height = prepared.size.y, epsilon = Math.max(prepared.extent * 1e-6, 1e-10)
+    if (!Number.isInteger(count) || count < 2 || count > CINEMA2_SLICE_LIMITS.maxSections) throw new Error('Slice partition count is outside its bounded range.')
+    const cutAxis = axis === 'x' || axis === 'z' ? axis : 'y'
+    const order = cutAxis === 'x' ? [2, 0, 1] : cutAxis === 'z' ? [1, 2, 0] : [0, 1, 2]
+    // Cyclic permutations preserve winding; the group maps cut-space back to model-space.
+    if (cutAxis !== 'y') {
+      const basis = [new T.Vector3(1, 0, 0), new T.Vector3(0, 1, 0), new T.Vector3(0, 0, 1)]
+      result.group.quaternion.setFromRotationMatrix(new T.Matrix4().makeBasis(basis[order[0]], basis[order[1]], basis[order[2]]))
+    }
+    const height = prepared.size[cutAxis], epsilon = Math.max(prepared.extent * 1e-6, 1e-10)
     if (!(height > epsilon)) throw new Error('This model has no vertical thickness to slice. The original model is kept visible.')
     const offsets = meshes.map(mesh => {
       const offset = result.materials.length
       for (const material of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) result.materials.push(material.clone())
       return offset
     })
-    const budget = { triangles: 0, groups: 0 }, boundaries = Array.from({ length: count + 1 }, (_, i) => -height / 2 + height * i / count)
+    const budget = { triangles: 0, groups: 0 }, boundaries = Array.from({ length: count + 1 }, (_, i) => -height / 2 + height * (i + (i > 0 && i < count ? Math.sin(i * 4.71 + seed * 2.399) * Math.min(.4, Math.max(0, irregularity)) : 0)) / count)
     const buffers = Array.from({ length: count }, (_, i) => new SurfaceBuffer(budget, (boundaries[i] + boundaries[i + 1]) / 2))
     const segments: Segment[][] = Array.from({ length: count + 1 }, () => [])
     let segmentCount = 0
@@ -167,7 +174,12 @@ export function buildCinema2UserModelSlices(library: Cinema2ThreeLibrary, prepar
         const vertex = mesh.geometry.index?.getX(sourceOffset + i) ?? sourceOffset + i
         vertices.push([...prepared.positions.subarray(triangle * 9 + i * 3, triangle * 9 + i * 3 + 3), ...prepared.normals.subarray(triangle * 9 + i * 3, triangle * 9 + i * 3 + 3), ...prepared.uvs.subarray(triangle * 6 + i * 2, triangle * 6 + i * 2 + 2), color?.getX(vertex) ?? 1, color?.getY(vertex) ?? 1, color?.getZ(vertex) ?? 1, color && color.itemSize === 4 ? color.getW(vertex) : 1, ...['uv1', 'uv2', 'uv3'].flatMap(name => { const uv = mesh.geometry.attributes[name]; return uv ? [uv.getX(vertex), uv.getY(vertex)] : [0, 0] })])
       }
-      const first = Math.max(0, Math.min(count - 1, Math.floor((Math.min(...vertices.map(v => v[1])) / height + .5) * count))), last = Math.max(0, Math.min(count - 1, Math.floor((Math.max(...vertices.map(v => v[1])) / height + .5) * count)))
+      if (cutAxis !== 'y') for (const vertex of vertices) {
+        const xyz = vertex.slice(0, 3), normal = vertex.slice(3, 6)
+        for (let i = 0; i < 3; i++) { vertex[i] = xyz[order[i]]; vertex[3 + i] = normal[order[i]] }
+      }
+      const bandFor = (y: number) => { let band = 0; while (band < count - 1 && y >= boundaries[band + 1]) band++; return band }
+      const first = bandFor(Math.min(...vertices.map(v => v[1]))), last = bandFor(Math.max(...vertices.map(v => v[1])))
       for (let band = first; band <= last; band++) {
         const polygon = clip(clip(vertices, boundaries[band], true), boundaries[band + 1], false)
         for (let i = 1; i + 1 < polygon.length; i++) if (area2(polygon[0], polygon[i], polygon[i + 1]) > epsilon * epsilon) buffers[band].triangle(polygon[0], polygon[i], polygon[i + 1], offsets[meshIndex] + prepared.materialIndices[triangle])

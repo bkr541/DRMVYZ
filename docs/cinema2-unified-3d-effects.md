@@ -36,3 +36,7 @@ npm run build
 ```
 
 A GPU/browser review is required before asserting seamless frames, visual fidelity, production/cast stability or performance on large real-world imports. The implementation environment could not resolve the npm registry, so dependency installation and dependency-backed checks were blocked; no before/after WebGL captures were produced.
+
+## Phase 02
+
+The additive advanced representation upgrade is documented in [Cinema 2.0 advanced user-model effects](cinema2-advanced-user-model-effects.md), including controls, quality budgets, lifecycle and acceptance limits.

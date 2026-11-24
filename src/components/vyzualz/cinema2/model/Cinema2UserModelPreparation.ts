@@ -6,7 +6,7 @@ import { MODEL_MAX_TRIANGLES } from '../../../../features/models/domain/modelAss
 export const CINEMA2_MODEL_PREPARATION_LIMITS = Object.freeze({
   triangles: MODEL_MAX_TRIANGLES,
   meshes: 1024,
-  samples: 16384,
+  samples: 32768,
   defaultSamples: 1536,
   sections: 14,
   bytes: 32 * 1024 * 1024,

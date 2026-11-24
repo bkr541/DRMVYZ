@@ -1,10 +1,11 @@
 import type * as Three from 'three'
 import type { Cinema2ThreeLibrary } from '../modules/three/Cinema2ThreeLibrary'
 import type { Cinema2PreparedUserModel } from './Cinema2UserModelPreparation'
+import { cinema2GrainSeed } from './Cinema2UserModelFormDust'
 import type { Cinema2RenderQualityLevel } from '../contracts/Cinema2NativePresetManifest'
 
-export const CINEMA2_VOXEL_LIMITS = Object.freeze({ resolutions: { low: 12, medium: 18, high: 24 }, cells: 20_000, triangleBoxTests: 8_000_000 })
-interface Grid { mesh: Three.InstancedMesh; rest: Float32Array; colors: Float32Array; side: number; count: number }
+export const CINEMA2_VOXEL_LIMITS = Object.freeze({ resolutions: { low: 12, medium: 22, high: 28 }, cells: 30_000, triangleBoxTests: 8_000_000 })
+interface Grid { mesh: Three.InstancedMesh; rest: Float32Array; colors: Float32Array; side: number; count: number; colorKey?: string; poseKey?: string; seeds: Float32Array }
 /** Welded triangle-edge incidence. UV/material seams do not falsely turn a closed model into an open one. */
 export function isCinema2ModelWatertight(prepared: Cinema2PreparedUserModel): boolean {
   const edges = new Map<string, number>(), epsilon = Math.max(prepared.extent * 1e-6, 1e-10)
@@ -44,7 +45,11 @@ export class Cinema2VoxelizedUserModel {
     this.group = new T.Group(); this.group.name = 'ActualModelVoxels'
     this.material = new T.MeshStandardMaterial({ roughness: .28, metalness: .55 })
     this.geometry = new T.BoxGeometry(1, 1, 1); this.solid = isCinema2ModelWatertight(prepared)
-    try { for (const quality of ['low', 'medium', 'high'] as const) this.buildGrid(prepared, meshes, quality) } catch (error) { this.dispose(); throw error }
+    try {
+      for (const quality of ['low', 'medium', 'high'] as const) {
+        try { this.buildGrid(prepared, meshes, quality) } catch (error) { if (!this.grids.size) throw error; break }
+      }
+    } catch (error) { this.dispose(); throw error }
   }
   private buildGrid(prepared: Cinema2PreparedUserModel, meshes: readonly Three.Mesh[], quality: Cinema2RenderQualityLevel): void {
     const T = this.library.THREE, resolution = CINEMA2_VOXEL_LIMITS.resolutions[quality], side = prepared.extent / resolution, dimension = resolution + 3, total = dimension ** 3
@@ -89,27 +94,40 @@ export class Cinema2VoxelizedUserModel {
       rest.set([origin + (x + .5) * side, origin + (y + .5) * side, origin + (z + .5) * side], vertex * 3)
       restColors.set(owners[id] ? [colors[id * 3] / owners[id], colors[id * 3 + 1] / owners[id], colors[id * 3 + 2] / owners[id]] : average.toArray(), vertex * 3); vertex++
     }
-    this.grids.set(quality, { mesh, rest, colors: restColors, side, count }); this.group.add(mesh)
+    this.grids.set(quality, { mesh, rest, colors: restColors, side, count, seeds: Float32Array.from({ length: count }, (_, i) => cinema2GrainSeed(i)) }); this.group.add(mesh)
   }
-  animate(quality: Cinema2RenderQualityLevel, pattern: number, phase: number, spread: number, movement: number, reaction: number, tint: boolean, primary: readonly number[], secondary: readonly number[], dummy: Three.Object3D, color: Three.Color): void {
+  animate(quality: Cinema2RenderQualityLevel, pattern: number, phase: number, spread: number, movement: number, reaction: number, tint: boolean, primary: readonly number[], secondary: readonly number[], dummy: Three.Object3D, color: Three.Color, rotation = .5, variation = .2): void {
+    const tiers = ['low', 'medium', 'high'] as const
+    const selected = tiers.slice(0, tiers.indexOf(quality) + 1).reverse().find(tier => this.grids.has(tier))
     for (const [tier, grid] of this.grids) {
-      grid.mesh.visible = tier === quality
-      if (tier !== quality) continue
+      grid.mesh.visible = tier === selected
+      if (tier !== selected) continue
       const amount = spread * (.35 + movement) * (1 + reaction * .1)
+      const colorKey = tint ? `${primary.join(',')}/${secondary.join(',')}` : 'original', recolor = grid.colorKey !== colorKey
+      const poseKey = spread === 0 ? 'rest' : `${pattern}/${phase}/${spread}/${movement}/${reaction}/${rotation}/${variation}`, rematrix = grid.poseKey !== poseKey
+      if (!rematrix && !recolor) continue
       for (let i = 0; i < grid.count; i++) {
-        dummy.position.fromArray(grid.rest, i * 3); const x = dummy.position.x, y = dummy.position.y, z = dummy.position.z, extent = grid.side * CINEMA2_VOXEL_LIMITS.resolutions[tier]
-        if (pattern === 0) dummy.position.multiplyScalar(1 + amount * .22)
-        if (pattern === 1) dummy.position.y += Math.abs(x / extent) * extent * .55 * amount
-        if (pattern === 2) dummy.position.x += (i % 2 ? 1 : -1) * extent * .2 * amount
-        if (pattern === 3) { const angle = amount * .65 * Math.sin(phase * .4 + y / extent * 3); dummy.position.set(x * Math.cos(angle) - z * Math.sin(angle), y, x * Math.sin(angle) + z * Math.cos(angle)) }
-        if (pattern === 4) dummy.position.z += Math.sin(y / extent * 8 + phase) * extent * .18 * amount
-        if (pattern === 5) dummy.position.multiplyScalar(1 - amount * .3)
-        dummy.rotation.set(0, 0, 0); dummy.scale.setScalar(grid.side * (1 - spread * .1)); dummy.updateMatrix(); grid.mesh.setMatrixAt(i, dummy.matrix)
-        color.fromArray(grid.colors, i * 3)
-        if (tint) { const rgb = i % 3 ? primary : secondary; color.r *= rgb[0]; color.g *= rgb[1]; color.b *= rgb[2] }
-        grid.mesh.setColorAt(i, color)
+        if (rematrix) {
+          dummy.position.fromArray(grid.rest, i * 3); const x = dummy.position.x, y = dummy.position.y, z = dummy.position.z, extent = grid.side * CINEMA2_VOXEL_LIMITS.resolutions[tier]
+          if (pattern === 0) dummy.position.multiplyScalar(1 + amount * .22)
+          if (pattern === 1) dummy.position.y += Math.abs(x / extent) * extent * .55 * amount
+          if (pattern === 2) dummy.position.x += (i % 2 ? 1 : -1) * extent * .2 * amount
+          if (pattern === 3) { const angle = amount * .65 * Math.sin(phase * .4 + y / extent * 3); dummy.position.set(x * Math.cos(angle) - z * Math.sin(angle), y, x * Math.sin(angle) + z * Math.cos(angle)) }
+          if (pattern === 4) dummy.position.z += Math.sin(y / extent * 8 + phase) * extent * .18 * amount
+          if (pattern === 5) dummy.position.multiplyScalar(1 - amount * .3)
+          const seed = grid.seeds[i], spin = spread * rotation * (.4 + seed)
+          dummy.rotation.set(spin * Math.sin(seed * 20 + phase), spin * Math.cos(seed * 17 + phase * .4), spin * Math.sin(seed * 13))
+          dummy.scale.setScalar(grid.side * (1 - spread * (.1 + variation * seed * .55))); dummy.updateMatrix(); grid.mesh.setMatrixAt(i, dummy.matrix)
+        }
+        if (recolor) {
+          color.fromArray(grid.colors, i * 3)
+          if (tint) { const rgb = i % 3 ? primary : secondary; color.r *= rgb[0]; color.g *= rgb[1]; color.b *= rgb[2] }
+          grid.mesh.setColorAt(i, color)
+        }
       }
-      grid.mesh.instanceMatrix.needsUpdate = true; if (grid.mesh.instanceColor) grid.mesh.instanceColor.needsUpdate = true
+      if (rematrix) grid.mesh.instanceMatrix.needsUpdate = true
+      if (recolor && grid.mesh.instanceColor) grid.mesh.instanceColor.needsUpdate = true
+      grid.poseKey = poseKey; grid.colorKey = colorKey
     }
   }
   get additionalGpuBytes(): number { let bytes = 0; for (const grid of this.grids.values()) bytes += grid.mesh.instanceMatrix.array.byteLength + (grid.mesh.instanceColor?.array.byteLength ?? 0); return bytes }

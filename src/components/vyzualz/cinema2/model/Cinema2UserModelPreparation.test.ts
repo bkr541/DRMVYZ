@@ -1,10 +1,13 @@
 import * as THREE from 'three'
+import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js'
+import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js'
+import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js'
 import { describe, expect, it, vi } from 'vitest'
 import type { Cinema2ThreeLibrary } from '../modules/three/Cinema2ThreeLibrary'
 import { Cinema2PreparedUserModel, CINEMA2_MODEL_PREPARATION_LIMITS as limits, prepareCinema2UserModel } from './Cinema2UserModelPreparation'
 import { Cinema2UserModelPreviewEffects } from './Cinema2UserModelPreviewEffects'
 import { CINEMA2_USER_MODEL_PREVIEWS, type Cinema2UserModelPreviewKind } from './Cinema2UserModelPreviewPatterns'
-const library = { THREE } as unknown as Cinema2ThreeLibrary
+const library = { THREE, wideLines: { LineSegments2, LineSegmentsGeometry, LineMaterial } } as unknown as Cinema2ThreeLibrary
 function triangle(points: number[]) {
   const geometry = new THREE.BufferGeometry()
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(points, 3))
@@ -97,7 +100,7 @@ describe('shared rest-pose model preparation', () => {
     controller.attach(root, true); expect(controller.inspect().attachmentCount).toBe(1)
     controller.beforeDraw('low'); controller.beforeDraw('high')
     expect(controller.inspect().preparations[0]).toEqual(first)
-    expect(first).toMatchObject({ triangles: 12, samples: kind === 'dust' ? 16384 : 1536, sections: 14 })
+    expect(first).toMatchObject({ triangles: 12, samples: kind === 'dust' ? 32768 : 1536, sections: 14 })
     expect(first.cpuBytes).toBeLessThan(limits.bytes)
     controller.detach(root); controller.detach(root)
     expect(root.children).toEqual([mesh]); expect(mesh.material.toJSON()).toEqual(material); expect(dispose).not.toHaveBeenCalled()

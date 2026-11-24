@@ -1,4 +1,7 @@
 import * as THREE from 'three'
+import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js'
+import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js'
+import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js'
 import { describe, expect, it, vi } from 'vitest'
 import { CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS } from '../presets/Cinema2FirstPartyPresetCatalog'
 import { cinema2NativePresetRegistry, Cinema2PresetRegistry } from '../presets/Cinema2PresetRegistry'
@@ -15,7 +18,7 @@ import { Cinema2AudioIntelligenceBridge } from '../audio/Cinema2AudioIntelligenc
 import { ifritMusicFixture } from '../../../../test/support/IfritMusicFixture'
 import { activateCinema2Workspace, createEmptyCinema2WorkspaceDocument, parseCinema2WorkspaceDocument } from '../runtime/Cinema2WorkspacePersistence'
 const kinds = Object.keys(CINEMA2_USER_MODEL_PREVIEWS) as Cinema2UserModelPreviewKind[]
-const library = { THREE } as unknown as Cinema2ThreeLibrary
+const library = { THREE, wideLines: { LineSegments2, LineSegmentsGeometry, LineMaterial } } as unknown as Cinema2ThreeLibrary
 function root() {
   const group = new THREE.Group(), front = new THREE.MeshPhysicalMaterial({ color: '#abcdef' }), side = new THREE.MeshPhysicalMaterial({ color: '#ddaa11' }); front.name = 'front'; side.name = 'side'
   group.add(new THREE.Mesh(new THREE.BoxGeometry(2, 1.5, .4), [front, side])); return group
@@ -63,6 +66,17 @@ describe.each(kinds)('%s model preview declaration', kind => {
       controller.beforeDraw('high'); scene.updateMatrixWorld(true)
       const values: number[] = []
       scene.traverse(object => { values.push(...object.matrix.elements, Number(object.visible)); if ((object as THREE.LineSegments).isLineSegments) values.push(((object as THREE.LineSegments).material as THREE.LineBasicMaterial).opacity); const mesh = object as THREE.InstancedMesh; if (mesh.isInstancedMesh) values.push(...mesh.instanceMatrix.array.slice(0, 300)); if ((object as THREE.Points).isPoints) values.push(...(object as THREE.Points).geometry.attributes.position.array.slice(0, 120)) })
+      // GPU motion is represented by uniforms, not CPU position-buffer rewrites.
+      if (kind === 'dust' || kind === 'hologram') {
+        scene.traverse(object => {
+          const material = kind === 'dust' && (object as THREE.Points).isPoints ? (object as THREE.Points).material : kind === 'hologram' && object === source ? source.material : null
+          if (!material || Array.isArray(material)) return
+          const shader = { uniforms: {} as Record<string, { value: unknown }>, vertexShader: '#include <begin_vertex>', fragmentShader: '#include <color_fragment>\n#include <opaque_fragment>' }
+          material.onBeforeCompile(shader as never, {} as never)
+          const uniform = shader.uniforms[kind === 'dust' ? 'c2Pattern' : 'c2HoloMode']
+          if (typeof uniform?.value === 'number') values.push(uniform.value)
+        })
+      }
       hashes.add(JSON.stringify(values))
     }
     expect(hashes.size).toBe(6)

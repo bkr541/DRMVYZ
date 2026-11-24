@@ -1,4 +1,7 @@
 import * as THREE from 'three'
+import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js'
+import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js'
+import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js'
 import { describe, expect, it } from 'vitest'
 import { Cinema2AudioIntelligenceBridge } from '../audio/Cinema2AudioIntelligenceBridge'
 import type { Cinema2ThreeLibrary } from '../modules/three/Cinema2ThreeLibrary'
@@ -9,7 +12,7 @@ import { CINEMA2_USER_MODEL_PREVIEWS, type Cinema2UserModelPreviewKind } from '.
 import { CINEMA2_USER_MODEL_AUTO_PERFORMANCE_PATTERNS, Cinema2UserModelPreviewEffects } from './Cinema2UserModelPreviewEffects'
 
 const kinds = Object.keys(CINEMA2_USER_MODEL_PREVIEWS) as Cinema2UserModelPreviewKind[]
-const library = { THREE } as unknown as Cinema2ThreeLibrary
+const library = { THREE, wideLines: { LineSegments2, LineSegmentsGeometry, LineMaterial } } as unknown as Cinema2ThreeLibrary
 function context(values: Record<string, unknown>, time = 2, event?: 'kick' | 'beat' | 'drop' | 'phrase' | 'snare' | 'downbeat' | 'bar', eventId = 1, edit = 0, extra: { build?: number; paused?: boolean; trackId?: string; generation?: number } = {}): Cinema2ModuleUpdateContext {
   const published = ifritMusicFixture({ frameId: Math.floor(time * 100) + 1, timeSec: time, event, eventId, beatIndex: 128, energy: .6, build: extra.build, trackId: extra.trackId })
   const bridge = new Cinema2AudioIntelligenceBridge({ getFrame: () => published, getPublicationMeta: () => ({ sequence: published.frameId, kind: 'frame', publisherId: 'preview-test', reason: null, publishedAtMs: time * 1000 }) })

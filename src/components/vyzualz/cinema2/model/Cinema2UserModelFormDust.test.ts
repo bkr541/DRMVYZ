@@ -79,7 +79,7 @@ describe('Phase 4: model-to-dust-to-model lifecycle', () => {
     expect(model.controller.inspect().dustCycle?.stage).toBe('drifting')
     model.at(7.2); expect(model.controller.inspect().dustCycle?.spread).toBe(0)
     const points: THREE.Points[] = []; model.root.traverse(object => { if ((object as THREE.Points).isPoints) points.push(object as THREE.Points) })
-    for (const cloud of points) expect(cloud.geometry.drawRange.count).toBe(8192)
+    for (const cloud of points) expect(cloud.geometry.drawRange.count).toBe(CINEMA2_USER_MODEL_PROXY_LIMITS.high.dust / 2)
     const firstPositions = points[0].geometry.attributes.position.array.slice(0, 60)
     model.at(15.2)
     expect(points[0].geometry.attributes.position.array.slice(0, 60)).toEqual(firstPositions)
@@ -108,7 +108,7 @@ describe('Phase 4: model-to-dust-to-model lifecycle', () => {
       model.root.traverse(object => { if ((object as THREE.Points).isPoints) expect((object as THREE.Points).geometry.drawRange.count).toBe(CINEMA2_USER_MODEL_PROXY_LIMITS[quality].dust / 2) })
       expect(model.controller.inspect().preparations[0].cpuBytes).toBe(cpuBytes); expect(model.controller.estimateAdditionalGpuBytes()).toBe(gpuBytes)
     }
-    expect(gpuBytes).toBe(16384 * 16); model.controller.dispose(); expect(model.controller.estimateAdditionalGpuBytes()).toBe(0)
+    expect(gpuBytes).toBe(CINEMA2_USER_MODEL_PROXY_LIMITS.high.dust * 20); model.controller.dispose(); expect(model.controller.estimateAdditionalGpuBytes()).toBe(0)
   })
   it('chains material shaders and restores their hooks on detach; point grains have per-sample opacity', () => {
     const model = setup('dust'), shader = { uniforms: {}, vertexShader: '#include <begin_vertex>', fragmentShader: '#include <alphatest_fragment>\n#include <opaque_fragment>' }

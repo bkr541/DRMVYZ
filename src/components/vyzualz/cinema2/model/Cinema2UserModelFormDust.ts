@@ -61,8 +61,7 @@ export class Cinema2UserModelDustDissolve {
           vec3 dustCell = floor(vC2DustRest * 96.0);
           float dustNoise = mod(dustCell.x * 13.0 + dustCell.y * 37.0 + dustCell.z * 17.0 + dustCell.x * dustCell.z * 7.0, 97.0) / 97.0;
           float dustRank = clamp(.08 + .64 * (vC2DustRest.y + .5) + .28 * dustNoise, 0.0, 1.0);
-          if (dustRank < c2DustAmount) discard;
-          if (c2DustAmount > 0.0 && dustRank < c2DustAmount) discard;
+          if (dustRank < c2DustAmount || c2DustAmount >= .99999) discard;
         `)
         shader.fragmentShader = shader.fragmentShader.replace('#include <opaque_fragment>', `
           float dustEdge = (1.0 - smoothstep(0.0, .035, abs(dustRank - c2DustAmount))) * step(.001, c2DustAmount) * (1.0 - step(.999, c2DustAmount));
@@ -80,16 +79,67 @@ export class Cinema2UserModelDustDissolve {
 }
 
 /** Circular, soft-edged grains with per-particle release opacity, using the standard PointsMaterial path. */
-export function decorateCinema2DustPoints(material: Three.PointsMaterial): void {
+export function decorateCinema2DustPoints(material: Three.PointsMaterial, uniforms?: Cinema2DustUniforms): void {
   material.onBeforeCompile = shader => {
     shader.vertexShader = 'attribute float c2DustAlpha; varying float vC2DustAlpha;\n' + shader.vertexShader
-    shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvC2DustAlpha = c2DustAlpha;')
+    if (uniforms) {
+      Object.assign(shader.uniforms, uniforms)
+      shader.vertexShader = `attribute float c2Seed; uniform float c2Extent, c2Release, c2Spread, c2Time, c2Pattern, c2Motion, c2Turbulence, c2Density; varying float vC2Seed;
+` + shader.vertexShader
+      shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+        vec3 q = position / c2Extent;
+        float t = c2Time, seed = c2Seed * 6.2831853;
+        float release = smoothstep(c2DustAlpha - .035, c2DustAlpha + .035, c2Release);
+        if (c2Release >= .99999) release = 1.;
+        vec3 target = q * (1. + c2Motion) + vec3(cos(seed), sin(seed * 2.), sin(seed)) * .24;
+        if (c2Pattern > .5) target = q + vec3(cos(seed+t)*.2, .35 + c2Seed*.45, sin(seed+t)*.2);
+        if (c2Pattern > 1.5) target = vec3(cos(seed+t)*(.55+q.z*.2), q.y*.5, sin(seed+t)*(.55+q.z*.2));
+        if (c2Pattern > 2.5) target = vec3(sign(q.x)*(.37+cos(seed+t)*.15), q.y*.6+sin(seed+t)*.42, q.z+sin(seed+t)*.2);
+        if (c2Pattern > 3.5) target = q + vec3(cos(q.y*6.+t),sin(q.x*8.+t),sin((q.x+q.y)*5.+t))*.28;
+        if (c2Pattern > 4.5) target = q*.45 + vec3(cos(seed+t*.4),sin(seed+t*.6),sin(seed+t))*.2;
+        // Divergence-free periodic field (each component varies on the other axes).
+        vec3 curl = vec3(sin(q.y*11.+t*.7)-cos(q.z*9.-t*.5), sin(q.z*9.+t*.6)-cos(q.x*10.+t*.4), sin(q.x*10.-t*.8)-cos(q.y*11.+t*.3));
+        target += curl * .12 * c2Turbulence;
+        target /= max(1., length(target)/.92);
+        transformed = mix(position, target*c2Extent, c2Spread*release);
+        vC2Seed = c2Seed;
+      `)
+      shader.vertexShader = shader.vertexShader.replace('gl_PointSize = size;', 'gl_PointSize = size * mix(.55, 1.55, c2Seed);')
+      shader.fragmentShader = 'varying float vC2Seed; uniform float c2Density;\n' + shader.fragmentShader
+    }
+    shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', uniforms ? '#include <begin_vertex>\nvC2DustAlpha = smoothstep(c2DustAlpha - .035, c2DustAlpha + .035, c2Release); if(c2Release >= .99999) vC2DustAlpha = 1.;' : '#include <begin_vertex>\nvC2DustAlpha = c2DustAlpha;')
     shader.fragmentShader = 'varying float vC2DustAlpha;\n' + shader.fragmentShader
     shader.fragmentShader = shader.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
       float dustRadius = length(gl_PointCoord - vec2(.5)) * 2.0;
       diffuseColor.a *= vC2DustAlpha * (1.0 - smoothstep(.15, 1.0, dustRadius));
+      ${uniforms ? 'diffuseColor.rgb *= mix(.65, 1.35, vC2Seed); diffuseColor.a *= mix(.7, 1., vC2Seed) * mix(1., .7, c2Density);' : ''}
       if (diffuseColor.a < .004) discard;
     `)
   }
-  material.customProgramCacheKey = () => 'c2-model-dust-grain-v1'
+  material.customProgramCacheKey = () => uniforms ? 'c2-model-dust-grain-gpu-v2' : 'c2-model-dust-grain-v1'
 }
+
+/** A progressive permutation of the existing area-stratified surface samples. */
+export function cinema2ProgressiveSample(index: number, count: number): number {
+  if (count <= 1) return 0
+  if ((count & (count - 1)) !== 0) {
+    // Coprime stride distributes prefixes even for non-power-of-two edge counts.
+    let stride = Math.max(1, Math.floor(count * .61803398875))
+    const gcd = (a: number, b: number): number => b === 0 ? a : gcd(b, a % b)
+    while (gcd(count, stride) !== 1) stride++
+    return (index * stride) % count
+  }
+  let reversed = 0, value = index
+  for (let n = count; n > 1; n >>>= 1) { reversed = reversed * 2 + (value & 1); value >>>= 1 }
+  return reversed
+}
+export function cinema2GrainSeed(index: number): number {
+  let n = (index + 1) >>> 0
+  n = Math.imul(n ^ (n >>> 16), 0x7feb352d)
+  n = Math.imul(n ^ (n >>> 15), 0x846ca68b)
+  return ((n ^ (n >>> 16)) >>> 0) / 4294967296
+}
+export function createCinema2DustUniforms(extent: number) {
+  return { c2Extent: { value: extent }, c2Release: { value: 0 }, c2Spread: { value: 0 }, c2Time: { value: 0 }, c2Pattern: { value: 0 }, c2Motion: { value: .35 }, c2Turbulence: { value: .5 }, c2Density: { value: 1 } }
+}
+export type Cinema2DustUniforms = ReturnType<typeof createCinema2DustUniforms>

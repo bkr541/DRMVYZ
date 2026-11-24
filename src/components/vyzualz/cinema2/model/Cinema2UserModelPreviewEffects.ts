@@ -8,7 +8,7 @@ import { readCinema2MainframeContinuous } from '../modules/mainframe/Cinema2Main
 import { Cinema2PatternAutoPerformance } from '../modules/mainframe/Cinema2PatternAutoPerformance'
 import { resolveCinema2MainframeSourceIdentity, selectCinema2MainframeAudio, resolveCinema2MainframePlaybackState } from '../modules/mainframe/Cinema2MainframeAudioDelivery'
 import { CINEMA2_AFTERHOURS_TRIGGER_IDS, resolveCinema2AfterhoursTriggerEventIdentity, type Cinema2AfterhoursTriggerId } from '../modules/Cinema2AfterhoursNativeModule'
-import { cinema2DustCycle, cinema2DustPosition, cinema2DustSurfaceRank, Cinema2UserModelDustDissolve, decorateCinema2DustPoints } from './Cinema2UserModelFormDust'
+import { cinema2DustCycle, cinema2DustSurfaceRank, Cinema2UserModelDustDissolve, decorateCinema2DustPoints, createCinema2DustUniforms, cinema2ProgressiveSample, cinema2GrainSeed, type Cinema2DustUniforms } from './Cinema2UserModelFormDust'
 import { buildCinema2UserModelSlices, cinema2SliceSpread, type Cinema2SlicedUserModel } from './Cinema2UserModelSlices'
 import { prepareCinema2UserModel, type Cinema2PreparedUserModel } from './Cinema2UserModelPreparation'
 import { Cinema2ShatteredUserModel, animateCinema2Shatter } from './Cinema2UserModelShatter'
@@ -27,11 +27,11 @@ interface Attached {
   cutModel: Cinema2SlicedUserModel | null
   sliceProblem: string | null
   dissolve: Cinema2UserModelDustDissolve | null
-  ranks: Float32Array
+  dustUniforms: Cinema2DustUniforms
   ownsPreparation: boolean
   prepared: Cinema2PreparedUserModel
   root: Three.Object3D; pivot: Three.Group; source: Three.Group; accent: Three.Mesh
-  meshes: Three.Mesh[]; originals: Original[]; samples: Three.Vector3[]
+  meshes: Three.Mesh[]; originals: Original[]
   points: Three.Points[]
   primary: Three.MeshStandardMaterial; secondary: Three.MeshStandardMaterial; pointMaterials: Three.PointsMaterial[]
   geometries: Set<Three.BufferGeometry>; materials: Set<Three.Material>; extent: number
@@ -67,6 +67,19 @@ export class Cinema2UserModelPreviewEffects {
   performancePattern: string | null = null
   private controls: Controls = { tintModel: false, modelYaw: 0, modelScale: 1, pattern: 0, phase: 0, movement: 0.35, intensity: 0.8, opacity: 1, emission: 0.2, reaction: 0, primary: [0.55, 0.85, 1], secondary: [0.7, 0.3, 0.9], accent: [0.1, 0.9, 0.8] }
   private shardMotion = 1
+  private debris = .35
+  private shardCracks = 0
+  private dustSize = 1
+  private dustOpacity = 1
+  private dustTurbulence = .5
+  private holoThickness = 1
+  private holoScanWidth = .12
+  private holoRim = 1
+  private holoScanSpeed = 1
+  private holoDirection = 0
+  private voxelRotation = .5
+  private voxelVariation = .2
+  private formDeformation = 0
   private manualPose = false
   private hologramLines = 1
   private density = 1
@@ -83,7 +96,7 @@ export class Cinema2UserModelPreviewEffects {
   private dustCycle = cinema2DustCycle(0)
   private readonly dummy: Three.Object3D
   private readonly tint: Three.Color
-  constructor(private readonly library: Cinema2ThreeLibrary, readonly kind: Cinema2UserModelPreviewKind, private readonly shardDetail = 24) {
+  constructor(private readonly library: Cinema2ThreeLibrary, readonly kind: Cinema2UserModelPreviewKind, private readonly shardDetail = 24, private readonly sliceCount = 14, private readonly sliceAxis = 'y') {
     this.patterns = new Cinema2MainframePatternController<string>(CINEMA2_USER_MODEL_PREVIEWS[kind], CINEMA2_USER_MODEL_PREVIEWS[kind][0])
     const programs = CINEMA2_USER_MODEL_AUTO_PERFORMANCE_PATTERNS[kind]
     this.autoPerformance = new Cinema2PatternAutoPerformance<string>({ buildPattern: programs.build, dropPattern: programs.drop })
@@ -154,6 +167,19 @@ export class Cinema2UserModelPreviewEffects {
       this.dustCycle = { ...this.dustCycle, dissolve: 1, spread: 1 }
     }
     this.shardMotion = number('shardMotion', 1)
+    this.debris = number('shardDebris', .35)
+    this.shardCracks = number('shardCracks', 0)
+    this.dustSize = number('dustSize', 1, .25, 3)
+    this.dustOpacity = number('dustOpacity', 1)
+    this.dustTurbulence = number('dustTurbulence', .5, 0, 2)
+    this.holoThickness = number('hologramThickness', 1, .25, 3)
+    this.holoScanWidth = number('hologramScanWidth', .12, .02, .5)
+    this.holoRim = number('hologramRim', 1, 0, 3)
+    this.holoScanSpeed = number('hologramScanSpeed', 1, 0, 3)
+    this.holoDirection = ['y', 'x', 'z', 'diagonal'].indexOf(String(parameters.get('hologramScanDirection') ?? 'y'))
+    this.voxelRotation = number('voxelRotation', .5)
+    this.voxelVariation = number('voxelVariation', .2)
+    this.formDeformation = number('formDeformation', 0, 0, .15)
     this.density = number('dustDensity', 1, .1, 1)
     this.dustDrift = number('dustDrift', 1, 0, 1)
     this.dustFlow = number('dustFlow', 1, 0, 2)
@@ -162,6 +188,7 @@ export class Cinema2UserModelPreviewEffects {
     const separation = this.kind === 'shatter' ? number('shatterSpread', 1) : this.kind === 'slices' ? number('sliceSeparation', 1) : this.kind === 'voxel' ? number('voxelSeparation', 1) : 1
     // Keep the representation visible at zero separation in manual pose, while preserving the legacy reassembly path.
     this.sliceSpread *= separation
+    if (this.kind === 'shatter') this.sliceSpread = Math.max(this.sliceSpread, this.shardCracks * .006)
     this.manualPose = manualPose
     this.hologramLines = number('hologramLines', 1, .25, 2)
     this.controls = { tintModel: this.kind === 'form' && parameters.get('formMaterial') === 'original' ? false : parameters.get('tintModel') === true || this.kind === 'form' && parameters.get('formMaterial') === 'palette', modelYaw: number('modelYaw', 0, -180, 180) * Math.PI / 180, modelScale: number('modelScale', 1, .5, 1.2), pattern: names.indexOf(onStage), phase: motionBeats * Math.PI * 0.25 * number('speed', 1, 0, 3) * (number('movement', .35, 0, .8) > 0 ? 1 : 0), movement: number('movement', 0.35, 0, 0.8), intensity: number('intensity', 0.8, 0, 2), opacity: number('opacity', 1, 0.1, 1) * (this.kind === 'hologram' ? 1 - number('hologramTransparency', 0, 0, .9) : 1), emission: number('emission', 0.2, 0, 2) + (this.kind === 'hologram' ? number('hologramGlow', 0, 0, 2) : 0), reaction, primary: color('primary', this.controls.primary), secondary: color('secondary', this.controls.secondary), accent: color('accent', this.controls.accent) }
@@ -173,7 +200,7 @@ export class Cinema2UserModelPreviewEffects {
     const meshes: Three.Mesh[] = []
     root.traverse(object => { if ((object as Three.Mesh).isMesh) meshes.push(object as Three.Mesh) })
     const { center, size, extent } = prepared
-    const samples = Array.from({ length: this.kind === 'dust' || !sharedPreparation ? prepared.samplePositions.length / 3 : 0 }, (_, index) => new T.Vector3().fromArray(prepared.samplePositions, index * 3))
+    const dustUniforms = createCinema2DustUniforms(extent)
     const pivot = new T.Group(), source = new T.Group(); pivot.name = 'UserModelPreview'; pivot.position.copy(center); source.position.copy(center).multiplyScalar(-1)
     for (const child of [...root.children]) source.add(child)
     pivot.add(source); root.add(pivot)
@@ -196,10 +223,19 @@ export class Cinema2UserModelPreviewEffects {
       if (this.kind === 'dust') {
         dissolve = new Cinema2UserModelDustDissolve(this.library, root, meshes, center, extent)
         for (let part = 0; part < 2; part++) {
-          const geometry = new T.BufferGeometry(); geometry.setAttribute('position', new T.BufferAttribute(new Float32Array(CINEMA2_USER_MODEL_PROXY_LIMITS.high.dust / 2 * 3), 3).setUsage(T.DynamicDrawUsage))
-          geometry.setAttribute('c2DustAlpha', new T.BufferAttribute(new Float32Array(CINEMA2_USER_MODEL_PROXY_LIMITS.high.dust / 2), 1).setUsage(T.DynamicDrawUsage))
+          const geometry = new T.BufferGeometry(), count = prepared.samplePositions.length / 6
+          const positions = new Float32Array(count * 3), ranks = new Float32Array(count), seeds = new Float32Array(count)
+          for (let i = 0; i < count; i++) {
+            const index = cinema2ProgressiveSample(i, count) * 2 + part, offset = index * 3
+            positions.set(prepared.samplePositions.subarray(offset, offset + 3), i * 3)
+            ranks[i] = cinema2DustSurfaceRank(positions[i * 3] / extent, positions[i * 3 + 1] / extent, positions[i * 3 + 2] / extent)
+            seeds[i] = cinema2GrainSeed(index)
+          }
+          geometry.setAttribute('position', new T.BufferAttribute(positions, 3))
+          geometry.setAttribute('c2DustAlpha', new T.BufferAttribute(ranks, 1))
+          geometry.setAttribute('c2Seed', new T.BufferAttribute(seeds, 1))
           const material = new T.PointsMaterial({ size: extent * .006, sizeAttenuation: true, transparent: true, depthWrite: false, blending: T.AdditiveBlending })
-          decorateCinema2DustPoints(material)
+          decorateCinema2DustPoints(material, dustUniforms)
           const cloud = new T.Points(geometry, material); cloud.frustumCulled = false; pivot.add(cloud); points.push(cloud); pointMaterials.push(material); geometries.add(geometry); materials.add(material)
         }
       } else if (this.kind === 'shatter' || this.kind === 'voxel') {
@@ -209,7 +245,11 @@ export class Cinema2UserModelPreviewEffects {
         } catch (error) { effectProblem = error instanceof Error ? error.message : 'Model transformation unavailable. The original model is kept visible.' }
       } else if (this.kind === 'slices') {
         try {
-          cutModel = buildCinema2UserModelSlices(this.library, prepared, meshes)
+          let lastError: unknown
+          for (const count of new Set([this.sliceCount, Math.min(this.sliceCount, 14), Math.min(this.sliceCount, 8), 2])) {
+            try { cutModel = buildCinema2UserModelSlices(this.library, prepared, meshes, count, this.sliceAxis); break } catch (error) { lastError = error }
+          }
+          if (!cutModel) throw lastError
           pivot.add(cutModel.group)
           for (const material of cutModel.materials.slice(1)) {
             const m = material as Three.MeshStandardMaterial
@@ -223,8 +263,7 @@ export class Cinema2UserModelPreviewEffects {
         const m = material as Three.MeshStandardMaterial
         if (m.isMeshStandardMaterial) originals.push({ material: m, color: m.color.clone(), emissive: m.emissive.clone(), intensity: m.emissiveIntensity, opacity: m.opacity, transparent: m.transparent, wireframe: m.wireframe, depthWrite: m.depthWrite })
       }
-      const ranks = this.kind === 'dust' ? Float32Array.from(samples, point => cinema2DustSurfaceRank(point.x / extent, point.y / extent, point.z / extent)) : new Float32Array(0)
-      this.attachments.set(root, { shatter, voxels, hologram, effectProblem, cutModel, sliceProblem, dissolve, ranks, prepared, ownsPreparation: !sharedPreparation, root, pivot, source, meshes, originals, samples, points, primary, secondary, pointMaterials, accent, geometries, materials, extent })
+      this.attachments.set(root, { shatter, voxels, hologram, effectProblem, cutModel, sliceProblem, dissolve, dustUniforms, prepared, ownsPreparation: !sharedPreparation, root, pivot, source, meshes, originals, points, primary, secondary, pointMaterials, accent, geometries, materials, extent })
     } catch (error) {
       for (const child of [...source.children]) root.add(child)
       root.remove(pivot)
@@ -240,7 +279,7 @@ export class Cinema2UserModelPreviewEffects {
   beforeDraw(quality: Cinema2RenderQualityLevel = 'high'): void {
     const T = this.library.THREE, c = { ...this.controls, opacity: this.controls.opacity * this.transitionOpacity }, p = c.pattern, phase = c.phase, m = c.movement, r = c.reaction
     for (const a of this.attachments.values()) {
-      a.source.visible = this.kind === 'form' || this.kind === 'hologram' || this.kind === 'dust' && this.dustCycle.dissolve < .99999 || this.kind === 'slices' && (!a.cutModel || !this.manualPose && this.sliceSpread < .00001) || this.kind === 'shatter' && (!a.shatter || !this.manualPose && this.sliceSpread < .00001) || this.kind === 'voxel' && (!a.voxels || !this.manualPose && this.sliceSpread < .15)
+      a.source.visible = this.kind === 'form' || this.kind === 'hologram' || this.kind === 'dust' && this.dustCycle.dissolve < .99999 || this.kind === 'slices' && (!a.cutModel || this.sliceSpread < .00001) || this.kind === 'shatter' && (!a.shatter || this.sliceSpread < .00001) || this.kind === 'voxel' && (!a.voxels || !this.manualPose && this.sliceSpread < .15)
       a.pivot.rotation.set(0, 0, 0); a.pivot.scale.setScalar(1); a.pivot.position.copy(a.prepared.center)
       const e = a.extent, oscillation = Math.sin(phase)
       if (this.kind === 'form') {
@@ -252,6 +291,13 @@ export class Cinema2UserModelPreviewEffects {
         a.pivot.position.x += Math.sin(phase * .5) * e * m * (p === 0 ? .035 : .015)
         a.pivot.position.y += (p === 2 ? .08 + oscillation * m * .12 : Math.sin(phase * .6) * m * .015) * e
         a.pivot.scale.setScalar(c.modelScale * (1 + (p === 4 ? oscillation * m * .08 : 0) + pulse))
+        const flex = this.formDeformation * (.55 + .45 * Math.sin(phase)) * (1 + r * .2)
+        a.pivot.scale.x *= 1 + flex; a.pivot.scale.y /= 1 + flex
+        // Blend whole-model choreography toward the common rest transform as it crossfades.
+        const gain = this.transitionOpacity
+        a.pivot.rotation.x *= gain; a.pivot.rotation.y = c.modelYaw + (a.pivot.rotation.y - c.modelYaw) * gain; a.pivot.rotation.z *= gain
+        a.pivot.position.lerp(a.prepared.center, 1 - gain)
+        a.pivot.scale.x = c.modelScale + (a.pivot.scale.x - c.modelScale) * gain; a.pivot.scale.y = c.modelScale + (a.pivot.scale.y - c.modelScale) * gain; a.pivot.scale.z = c.modelScale + (a.pivot.scale.z - c.modelScale) * gain
       }
       if (this.kind === 'dust') {
         a.pivot.rotation.y = c.modelYaw; a.pivot.scale.setScalar(c.modelScale)
@@ -268,7 +314,7 @@ export class Cinema2UserModelPreviewEffects {
         o.material.color.multiplyScalar(c.intensity)
         o.material.emissive.copy(o.emissive); o.material.emissiveIntensity = o.intensity + c.emission
         o.material.opacity = o.opacity * c.opacity * (this.kind === 'voxel' && a.voxels ? 1 - (this.manualPose ? 1 : clamp(this.sliceSpread / .15)) : 1)
-        const transparent = this.kind === 'hologram' || o.transparent || o.material.opacity < 1; if (o.material.transparent !== transparent) o.material.needsUpdate = true; o.material.transparent = transparent; o.material.depthWrite = o.depthWrite && o.material.opacity >= 1
+        const transparent = this.kind === 'hologram' || o.transparent || o.material.opacity < 1; if (o.material.transparent !== transparent) o.material.needsUpdate = true; o.material.transparent = transparent; o.material.depthWrite = o.depthWrite && o.material.opacity >= 1 && !(this.kind === 'hologram' && this.sliceSpread > .00001)
       }
       for (const [material, rgb] of [[a.primary, c.primary], [a.secondary, c.secondary]] as const) { material.color.setRGB(rgb[0], rgb[1], rgb[2], T.SRGBColorSpace).multiplyScalar(c.intensity); material.emissive.copy(material.color); material.emissiveIntensity = c.emission + r * .25; material.opacity = c.opacity; if (material.transparent !== (c.opacity < 1)) material.needsUpdate = true; material.transparent = c.opacity < 1 }
       const accent = a.accent.material as Three.MeshBasicMaterial; accent.color.setRGB(c.accent[0], c.accent[1], c.accent[2], T.SRGBColorSpace).multiplyScalar(.7 + c.emission); accent.opacity = c.opacity; if (accent.transparent !== (c.opacity < 1)) accent.needsUpdate = true; accent.transparent = c.opacity < 1
@@ -277,43 +323,43 @@ export class Cinema2UserModelPreviewEffects {
         a.pivot.rotation.z = p === 3 ? .25 * this.sliceSpread : 0
         if (p === 4) a.pivot.scale.multiplyScalar(1 + Math.cos(phase * 3) * m * .06 * this.sliceSpread)
         a.hologram.lineDensity.value = this.hologramLines
+        a.hologram.qualityScale = quality === 'low' ? .35 : quality === 'medium' ? .65 : 1
+        a.hologram.thickness.value = this.holoThickness; a.hologram.scanWidth.value = this.holoScanWidth
+        a.hologram.rim.value = this.holoRim; a.hologram.scanSpeed.value = this.holoScanSpeed; a.hologram.direction.value = Math.max(0, this.holoDirection)
         a.hologram.animate(p, phase, this.sliceSpread, e, c.opacity, c.intensity * (.6 + c.emission + r * .3), c.primary, c.accent)
       }
       if (a.shatter) {
-        a.shatter.group.visible = this.manualPose || this.sliceSpread >= .00001
-        animateCinema2Shatter(a.shatter, p, phase, this.sliceSpread, e, m, r, this.shardMotion)
+        a.shatter.group.visible = this.sliceSpread >= .00001
+        animateCinema2Shatter(a.shatter, p, phase, this.sliceSpread * (.35 + .65 * this.transitionOpacity), e, m, r, this.shardMotion, this.debris)
       }
       if (a.voxels) {
         a.voxels.group.visible = this.manualPose || this.sliceSpread > .00001
         const tiers = ['low', 'medium', 'high'] as const
         const detail = tiers.findIndex(tier => tier === this.voxelDetail)
         const voxelQuality = detail < 0 ? quality : tiers[Math.min(detail, tiers.indexOf(quality))]!
-        a.voxels.animate(voxelQuality, p, phase, this.sliceSpread, m, r, c.tintModel, c.primary, c.secondary, this.dummy, this.tint)
+        a.voxels.animate(voxelQuality, p, phase, this.sliceSpread * (.35 + .65 * this.transitionOpacity), m, r, c.tintModel, c.primary, c.secondary, this.dummy, this.tint, this.voxelRotation, this.voxelVariation)
         const material = a.voxels.material
         material.color.setScalar(c.intensity); material.emissive.setScalar(1); material.emissiveIntensity = c.emission * .2
         material.opacity = c.opacity * (this.manualPose ? 1 : clamp(this.sliceSpread / .15))
         if (material.transparent !== (material.opacity < 1)) material.needsUpdate = true
         material.transparent = material.opacity < 1; material.depthWrite = material.opacity >= 1
       }
-      for (let part = 0; part < a.points.length; part++) {
-        const cloud = a.points[part], positions = cloud.geometry.attributes.position as Three.BufferAttribute
-        const alpha = cloud.geometry.attributes.c2DustAlpha as Three.BufferAttribute, count = Math.max(1, Math.floor(CINEMA2_USER_MODEL_PROXY_LIMITS[quality].dust / 2 * this.density))
-        cloud.geometry.setDrawRange(0, count); cloud.visible = this.dustCycle.dissolve > .00001
-        for (let i = 0; i < count; i++) {
-          const sampleIndex = Math.floor((i * 2 + part) / (count * 2) * a.samples.length), rest = a.samples[sampleIndex]
-          const release = clamp((this.dustCycle.dissolve - a.ranks[sampleIndex]) / .045 + .5)
-          cinema2DustPosition(this.dummy.position, rest, e, sampleIndex, p, phase * this.dustFlow, this.dustCycle.spread * release * this.dustDrift, m, r)
-          positions.setXYZ(i, this.dummy.position.x, this.dummy.position.y, this.dummy.position.z)
-          alpha.setX(i, release)
+      if (a.points.length) {
+        const u = a.dustUniforms
+        u.c2Release.value = this.dustCycle.dissolve; u.c2Spread.value = this.dustCycle.spread * this.dustDrift * (.35 + .65 * this.transitionOpacity)
+        u.c2Time.value = phase * this.dustFlow; u.c2Pattern.value = p; u.c2Motion.value = m + r * .2
+        u.c2Turbulence.value = this.dustTurbulence; u.c2Density.value = this.density
+        for (let part = 0; part < a.points.length; part++) {
+          const cloud = a.points[part], count = Math.max(1, Math.floor(CINEMA2_USER_MODEL_PROXY_LIMITS[quality].dust / 2 * this.density))
+          cloud.geometry.setDrawRange(0, Math.min(count, cloud.geometry.attributes.position.count)); cloud.visible = this.dustCycle.dissolve > .00001
+          const mat = a.pointMaterials[part], rgb = part ? c.secondary : c.primary
+          mat.color.setRGB(rgb[0], rgb[1], rgb[2], T.SRGBColorSpace).multiplyScalar(c.intensity * (1 + c.emission + r * .4))
+          mat.opacity = c.opacity * this.dustOpacity; mat.size = e * (quality === 'low' ? .009 : quality === 'medium' ? .006 : .0045) * this.dustSize * (1 + r * m * .3)
         }
-        positions.needsUpdate = true; alpha.needsUpdate = true
-        const mat = a.pointMaterials[part], rgb = part ? c.secondary : c.primary
-        mat.color.setRGB(rgb[0], rgb[1], rgb[2], T.SRGBColorSpace).multiplyScalar(c.intensity * (1 + c.emission + r * .4))
-        mat.opacity = c.opacity; mat.size = e * (quality === 'low' ? .012 : quality === 'medium' ? .008 : .005) * (1 + r * m * .3)
       }
       if (a.cutModel) {
-        const cut = a.cutModel, spread = this.sliceSpread * (1 + r * .1), motion = .35 + m
-        cut.group.visible = this.manualPose || spread >= .00001
+        const cut = a.cutModel, spread = this.sliceSpread * (1 + r * .1) * (.35 + .65 * this.transitionOpacity), motion = .35 + m
+        cut.group.visible = spread >= .00001
         a.pivot.rotation.y = c.modelYaw; a.pivot.scale.setScalar(c.modelScale)
         const cap = cut.capMaterial
         cap.color.setRGB(c.accent[0], c.accent[1], c.accent[2], T.SRGBColorSpace).multiplyScalar(c.intensity)
@@ -321,7 +367,7 @@ export class Cinema2UserModelPreviewEffects {
         if (cap.transparent !== (c.opacity < 1)) cap.needsUpdate = true
         cap.transparent = c.opacity < 1; cap.depthWrite = c.opacity >= 1
         for (let i = 0; i < cut.meshes.length; i++) {
-          const layer = cut.meshes[i], center = cut.centers[i], y = center / Math.max(a.prepared.size.y, .001)
+          const layer = cut.meshes[i], center = cut.centers[i], y = center / Math.max(a.prepared.size[this.sliceAxis === 'x' ? 'x' : this.sliceAxis === 'z' ? 'z' : 'y'], .001)
           layer.position.set(0, center, 0); layer.rotation.set(0, 0, 0); layer.scale.setScalar(1)
           if (p === 0) layer.position.y += y * e * .45 * spread * motion
           if (p === 1) { layer.position.x += y * e * .6 * spread * motion; layer.position.y += y * e * .18 * spread }
@@ -357,13 +403,16 @@ export class Cinema2UserModelPreviewEffects {
   estimateAdditionalGpuBytes(): number {
     let bytes = 0
     for (const a of this.attachments.values()) for (const cloud of a.points) for (const attribute of Object.values(cloud.geometry.attributes)) bytes += attribute.array.byteLength
-    for (const a of this.attachments.values()) bytes += (a.voxels?.additionalGpuBytes ?? 0) + (a.hologram?.additionalGpuBytes ?? 0)
+    for (const a of this.attachments.values()) bytes += (a.voxels?.additionalGpuBytes ?? 0) // Wide-line meshes are counted by the bridge.
     return bytes
   }
   getDiagnostics(): readonly { code: string; message: string }[] {
     return [...this.attachments.values()].flatMap(a => {
       const messages: { code: string; message: string }[] = []
       if (a.sliceProblem || a.effectProblem) messages.push({ code: `CINEMA2_USER_MODEL_${this.kind.toUpperCase()}_LIMIT`, message: a.sliceProblem ?? a.effectProblem! })
+      if (a.cutModel && a.cutModel.meshes.length < this.sliceCount) messages.push({ code: 'CINEMA2_USER_MODEL_SLICES_DETAIL', message: 'Slice detail produced fewer nonempty layers than requested, or was reduced to stay within the geometry budget.' })
+      if (a.shatter?.limited) messages.push({ code: 'CINEMA2_USER_MODEL_SHATTER_BUDGET', message: 'Fracture detail was reduced to the last complete partition within the geometry budget.' })
+      if (a.voxels && !a.voxels.grids.has('high')) messages.push({ code: 'CINEMA2_USER_MODEL_VOXEL_BUDGET', message: 'Voxel resolution was reduced to the highest available occupancy grid within the work and cell budgets.' })
       if (a.cutModel?.openContours || a.shatter?.openContours) messages.push({ code: 'CINEMA2_USER_MODEL_SLICES_OPEN', message: 'Some source surfaces have open or non-manifold cut contours. Only closed contours receive cut-face caps.' })
       if (a.voxels && !a.voxels.solid) messages.push({ code: 'CINEMA2_USER_MODEL_VOXEL_SHELL', message: 'This model has open or non-manifold edges. Voxel uses its actual surface shell; a solid interior is not inferred.' })
       if (a.hologram?.edgeProblem) messages.push({ code: 'CINEMA2_USER_MODEL_HOLOGRAM_EDGES', message: a.hologram.edgeProblem })

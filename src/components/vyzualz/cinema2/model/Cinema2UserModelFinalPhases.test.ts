@@ -1,4 +1,7 @@
 import * as THREE from 'three'
+import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js'
+import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js'
+import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js'
 import { describe, expect, it, vi } from 'vitest'
 import type { Cinema2ThreeLibrary } from '../modules/three/Cinema2ThreeLibrary'
 import type { Cinema2ModuleUpdateContext } from '../modules/Cinema2ModuleContracts'
@@ -11,7 +14,7 @@ import { CINEMA2_USER_MODEL_PREVIEWS, type Cinema2UserModelPreviewKind } from '.
 import { Cinema2ParameterState } from '../parameters/Cinema2ParameterState'
 import { Cinema2PresetRegistry } from '../presets/Cinema2PresetRegistry'
 import { createCinema2UserModelPreset, cinema2UserModelPreviewParameterId } from '../presets/Cinema2UserModelPresetFactory'
-const library = { THREE } as unknown as Cinema2ThreeLibrary
+const library = { THREE, wideLines: { LineSegments2, LineSegmentsGeometry, LineMaterial } } as unknown as Cinema2ThreeLibrary
 const kinds = Object.keys(CINEMA2_USER_MODEL_PREVIEWS) as Cinema2UserModelPreviewKind[]
 function model(geometry: THREE.BufferGeometry = new THREE.BoxGeometry(2, 1.5, .8)) {
   const root = new THREE.Group(), material = new THREE.MeshPhysicalMaterial({ color: '#c6a875', metalness: .8, roughness: .2 }), mesh = new THREE.Mesh(geometry, material)

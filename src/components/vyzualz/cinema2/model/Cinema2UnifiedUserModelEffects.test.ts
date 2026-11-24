@@ -1,4 +1,7 @@
 import * as THREE from 'three'
+import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js'
+import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js'
+import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js'
 import { describe, expect, it, vi } from 'vitest'
 import type { Cinema2ThreeLibrary } from '../modules/three/Cinema2ThreeLibrary'
 import type { Cinema2ModuleUpdateContext } from '../modules/Cinema2ModuleContracts'
@@ -8,7 +11,7 @@ import { createCinema2UserModelPreset, cinema2UserModelPreviewParameterId } from
 import { cinema2NativePresetRegistry } from '../presets/Cinema2PresetRegistry'
 import { Cinema2ParameterState } from '../parameters/Cinema2ParameterState'
 
-const library = { THREE } as unknown as Cinema2ThreeLibrary
+const library = { THREE, wideLines: { LineSegments2, LineSegmentsGeometry, LineMaterial } } as unknown as Cinema2ThreeLibrary
 const modes = Object.keys(CINEMA2_USER_MODEL_PREVIEWS) as Cinema2UserModelPreviewKind[]
 const identity = 'user-model:c0000000-0000-4000-8000-000000000001:7'
 function car() {

@@ -1,5 +1,8 @@
 import type * as ThreeNamespace from 'three'
 import type { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
+import type { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js'
+import type { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js'
+import type { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js'
 import type { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js'
 
 /**
@@ -9,6 +12,8 @@ import type { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js'
  */
 export interface Cinema2ThreeLibrary {
   readonly THREE: typeof ThreeNamespace
+  /** Wide, depth-tested geometry lines, loaded with the existing lazy Three chunk. */
+  readonly wideLines?: { LineSegments2: typeof LineSegments2; LineSegmentsGeometry: typeof LineSegmentsGeometry; LineMaterial: typeof LineMaterial }
   readonly GLTFLoader: typeof GLTFLoader
   /** Meshopt decoder (a single inline module: no worker, no file paths, works offline). */
   readonly MeshoptDecoder: { supported: boolean; ready: Promise<void>; decode: (...args: never[]) => unknown }
@@ -26,15 +31,19 @@ export interface Cinema2ThreeLibrary {
 export type Cinema2ThreeLibraryLoader = () => Promise<Cinema2ThreeLibrary>
 
 const defaultLoader: Cinema2ThreeLibraryLoader = async () => {
-  const [THREE, gltf, meshopt, room, hdr] = await Promise.all([
+  const [THREE, gltf, meshopt, room, hdr, lines, lineGeometry, lineMaterial] = await Promise.all([
     import('three'),
     import('three/examples/jsm/loaders/GLTFLoader.js'),
     import('three/examples/jsm/libs/meshopt_decoder.module.js'),
     import('three/examples/jsm/environments/RoomEnvironment.js'),
     import('three/examples/jsm/loaders/HDRLoader.js'),
+    import('three/examples/jsm/lines/LineSegments2.js'),
+    import('three/examples/jsm/lines/LineSegmentsGeometry.js'),
+    import('three/examples/jsm/lines/LineMaterial.js'),
   ])
   return Object.freeze({
     THREE,
+    wideLines: { LineSegments2: lines.LineSegments2, LineSegmentsGeometry: lineGeometry.LineSegmentsGeometry, LineMaterial: lineMaterial.LineMaterial },
     GLTFLoader: gltf.GLTFLoader,
     MeshoptDecoder: meshopt.MeshoptDecoder as unknown as Cinema2ThreeLibrary['MeshoptDecoder'],
     HDRLoader: hdr.HDRLoader,

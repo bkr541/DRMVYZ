@@ -6,7 +6,7 @@ import { Cinema2UserModelPreviewEffects } from './Cinema2UserModelPreviewEffects
 import { prepareCinema2UserModel, type Cinema2PreparedUserModel } from './Cinema2UserModelPreparation'
 import { Cinema2MainframeBeatClockResolver, resolveCinema2MainframeTimeSec, type Cinema2MainframeBeatClockFrame } from '../modules/mainframe/Cinema2MainframePatternEngine'
 import { resolveCinema2MainframeSourceIdentity, selectCinema2MainframeAudio } from '../modules/mainframe/Cinema2MainframeAudioDelivery'
-import { cinema2RepresentationPatternProperty, CINEMA2_USER_MODEL_PROXY_LIMITS, isCinema2UserModelPreview, type Cinema2UserModelPreviewKind } from './Cinema2UserModelPreviewPatterns'
+import { cinema2RepresentationPatternProperty, cinema2ResolveFractureDetail, CINEMA2_USER_MODEL_PROXY_LIMITS, isCinema2UserModelPreview, type Cinema2UserModelPreviewKind } from './Cinema2UserModelPreviewPatterns'
 
 const clamp = (value: number, min = 0, max = 1) => Math.min(max, Math.max(min, value))
 const scalar = (value: unknown, fallback: number, min: number, max: number) => typeof value === 'number' && Number.isFinite(value) ? clamp(value, min, max) : fallback
@@ -42,6 +42,7 @@ interface Attachment {
   easing: string
   requested: string | null
   problem: string | null
+  pending?: { key: string; cancel: () => void }
 }
 
 function textureSlots(material: Three.Material): [string, Three.Texture][] {
@@ -110,13 +111,13 @@ export class Cinema2UnifiedUserModelEffects {
     this.attachment = { root, identity: assetId, source, pivot, prepared, textures, residents: new Map(), failed: new Map(), active: null, outgoing: null, elapsed: 0, duration: 0, easing: 'linear', requested: null, problem }
   }
 
-  private create(a: Attachment, kind: Cinema2UserModelPreviewKind, key: string, detail: number): Representation | null {
+  private create(a: Attachment, kind: Cinema2UserModelPreviewKind, key: string, detail: number, sliceCount = 14, sliceAxis = 'y'): Representation | null {
     if (!a.prepared || a.failed.has(key)) return null
     const cached = a.residents.get(key)
     if (cached) return cached
     const T = this.library.THREE, root = new T.Group()
     root.name = `UnifiedRepresentation:${kind}`
-    const sourceMaterials: Three.Material[] = [], effects = new Cinema2UserModelPreviewEffects(this.library, kind, detail)
+    const sourceMaterials: Three.Material[] = [], effects = new Cinema2UserModelPreviewEffects(this.library, kind, detail, sliceCount, sliceAxis)
     try {
       // Clone only nodes and per-mode materials. The imported vertex/index buffers and textures remain shared.
       for (const child of a.source.children) root.add(child.clone(true))
@@ -141,7 +142,7 @@ export class Cinema2UnifiedUserModelEffects {
         if (!mesh.isMesh) return
         for (const material of materialList(mesh)) if (!seen.has(material)) {
           seen.add(material)
-          if (!(material as Three.MeshStandardMaterial).isMeshStandardMaterial) otherMaterials.push({ material, opacity: material.opacity, transparent: material.transparent, depthWrite: material.depthWrite })
+          if (!(material as Three.MeshStandardMaterial).isMeshStandardMaterial && material.type !== 'LineMaterial') otherMaterials.push({ material, opacity: material.opacity, transparent: material.transparent, depthWrite: material.depthWrite })
           for (const [slot, original] of textureSlots(material)) textureBindings.push({ material, slot, original })
         }
       })
@@ -168,8 +169,9 @@ export class Cinema2UnifiedUserModelEffects {
     return a.easing === 'smoothstep' ? t * t * (3 - 2 * t) : t
   }
 
-  private select(a: Attachment, kind: Cinema2UserModelPreviewKind, detail: number, duration: number, easing: string): void {
-    const key = kind === 'shatter' ? `${kind}:${detail}` : kind
+  private select(a: Attachment, kind: Cinema2UserModelPreviewKind, detail: number, duration: number, easing: string, sliceCount: number, sliceAxis: string): void {
+    const key = kind === 'shatter' ? `${kind}:${detail}` : kind === 'slices' ? `${kind}:${sliceCount}:${sliceAxis}` : kind
+    if (a.pending && a.pending.key !== key) { a.pending.cancel(); a.pending = undefined }
     if (a.requested === key) return
     a.requested = key
     const initial = !a.active
@@ -187,7 +189,19 @@ export class Cinema2UnifiedUserModelEffects {
     }
     if (a.active?.key === key) return
     for (const resident of a.residents.values()) if (resident !== a.active && resident.key !== key) this.release(a, resident)
-    let next = this.create(a, kind, key, detail)
+    // Heavy cold builds run between frames, not in the draw callback. Keep the previous
+    // representation (or lease source) visible. Idle work is canceled on selection/model replacement.
+    if (!a.residents.has(key) && !a.failed.has(key) && a.prepared && (kind === 'shatter' || kind === 'voxel' || kind === 'slices' || kind === 'hologram') && typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
+      const id = window.requestIdleCallback(() => {
+        if (this.attachment !== a || a.pending?.key !== key) return
+        a.pending = undefined
+        this.create(a, kind, key, detail, sliceCount, sliceAxis)
+        a.requested = null
+      }, { timeout: 800 })
+      a.pending = { key, cancel: () => window.cancelIdleCallback(id) }
+      return
+    }
+    let next = this.create(a, kind, key, detail, sliceCount, sliceAxis)
     if (!next) {
       // Keep a valid Form visible rather than a broken proxy or an empty stage.
       const reason = a.failed.get(key) ?? a.problem ?? 'Representation unavailable.'
@@ -227,9 +241,11 @@ export class Cinema2UnifiedUserModelEffects {
     if (!a || !context) return
     const p = context.parameters, selected = p.get('representation'), defaultMode = p.get('defaultRepresentation')
     const kind = isCinema2UserModelPreview(selected) ? selected : isCinema2UserModelPreview(defaultMode) ? defaultMode : this.defaultKind
-    const detail = scalar(Number(p.get('shardDetail') ?? 24), 24, 4, 24)
+    const detail = cinema2ResolveFractureDetail(p.get('shardDetail'), quality, a.prepared?.triangleCount ?? 0)
+    const sliceCount = Math.round(scalar(p.get('sliceCount'), 14, 2, quality === 'low' ? 14 : 24))
+    const requestedAxis = p.get('sliceAxis'), sliceAxis = requestedAxis === 'x' || requestedAxis === 'z' ? requestedAxis : 'y'
     const duration = scalar(p.get('transitionDuration'), 0, 0, 3)
-    this.select(a, kind, detail, duration, p.get('transitionEasing') === 'linear' ? 'linear' : 'smoothstep')
+    this.select(a, kind, detail, duration, p.get('transitionEasing') === 'linear' ? 'linear' : 'smoothstep', sliceCount, sliceAxis)
     if (a.prepared) {
       const pos = vector(p.get('modelPosition'), -2, 2), rot = vector(p.get('modelRotation'), -180, 180), yaw = scalar(p.get('modelYaw'), 0, -180, 180)
       const unit = a.prepared.extent / 2
@@ -256,8 +272,8 @@ export class Cinema2UnifiedUserModelEffects {
         // GLTF unlit material slots do not participate in the PBR-only preview controls.
         // Fade those actual surfaces as well, without touching lease-owned materials.
         for (const { material, opacity, transparent, depthWrite } of resident.otherMaterials) {
-          material.opacity = opacity * gain * scalar(p.get('opacity'), 1, .1, 1)
-          const translucent = transparent || material.opacity < 1
+          material.opacity = opacity * gain * scalar(p.get('opacity'), 1, .1, 1) * (resident.kind === 'hologram' ? 1 - scalar(p.get('hologramTransparency'), 0, 0, .9) : 1)
+          const translucent = resident.kind === 'hologram' || transparent || material.opacity < 1
           if (material.transparent !== translucent) material.needsUpdate = true
           material.transparent = translucent; material.depthWrite = depthWrite && !translucent
         }
@@ -275,6 +291,7 @@ export class Cinema2UnifiedUserModelEffects {
   detach(root: Three.Object3D): void {
     const a = this.attachment
     if (!a || a.root !== root) return
+    a.pending?.cancel(); a.pending = undefined
     for (const resident of a.residents.values()) this.release(a, resident)
     for (const child of [...a.source.children]) root.add(child)
     a.pivot.removeFromParent(); a.prepared?.dispose(); this.attachment = null
@@ -288,6 +305,6 @@ export class Cinema2UnifiedUserModelEffects {
   }
   inspect() {
     const a = this.attachment
-    return { ...a?.active?.effects.inspect(), defaultKind: this.defaultKind, activeRepresentation: a?.active?.kind ?? 'form', requestedRepresentation: a?.requested?.split(':')[0] ?? null, modelIdentity: a?.identity ?? null, attachmentCount: a ? 1 : 0, residentRepresentations: a ? [...a.residents.keys()] : [], transitionProgress: a?.outgoing ? this.progress(a) : 1, transform: a ? { position: a.pivot.position.toArray(), rotation: a.pivot.rotation.toArray(), scale: a.pivot.scale.toArray() } : null }
+    return { ...a?.active?.effects.inspect(), defaultKind: this.defaultKind, activeRepresentation: a?.active?.kind ?? 'form', requestedRepresentation: a?.requested?.split(':')[0] ?? null, modelIdentity: a?.identity ?? null, attachmentCount: a ? 1 : 0, residentRepresentations: a ? [...a.residents.keys()] : [], pendingRepresentation: a?.pending?.key ?? null, transitionProgress: a?.outgoing ? this.progress(a) : 1, transform: a ? { position: a.pivot.position.toArray(), rotation: a.pivot.rotation.toArray(), scale: a.pivot.scale.toArray() } : null }
   }
 }
