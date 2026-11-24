@@ -377,7 +377,7 @@ export class Cinema2UserModelPreviewEffects {
       }
       if (a.shatter) {
         a.shatter.group.visible = drawSpread >= .00001
-        animateCinema2Shatter(a.shatter, p, phase, drawSpread * (.35 + .65 * this.transitionOpacity), e, m, r, this.shardMotion, this.debris, this.shardImpulse * this.transitionOpacity)
+        animateCinema2Shatter(a.shatter, p, phase, drawSpread * (.35 + .65 * this.transitionOpacity), e, m, r, this.shardMotion, this.debris * (quality === 'low' ? .25 : quality === 'medium' ? .65 : 1), this.shardImpulse * this.transitionOpacity)
       }
       if (a.voxels) {
         a.voxels.group.visible = this.manualPose || this.sliceSpread > .00001

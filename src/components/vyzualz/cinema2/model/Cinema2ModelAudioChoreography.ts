@@ -47,10 +47,14 @@ export function createCinema2ModelAudioParameters(kind: Cinema2UserModelPreviewK
   const sources = [...Object.keys(MODEL_AUDIO_SOURCES), ...MODEL_AUDIO_EVENTS].map(value => ({ value, label: title(value === 'build' ? 'buildup intensity' : value) }))
   const options = (values: readonly string[]) => values.map(value => ({ value, label: title(value) }))
   const add = (key: string, label: string, type: Cinema2ParameterManifest['type'], value: Cinema2JsonValue, group: string, extra: Partial<Cinema2ParameterManifest> = {}) => result.push({ id: id(key), label, type, defaultValue: value, section: 'Design', designParentGroup: 'effects', group, order: result.length, exposure: 'primary', persistence: 'preset', reset: 'authored-default', modulatable: false, choreographable: false, automatable: false, ...extra })
-  add('audioMappingsEnabled', 'Audio Mappings', 'boolean', false, 'Audio Modulation', { description: 'Enable up to twelve simultaneous saved assignments. Disable to restore the authored look.' })
+  add('audioMappingsEnabled', 'Audio Mappings', 'boolean', false, 'Audio Modulation', { description: 'Enable up to twelve simultaneous saved assignments. Open a slot to select its signal, target and intensity; disable a slot to remove it from the active mappings. Disable the master to restore the authored look.' })
   const material = visual.find(p => p.id === id('cinematicMaterial') && p.type === 'enum')
   if (material?.options?.length) add('audioPhraseMaterial', 'Alternate Material on Phrase', 'enum', 'off', 'Audio Modulation', { options: [{ value: 'off', label: 'Off' }, ...material.options], visibleWhen: [{ kind: 'parameter-equals', parameterId: id('audioMappingsEnabled'), value: true }], description: 'On each authoritative phrase boundary alternate between this material and the authored material.' })
   add('audioRepresentationDirector', 'Musical Representation Transitions', 'boolean', false, 'Model', { designParentGroup: 'design', order: 6, description: 'With Auto Performance on, use the existing Pattern’s choreography family to direct section, phrase and drop transitions. Off keeps the selected representation.' })
+  add('audioTransitionTrigger', 'Representation Trigger', 'enum', 'manual', 'Model', { designParentGroup: 'design', order: 7, options: [{value:'manual',label:'Manual'}, ...options(MODEL_AUDIO_EVENTS)], visibleWhen: [{kind:'parameter-equals',parameterId:id('audioRepresentationDirector'),value:false}], description: 'Wait for a fresh canonical musical event before transitioning to the chosen destination. Manual uses Active Representation directly.' })
+  const triggered = [{kind:'parameter-not-equals' as const,parameterId:id('audioTransitionTrigger'),value:'manual'}, {kind:'parameter-equals' as const,parameterId:id('audioRepresentationDirector'),value:false}]
+  add('audioTransitionDestination', 'Triggered Destination', 'enum', kind === 'form' ? 'shatter' : 'form', 'Model', {designParentGroup:'design',order:8,options:options(Object.keys(CINEMA2_USER_MODEL_PREVIEWS)),visibleWhen:triggered})
+  add('audioTransitionReturn', 'Return on Next Trigger', 'boolean', true, 'Model', {designParentGroup:'design',order:9,visibleWhen:triggered,description:'Alternate between the authored representation and destination. Off holds the destination until an edit, stop or seek.'})
   for (let i = 0; i < MODEL_AUDIO_SLOT_COUNT; i++) {
     const [source, target, strength, min, max] = defaults[i]!
     const key = (name: string) => modelAudioSlotKey(i, name), group = `Audio Mapping ${i + 1}`
@@ -58,7 +62,7 @@ export function createCinema2ModelAudioParameters(kind: Cinema2UserModelPreviewK
     const visibleWhen = [...master, { kind: 'parameter-equals' as const, parameterId: id(key('Enabled')), value: true }]
     const field = (name: string, label: string, type: Cinema2ParameterManifest['type'], value: Cinema2JsonValue, extra: Partial<Cinema2ParameterManifest> = {}) => add(key(name), label, type, value, group, { visibleWhen, ...extra })
     const f = (name: string, label: string, value: number, min = 0, max = 1, unit?: string) => field(name, label, 'float', value, { min, max, step: .01, ...(unit ? { unit } : {}) })
-    add(key('Enabled'), 'Enabled', 'boolean', true, group, { visibleWhen: master })
+    add(key('Enabled'), 'Enabled', 'boolean', true, group, { visibleWhen: master, metadata: { inspectorMappingSummary: true } })
     field('Source', 'Audio Source', 'enum', source, { options: sources })
     field('Target', 'Visual Target', 'enum', target, { options: targets })
     f('Intensity', 'Mapping Intensity', strength)
@@ -113,6 +117,9 @@ export class Cinema2ModelAudioChoreography {
   private sectionId: string | null = null
   private sectionMode: Cinema2UserModelPreviewKind | null = null
   private pendingMode: Cinema2UserModelPreviewKind | null = null
+  private manualTransitionSignature: string | null = null
+  private manualTransitionActive = false
+  private manualTransitionAt = -Infinity
   private phraseMaterialActive = false
   private phraseMaterialSignature: string | null = null
   constructor(private readonly kind: Cinema2UserModelPreviewKind, plan: Readonly<Cinema2CompiledPresetPlan>, private readonly parameters: Cinema2ParameterState) {
@@ -126,7 +133,7 @@ export class Cinema2ModelAudioChoreography {
     return isCinema2UserModelPreview(kind) && state.getDefinition(idFor(kind, 'audioMappingsEnabled')) ? new Cinema2ModelAudioChoreography(kind, plan, state) : null
   }
   reset(): void {
-    this.routes.clear(); this.seen.clear(); this.last = null; this.mode = null; this.directorSignature = null; this.lastTransitionTime = -Infinity; this.phaseIndex = 0; this.sectionId = null; this.sectionMode = null; this.pendingMode = null; this.phraseMaterialActive = false; this.phraseMaterialSignature = null
+    this.routes.clear(); this.seen.clear(); this.last = null; this.mode = null; this.directorSignature = null; this.lastTransitionTime = -Infinity; this.phaseIndex = 0; this.sectionId = null; this.sectionMode = null; this.pendingMode = null; this.phraseMaterialActive = false; this.phraseMaterialSignature = null; this.manualTransitionSignature = null; this.manualTransitionActive = false; this.manualTransitionAt = -Infinity
   }
   private read(key: string) { return this.parameters.getValue(idFor(this.kind, key)) }
   private edit(key: string) { return this.parameters.getEditRevision(idFor(this.kind, key)) }
@@ -230,8 +237,27 @@ export class Cinema2ModelAudioChoreography {
     if (!materialEnabled) this.phraseMaterialActive = false
     else if (playing && events.has('phrase')) this.phraseMaterialActive = !this.phraseMaterialActive
     if (materialEnabled && this.phraseMaterialActive && typeof material === 'string') this.publish(out, 'cinematicMaterial', material)
-    this.updateDirector(accepted, events, initial, changed, playing, now, out)
+    if (this.read('audioRepresentationDirector') === true && this.read('autoPerformance') === true) {
+      this.manualTransitionSignature = null; this.manualTransitionActive = false; this.manualTransitionAt = -Infinity
+      this.updateDirector(accepted, events, initial, changed, playing, now, out)
+    } else {
+      // Reset the automatic director and use the same deduplicated event map for an explicitly authored transition.
+      this.updateDirector(accepted, events, initial, changed, playing, now, out)
+      this.updateTriggeredTransition(events, playing, now, out)
+    }
     return out
+  }
+  private updateTriggeredTransition(events: ReadonlyMap<ModelAudioEventSource, ModelAudioEvent>, playing: boolean, now: number, out: Cinema2TargetContributionSubmission[]): void {
+    const trigger = this.read('audioTransitionTrigger'), destination = this.read('audioTransitionDestination'), returns = this.read('audioTransitionReturn') === true
+    const signature = JSON.stringify([trigger, destination, returns, this.edit('representation'), this.edit('defaultRepresentation'), this.edit('audioTransitionTrigger'), this.edit('audioTransitionDestination'), this.edit('audioTransitionReturn')])
+    if (signature !== this.manualTransitionSignature) { this.manualTransitionSignature = signature; this.manualTransitionActive = false; this.manualTransitionAt = -Infinity; return }
+    if (!eventSource(trigger) || !isCinema2UserModelPreview(destination) || this.read('audioRepresentationDirector') === true) return
+    const duration = number(this.read('transitionDuration'), 0, 0, 3)
+    if (playing && events.has(trigger) && now - this.manualTransitionAt >= Math.max(.12, duration)) {
+      this.manualTransitionActive = returns ? !this.manualTransitionActive : true
+      this.manualTransitionAt = now
+    }
+    if (this.manualTransitionActive) this.publish(out, 'representation', destination)
   }
   private updateDirector(frame: Readonly<Cinema2ModuleFrameReadContext>, events: ReadonlyMap<ModelAudioEventSource, ModelAudioEvent>, initial: boolean, changed: boolean, playing: boolean, now: number, out: Cinema2TargetContributionSubmission[]) {
     const enabled = this.read('audioRepresentationDirector') === true && this.read('autoPerformance') === true

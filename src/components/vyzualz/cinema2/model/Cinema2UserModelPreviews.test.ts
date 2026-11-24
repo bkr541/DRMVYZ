@@ -50,7 +50,7 @@ describe.each(kinds)('%s model preview declaration', kind => {
     expect(find('bpmSync')).toMatchObject({ label: 'BPM Sync', type: 'boolean', designParentGroup: 'master-controls' })
     expect(find('pattern').options).toHaveLength(6); expect(find('patternChange')).toMatchObject({ type: 'boolean', defaultValue: false, designParentGroup: 'design' })
     expect(find('trigger').options).toEqual(CINEMA2_AFTERHOURS_TRIGGER_OPTIONS); expect(find('trigger').visibleWhen).toEqual([{ kind: 'parameter-equals', parameterId: find('patternChange').id, value: true }])
-    expect(manifest.parameters!.filter(p => p.type === 'color' && p.designParentGroup === 'palette')).toHaveLength(4)
+    for (const key of ['background', 'primary', 'secondary', 'accent']) expect(find(key)).toMatchObject({ type: 'color', designParentGroup: 'palette' })
     expect(manifest.modules![0].config).toMatchObject({ userModelPreview: kind, userModel: { neutralFloor: false } })
     const model = `user-model:c0000000-0000-4000-8000-000000000001:1`
     const result = activateCinema2Workspace(createEmptyCinema2WorkspaceDocument(), { presetId: manifest.id, parameterPatch: { [find('model').id]: model, [find('pattern').id]: CINEMA2_USER_MODEL_PREVIEWS[kind][4] } })
@@ -113,4 +113,20 @@ describe('shared pattern authority and musical event reuse', () => {
     controller.update(context(values, .5)); expect(controller.inspect().reaction).toBeCloseTo(energy)
     expect(values).toEqual({ reactivity: 1, response: .5 })
   })
+})
+
+it('projects the selected and triggered destination modes, and persists a pinned model and cinematic bypasses', () => {
+  const kind = 'form', manifest = createCinema2UserModelPreset(kind), compiled = cinema2NativePresetRegistry.compile(manifest.id)
+  if (!compiled.ok) throw new Error('Preview did not compile')
+  const state = new Cinema2ParameterState(compiled.plan.parameters), id = (key: string) => cinema2UserModelPreviewParameterId(kind, key)
+  const groups = () => createCinema2DesignParentGroupModel(compiled.plan, state.getSnapshot()).flatMap(parent => parent.groups.map(group => group.label))
+  expect(groups()).not.toContain('Shatter')
+  expect(state.setPersistentValue(id('representation'), 'shatter').ok).toBe(true); expect(groups()).toContain('Shatter'); expect(groups()).not.toContain('Dust')
+  expect(state.setPersistentValue(id('audioTransitionTrigger'), 'beat').ok).toBe(true)
+  expect(state.setPersistentValue(id('audioTransitionDestination'), 'dust').ok).toBe(true); expect(groups()).toContain('Dust')
+  const savedValues = { model: 'user-model:c0000000-0000-4000-8000-000000000001:3', cinematicMaterial: 'blackChrome', cinematicKeyIntensity: 2, cinematicOpticalEnabled: true, opticalTwistEnabled: false, cinematicTrailsEnabled: true, audioMappingsEnabled: true, audioMap1Intensity: .7, autoPerformance: true }
+  for (const [key, value] of Object.entries(savedValues)) expect(state.setPersistentValue(id(key), value).ok, key).toBe(true)
+  const restored = new Cinema2ParameterState(compiled.plan.parameters)
+  expect(restored.restore(state.serialize()).ok).toBe(true)
+  for (const [key, value] of Object.entries(savedValues)) expect(restored.getValue(id(key)), key).toEqual(value)
 })

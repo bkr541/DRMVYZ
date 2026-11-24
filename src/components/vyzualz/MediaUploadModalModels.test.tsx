@@ -88,7 +88,7 @@ const button = (label: RegExp) => [...container.querySelectorAll('button')].find
 describe('3D model helpers', () => {
   it('recognises GLB files and explains why a mixed selection cannot be queued', () => {
     expect(isModelUploadFile({ name: 'A.GLB', type: '' })).toBe(true)
-    expect(isModelUploadFile({ name: 'a.gltf', type: 'model/gltf+json' })).toBe(false)
+    expect(isModelUploadFile({ name: 'a.gltf', type: 'model/gltf+json' })).toBe(true)
     const glb = { name: 'a.glb', type: '' }, png = { name: 'a.png', type: 'image/png' }
     const none = { mediaQueued: 0, fontsQueued: 0, modelsQueued: 0, audioOnly: false }
     expect(explainModelSelection({ files: [glb, glb], ...none })).toBeNull()
@@ -115,7 +115,7 @@ describe('media upload dialog with 3D models', () => {
   it('accepts .glb in the picker and switches to model fields once a GLB is chosen', async () => {
     await act(async () => { root.render(<MediaUploadModal onClose={() => undefined} />) })
     expect(container.querySelector<HTMLInputElement>('input[type="file"]')!.accept).toContain('.glb')
-    expect(text()).toContain('3D models: .glb, up to 64 MB')
+    expect(text()).toContain('3D models: GLB, glTF, FBX, OBJ, STL, PLY · up to 64 MB')
     await chooseFiles([glbFile()])
     expect(text()).toContain('3D MODEL IMPORT')
     expect(text()).toContain('MODEL NAME')

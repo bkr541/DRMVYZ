@@ -401,8 +401,15 @@ function Cinema2InspectorGroup({
   if (!group.label) {
     return <Cinema2InspectorControls controls={group.controls} onChange={onChange} onTrigger={onTrigger} />
   }
+  const mapping = group.controls.find(control => control.definition.metadata?.inspectorMappingSummary === true)
+  const optionLabel = (label: string) => {
+    const control = group.controls.find(item => item.definition.label === label)
+    return control?.definition.options?.find(option => option.value === control.value)?.label ?? ''
+  }
+  const strength = group.controls.find(control => control.definition.label === 'Mapping Intensity')?.value
+  const summary = mapping ? (mapping.value === true ? `${optionLabel('Audio Source')} → ${optionLabel('Visual Target')} · ${typeof strength === 'number' ? Math.round(strength * 100) : 0}%` : 'Disabled') : undefined
   return (
-    <Collapsible label={group.label}>
+    <Collapsible label={group.label} headerAccessory={summary ? <span className="rv-cinema2-mapping-summary" title={summary}>{summary}</span> : undefined} defaultOpen={!group.controls.some(control => control.definition.metadata?.inspectorSubgroup === true)}>
       <Cinema2InspectorControls controls={group.controls} onChange={onChange} onTrigger={onTrigger} />
     </Collapsible>
   )

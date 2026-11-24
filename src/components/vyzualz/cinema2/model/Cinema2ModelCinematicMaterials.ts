@@ -19,10 +19,10 @@ export function modelFxNumber(p: Cinema2ModuleParameterReadFacet, key: string, f
   const value = p.get(key)
   return typeof value === 'number' && Number.isFinite(value) ? Math.max(min, Math.min(max, value)) : fallback
 }
-export function modelFxColor(T: Cinema2ThreeLibrary['THREE'], p: Cinema2ModuleParameterReadFacet, key: string, fallback: number): Three.Color {
+export function modelFxColor(T: Cinema2ThreeLibrary['THREE'], p: Cinema2ModuleParameterReadFacet, key: string, fallback: number, target = new T.Color()): Three.Color {
   const v = p.get(key)
-  return Array.isArray(v) && v.length >= 3 && v.slice(0, 3).every(n => typeof n === 'number' && Number.isFinite(n))
-    ? new T.Color().setRGB(Number(v[0]), Number(v[1]), Number(v[2]), T.SRGBColorSpace) : new T.Color(fallback)
+  return Array.isArray(v) && v.length >= 3 && [v[0], v[1], v[2]].every(n => typeof n === 'number' && Number.isFinite(n))
+    ? target.setRGB(Number(v[0]), Number(v[1]), Number(v[2]), T.SRGBColorSpace) : target.setHex(fallback)
 }
 export function resolveModelLook(p: Cinema2ModuleParameterReadFacet) {
   const look = String(p.get('cinematicLook')) as keyof typeof CINEMA2_MODEL_LOOKS
@@ -51,9 +51,11 @@ interface ColoredSurface { material: Three.Material & { color: Three.Color }; co
 export class Cinema2ModelCinematicMaterials {
   private readonly surfaces: Surface[] = []
   private readonly colored: ColoredSurface[] = []
+  private readonly scratchColors: readonly [Three.Color, Three.Color, Three.Color]
   private readonly uniforms: { c2CinemaRim: { value: number }; c2CinemaPower: { value: number }; c2CinemaColor: { value: Three.Color }; c2CinemaIridescent: { value: number }; c2CinemaSecondary: { value: Three.Color }; c2CinemaScan: { value: number }; c2CinemaTime: { value: number } }
   constructor(private readonly library: Cinema2ThreeLibrary, root: Three.Object3D) {
     const T = library.THREE
+    this.scratchColors = [new T.Color(), new T.Color(), new T.Color()]
     this.uniforms = { c2CinemaRim: { value: 0 }, c2CinemaPower: { value: 3 }, c2CinemaColor: { value: new T.Color(0x00eaff) }, c2CinemaIridescent: { value: 0 }, c2CinemaSecondary: { value: new T.Color(0xe32cff) }, c2CinemaScan: { value: 0 }, c2CinemaTime: { value: 0 } }
     const seen = new Set<Three.Material>()
     root.traverse(node => {
@@ -104,33 +106,38 @@ export class Cinema2ModelCinematicMaterials {
   apply(p: Cinema2ModuleParameterReadFacet, time: number): void {
     const T = this.library.THREE, { style, rim } = resolveModelLook(p), profile = style === 'original' ? null : profiles[style]
     const n = (key: string, fallback: number, min = 0, max = 4) => modelFxNumber(p, key, fallback, min, max)
-    const tint = modelFxColor(T, p, 'cinematicBaseColor', 0xffffff), emission = modelFxColor(T, p, 'cinematicEmissiveColor', 0xffffff)
-    const rimColor = modelFxColor(T, p, 'cinematicRimColor', 0x00eaff)
-    this.uniforms.c2CinemaColor.value.copy(rimColor)
-    this.uniforms.c2CinemaSecondary.value.copy(modelFxColor(T, p, 'secondary', 0xe32cff))
+    const tint = modelFxColor(T, p, 'cinematicBaseColor', 0xffffff, this.scratchColors[0]), emission = modelFxColor(T, p, 'cinematicEmissiveColor', 0xffffff, this.scratchColors[1])
+    modelFxColor(T, p, 'cinematicRimColor', 0x00eaff, this.uniforms.c2CinemaColor.value)
+    modelFxColor(T, p, 'secondary', 0xe32cff, this.uniforms.c2CinemaSecondary.value)
     this.uniforms.c2CinemaRim.value = (rim + n('cinematicRim', 0)) * n('cinematicRimBloom', 1, 0, 2)
     this.uniforms.c2CinemaPower.value = n('cinematicRimFalloff', 3, .5, 10) / n('cinematicRimWidth', 1, .25, 3)
     this.uniforms.c2CinemaIridescent.value = style === 'iridescent' ? n('cinematicIridescence', .8, 0, 1) : 0
     this.uniforms.c2CinemaScan.value = style === 'holographic' ? .6 : 0
     this.uniforms.c2CinemaTime.value = time
-    if (!profile) { for (const s of this.surfaces) this.restoreStatic(s); return }
+    const metalness = n('cinematicMetalness', 1, 0, 2), roughness = n('cinematicRoughness', 1, .1, 4), reflection = n('cinematicReflection', 1, 0, 4), opacity = n('cinematicOpacity', 1, 0, 1), energy = n('cinematicEmission', 1, 0, 4)
+    const transmission = n('cinematicTransmission', .5, 0, 1), clearcoat = n('cinematicClearcoat', .5, 0, 1), coatRoughness = n('cinematicCoatRoughness', .2, 0, 1)
     for (const s of this.surfaces) {
       const m = s.material, physical = m as Three.MeshPhysicalMaterial
       s.color.copy(m.color); s.emissive.copy(m.emissive); s.intensity = m.emissiveIntensity; s.opacity = m.opacity; s.transparent = m.transparent; s.depthWrite = m.depthWrite; s.applied = true; s.styled = true
-      m.color.setHex(profile[0]).multiply(tint); m.metalness = Math.min(1, profile[1] * n('cinematicMetalness', 1, 0, 2)); m.roughness = Math.max(.04, Math.min(1, profile[2] * n('cinematicRoughness', 1, .1, 4)))
-      m.emissive.copy(m.color).multiply(emission); m.emissiveIntensity = profile[4] * n('cinematicEmission', 1, 0, 4) + s.intensity
-      m.envMapIntensity = n('cinematicReflection', 1, 0, 4)
-      m.opacity = s.opacity * profile[3] * n('cinematicOpacity', 1, 0, 1)
+      if (profile) m.color.setHex(profile[0])
+      m.color.multiply(tint)
+      m.metalness = Math.min(1, (profile?.[1] ?? s.initial.metalness) * metalness)
+      m.roughness = Math.max(profile ? .04 : 0, Math.min(1, (profile?.[2] ?? s.initial.roughness) * roughness))
+      if (profile) m.emissive.copy(m.color)
+      m.emissive.multiply(emission); m.emissiveIntensity = profile ? profile[4] * energy + s.intensity : s.intensity * energy
+      m.envMapIntensity = profile ? reflection : s.initial.env * reflection
+      m.opacity = s.opacity * (profile?.[3] ?? 1) * opacity
       const translucent = s.transparent || m.opacity < .999
       if (s.renderedTransparent !== translucent) m.needsUpdate = true
       s.renderedTransparent = translucent; m.transparent = translucent; m.depthWrite = s.depthWrite && !translucent
       if (physical.isMeshPhysicalMaterial) {
-        physical.transmission = style === 'glass' ? n('cinematicTransmission', .5, 0, 1) : 0
-        physical.clearcoat = n('cinematicClearcoat', .5, 0, 1); physical.clearcoatRoughness = n('cinematicCoatRoughness', .2, 0, 1)
-        physical.iridescence = this.uniforms.c2CinemaIridescent.value
+        physical.transmission = profile ? (style === 'glass' ? transmission : 0) : s.initial.transmission
+        physical.clearcoat = profile ? clearcoat : s.initial.clearcoat; physical.clearcoatRoughness = profile ? coatRoughness : s.initial.coatRoughness
+        physical.iridescence = profile ? this.uniforms.c2CinemaIridescent.value : s.initial.iridescence
       }
     }
-    const coloredTint = new T.Color(profile[0]).multiply(tint).multiplyScalar(1 + profile[4] * n('cinematicEmission', 1))
+    const coloredTint = this.scratchColors[2].copy(tint)
+    if (profile) coloredTint.setHex(profile[0]).multiply(tint).multiplyScalar(1 + profile[4] * energy)
     for (const s of this.colored) { s.color.copy(s.material.color); s.applied = true; s.material.color.multiply(coloredTint) }
   }
   dispose(): void { this.restore(); for (const s of this.surfaces) { this.restoreStatic(s); s.restoreHook() } }

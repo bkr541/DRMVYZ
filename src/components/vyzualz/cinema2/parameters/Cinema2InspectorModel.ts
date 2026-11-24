@@ -317,7 +317,7 @@ export function createCinema2DesignParentGroupModel(
     const instance = instanceOwners.get(definition.id) ?? null
     const sectionId = instance?.sectionId ?? resolveSectionId(definition.section)
     if (SECTION_BY_ID.get(sectionId)?.surface !== 'design') continue
-    if (!conditionsPass(definition.visibleWhen, values, availableCapabilities)) continue
+    if (!conditionsPass(definition.visibleWhen, values, availableCapabilities) || !matchesInspectorSelection(definition, values)) continue
 
     let parent = parents.get(parentId)
     if (!parent) {
@@ -325,20 +325,19 @@ export function createCinema2DesignParentGroupModel(
       parents.set(parentId, parent)
     }
 
+    const grouped = parentId === 'design' || (parentId === 'effects' && definition.metadata?.inspectorSubgroup === true)
     const item: ProjectedControl = {
       control: createControlModel(definition, values, availableCapabilities, lock, parentId),
       sectionId,
-      // Secondary grouping is intentionally preserved only inside Design.
-      // Master Controls, Effects, and Palette stay flat, matching the current
-      // Reactor presentation. Standard master permission toggles are placed last below.
-      groupLabel: parentId === 'design' ? definition.group?.trim() || null : null,
+      // Legacy presets remain flat; authored Effects subsections opt in explicitly.
+      groupLabel: grouped ? definition.group?.trim() || null : null,
       order: definition.order ?? authoredIndex,
       authoredIndex,
       advanced: definition.exposure === 'advanced',
       instance: null,
     }
 
-    if (parentId === 'design' && item.groupLabel != null) addToMutableGroup(parent.groups, item)
+    if (grouped && item.groupLabel != null) addToMutableGroup(parent.groups, item)
     else parent.controls.push(item)
   }
 
@@ -596,6 +595,18 @@ function commonNonEmptyGroupLabel(items: readonly ProjectedControl[]): string | 
 function resolveSectionId(authored: string | undefined): Cinema2InspectorSectionId {
   const normalized = authored?.trim().toLowerCase() ?? ''
   return SECTION_ALIASES.get(normalized) ?? 'design'
+}
+
+/** Optional authored selector with a fallback value and a show-all switch for automatic performances. */
+function matchesInspectorSelection(definition: Readonly<Cinema2CompiledParameterDefinition>, values: Readonly<Record<string, Cinema2JsonValue>>): boolean {
+  const rule = definition.metadata?.inspectorSelection
+  if (!rule || typeof rule !== 'object' || Array.isArray(rule)) return true
+  const { selector, fallback, sentinel, expected, showAll, destination, trigger } = rule as Record<string, Cinema2JsonValue>
+  if (typeof selector !== 'string' || typeof fallback !== 'string') return true
+  if (typeof showAll === 'string' && values[showAll] === true) return true
+  if (typeof destination === 'string' && typeof trigger === 'string' && values[trigger] !== 'manual' && values[destination] === expected) return true
+  const selected = values[selector]
+  return (selected === sentinel ? values[fallback] : selected) === expected
 }
 
 function conditionsPass(

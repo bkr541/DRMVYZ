@@ -98,6 +98,13 @@ export function createCinema2UserModelPreset(kind: Cinema2UserModelPreviewKind):
   ]
   for (const definition of parameters) if (MODEL_AUDIO_TARGETS.some(key => id(key) === definition.id)) { definition.modulatable = true; definition.choreographable = true }
   const audioParameters = createCinema2ModelAudioParameters(kind, parameters)
+  // These are presentation hints only: every mode and route remains in the preset state and target graph.
+  for (const definition of [...parameters, ...audioParameters]) {
+    if (definition.designParentGroup === 'effects' && definition.group) definition.metadata = { ...definition.metadata, inspectorSubgroup: true }
+    const mode = modes.find(mode => definition.group === options.find(option => option.value === mode)?.label || definition.id === id(cinema2RepresentationPatternProperty(mode)))
+    if (mode) definition.metadata = { ...definition.metadata, inspectorSelection: { selector: id('representation'), fallback: id('defaultRepresentation'), sentinel: 'default', expected: mode, showAll: id('audioRepresentationDirector'), destination: id('audioTransitionDestination'), trigger: id('audioTransitionTrigger') } }
+  }
+
   const moduleParameters = Object.fromEntries([...parameters, ...audioParameters.filter(p => p.id === id('audioRepresentationDirector') || p.id === id('audioMappingsEnabled'))].filter(p => !['model', 'background', 'cameraOrbit', 'cameraElevation', 'cameraZoom', 'cameraTarget'].some(key => id(key) === p.id) && p.id !== CINEMA2_QUALITY_MODE_PARAMETER.id).map(p => [String(p.id).slice(prefix.length + 1).replace(/-([a-z])/g, (_, letter: string) => letter.toUpperCase()), p.defaultValue!]))
   const bindings = Object.fromEntries(Object.keys(moduleParameters).map(property => [property, cinema2Ref(id(property))]))
   const background = base.authored.environment!

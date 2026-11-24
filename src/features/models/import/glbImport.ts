@@ -26,8 +26,10 @@ export async function inspectGlbFile(file: File, signal: AbortSignal): Promise<G
   const bytes = await file.arrayBuffer()
   if (signal.aborted) throw new DOMException('Import cancelled.', 'AbortError')
   const container = scanGlbContainer(bytes)
+  if (Array.isArray(container.json.skins) && container.json.skins.length) throw new Error('Rigged models are not supported in Cinema 2.0. Export a static mesh.')
+  if (container.images.length > 64) throw new Error('The model has more than 64 embedded images.')
   assertImageBudget(container.images)
-  const decoded = await decodeModelPreview(bytes, signal)
+  const decoded = await decodeModelPreview(bytes, signal, true)
   try {
     // Formats whose size could not be read from the header (WebP, for one) are measured here, on the decoded images.
     const textures = new Set<Texture>(), materials = new Set<import('three').Material>()
@@ -37,9 +39,15 @@ export async function inspectGlbFile(file: File, signal: AbortSignal): Promise<G
     assertImageBudget(measured.map(image => ({ mimeType: null, width: image?.width ?? null, height: image?.height ?? null })))
     if (materials.size > 128) throw new Error(`This model has ${materials.size} materials; the limit is 128.`)
     const known = assertImageBudget(container.images)
+    const uniqueBuffers = new Set<ArrayBufferLike>()
+    decoded.group.traverse(object => {
+      if (!(object instanceof Mesh)) return
+      for (const attribute of [...Object.values(object.geometry.attributes), object.geometry.index]) if (attribute) uniqueBuffers.add(attribute.array.buffer)
+    })
+    const gpuBytesEstimate = Math.round([...uniqueBuffers].reduce((sum, buffer) => sum + buffer.byteLength, 0) + measured.reduce((sum, image) => sum + (image?.width ?? 0) * (image?.height ?? 0) * 4 * 4 / 3, 0))
     const stats = parseModelGeometryStats({
       ...decoded.stats, glbBytes: bytes.byteLength, ...(materials.size ? { materialCount: materials.size } : {}),
-      imported: { fileName: file.name.slice(0, 300), imageCount: container.images.length, maxImageSide: Math.max(known.maxSide, ...measured.map(image => Math.max(image?.width ?? 0, image?.height ?? 0))) },
+      imported: { fileName: file.name.slice(0, 300), imageCount: container.images.length, gpuBytesEstimate, maxImageSide: Math.max(known.maxSide, ...measured.map(image => Math.max(image?.width ?? 0, image?.height ?? 0))) },
     })
     const warnings: string[] = []
     if (decoded.animations > 0) warnings.push('This model has animations. They are kept in the file, but the viewer shows it as a still model.')
@@ -49,7 +57,7 @@ export async function inspectGlbFile(file: File, signal: AbortSignal): Promise<G
       if (error instanceof DOMException && error.name === 'AbortError') throw error
       warnings.push('A thumbnail could not be drawn, so the library card will show a placeholder.')
     }
-    return { fileName: file.name, bytes, stats, thumbnail, warnings }
+    return { fileName: file.name, bytes, stats: { ...stats, imported: { ...stats.imported!, ...(warnings.length ? { warnings } : {}) } }, thumbnail, warnings }
   } finally { decoded.dispose() }
 }
 

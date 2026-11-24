@@ -93,6 +93,9 @@ export function ModelUploadFields({ entry, onNameChange, onDescriptionChange, ta
               {item('MESHES', stats ? String(stats.meshes) : '—')}
               {item('MATERIALS', stats?.materialCount ? String(stats.materialCount) : '—')}
               {item('FILE SIZE', formatModelBytes(entry.file.size))}
+              {item('SOURCE FORMAT', entry.file.name.split('.').pop()?.toUpperCase() ?? '—')}
+              {item('EST. SOURCE GPU', stats?.imported?.gpuBytesEstimate ? formatModelBytes(stats.imported.gpuBytesEstimate) : '—')}
+              {item('RECOMMENDED QUALITY', stats ? (stats.triangles > 40000 || (stats.imported?.maxImageSide ?? 0) > 4096 ? 'Auto / Performance' : 'Auto') : '—')}
               {item('TEXTURES', stats?.imported ? (stats.imported.imageCount ? `${stats.imported.imageCount} · up to ${stats.imported.maxImageSide} px` : 'None') : '—')}
               {item('DIMENSIONS', size)}
               {item('FILE NAME', entry.file.name)}

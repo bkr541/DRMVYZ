@@ -58,7 +58,7 @@ class ModelOpticalEffect implements Cinema2EffectInstance {
     p.activate(); p.setFloat('u_mix',c.mix); p.setFloat('u_time',c.frame.timestampMs/1000); p.setFloat('u_aspect',c.width/Math.max(1,c.height))
     const value=(key:string,min:number,max:number)=>clampEffectValue(readEffectNumber(c.parameters,key,defaults[key]),min,max)
     p.setVec2('u_center',value('centerX',0,1),value('centerY',0,1))
-    for(const [key,min,max] of CINEMA2_MODEL_OPTICAL_RANGES){ if(key.startsWith('center'))continue; let v=value(key,min,max); if(['direction','aberrationDirection','rotation'].includes(key))v*=Math.PI/180; if(key==='complexity' && c.quality==='low')v=Math.min(v,2); p.setFloat(`u_${key}`,v) }
+    for(const [key,min,max] of CINEMA2_MODEL_OPTICAL_RANGES){ if(key.startsWith('center'))continue; let v=value(key,min,max); if(c.parameters[`${key}Enabled`]===false)v=0; if(['direction','aberrationDirection','rotation'].includes(key))v*=Math.PI/180; if(key==='complexity' && c.quality==='low')v=Math.min(v,2); p.setFloat(`u_${key}`,v) }
     this.pass.run(p,c.target,c.width,c.height,[{unit:0,texture:c.input.texture,uniformName:'u_source'}])
   }
   dispose():void{this.pass.dispose();this.program.dispose()}

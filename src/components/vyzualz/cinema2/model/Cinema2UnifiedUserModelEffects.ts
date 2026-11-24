@@ -254,7 +254,7 @@ export class Cinema2UnifiedUserModelEffects {
     if (a.prepared) {
       const pos = vector(p.get('modelPosition'), -2, 2), rot = vector(p.get('modelRotation'), -180, 180), yaw = scalar(p.get('modelYaw'), 0, -180, 180)
       const unit = a.prepared.extent / 2
-      a.pivot.position.copy(a.prepared.center).add(new this.library.THREE.Vector3(pos[0] * unit, pos[1] * unit, pos[2] * unit))
+      a.pivot.position.set(a.prepared.center.x + pos[0] * unit, a.prepared.center.y + pos[1] * unit, a.prepared.center.z + pos[2] * unit)
       a.pivot.rotation.set(rot[0] * Math.PI / 180, (rot[1] + yaw) * Math.PI / 180, rot[2] * Math.PI / 180)
       a.pivot.scale.setScalar(scalar(p.get('modelScale'), 1, .5, 1.2))
     }

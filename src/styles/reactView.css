@@ -23832,3 +23832,6 @@ button.llhr-chip { cursor: pointer; }
 .rv-ctrl-lock .rv-ctrl-row .rv-ctrl-label,
 .rv-ctrl-lock .rv-ctrl-row .rv-ctrl-description { opacity: 0.4; }
 .rv-ctrl-lock .rv-ctrl-val { color: rgba(196, 207, 211, 0.32); }
+
+/* Keep authored audio route summaries compact without changing shared header typography. */
+.rv-cinema2-mapping-summary { display: block; max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

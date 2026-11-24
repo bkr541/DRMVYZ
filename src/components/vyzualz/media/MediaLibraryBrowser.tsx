@@ -23,7 +23,7 @@ import type { SavedAudioTrack } from '../../../stores/audioStore'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { MediaUploadModal } from '../MediaUploadModal'
 import { isFontUploadFile } from '../mediaUploadFonts'
-import { isModelUploadFile } from '../mediaUploadModels'
+import { isModelBatch } from '../mediaUploadModels'
 import { MediaPreviewModal } from './MediaPreviewModal'
 import { MediaStatusBar } from './MediaStatusBar'
 import { CollectionEditorModal } from './CollectionEditorModal'
@@ -974,7 +974,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
   const handleQuickDrop = (files: File[]) => {
     clearUploadQueue()
     // Fonts and 3D models (.glb) are not media records, so the media queue refuses them; the dialog takes a batch of either directly.
-    if (files.length > 0 && (files.every(isFontUploadFile) || files.every(isModelUploadFile))) {
+    if (files.length > 0 && (files.every(isFontUploadFile) || isModelBatch(files))) {
       setQuickDropFonts(files)
       setPreserveQueuedFiles(false)
       openImportMediaModal()

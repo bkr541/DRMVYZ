@@ -19,7 +19,7 @@ export interface ModelGeneratorRecipe {
 export type ModelKind = 'generated' | 'imported'
 
 /** What was measured on an imported GLB when it was checked, kept so the inspector can show it without decoding the file again. */
-export interface ModelImportStats { fileName: string; imageCount: number; maxImageSide: number }
+export interface ModelImportStats { fileName: string; imageCount: number; maxImageSide: number; gpuBytesEstimate?: number; warnings?: string[] }
 
 export interface ModelGeometryStats {
   glbBytes?: number
@@ -165,7 +165,7 @@ export function parseModelGeometryStats(value: unknown): ModelGeometryStats {
   const source = v.source === undefined ? undefined : record(v.source)
   const imported = v.imported === undefined ? undefined : record(v.imported)
   return {
-    ...(imported ? { imported: { fileName: text(imported.fileName, 300), imageCount: number(imported.imageCount, 0, 1024, true), maxImageSide: number(imported.maxImageSide, 0, 65536, true) } } : {}),
+    ...(imported ? { imported: { fileName: text(imported.fileName, 300), imageCount: number(imported.imageCount, 0, 1024, true), maxImageSide: number(imported.maxImageSide, 0, 65536, true), ...(imported.gpuBytesEstimate === undefined ? {} : { gpuBytesEstimate: number(imported.gpuBytesEstimate, 0, 4 * 1024 ** 3, true) }), ...(Array.isArray(imported.warnings) ? { warnings: imported.warnings.slice(0, 32).map(warning => text(warning, 500)) } : {}) } } : {}),
     ...(v.glbBytes === undefined ? {} : { glbBytes: number(v.glbBytes, 1, MODEL_MAX_FILE_BYTES, true) }),
     ...(v.materialCount === undefined ? {} : { materialCount: number(v.materialCount, 1, 128, true) }),
     ...(source ? { source: { width: number(source.width, 0, 1e6), height: number(source.height, 0, 1e6), mimeType: choice(source.mimeType, ['image/png', 'image/svg+xml', 'image/jpeg', 'image/webp']), byteSize: number(source.byteSize, 1, MODEL_MAX_FILE_BYTES, true) } } : {}),

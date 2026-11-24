@@ -66,3 +66,11 @@ it('missing feature capability, silence and low-confidence signals never synthes
 it('alternates the actual material target on canonical phrase boundaries without saving the override', () => {
   const h = harness(); h.edit('audioMappingsEnabled', true); h.edit('audioPhraseMaterial', 'neon'); h.frame(); h.frame({ event: 'phrase', eventId: 51 }); assert.equal(h.value('cinematicMaterial'), 'neon'); assert.equal(h.state.getValue(h.id('cinematicMaterial')), 'original'); h.frame({ event: 'phrase', eventId: 52 }); assert.equal(h.value('cinematicMaterial'), 'original')
 })
+
+it('persists a triggered destination and reassembles on a fresh canonical event without rewriting the authored mode', () => {
+  const h = harness(); h.edit('audioTransitionTrigger', 'beat'); h.edit('audioTransitionDestination', 'dust'); h.edit('audioTransitionReturn', true)
+  const saved = h.state.serialize(); h.edit('audioTransitionDestination', 'voxel'); assert.equal(h.state.restore(saved).ok, true)
+  h.frame(); h.frame({ event: 'beat', eventId: 77 }); assert.equal(h.value('representation'), 'dust'); assert.equal(h.state.getValue(h.id('representation')), 'default')
+  h.frame({ event: 'beat', eventId: 77 }, .2); assert.equal(h.value('representation'), 'dust')
+  h.frame({ event: 'beat', eventId: 78 }, .2); assert.equal(h.value('representation'), 'default')
+})

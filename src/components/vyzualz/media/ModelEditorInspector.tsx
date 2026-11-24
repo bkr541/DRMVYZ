@@ -23,7 +23,7 @@ function ModelInfoRow({ label, children }: { label: string; children: ReactNode 
 
 function ModelRoleField({ imported = false }: { imported?: boolean }) {
   return <SelectRow id="mmi-role" label="Media Role" value="model" disabled
-    options={[{ value: 'model', label: imported ? '3D Model · Imported GLB' : '3D Model' }]} onChange={() => {}} />
+    options={[{ value: 'model', label: imported ? '3D Model · Imported' : '3D Model' }]} onChange={() => {}} />
 }
 
 function modelDimensions(model: ModelEditorState['model']) {
@@ -210,6 +210,8 @@ function EditableModelInspector({ onSelectSource }: { onSelectSource?: () => voi
           <ModelInfoRow label="Dimensions">{modelDimensions(s.model)}</ModelInfoRow>
           {s.model && <ModelInfoRow label="Geometry">{s.model.stats.triangles.toLocaleString()} triangles · {s.model.stats.vertices.toLocaleString()} vertices · {s.artifact?.materialCount ?? s.versions.find(v => v.version === s.activeVersion)?.geometryStats.materialCount ?? '—'} materials</ModelInfoRow>}
           {importedStats && <ModelInfoRow label="Original file">{importedStats.fileName}</ModelInfoRow>}
+          {importedStats?.gpuBytesEstimate !== undefined && <ModelInfoRow label="Est. source GPU">{(importedStats.gpuBytesEstimate / 1048576).toFixed(1)} MiB</ModelInfoRow>}
+          {importedStats?.warnings?.map(warning => <p key={warning}>{warning}</p>)}
           {importedStats && <ModelInfoRow label="Textures">{importedStats.imageCount ? `${importedStats.imageCount} embedded · up to ${importedStats.maxImageSide} px` : 'None'}</ModelInfoRow>}
           {s.sourceInfo && <p>Source snapshot: {s.sourceInfo.width} × {s.sourceInfo.height} · {s.sourceInfo.mimeType}</p>}
           {s.sourceMediaId && <IconChipButton disabled={!onSelectSource || busy} onClick={onSelectSource}>View source image</IconChipButton>}

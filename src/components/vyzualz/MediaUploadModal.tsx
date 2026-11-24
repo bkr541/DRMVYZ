@@ -52,6 +52,7 @@ import {
   explainModelSelection,
   isModelEntryUploadable,
   isModelUploadFile,
+  isModelBatch,
   type ModelQueueEntry,
 } from './mediaUploadModels'
 
@@ -473,20 +474,20 @@ export function MediaUploadModal({
 
   // Each GLB is fully checked (container, budgets, a real decode, a thumbnail) as soon as it is queued, so a bad file is reported before the upload.
   const addModelFiles = useCallback(async (files: File[]) => {
-    const entries: ModelQueueEntry[] = files.map(file => ({
+    const entries: ModelQueueEntry[] = files.filter(isModelUploadFile).map(file => ({
       id: `model-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
       file, inspection: null, fileError: null, thumbnailUrl: null,
-      name: file.name.replace(/\.glb$/i, '').replace(/[_-]+/g, ' ').trim(), description: '', tags: [], collectionIds: [], status: 'ready' as const,
+      name: file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim(), description: '', tags: [], collectionIds: [], status: 'ready' as const,
     }))
     setModelQueue(prev => [...prev, ...entries])
     setActiveModelId(current => current ?? entries[0]?.id ?? null)
-    const { inspectGlbFile } = await import('../../features/models/import/glbImport')
+    const { inspectModelFile } = await import('../../features/models/import/modelImport')
     // One at a time: each decode holds the model's textures in memory until it finishes.
     for (const entry of entries) {
       const controller = new AbortController()
       modelInspectionsRef.current.set(entry.id, controller)
       try {
-        const inspection = await inspectGlbFile(entry.file, controller.signal)
+        const inspection = await inspectModelFile(entry.file, controller.signal, files.filter(file => !isModelUploadFile(file)))
         if (controller.signal.aborted) continue
         const thumbnailUrl = inspection.thumbnail ? URL.createObjectURL(inspection.thumbnail) : null
         setModelQueue(prev => {
@@ -503,7 +504,7 @@ export function MediaUploadModal({
   const addFiles = useCallback(async (files: File[]) => {
     const modelProblem = explainModelSelection({ files, mediaQueued: uploadQueue.length, fontsQueued: fontQueue.length, modelsQueued: modelQueue.length, audioOnly })
     if (modelProblem) { setUploadError(modelProblem); return }
-    if (files.length > 0 && files.every(isModelUploadFile)) {
+    if (isModelBatch(files)) {
       setUploadError(null)
       await addModelFiles(files)
       return

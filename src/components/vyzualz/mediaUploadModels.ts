@@ -2,10 +2,12 @@
 // swaps its media fields for model fields when .glb files are queued (the same arrangement fonts use).
 
 import type { GlbInspection } from '../../features/models/import/glbImport'
-import { isGlbFile, MODEL_UPLOAD_ACCEPT, MODEL_UPLOAD_LABEL } from '../../features/models/import/glbContainer'
+import { modelImportFormat, isModelBatch, MODEL_FORMAT_ACCEPT } from '../../features/models/import/modelImportFormats'
 
-export { MODEL_UPLOAD_ACCEPT, MODEL_UPLOAD_LABEL }
-export const isModelUploadFile = isGlbFile
+export { isModelBatch }
+export const MODEL_UPLOAD_ACCEPT = MODEL_FORMAT_ACCEPT
+export const MODEL_UPLOAD_LABEL = 'GLB, glTF, FBX, OBJ, STL, PLY · up to 64 MB'
+export const isModelUploadFile = (file: Pick<File, 'name' | 'type'>) => modelImportFormat(file) !== null
 
 export type ModelQueueStatus = 'ready' | 'uploading' | 'done' | 'error'
 
@@ -42,7 +44,7 @@ export function explainModelSelection(args: {
   const models = args.files.filter(isModelUploadFile)
   if (models.length === 0) return args.modelsQueued > 0 ? '3D models are queued. Import or clear them before adding images, video, audio or fonts.' : null
   if (args.audioOnly) return 'Only audio files can be uploaded here.'
-  if (models.length !== args.files.length || args.mediaQueued > 0 || args.fontsQueued > 0) return 'Import 3D models (.glb) in a separate batch from images, video, audio and fonts so each receives the right details.'
+  if (!isModelBatch(args.files) || args.mediaQueued > 0 || args.fontsQueued > 0) return 'Import 3D models in a separate batch from images, video, audio and fonts so each receives the right details.'
   return null
 }
 
