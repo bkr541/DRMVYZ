@@ -1,3 +1,4 @@
+import { cinema2ModelOpticalEffectDefinition } from './Cinema2ModelOpticalEffect'
 import { cinema2DepthTrailsEffectDefinition } from './Cinema2DepthTrailsEffect'
 import type { Cinema2EffectManifest, Cinema2EffectTypeId } from '../contracts/Cinema2NativePresetManifest'
 import {
@@ -110,6 +111,7 @@ for (const definition of [
   // Opt-in: registering a definition allocates nothing; an instance (and its shaders) exists only for a preset that lists the effect.
   cinema2AmbientOcclusionEffectDefinition,
   cinema2AntiAliasingEffectDefinition,
+  cinema2ModelOpticalEffectDefinition,
 ]) {
   const registration = cinema2NativeEffectRegistry.register(definition)
   if (!registration.ok) {

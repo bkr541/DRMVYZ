@@ -1,3 +1,5 @@
+import { Cinema2ModelCinematicMaterials } from './Cinema2ModelCinematicMaterials'
+import { Cinema2ModelCinematicStage } from './Cinema2ModelCinematicStage'
 import type * as Three from 'three'
 import type { Cinema2RenderQualityLevel } from '../contracts/Cinema2NativePresetManifest'
 import type { Cinema2ModuleParameterReadFacet, Cinema2ModuleUpdateContext } from '../modules/Cinema2ModuleContracts'
@@ -18,6 +20,7 @@ interface Representation {
   readonly key: string
   readonly root: Three.Group
   readonly effects: Cinema2UserModelPreviewEffects
+  readonly cinematic: Cinema2ModelCinematicMaterials
   readonly sourceMaterials: readonly Three.Material[]
   readonly textureBindings: readonly TextureBinding[]
   readonly otherMaterials: readonly { material: Three.Material; opacity: number; transparent: boolean; depthWrite: boolean }[]
@@ -31,6 +34,7 @@ interface Attachment {
   readonly root: Three.Object3D
   readonly source: Three.Group
   readonly pivot: Three.Group
+  readonly stage: Cinema2ModelCinematicStage
   readonly prepared: Cinema2PreparedUserModel | null
   readonly textures: readonly SourceTexture[]
   readonly residents: Map<string, Representation>
@@ -72,6 +76,7 @@ export class Cinema2UnifiedUserModelEffects {
   private previousIdentity: string | null = null
   private previousGeneration: number | null = null
   private fallbackBeats = 0
+  private stageContext: Cinema2ModuleUpdateContext | null = null
   constructor(private readonly library: Cinema2ThreeLibrary, readonly defaultKind: Cinema2UserModelPreviewKind) {}
 
   update(context: Cinema2ModuleUpdateContext): void {
@@ -108,7 +113,7 @@ export class Cinema2UnifiedUserModelEffects {
     for (const child of [...root.children]) source.add(child)
     if (prepared) { pivot.position.copy(prepared.center); source.position.copy(prepared.center).multiplyScalar(-1) }
     pivot.add(source); root.add(pivot)
-    this.attachment = { root, identity: assetId, source, pivot, prepared, textures, residents: new Map(), failed: new Map(), active: null, outgoing: null, elapsed: 0, duration: 0, easing: 'linear', requested: null, problem }
+    this.attachment = { root, stage: new Cinema2ModelCinematicStage(this.library, root), identity: assetId, source, pivot, prepared, textures, residents: new Map(), failed: new Map(), active: null, outgoing: null, elapsed: 0, duration: 0, easing: 'linear', requested: null, problem }
   }
 
   private create(a: Attachment, kind: Cinema2UserModelPreviewKind, key: string, detail: number, sliceCount = 14, sliceAxis = 'y'): Representation | null {
@@ -148,7 +153,7 @@ export class Cinema2UnifiedUserModelEffects {
       })
       root.position.copy(a.prepared.center).multiplyScalar(-1)
       root.visible = false; a.pivot.add(root)
-      const result = { kind, key, root, effects, sourceMaterials, textureBindings, otherMaterials }
+      const result = { kind, key, root, effects, cinematic: new Cinema2ModelCinematicMaterials(this.library, root), sourceMaterials, textureBindings, otherMaterials }
       a.residents.set(key, result)
       return result
     } catch (error) {
@@ -159,7 +164,7 @@ export class Cinema2UnifiedUserModelEffects {
   }
 
   private release(a: Attachment, representation: Representation): void {
-    representation.effects.dispose(); representation.root.removeFromParent()
+    representation.cinematic.dispose(); representation.effects.dispose(); representation.root.removeFromParent()
     for (const material of representation.sourceMaterials) material.dispose()
     a.residents.delete(representation.key)
   }
@@ -253,6 +258,7 @@ export class Cinema2UnifiedUserModelEffects {
       a.pivot.rotation.set(rot[0] * Math.PI / 180, (rot[1] + yaw) * Math.PI / 180, rot[2] * Math.PI / 180)
       a.pivot.scale.setScalar(scalar(p.get('modelScale'), 1, .5, 1.2))
     }
+    a.stage.update(p, this.stageContext === context ? 0 : context.frame.deltaTimeSec, quality); this.stageContext = context
     const progress = a.outgoing ? this.progress(a) : 1
     if (a.outgoing && progress >= 1) { a.outgoing.root.visible = false; a.outgoing = null }
     a.source.visible = !a.active
@@ -267,6 +273,7 @@ export class Cinema2UnifiedUserModelEffects {
       resident.root.visible = gain > 0
       if (gain <= 0) continue
       if (resident.lastQuality !== quality) { this.syncTextures(a, resident); resident.lastQuality = quality }
+      resident.cinematic.restore()
       resident.effects.setTransitionOpacity(gain)
         resident.effects.beforeDraw(quality)
         // GLTF unlit material slots do not participate in the PBR-only preview controls.
@@ -277,6 +284,7 @@ export class Cinema2UnifiedUserModelEffects {
           if (material.transparent !== translucent) material.needsUpdate = true
           material.transparent = translucent; material.depthWrite = depthWrite && !translucent
         }
+        resident.cinematic.apply(p, context.frame.timestampMs / 1000)
       } catch (error) {
         a.failed.set(resident.key, error instanceof Error ? error.message : 'Representation draw failed.')
         a.problem = a.failed.get(resident.key)!
@@ -294,7 +302,7 @@ export class Cinema2UnifiedUserModelEffects {
     a.pending?.cancel(); a.pending = undefined
     for (const resident of a.residents.values()) this.release(a, resident)
     for (const child of [...a.source.children]) root.add(child)
-    a.pivot.removeFromParent(); a.prepared?.dispose(); this.attachment = null
+    a.stage.dispose(); this.stageContext = null; a.pivot.removeFromParent(); a.prepared?.dispose(); this.attachment = null
   }
   dispose(): void { if (this.attachment) this.detach(this.attachment.root); this.latest = null; this.timestamp = null; this.clock.reset(); this.sharedTiming = undefined; this.previousTime = null; this.previousIdentity = null; this.previousGeneration = null; this.fallbackBeats = 0 }
   estimateAdditionalGpuBytes(): number { return [...(this.attachment?.residents.values() ?? [])].reduce((sum, mode) => sum + mode.effects.estimateAdditionalGpuBytes(), 0) }

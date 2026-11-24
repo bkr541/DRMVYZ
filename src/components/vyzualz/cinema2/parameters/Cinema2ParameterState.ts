@@ -113,7 +113,7 @@ export class Cinema2ParameterState {
     for (const [key, value] of Object.entries(candidates)) {
       const definition = this.definitions.get(key as Cinema2ParameterId)
       if (definition) {
-        Object.assign(expanded, userEditSetParameters(definition))
+        Object.assign(expanded, userEditSetParameters(definition), userEditSetParametersByValue(definition, value))
         for (const id of mirrorParameters(definition)) expanded[id] = value
       }
     }
@@ -268,6 +268,14 @@ function userEditSetParameters(
 ): Readonly<Record<string, Cinema2JsonValue>> {
   const candidate = definition.metadata?.userEditSetParameters
   return isPlainObject(candidate) ? candidate as Readonly<Record<string, Cinema2JsonValue>> : Object.freeze({})
+}
+
+/** Opt-in enum look macros use the same atomic validation as ordinary parameter edits. Explicit edits in the same patch win. */
+function userEditSetParametersByValue(definition: Readonly<Cinema2CompiledParameterDefinition>, value: unknown): Readonly<Record<string, Cinema2JsonValue>> {
+  const table = definition.metadata?.userEditSetParametersByValue
+  if (definition.type !== 'enum' || typeof value !== 'string' || !isPlainObject(table) || !Object.prototype.hasOwnProperty.call(table, value)) return {}
+  const patch = table[value]
+  return isPlainObject(patch) ? patch as Readonly<Record<string, Cinema2JsonValue>> : {}
 }
 
 function mirrorParameters(definition: Readonly<Cinema2CompiledParameterDefinition>): readonly string[] {

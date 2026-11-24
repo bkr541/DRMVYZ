@@ -1,3 +1,4 @@
+import { createCinema2ModelCinematicParameters, createCinema2ModelCinematicGraph } from './Cinema2ModelCinematicAuthoring'
 import { CINEMA2_NATIVE_PRESET_SCHEMA_ID, CINEMA2_NATIVE_PRESET_SCHEMA_VERSION, cinema2NamespacedId, cinema2Ref, cinema2StableId, type Cinema2ModuleId, type Cinema2NativePresetManifest, type Cinema2ParameterId, type Cinema2ParameterManifest, type Cinema2PresetId } from '../contracts/Cinema2NativePresetManifest'
 import { createCinema2UserModelBaseEnvironment, createCinema2UserModelParameter } from '../model/Cinema2UserModelBaseEnvironment'
 import { cinema2RepresentationPatternProperty, CINEMA2_USER_MODEL_PREVIEWS, type Cinema2UserModelPreviewKind } from '../model/Cinema2UserModelPreviewPatterns'
@@ -80,6 +81,7 @@ export function createCinema2UserModelPreset(kind: Cinema2UserModelPreviewKind):
     parameter('voxelSeparation', 'Block Separation', 'float', 1, 'effects', { modulatable: true, choreographable: true, group: 'Voxel', order: 1, min: 0, max: 1, step: .01 }),
     parameter('voxelRotation', 'Block Rotation', 'float', 0.5, 'effects', { group: 'Voxel', order: 2, min: 0, max: 1, step: 0.01, modulatable: true, choreographable: true }),
     parameter('voxelVariation', 'Block Size Variation', 'float', 0.2, 'effects', { group: 'Voxel', order: 3, min: 0, max: 1, step: 0.01, modulatable: true, choreographable: true }),
+    ...createCinema2ModelCinematicParameters(id),
     parameter('background', 'Background', 'color', [.025, .035, .045, 1], 'palette', { order: 0 }),
     parameter('primary', 'Primary', 'color', kind === 'shatter' ? [1, .55, .22, 1] : [.4, .8, 1, 1], 'palette', { order: 1, description: 'Primary dust grains and hologram projection, or optional model/voxel tint.' }),
     parameter('secondary', 'Secondary', 'color', [.8, .3, .85, 1], 'palette', { order: 2, description: 'Secondary dust grains, or optional side-material and voxel tint.' }),
@@ -95,19 +97,16 @@ export function createCinema2UserModelPreset(kind: Cinema2UserModelPreviewKind):
     id: cinema2NamespacedId<Cinema2PresetId>(`drmvyz.cinema2.${prefix}`), // Additive controls retain revision 1 so existing pinned model/version selections restore.
     revision: 1,
     metadata: { name: `3D ${kind.toUpperCase()} (Preview)`, description: `Reference preview: ${CINEMA2_USER_MODEL_PREVIEW_DESCRIPTIONS[kind]} Uses your pinned model; the model slot stays empty until it is ready. Neutral studio stage with model-based choreography.`, tags: ['reference', 'preview', 'user-model', '3d', kind] },
-    capabilities: [{ id: 'render.webgl2', requirement: 'required', purpose: 'The shared Three.js world render path.' }, { id: 'render.depth', requirement: 'required', purpose: 'Depth-tested model effects.' }, { id: 'scene.3d', requirement: 'required', purpose: 'Model placement in the shared Scene Graph.' }, { id: 'camera.world', requirement: 'required', purpose: 'Fixed neutral stage framing.' }, { id: 'lighting', requirement: 'required', purpose: 'PBR model lighting.' }],
+    capabilities: [{ id: 'render.webgl2', requirement: 'required', purpose: 'The shared Three.js world render path.' }, { id: 'render.depth', requirement: 'required', purpose: 'Depth-tested model effects.' }, { id: 'scene.3d', requirement: 'required', purpose: 'Model placement in the shared Scene Graph.' }, { id: 'camera.world', requirement: 'required', purpose: 'Fixed neutral stage framing.' }, { id: 'lighting', requirement: 'required', purpose: 'PBR model lighting.' }, { id: 'render.history', requirement: 'optional', purpose: 'Opt-in temporal trails.' }],
     ...base.authored,
     cameras: base.authored.cameras?.map(camera => ({ ...camera, fovDegrees: 38, transform: { position: [0, 1.45, 5.8] as [number, number, number] }, rig: { kind: 'orbit' as const, radius: Math.hypot(.35, 5.8), azimuthDegrees: 0, elevationDegrees: Math.atan2(.35, 5.8) * 180 / Math.PI, angularVelocityDegreesPerSecond: 0 }, controls: { orbitRadius: cinema2Ref(id('cameraZoom')), orbitAzimuthDegrees: cinema2Ref(id('cameraOrbit')), orbitElevationDegrees: cinema2Ref(id('cameraElevation')), targetOffset: cinema2Ref(id('cameraTarget')) } })),
-    ...{ lighting: { lights: [...(base.authored.lighting?.lights ?? []), { id: cinema2StableId(`${prefix}-rim`), type: 'directional' as const, color: [.15, .6, .8, 1] as const, intensity: .5, transform: { position: [-3, 2, -3] as [number, number, number] }, targetNode: cinema2Ref(base.node), controls: { color: cinema2Ref(id('accent')) } }] } },
-    environment: { ...background, controls: { backgroundColor: cinema2Ref(id('background')) } },
+    lighting: { lights: [
+      { id: cinema2StableId(`${prefix}-ambient`), type: 'ambient', color: [1,1,1,1], intensity: .4, controls: { color: cinema2Ref(id('cinematicAmbientColor')), intensity: cinema2Ref(id('cinematicAmbientIntensity')) } },
+      ...(['Key','Fill','StageRim'] as const).map((name, index) => ({ id: cinema2StableId<import('../contracts/Cinema2NativePresetManifest').Cinema2LightId>(`${prefix}-${name === 'StageRim' ? 'rim' : name.toLowerCase()}`), type: 'directional' as const, color: [1,1,1,1] as const, intensity: index === 0 ? 1.2 : .5, targetNode: cinema2Ref(base.node), transform: { position: [3,6,4] as const }, controls: { color: cinema2Ref(id(`cinematic${name}Color`)), intensity: cinema2Ref(id(`cinematic${name}Intensity`)), position: cinema2Ref(id(`cinematic${name}Position`)) } })),
+    ] },
+    environment: { ...background, controls: { backgroundColor: cinema2Ref(id('background')), fogColor: cinema2Ref(id('cinematicFogColor')), fogDensity: cinema2Ref(id('cinematicFogDensity')) } },
     parameters,
-    modules: [{ id: moduleId, typeId: CINEMA2_THREE_SCENE_MODULE_TYPE_ID, version: 1, parameters: { ...moduleParameters, userModel: 'default-model' }, parameterBindings: { ...bindings, userModel: cinema2Ref(id('model')) }, config: { ...base.moduleConfig, ...{ environment: CINEMA2_STUDIO_NEUTRAL_ENVIRONMENT_ASSET_ID, userModel: { ...base.moduleConfig.userModel, neutralFloor: false } }, userModelPreview: kind } }],
-    render: {
-      targets: [{ id: cinema2StableId(`${prefix}-target`), descriptor: { size: { kind: 'viewport' }, colorFormat: 'rgba8', depthFormat: 'depth24' } }],
-      passes: [{ id: cinema2StableId(`${prefix}-pass`), kind: 'scene', scene: cinema2Ref(base.root), outputs: [{ id: cinema2StableId(`${prefix}-color`), target: cinema2Ref(cinema2StableId(`${prefix}-target`)), attachment: 'color' }] },
-        { id: cinema2StableId(`${prefix}-output`), kind: 'output', inputs: [{ id: cinema2StableId(`${prefix}-input`), source: { pass: cinema2Ref(cinema2StableId(`${prefix}-pass`)), output: cinema2StableId(`${prefix}-color`) }, attachment: 'color' }] }],
-      outputPass: cinema2Ref(cinema2StableId(`${prefix}-output`)),
-    },
-    output: { renderPass: cinema2Ref(cinema2StableId(`${prefix}-output`)), colorSpace: 'srgb', alphaMode: 'opaque' },
+    modules: [{ id: moduleId, typeId: CINEMA2_THREE_SCENE_MODULE_TYPE_ID, version: 1, parameters: { ...moduleParameters, userModel: 'default-model' }, parameterBindings: { ...bindings, userModel: cinema2Ref(id('model')) }, config: { ...base.moduleConfig, ...{ environment: CINEMA2_STUDIO_NEUTRAL_ENVIRONMENT_ASSET_ID, userModel: { ...base.moduleConfig.userModel, neutralFloor: false } }, userModelPreview: kind, hdr: true } }],
+    ...createCinema2ModelCinematicGraph(prefix, id, base.root),
   }
 }

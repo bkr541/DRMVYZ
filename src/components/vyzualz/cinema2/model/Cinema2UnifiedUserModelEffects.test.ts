@@ -50,6 +50,17 @@ describe('unified private-model representations', () => {
     }
     controller.dispose(); expect(root.children).toEqual(originalChildren); expect(dispose).not.toHaveBeenCalled(); expect(controller.inspect().attachmentCount).toBe(0)
   }, 120_000)
+  it('applies cinematic looks across all six representations without changing the source material', () => {
+    const root = car(), source = root.children[0] as THREE.Mesh, original = source.material as THREE.MeshStandardMaterial, before = original.color.clone()
+    const controller = new Cinema2UnifiedUserModelEffects(library, 'form'); controller.attach(root, true, [], identity)
+    let time = 1
+    for (const mode of modes) {
+      draw(controller, mode, time += .016, { cinematicMaterial: 'neon', cinematicRim: 2, cinematicHelix: true })
+      expect(controller.inspect().activeRepresentation).toBe(mode); expect(visibleGeometry(root)).toBeGreaterThan(0); expect(original.color.equals(before)).toBe(true)
+      draw(controller, mode, time += .016, { cinematicMaterial: 'original' })
+    }
+    controller.dispose(); expect(original.color.equals(before)).toBe(true); expect(root.getObjectByName('CinematicModelStage')).toBeUndefined()
+  }, 120_000)
   it('completes and reverses a paused cross-transition, then interrupts it with a third target', () => {
     const root = logo(), controller = new Cinema2UnifiedUserModelEffects(library, 'form'); controller.attach(root, true, [], identity)
     const transition = { transitionDuration: 1, transitionEasing: 'linear' }

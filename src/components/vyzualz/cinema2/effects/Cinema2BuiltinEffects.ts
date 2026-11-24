@@ -54,6 +54,8 @@ uniform float u_persistence;
 uniform float u_historyValid;
 uniform float u_deltaTime;
 uniform float u_drift;
+uniform float u_cinematic, u_decay, u_motionSensitivity;
+uniform vec3 u_trailColor;
 out vec4 outColor;
 mat2 rotate2d(float angle) {
   float c = cos(angle);
@@ -63,7 +65,7 @@ mat2 rotate2d(float angle) {
 void main() {
   vec4 base = texture(u_source, v_uv);
   if (u_deltaTime <= 0.000001) {
-    outColor = u_historyValid > 0.5 ? texture(u_history, v_uv) : base;
+    outColor = u_cinematic > .5 ? base : (u_historyValid > 0.5 ? texture(u_history, v_uv) : base);
     return;
   }
   float frameFactor = clamp(max(u_deltaTime, 0.0) * 60.0, 0.0, 6.0);
@@ -75,6 +77,16 @@ void main() {
   vec2 historyUv = 0.5 + rotate2d(0.0018 * trailMix * frameFactor * u_drift) * centered * pow(0.9975, frameFactor * u_drift);
   vec4 prior = texture(u_history, clamp(historyUv, vec2(0.0), vec2(1.0)));
   vec4 history = mix(base, prior, step(0.5, u_historyValid));
+  if (u_cinematic > .5) {
+    // Store a bounded max of current highlights and decaying prior highlights. Static pixels do not accumulate energy.
+    float keep = pow(retention, u_decay);
+    float peak = max(history.r, max(history.g, history.b));
+    float delta = length(base.rgb - history.rgb);
+    float motion = mix(1.0, smoothstep(.002, .15, delta), u_motionSensitivity);
+    vec3 echo = history.rgb * keep * smoothstep(.08, .45, peak) * u_trailColor;
+    outColor = vec4(mix(base.rgb, max(base.rgb, echo), trailMix * motion * step(.5,u_historyValid)), base.a);
+    return;
+  }
   vec3 retained = history.rgb * retention;
   vec3 trailed = max(base.rgb, retained);
   trailed += min(base.rgb, retained) * 0.18 * trailMix;
@@ -227,7 +239,7 @@ class HistoryFeedbackEffectInstance implements Cinema2EffectInstance {
       vertSrc: FULLSCREEN_VERT_SRC,
       fragSrc: FEEDBACK_TRAILS_FRAGMENT_SOURCE,
       requiredUniforms: ['u_source', 'u_history', 'u_mix', 'u_persistence', 'u_historyValid', 'u_deltaTime'],
-      optionalUniforms: ['u_drift'],
+      optionalUniforms: ['u_drift', 'u_cinematic', 'u_decay', 'u_motionSensitivity', 'u_trailColor'],
     })
     if (!result.program) throw new Error(`Shader compilation failed at ${result.error.stage} for "${result.error.label}": ${result.error.log}`)
     this.program = result.program
@@ -252,6 +264,12 @@ class HistoryFeedbackEffectInstance implements Cinema2EffectInstance {
     this.gl.colorMask(true, true, true, true)
     this.program.activate()
     this.program.setFloat('u_drift', drift)
+    this.program.setFloat('u_cinematic', booleanValue(context.parameters, 'cinematic', false) ? 1 : 0)
+    this.program.setFloat('u_decay', clamp(numberValue(context.parameters, 'decay', 1), .25, 4))
+    this.program.setFloat('u_motionSensitivity', clamp(numberValue(context.parameters, 'motionSensitivity', 0), 0, 1))
+    const tint = context.parameters.trailColor
+    const channel = (i: number) => Array.isArray(tint) && typeof tint[i] === 'number' ? clamp(Number(tint[i]), 0, 1) : 1
+    this.program.setVec3('u_trailColor', channel(0), channel(1), channel(2))
 
     if (transportInactive) {
       if (!this.transportBypassed) {
@@ -339,6 +357,7 @@ export const cinema2FeedbackTrailsEffectDefinition: Readonly<Cinema2EffectTypeDe
       ...validateNumeric(effect, 'persistence', 0, 1),
     ]
     if (effect.parameters?.drift !== undefined) diagnostics.push(...validateNumeric(effect, 'drift', 0, 1))
+    for (const [name, min, max] of [['decay', .25, 4], ['motionSensitivity', 0, 1]] as const) if (effect.parameters?.[name] !== undefined) diagnostics.push(...validateNumeric(effect, name, min, max))
     const transportAware = effect.parameters?.transportAware
     if (transportAware !== undefined && typeof transportAware !== 'boolean') {
       diagnostics.push({
