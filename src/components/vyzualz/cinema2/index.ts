@@ -1534,3 +1534,6 @@ export { CINEMA2_HONEY_NATIVE_MODULE_TYPE_ID, cinema2HoneyNativeModuleDefinition
 
 export { CINEMA2_HUD_PRESET_ID, CINEMA2_HUD_PRESET_MANIFEST, CINEMA2_HUD_MODULE_ID } from './presets/Cinema2HudPreset'
 export { CINEMA2_HUD_NATIVE_MODULE_TYPE_ID, cinema2HudNativeModuleDefinition } from './modules/Cinema2HudNativeModule'
+
+export { CINEMA2_ORGANISM_PRESET_ID, CINEMA2_ORGANISM_PRESET_MANIFEST, CINEMA2_ORGANISM_MODULE_ID, organismParameterId } from './presets/Cinema2OrganismPreset'
+export { CINEMA2_ORGANISM_NATIVE_MODULE_TYPE_ID, cinema2OrganismNativeModuleDefinition } from './modules/Cinema2OrganismNativeModule'

@@ -1,3 +1,4 @@
+import { cinema2OrganismNativeModuleDefinition } from './Cinema2OrganismNativeModule'
 import { cinema2HudNativeModuleDefinition } from './Cinema2HudNativeModule'
 import { cinema2HoneyNativeModuleDefinition } from './Cinema2HoneyNativeModule'
 import { cinema2BeamLatticeModuleDefinition } from './Cinema2BeamLatticeNativeModule'
@@ -325,3 +326,6 @@ const hudRegistration = cinema2NativeModuleRegistry.register(cinema2HudNativeMod
 if (!hudRegistration.ok) {
   throw new Error(`Cinema 2.0 HUD native module registration failed: ${hudRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
 }
+
+const organismRegistration = cinema2NativeModuleRegistry.register(cinema2OrganismNativeModuleDefinition)
+if (!organismRegistration.ok) throw new Error(`Cinema 2.0 ORGANISM native module registration failed: ${organismRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)

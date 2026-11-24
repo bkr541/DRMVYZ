@@ -42,6 +42,7 @@ When a historical document conflicts with canonical current documentation or the
 | `docs/cinema2-mainframe.md` | Mainframe operator controls, source regeneration, model attributes, patterns, quality policy, lifecycle, acceptance, and known limits |
 | `docs/cinema2-sixfold.md` | Sixfold recursive mirror chamber geometry, materials, controls, lifecycle, capture harness, and Phase C boundary |
 | `docs/cinema2-honey.md` | HONEY phased native geometry, visual and authority specification, implementation ledger and production acceptance plan |
+| `docs/cinema2-organism.md` | ORGANISM native branching geometry, dynamic shadows, shared choreography and review checkpoints |
 | `docs/cinema2-purity.md` | PURITY native architectural tunnel, controls, lighting patterns, audio authority and acceptance plan |
 | `docs/sound-drawing.md` | Sound Drawing sources, timeline, performance programs, Living Ribbon, professional scope signal core, and rendering |
 | `docs/sound-drawing-xy.md` | Sound Drawing XY: the text-first phosphor-beam engine, its musical events, scope window, inspector standard, fonts, lifecycle, and limits |
