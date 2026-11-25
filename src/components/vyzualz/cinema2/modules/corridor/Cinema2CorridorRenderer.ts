@@ -1,5 +1,6 @@
 import { ShaderCompiler } from '../../../react/shaders/runtime/ShaderCompiler'
 import { ShaderProgram } from '../../../react/shaders/runtime/ShaderProgram'
+import type { Cinema2ManagedMediaResource } from '../../media/Cinema2MediaSlotRuntime'
 import type { Cinema2Color } from '../../contracts/Cinema2NativePresetManifest'
 import type { Cinema2ModuleRenderExecutionContext } from '../Cinema2ModuleContracts'
 import { Cinema2GlStateGuard } from '../three/Cinema2GlStateGuard'
@@ -127,6 +128,13 @@ uniform vec3 uWall;
 uniform vec3 uAmber;
 uniform vec3 uHot;
 uniform vec3 uMarkings;
+uniform sampler2D uFeed0;
+uniform sampler2D uFeed1;
+uniform sampler2D uFeed2;
+uniform vec3 uFeedAspect; // zero denotes an unavailable channel
+uniform int uFeedCount;
+uniform float uPoolStep;
+uniform float uCorridorWidth;
 out vec4 outColor;
 
 float hash(vec2 p) {
@@ -170,6 +178,43 @@ float selection(float row, float bank, float lane, float random, float density) 
     return (1.0-smoothstep(.057,.15,bay))*.94 + strength*.16;
   }
   return strength * (.67 + .33 * sin(row*.78-phase*2.45+bank*.72)*sin(row*.78-phase*2.45+bank*.72));
+}
+
+// At most one of four lanes per bank and bay can carry a picture. The
+// original pattern envelope still decides whether that fixture is lit.
+// World-space addressing prevents pictures jumping as mesh bays recycle.
+float mediaLane(float row, float bank) {
+  if (uPattern == 1) return mod(row + bank,4.0); // diagonal relay
+  if (uPattern == 2) return mod(row * (bank < 1.5 ? 1.0 : -1.0) + bank,4.0);
+  if (uPattern == 3) return mod(bank,2.0) < .5 ? -1.0 : 1.0 + mod(row+bank,2.0);
+  if (uPattern == 4) return mod(floor(hash(vec2(row,bank)+81.0)*4.0)+floor(uLook.y*2.0),4.0);
+  if (uPattern == 5) return mod(row + 2.0*bank,4.0); // alternating gate spokes
+  return mod(row + 3.0*bank,4.0); // staggered night transit
+}
+
+vec4 mediaPicture(float bank, float random, float detail, int channel) {
+  float aspect = uFeedAspect[channel];
+  if (aspect <= 0.0) return vec4(0.0);
+  // The four banks have different local orientations. Keep artwork upright
+  // relative to the vanishing point, using the actual physical face aspect.
+  vec2 uv = (vUV - .135) / .73;
+  float across = uCorridorWidth * ${CORRIDOR_BANK_SPAN} * 2.0 / ${LANES}.0 * mix(.72,1.0,random);
+  float axial = ${CORRIDOR_BAY_LENGTH} * mix(.66,1.0,detail);
+  float screenAspect = across / axial;
+  if (bank < .5) { uv = vec2(uv.y,1.0-uv.x); screenAspect = 1.0/screenAspect; }
+  else if (bank < 1.5) uv = vec2(uv.x,uv.y);
+  else if (bank < 2.5) { uv = vec2(1.0-uv.y,uv.x); screenAspect = 1.0/screenAspect; }
+  else uv = vec2(1.0-uv.x,1.0-uv.y);
+  // Contain rather than crop logos, SVGs and portrait/landscape video.
+  vec2 fit = max(vec2(screenAspect/aspect,aspect/screenAspect),vec2(1.0));
+  uv = (uv-.5)*fit+.5;
+  if (any(lessThan(uv,vec2(0.0))) || any(greaterThan(uv,vec2(1.0)))) return vec4(0.0,0.0,0.0,1.0);
+  // Canonical slot uploads are top-down (UNPACK_FLIP_Y_WEBGL = false).
+  vec4 picture;
+  if (channel == 0) picture = texture(uFeed0,uv);
+  else if (channel == 1) picture = texture(uFeed1,uv);
+  else picture = texture(uFeed2,uv);
+  return vec4(pow(max(picture.rgb,vec3(0.0)),vec3(2.2)),picture.a);
 }
 
 float motif(vec2 p, float kind) {
@@ -266,6 +311,14 @@ void main() {
     metal += lampColor * (edge*.19+spill*.045) * uLook.w;
     float warmGrain = (1.0-smoothstep(.21,.48,length(local))) * .14 + stipple;
     emission = lampColor * diffuser * fixture * min(5.5,(.50+2.95*level)*uLook.w) * warmGrain;
+    if (uFeedCount > 0 && lane == mediaLane(row,bank) && fixture > .001 && diffuser > .001) {
+      int channel = int(mod(row + bank*2.0 + uPoolStep,float(uFeedCount)));
+      vec4 picture = mediaPicture(bank,random,detail,channel);
+      // Retain the LED rim and the other three lanes. Limit picture exposure
+      // independently of the hot diffuser so content survives HDR bloom.
+      vec3 imageEmission = picture.rgb * diffuser * fixture * min(2.0,(.45+1.1*level)*uLook.w);
+      emission = mix(emission,imageEmission,picture.a*(1.0-.35*clamp(ring,0.0,1.0)));
+    }
     float mark = motif(local,hash(id + 67.0));
     float annotation = step(.60,detail) * (1.0-fixture) * (0.62 + .30 * uAccents.y);
     marking = mark * annotation * uMarkings * uLook.w;
@@ -325,6 +378,7 @@ export class Cinema2CorridorRenderer {
   private readonly vao: WebGLVertexArrayObject
   private readonly buffer: WebGLBuffer
   private readonly program: ShaderProgram
+  private readonly emptyFeed: WebGLTexture
   private readonly guard: Cinema2GlStateGuard
   private readonly count: number
   readonly bytes: number
@@ -333,15 +387,22 @@ export class Cinema2CorridorRenderer {
     this.guard = new Cinema2GlStateGuard(gl)
     const data = buildCorridorGeometry()
     this.count = data.length / CORRIDOR_VERTEX_FLOATS
-    this.bytes = data.byteLength
+    this.bytes = data.byteLength + 4
     this.guard.capture()
     const vao = gl.createVertexArray()
     const buffer = gl.createBuffer()
+    const emptyFeed = gl.createTexture()
     try {
-      if (!vao || !buffer) throw new Error('Corridor could not allocate its cassette mesh.')
+      if (!vao || !buffer || !emptyFeed) throw new Error('Corridor could not allocate its cassette mesh.')
+      gl.activeTexture(gl.TEXTURE0)
+      gl.bindTexture(gl.TEXTURE_2D, emptyFeed)
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+      gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array(4))
+      this.emptyFeed = emptyFeed
       const compiled = ShaderProgram.create(gl, new ShaderCompiler(gl), {
         vertSrc: VERTEX, fragSrc: FRAGMENT, label: 'cinema2/corridor',
-        requiredUniforms: ['uView', 'uProjection', 'uPose', 'uLook', 'uAccents', 'uMechanical', 'uTravel', 'uPattern', 'uHaze', 'uVoid', 'uWall', 'uAmber', 'uHot', 'uMarkings'],
+        requiredUniforms: ['uView', 'uProjection', 'uPose', 'uLook', 'uAccents', 'uMechanical', 'uTravel', 'uPattern', 'uHaze', 'uVoid', 'uWall', 'uAmber', 'uHot', 'uMarkings', 'uFeed0', 'uFeed1', 'uFeed2', 'uFeedAspect', 'uFeedCount', 'uPoolStep', 'uCorridorWidth'],
       })
       if (!compiled.program) throw new Error(compiled.error.log)
       this.program = compiled.program
@@ -357,13 +418,15 @@ export class Cinema2CorridorRenderer {
     } catch (error) {
       gl.deleteVertexArray(vao)
       gl.deleteBuffer(buffer)
+      gl.deleteTexture(emptyFeed)
       throw error
     } finally {
       this.guard.restore()
     }
   }
 
-  draw(execution: Cinema2ModuleRenderExecutionContext, look: Readonly<CorridorLook>) {
+  draw(execution: Cinema2ModuleRenderExecutionContext, look: Readonly<CorridorLook>,
+    feeds: readonly (Readonly<Cinema2ManagedMediaResource> | null)[] = [], poolStep = 0) {
     const camera = execution.camera
     if (!camera || !execution.depthAvailable) throw new Error('Corridor requires a world camera and depth attachment.')
     const gl = this.gl
@@ -390,6 +453,19 @@ export class Cinema2CorridorRenderer {
       for (const [name,value] of [['uVoid',look.voidColor],['uWall',look.wall],['uAmber',look.amber],['uHot',look.hot],['uMarkings',look.markings]] as const) {
         program.setVec3(name,value[0],value[1],value[2])
       }
+      const aspect = (index: number) => {
+        const feed = feeds[index]
+        return feed ? feed.width / Math.max(1, feed.height) : 0
+      }
+      program.setVec3('uFeedAspect',aspect(0),aspect(1),aspect(2))
+      program.setInt('uFeedCount',Math.min(3,feeds.length))
+      program.setFloat('uPoolStep',poolStep)
+      program.setFloat('uCorridorWidth',look.width)
+      for (let index = 0; index < 3; index++) {
+        gl.activeTexture(gl.TEXTURE0 + index)
+        gl.bindTexture(gl.TEXTURE_2D,feeds[index]?.texture ?? this.emptyFeed)
+        program.setInt(`uFeed${index}`,index)
+      }
       gl.drawArrays(gl.TRIANGLES,0,this.count)
     } finally {
       this.guard.restore()
@@ -400,5 +476,6 @@ export class Cinema2CorridorRenderer {
     this.program.dispose()
     this.gl.deleteVertexArray(this.vao)
     this.gl.deleteBuffer(this.buffer)
+    this.gl.deleteTexture(this.emptyFeed)
   }
 }

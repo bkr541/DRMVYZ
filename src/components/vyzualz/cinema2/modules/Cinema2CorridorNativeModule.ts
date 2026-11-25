@@ -1,6 +1,8 @@
 import { Cinema2PatternControlResolver } from '../conductor/Cinema2PatternControls'
 import { cinema2StableId, type Cinema2Color, type Cinema2ModuleTypeId } from '../contracts/Cinema2NativePresetManifest'
 import { CINEMA2_AFTERHOURS_TRIGGER_IDS, resolveCinema2AfterhoursTriggerEventIdentity, type Cinema2AfterhoursTriggerId } from './Cinema2AfterhoursNativeModule'
+import { Cinema2MediaSlotRuntime } from '../media/Cinema2MediaSlotRuntime'
+import { Cinema2EverywherePool, EVERYWHERE_POOL_SLOTS } from './everywhere/Cinema2EverywherePool'
 import { Cinema2BeatClock } from './Cinema2BeatClock'
 import type { Cinema2ModuleCreateContext, Cinema2ModuleRenderExecutionContext, Cinema2ModuleTypeDefinition, Cinema2ModuleUpdateContext } from './Cinema2ModuleContracts'
 import { Cinema2CorridorRenderer, CORRIDOR_PATTERNS, type CorridorLook, type CorridorPattern } from './corridor/Cinema2CorridorRenderer'
@@ -20,6 +22,17 @@ const DEFAULT_LOOK: Readonly<CorridorLook> = {
   haze: 0.23, pattern: 'night-transit', kick: 0, bass: 0, extensionBuild: 0, transient: 0, build: 0, drop: 0,
 }
 
+export function corridorPoolTrigger(pattern: CorridorPattern): Cinema2AfterhoursTriggerId {
+  switch (pattern) {
+    case 'relay': return 'beat4'
+    case 'counterflow': return 'bar'
+    case 'shaft': return 'bar4'
+    case 'signal-fault': return 'beat2'
+    case 'gate': return 'bar'
+    default: return 'bar4'
+  }
+}
+
 /** Runtime-only phase and pattern authority; persistent values remain in Parameter State. */
 export class Cinema2CorridorPerformance {
   private readonly clock = new Cinema2BeatClock()
@@ -32,6 +45,8 @@ export class Cinema2CorridorPerformance {
   private phase = 0
   private authored: CorridorPattern = 'night-transit'
   private look: Readonly<CorridorLook> = DEFAULT_LOOK
+  private lastMediaTrigger: Cinema2AfterhoursTriggerId | null = null
+  poolFrame = { identity: '', reset: false, paused: true, event: null as string | null, patternChanged: false }
 
   constructor(sample: (index: number) => number) {
     this.patterns = new Cinema2MainframePatternController(createCinema2MainframePatternCycle(
@@ -121,6 +136,14 @@ export class Cinema2CorridorPerformance {
       kick, bass, extensionBuild, transient: signal('transient', this.look.transient), build, drop,
       voidColor: color('voidColor'), wall: color('wall'), amber: color('amber'), hot: color('hot'), markings: color('markings'),
     }
+    const mediaTrigger = CINEMA2_AFTERHOURS_TRIGGER_IDS.find(trigger => trigger === parameters.get('poolTrigger'))
+      ?? corridorPoolTrigger(this.look.pattern)
+    this.poolFrame = { identity, reset, paused: !playing,
+      patternChanged: selection?.changed === true || desired !== this.authored || mediaTrigger !== this.lastMediaTrigger,
+      event: playing && motion > 0 && !(auto && (frame.mood?.silence ?? 0) > .5)
+        ? resolveCinema2AfterhoursTriggerEventIdentity(frame, mediaTrigger, reset ? null : this.previousTime) : null,
+    }
+    this.lastMediaTrigger = mediaTrigger
     this.identity = identity
     this.previousTime = time
     this.lastBeat = beat
@@ -144,11 +167,20 @@ export const cinema2CorridorNativeModuleDefinition: Readonly<Cinema2ModuleTypeDe
   create(context: Cinema2ModuleCreateContext) {
     const performance = new Cinema2CorridorPerformance(index => context.randomness.sample('corridor-pattern-cycle', index))
     const renderer = context.resources.acquire('corridor:cassettes', 'CorridorRenderer', gl => new Cinema2CorridorRenderer(gl), value => value.dispose())
-    context.resources.reportGpuBytes(renderer.bytes)
+    const source = context.mediaPoolSource
+    // Reuse the existing three-channel named-pool runtime in an isolated lease.
+    const pool = source ? context.resources.acquire('corridor:pool', 'CorridorMediaPool', gl =>
+      new Cinema2EverywherePool(source, new Cinema2MediaSlotRuntime(gl, EVERYWHERE_POOL_SLOTS)), value => value.dispose()) : null
+    let reportedBytes = renderer.bytes
+    context.resources.reportGpuBytes(reportedBytes)
     let look = DEFAULT_LOOK
     return {
       lifecycle: {
-        update: (frame: Cinema2ModuleUpdateContext) => { look = performance.update(frame) },
+        update: (frame: Cinema2ModuleUpdateContext) => {
+          look = performance.update(frame)
+          const { identity, event, reset, paused, patternChanged } = performance.poolFrame
+          pool?.update(identity, event, reset, paused, patternChanged)
+        },
         dispose: () => { /* GPU resources are released by the engine-owned lease. */ },
 
       },
@@ -156,9 +188,18 @@ export const cinema2CorridorNativeModuleDefinition: Readonly<Cinema2ModuleTypeDe
         id: `${context.module.id}:passage`,
         moduleId: context.module.id,
         intent: 'world' as const,
-        execute: (execution: Cinema2ModuleRenderExecutionContext) => renderer.draw(execution, look),
+        execute: (execution: Cinema2ModuleRenderExecutionContext) => {
+          const poolFeeds = pool?.getResources() ?? []
+          const usePool = source?.getSelection() != null
+          // An active pool takes precedence, including while its feeds load.
+          const feeds = usePool ? poolFeeds.slice(0, Math.min(3, pool?.count ?? 0)) : [context.media.get('panelMedia')]
+          renderer.draw(execution, look, feeds, usePool ? pool?.step ?? 0 : 0)
+          const bytes = renderer.bytes + poolFeeds.reduce((sum, feed) => sum + (feed ? feed.width * feed.height * 4 : 0), 0)
+          if (bytes !== reportedBytes) { context.resources.reportGpuBytes(bytes); reportedBytes = bytes }
+        },
       }] },
-      inspect: () => performance.inspect(),
+      inspect: () => ({ ...performance.inspect(), userMedia: context.media.get('panelMedia') != null,
+        poolMediaCount: pool?.count ?? 0, poolStep: pool?.step ?? 0, poolReadyChannels: pool?.getResources().filter(Boolean).length ?? 0 }),
     }
   },
 }

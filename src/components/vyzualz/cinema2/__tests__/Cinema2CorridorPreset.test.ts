@@ -2,11 +2,11 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { setAutoPerformanceUserDefault } from '../../../../lib/autoPerformanceDefault'
 import { createCinema2DesignParentGroupModel } from '../parameters/Cinema2InspectorModel'
 import { Cinema2ParameterState } from '../parameters/Cinema2ParameterState'
-import { Cinema2CorridorPerformance } from '../modules/Cinema2CorridorNativeModule'
+import { Cinema2CorridorPerformance, corridorPoolTrigger } from '../modules/Cinema2CorridorNativeModule'
 import type { Cinema2ModuleUpdateContext } from '../modules/Cinema2ModuleContracts'
-import { buildCorridorGeometry, CORRIDOR_VERTEX_FLOATS, CORRIDOR_MAX_INSET, CORRIDOR_BANK_SPAN } from '../modules/corridor/Cinema2CorridorRenderer'
+import { CORRIDOR_PATTERNS, buildCorridorGeometry, CORRIDOR_VERTEX_FLOATS, CORRIDOR_MAX_INSET, CORRIDOR_BANK_SPAN } from '../modules/corridor/Cinema2CorridorRenderer'
 import { CINEMA2_AFTERHOURS_TRIGGER_OPTIONS } from '../presets/Cinema2AfterhoursPreset'
-import { CINEMA2_CORRIDOR_PRESET_ID, CINEMA2_CORRIDOR_PRESET_MANIFEST } from '../presets/Cinema2CorridorPreset'
+import { CINEMA2_CORRIDOR_MEDIA_SLOT, CINEMA2_CORRIDOR_PRESET_ID, CINEMA2_CORRIDOR_PRESET_MANIFEST } from '../presets/Cinema2CorridorPreset'
 import { validateCinema2PresetAuthoringConventions } from '../presets/Cinema2PresetAuthoring'
 import { cinema2NativePresetRegistry } from '../presets/Cinema2PresetRegistry'
 
@@ -27,6 +27,14 @@ describe('Corridor', () => {
       options: CINEMA2_AFTERHOURS_TRIGGER_OPTIONS,
       visibleWhen: [{ kind: 'parameter-equals', parameterId: 'corridor-pattern-change', value: true }],
     })
+  })
+
+  it('declares an optional canonical media slot and an independent musical pool cadence', () => {
+    expect(manifest.mediaSlots).toEqual([{ id: CINEMA2_CORRIDOR_MEDIA_SLOT, label: 'Panel Media', accepts: ['image','video','svg'] }])
+    expect(manifest.modules?.[0]?.media?.panelMedia?.$ref).toBe(CINEMA2_CORRIDOR_MEDIA_SLOT)
+    expect(parameter('panel-media').mediaSlot?.$ref).toBe(CINEMA2_CORRIDOR_MEDIA_SLOT)
+    expect(parameter('pool-trigger')).toMatchObject({ defaultValue: 'program', options: [{ value: 'program', label: 'Program cadence' }, ...CINEMA2_AFTERHOURS_TRIGGER_OPTIONS] })
+    expect(CORRIDOR_PATTERNS.map(pattern => corridorPoolTrigger(pattern.value))).toEqual(['bar4','beat4','bar','bar4','beat2','bar'])
   })
 
   it('builds a backing, telescoping mount, rigid body, bevel, recessed strip and face for every cell', () => {

@@ -59,3 +59,22 @@ First validate the static atmosphere and the vanishing point on the production c
 Run `node scripts/verify-cinema2-corridor.mjs` to render the registered native preset, exercise its Inspector and audio behavior, and write the review captures to `artifacts/cinema2-corridor/`. The script covers all pattern looks, both System Settings defaults, palette and effect consumers, authored and music-selected Pattern Change authority, playback and 72 BPM timing, cue deduplication, pause, seek, silence, square and portrait, and WebGL context recovery.
 
 Corridor is selectable in the production registry as a reference entry pending human visual and live musical review. The current shared Inspector inserts its live policy text as it appears. Its existing reserved-slot test is a shared spacing limitation. The real-browser review checks the displayed policy, Trigger visibility, and which controls are locked.
+
+## Optional user media
+
+The Source tab uses the same shared Media Library as EVERYWHERE, including collections, favorites, named pools and Make Active / Add to Pool actions. The optional Panel Media slot accepts images, SVGs and videos; no selection leaves the original procedural corridor intact. Selecting an individual item deactivates the shared active pool. Activating a pool takes precedence over the individual feed; unready channels use the original lighting rather than blanking the passage. Clearing the pool restores the individual feed if one remains assigned.
+
+Media replaces only the diffuser content of a recruited fixture, never the graphite housing, bevel, LED rim or entire wall. At most one of four lanes per bank and bay is eligible (25% of all fixtures); the existing lighting envelope further limits actual coverage. Content is aspect-contained, using the orientation of each physical bank, and its brightness is bounded to protect artwork from the hot bloom. The existing bay recycling, build extension, kick response and drop ring are unchanged.
+
+| Pattern | Picture placement | Default pool cadence |
+| --- | --- | --- |
+| Night Transit | Staggered lanes across four banks | 4 bars |
+| Relay | Diagonal relay lanes within the traveling chase | 4 beats |
+| Counterflow | Opposing directional lanes | 1 bar |
+| Shaft | Alternating center lanes on ceiling and floor | 4 bars |
+| Signal Fault | Sparse deterministic lane changes following the fault tick | 2 beats |
+| Gate | Alternating spokes in the traveling ring | 1 bar |
+
+The Design > Panel Media > Pool Trigger control overrides the program cadence with canonical musical events, independently of Pattern Change. Pool playback uses the existing three-channel runtime, with event deduplication, asynchronous replacement, last-good-frame retention and scoped cleanup. A pool larger than three items rotates through its remaining items on successive eligible events. Pause holds pool videos and sequencing; no motion or automatic silence suppresses advancement. Existing System Settings and Inspector locking remain authoritative.
+
+Review on the production canvas with no media, an individual transparent SVG, portrait and landscape images, a video, two- and five-item pools, and a missing/unready feed. For each pattern verify visible artwork among the existing lights, pool advancement, manual Pattern Change independence, pause, seek, context recovery, and return to the original visual after clearing media.

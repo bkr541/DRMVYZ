@@ -3,7 +3,7 @@ import {
   cinema2NamespacedId, cinema2Ref, cinema2StableId,
   type Cinema2CameraId, type Cinema2ChoreographyActionId, type Cinema2ChoreographyContinuousSourcePath, type Cinema2ChoreographyRuleId,
   type Cinema2ChoreographyRuleManifest, type Cinema2DesignParentGroup, type Cinema2EffectId, type Cinema2LayerId,
-  type Cinema2ModuleId, type Cinema2NativePresetManifest, type Cinema2ParameterId, type Cinema2ParameterManifest, type Cinema2PresetId,
+  type Cinema2MediaSlotId, type Cinema2ModuleId, type Cinema2NativePresetManifest, type Cinema2ParameterId, type Cinema2ParameterManifest, type Cinema2PresetId,
   type Cinema2RenderPassId, type Cinema2RenderSlotId, type Cinema2RenderTargetId, type Cinema2SceneNodeId,
 } from '../contracts/Cinema2NativePresetManifest'
 import { CINEMA2_CINEMATIC_FINISH_EFFECT_TYPE_ID } from '../effects/Cinema2CinematicFinishEffect'
@@ -16,6 +16,7 @@ import { cinema2AutoTargets } from './Cinema2AutoPerformanceAuthoring'
 import { withCinema2MoodDrives } from './Cinema2MoodConductorAuthoring'
 
 export const CINEMA2_CORRIDOR_PRESET_ID = cinema2NamespacedId<Cinema2PresetId>('drmvyz.cinema2.corridor')
+export const CINEMA2_CORRIDOR_MEDIA_SLOT = cinema2StableId<Cinema2MediaSlotId>('corridor-panel-media')
 const parameter = (name: string) => cinema2StableId<Cinema2ParameterId>(`corridor-${name}`)
 const ref = (name: string) => cinema2Ref(parameter(name))
 const root = cinema2StableId<Cinema2SceneNodeId>('corridor-root')
@@ -46,7 +47,7 @@ const swatch = (name: string, label: string, role: keyof typeof CORRIDOR_COLORS,
 const parameterBindings = {
   motion: ref('motion'), bpmSync: ref('bpm-sync'), autoPerformance: auto, width: ref('width'),
   transit: ref('transit'), roll: ref('roll'), density: ref('density'), intensity: ref('intensity'), haze: ref('haze'),
-  pattern: ref('pattern'), patternChange: ref('pattern-change'), trigger: ref('trigger'),
+  pattern: ref('pattern'), patternChange: ref('pattern-change'), trigger: ref('trigger'), poolTrigger: ref('pool-trigger'),
   voidColor: ref('void'), wall: ref('wall'), amber: ref('amber'), hot: ref('hot'), markings: ref('markings'),
 }
 const route = (name: string, path: Cinema2ChoreographyContinuousSourcePath, capability: 'audio.features' | 'audio.bands' | 'visual-director.significance', smoothingMs: number): Cinema2ChoreographyRuleManifest => ({
@@ -88,6 +89,8 @@ const parameters: readonly Cinema2ParameterManifest[] = [
     { ...base('pattern-change','Pattern Change','design','Pattern',2,'Advance the active pattern on a fresh event from the selected Trigger.'), type: 'boolean', defaultValue: false },
     { ...base('trigger','Trigger','design','Pattern',3,'Musical event that advances the active pattern.'), type: 'enum',
       defaultValue: 'bar4', options: CINEMA2_AFTERHOURS_TRIGGER_OPTIONS, visibleWhen: [{ kind: 'parameter-equals', parameterId: parameter('pattern-change'), value: true }] },
+    { ...base('panel-media','Panel Media','design','Panel Media',1,'Choose an image, SVG or video in the Source tab’s Media Library.'), type: 'media', defaultValue: null, mediaSlot: cinema2Ref(CINEMA2_CORRIDOR_MEDIA_SLOT) },
+    { ...base('pool-trigger','Pool Trigger','design','Panel Media',2,'Advance the active pool independently of Pattern Change; Program follows the current corridor pattern.'), type: 'enum', defaultValue: 'program', options: [{ value: 'program', label: 'Program cadence' }, ...CINEMA2_AFTERHOURS_TRIGGER_OPTIONS] },
     slider('bloom','Bloom','effects','Atmosphere',1,0.36,0,1.2,'Restrained glow from bright panel cores.'),
     slider('haze','Depth Haze','effects','Atmosphere',2,0.23,0,1,'Falloff matching the distance through the dark passage.'),
     swatch('void','Void','voidColor',1,'Dark color at the end of the passage.'),
@@ -106,7 +109,7 @@ const manifest: Cinema2NativePresetManifest = {
   id: CINEMA2_CORRIDOR_PRESET_ID, revision: 1,
   metadata: {
     name: 'Corridor', author: 'STAGELESS', category: 'Architecture',
-    description: 'Travel down a dark graphite passage with extruded, mechanically reactive amber, ember and ivory lighting modules on all four surfaces.',
+    description: 'Travel down a dark graphite passage with extruded, mechanically reactive amber, ember and ivory lighting modules on all four surfaces, with optional user media on selected choreography panels.',
     tags: ['cinematic', '3d', 'architecture', 'tunnel', 'led', 'audio-reactive'],
   },
   capabilities: [
@@ -120,12 +123,16 @@ const manifest: Cinema2NativePresetManifest = {
     { id: 'music.rhythm-events', requirement: 'optional', purpose: 'Kicks punch the nearest bays and actuate grouped panel pistons.' },
     { id: 'music.drop', requirement: 'optional', purpose: 'Drops light a square frame across four banks.' },
     { id: 'visual-director.significance', requirement: 'optional', purpose: 'Builds recruit successively nearer bays and progressively extend panel pistons.' },
+    { id: 'media.image', requirement: 'optional', purpose: 'Images on selected corridor panels.' },
+    { id: 'media.video', requirement: 'optional', purpose: 'Video on selected corridor panels.' },
+    { id: 'media.svg', requirement: 'optional', purpose: 'SVG artwork on selected corridor panels.' },
   ],
   parameters,
+  mediaSlots: [{ id: CINEMA2_CORRIDOR_MEDIA_SLOT, label: 'Panel Media', accepts: ['image', 'video', 'svg'] }],
   modules: [{
     id: moduleId, typeId: CINEMA2_CORRIDOR_MODULE_TYPE_ID, version: 1,
     parameters: { ...moduleDefaults, energy: 0, bass: 0, transient: 0, vocal: 0, kick: 0, build: 0, drop: 0 },
-    parameterBindings,
+    parameterBindings, media: { panelMedia: cinema2Ref(CINEMA2_CORRIDOR_MEDIA_SLOT) },
   }],
   scene: {
     nodes: [
