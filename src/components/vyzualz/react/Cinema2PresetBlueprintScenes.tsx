@@ -8,6 +8,7 @@ import goonzMaster from '../../../assets/goonz_true_vector_master.svg?raw'
  * foreground at the right, secondary subjects at the left, open title volume.
  * These drawings never read or trace a rendered frame. */
 export const ADDITIONAL_BLUEPRINT_MOTIFS = {
+  'drmvyz.cinema2.colossus': ['Articulated arms', 'Open mechanical emblem', 'Octagonal bulkheads', 'Floor energy tracks'],
   'drmvyz.cinema2.backstreet': ['Neon wordmark', 'Glass tube returns', 'Brick courses', 'Wall mounts'],
   'drmvyz.cinema2.conduit': ['Chrome feed tubes', 'Cloud core', 'Chamber ribs', 'Segmented energy routes'],
   'drmvyz.cinema2.echoform': ['Headphone bulldog', 'Layered facial contours', 'Triangulated scan', 'Suspended scan points'],
@@ -45,6 +46,7 @@ type SceneId = keyof typeof ADDITIONAL_BLUEPRINT_MOTIFS
  * the focal geometry inside the slice window avoids losing a face, cap, or lens
  * to cropping while secondary objects still fall into the left-edge fade. */
 const SUBJECT_PLANES: Record<SceneId, readonly [string, string, string, string]> = {
+  'drmvyz.cinema2.colossus': ['', '', '', ''],
   'drmvyz.cinema2.backstreet': ['translate(-15 8)', 'translate(-15 8)', 'translate(12 -10)', 'translate(0 22)'],
   'drmvyz.cinema2.conduit': ['translate(-15 5)', 'translate(-21 18)', 'translate(-27 20)', 'translate(0 -5)'],
   'drmvyz.cinema2.echoform': ['translate(140 72) scale(.82) translate(-165 -40)', 'translate(140 72) scale(.82) translate(-165 -40)', 'translate(-25 25)', 'translate(10 -16)'],
@@ -375,7 +377,17 @@ function OpenDecks() {
   </Scene>
 }
 
+function Colossus() {
+  return <Scene id="drmvyz.cinema2.colossus">
+    <g>{[[-1,-1],[1,-1],[-1,1],[1,1]].map(([x,y],i)=><g key={i} transform={`translate(142 70) scale(${x} ${y})`}><path d="M85 45 58 31 45 16 39 16 36 21 52 38 81 53Z" fill="currentColor" fillOpacity=".11"/><circle cx="58" cy="34" r="7"/><circle cx="82" cy="49" r="9"/><path d="M79 44 58 29 45 18M42 13 35 13 30 19M42 23 35 26 30 22"/></g>)}</g>
+    <g><path d="M111 78 125 53 162 53 178 67 162 87 124 87Z M124 74 132 61 157 61 166 68 157 79 131 79Z" fill="currentColor" fillRule="evenodd" fillOpacity=".13"/><path d="M111 78 111 83 124 92 162 92 178 72 178 67"/></g>
+    <g opacity=".28">{[0,1,2].map(i=><path key={i} transform={`translate(142 70) scale(${1-i*.18}) translate(-142 -70)`} d="M35 16H249L270 38V108L249 132H35L14 108V38Z"/>)}</g>
+    <g opacity=".6"><ellipse cx="142" cy="119" rx="66" ry="14" strokeDasharray="5 3"/><ellipse cx="142" cy="119" rx="48" ry="10"/><path d="M76 119H208M142 105V133" opacity=".35"/></g>
+  </Scene>
+}
+
 export const ADDITIONAL_BLUEPRINT_DRAWINGS = {
+  'drmvyz.cinema2.colossus': Colossus,
   'drmvyz.cinema2.backstreet': Backstreet, 'drmvyz.cinema2.conduit': Conduit,
   'drmvyz.cinema2.echoform': Echoform, 'drmvyz.cinema2.echowave': Echowave,
   'drmvyz.cinema2.electric-storm': ElectricStorm, 'drmvyz.cinema2.elevhate': Elevhate,
@@ -394,6 +406,7 @@ export const ADDITIONAL_BLUEPRINT_DRAWINGS = {
 
 /** Small, distinct camera poses preserve hand-placed open title volumes. */
 export const ADDITIONAL_BLUEPRINT_FRAMING = {
+  'drmvyz.cinema2.colossus': 'translate(112 80) scale(1.02) translate(-120 -75)',
   'drmvyz.cinema2.backstreet': 'translate(115 79) rotate(-5) scale(1.01) translate(-120 -75)',
   'drmvyz.cinema2.conduit': 'translate(113 80) rotate(-7) scale(1.02) translate(-120 -75)',
   'drmvyz.cinema2.echoform': 'translate(112 83) rotate(-6) scale(1.03) translate(-120 -75)',

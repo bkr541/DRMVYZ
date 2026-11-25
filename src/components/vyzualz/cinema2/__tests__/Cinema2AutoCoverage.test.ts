@@ -84,6 +84,7 @@ describe('what Auto Performance does not move, and why', () => {
       'ancient-machine': ['Music Reactivity (authority)'],
       cathedral: ['Music Reactivity (authority)'],
       constellation: ['Element Count (structural)', 'Music Reactivity (authority)'],
+      colossus: ['Model Pitch (exempt)', 'Model Roll (exempt)', 'Model Scale (exempt)', 'Model X (exempt)', 'Model Y (exempt)', 'Model Yaw (exempt)', 'Model Z (exempt)', 'Music Reactivity (exempt)'],
       depth: ['Random Seed (structural)'],
       'event-horizon': ['Music Reactivity (authority)'],
       'go-to': ['Master Intensity (authority)'],

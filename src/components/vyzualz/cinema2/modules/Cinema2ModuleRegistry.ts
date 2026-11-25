@@ -1,3 +1,4 @@
+import { cinema2ColossusNativeModuleDefinition } from './Cinema2ColossusNativeModule'
 import { artifactNativeModuleDefinitions } from './Cinema2ArtifactNativeModule'
 import { cinema2OrganismNativeModuleDefinition } from './Cinema2OrganismNativeModule'
 import { cinema2HudNativeModuleDefinition } from './Cinema2HudNativeModule'
@@ -339,3 +340,6 @@ for(const definition of artifactNativeModuleDefinitions){
 
 const overdriveRegistration = cinema2NativeModuleRegistry.register(cinema2OverdriveNativeModuleDefinition)
 if (!overdriveRegistration.ok) throw new Error('Cinema 2.0 OVERDRIVE module registration failed.')
+
+const colossusRegistration = cinema2NativeModuleRegistry.register(cinema2ColossusNativeModuleDefinition)
+if (!colossusRegistration.ok) throw new Error('Cinema 2.0 COLOSSUS module registration failed.')

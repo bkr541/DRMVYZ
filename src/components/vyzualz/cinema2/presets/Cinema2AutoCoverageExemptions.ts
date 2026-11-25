@@ -13,6 +13,16 @@ const MAPPED_BY_RULE = 'The preset maps this saved value to its targets through 
 const NEVER_ZOOMS = 'Open Decks never zooms or turns: its only camera movement is the slight left and right sway authored in the preset.'
 
 export const CINEMA2_AUTO_COVERAGE_EXEMPT: Readonly<Record<string, Readonly<Record<string, string>>>> = Object.freeze({
+  colossus: Object.freeze({
+    'colossus-reactivity': 'User-owned fit, alignment or modulation authority; never changed by Auto Performance.',
+    'colossus-model-scale': 'User-owned fit, alignment or modulation authority; never changed by Auto Performance.',
+    'colossus-model-x': 'User-owned fit, alignment or modulation authority; never changed by Auto Performance.',
+    'colossus-model-y': 'User-owned fit, alignment or modulation authority; never changed by Auto Performance.',
+    'colossus-model-z': 'User-owned fit, alignment or modulation authority; never changed by Auto Performance.',
+    'colossus-model-yaw': 'User-owned fit, alignment or modulation authority; never changed by Auto Performance.',
+    'colossus-model-pitch': 'User-owned fit, alignment or modulation authority; never changed by Auto Performance.',
+    'colossus-model-roll': 'User-owned fit, alignment or modulation authority; never changed by Auto Performance.',
+  }),
   allstar: Object.freeze({
     'allstar-tunnel-width': 'Changing the physical corridor radius during a recycled segment pass breaks the fixed architectural framing.',
     'allstar-tunnel-depth': 'Changing segment spacing changes the recycling period and causes a discontinuous spatial jump.',
