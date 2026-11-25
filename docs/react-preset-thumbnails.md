@@ -89,3 +89,9 @@ ATL HOE’s towers are individually stretched upward from their bases, with smal
 | open-decks | Raised screen housing · Jog wheel ring · Pad buttons · Side shoulders |
 
 `node scripts/verify-preset-thumbnails.mjs` derives the review catalog from the public native registry and checks all 36 unique IDs at 240px and 160px widths. It verifies four motif groups per scene, the shared Engine line weight, translucent surfaces, clipping, title typography and centering, and unchanged background lighting. Review sheets are written to `/tmp/drmvyz-preset-review/cinema2-catalog-1.png` and `cinema2-catalog-2.png`.
+
+### Missing Cinema 2.0 rendered artwork
+
+Shipped WebP frames remain the preferred poster backdrop. When a native Cinema 2.0 artwork file fails to load, the shared artwork component queues a detached 480 × 270 native runtime capture, rejects blank frames and caches the result for the session. This does not change preset activation or use the user's media. On hardware without working WebGL2, a missing frame remains unavailable.
+
+To generate and ship actual WebP files for every missing public Cinema 2.0 preset, start the Vite dev server (`npm run dev`) and, in another terminal, run `node scripts/generate-preset-artwork.mjs --cinema --missing`. Commit the resulting `public/preset-artwork` files. The generator and fallback use the same native capture path.

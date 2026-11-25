@@ -772,6 +772,47 @@ describe('MediaLibraryBrowser virtualization', () => {
 
 })
 
+describe('MediaLibraryBrowser manager: folder groups', () => {
+  it('uses the standard collapsible group and creates a collection from the inline row', async () => {
+    mocks.mediaState.createCollection = vi.fn().mockResolvedValue('new-collection')
+    await renderBrowser({ activeMediaId: null, onSelect: vi.fn(), context: 'manager', capabilities: MEDIA_MANAGER_CAPABILITIES })
+    act(() => findButton('Collections')?.click())
+    const group = container?.querySelector<HTMLElement>('section[aria-label="Collections"]')
+    const header = group?.querySelector<HTMLButtonElement>('.drc-header')
+    expect(header?.getAttribute('aria-expanded')).toBe('true')
+    const input = group?.querySelector<HTMLInputElement>('[aria-label="New collection name"]')!
+    const button = group?.querySelector<HTMLButtonElement>('[aria-label="Create collection"]')!
+    expect(button.disabled).toBe(true)
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input, 'Encore')
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    expect(button.disabled).toBe(false)
+    await act(async () => { button.click() })
+    expect(mocks.mediaState.createCollection).toHaveBeenCalledWith('Encore')
+    expect(input.value).toBe('')
+    act(() => header?.click())
+    expect(header?.getAttribute('aria-expanded')).toBe('false')
+    expect(group?.querySelector('.vz-pool-create')).toBeNull()
+  })
+
+  it('keeps the collection name when creation fails', async () => {
+    mocks.mediaState.createCollection = vi.fn().mockResolvedValue(null)
+    mocks.mediaState.loadError = 'Sign in to create a collection.'
+    await renderBrowser({ activeMediaId: null, onSelect: vi.fn(), context: 'manager', capabilities: MEDIA_MANAGER_CAPABILITIES })
+    act(() => findButton('Collections')?.click())
+    const group = container?.querySelector<HTMLElement>('section[aria-label="Collections"]')
+    const input = group?.querySelector<HTMLInputElement>('[aria-label="New collection name"]')!
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input, 'Encore')
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    await act(async () => { group?.querySelector<HTMLButtonElement>('[aria-label="Create collection"]')?.click() })
+    expect(input.value).toBe('Encore')
+    expect(group?.querySelector('[role="alert"]')?.textContent).toContain('Sign in to create a collection.')
+  })
+})
+
 describe('MediaLibraryBrowser manager: Pools tab', () => {
   it('shows the Pools filter and an empty state when no pools exist', async () => {
     await renderBrowser({
@@ -783,6 +824,9 @@ describe('MediaLibraryBrowser manager: Pools tab', () => {
 
     act(() => findButton('Pools')?.click())
     expect(container?.textContent).toContain('No Pools yet.')
+    const group = container?.querySelector('section[aria-label="Pools"]')
+    expect(group?.querySelector('.drc-header')?.getAttribute('aria-expanded')).toBe('true')
+    expect(group?.querySelector('.drc-body .vz-pool-create')).not.toBeNull()
   })
 
   it('lists existing pools, drills into one, and deletes it', async () => {

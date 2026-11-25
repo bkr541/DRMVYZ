@@ -9,6 +9,7 @@ import { UnderlineTabs } from '../react/controls/UnderlineTabs'
 import { DrawerNotice } from '../shared/DrawerNotice'
 import { IconChipButton } from '../react/controls/IconChipButton'
 import { Collapsible } from '../react/ReactControlRows'
+import { findCollectionByName, normalizeCollectionName } from '../../../lib/mediaOrganization'
 import { memo, useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import type { CSSProperties, ReactNode, RefObject } from 'react'
 import { useShallow } from 'zustand/react/shallow'
@@ -665,7 +666,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
     items, queryItemIds, addFilesToUploadQueue, clearUploadQueue, removeItem, retryUpload, toggleFavorite,
     loadFromSupabase, setLibraryQuery, ensureLibraryLoaded, loadNextPage, refreshLibrary,
     ensureMediaSigned, retryMediaAsset, markMediaAssetLoaded, loading, nextPageLoading, refreshing, hasMore, queryError, invalidated,
-    collections, collectionsLoading, loadCollections, removeCollection,
+    collections, collectionsLoading, loadCollections, removeCollection, createCollection,
     importModalOpen, openImportMediaModal, closeImportMediaModal,
     collectionEditorOpen, collectionEditorTarget, openCollectionEditor, closeCollectionEditor,
     mutationStates = {},
@@ -695,6 +696,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
     collectionsLoading: state.collectionsLoading,
     loadCollections: state.loadCollections,
     removeCollection: state.removeCollection,
+    createCollection: state.createCollection,
     importModalOpen: state.importModalOpen,
     openImportMediaModal: state.openImportMediaModal,
     closeImportMediaModal: state.closeImportMediaModal,
@@ -715,6 +717,10 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
   const fontsLoadState = useReactStore(state => state.fontsLoadState)
   const fontLoadError = useReactStore(state => state.fontLoadError)
   const loadOscillatorFonts = useReactStore(state => state.loadOscillatorFonts)
+  const [newCollectionDraft, setNewCollectionDraft] = useState('')
+  const [newCollectionError, setNewCollectionError] = useState<string | null>(null)
+  const [creatingCollection, setCreatingCollection] = useState(false)
+  const creatingCollectionRef = useRef(false)
   const [newPoolDraft, setNewPoolDraft] = useState('')
   const [newPoolError, setNewPoolError] = useState<string | null>(null)
 
@@ -795,7 +801,8 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
   const canMultiSelect = isManager && capabilitySet.has('multi-select')
   const canBrowseModels = isManager && capabilitySet.has('models') && !!onSelectModel
   const hasVisualGroups = isManager && (['all', 'favorites', 'images', 'videos'].includes(libraryFilter) || (libraryFilter === 'collections' && !!openCollectionId))
-  const hasGroupSearch = hasVisualGroups || (canBrowseModels && libraryFilter === 'models')
+  const hasFolderGroup = isManager && ((libraryFilter === 'collections' && !openCollectionId) || libraryFilter === 'pools')
+  const hasGroupSearch = hasVisualGroups || hasFolderGroup || (canBrowseModels && libraryFilter === 'models')
   const canBrowsePools = (isManager || isCanvasMode) && capabilitySet.has('pools')
 
   const isReactMode = context === 'react'
@@ -1384,6 +1391,51 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
     )
   }
 
+  const submitNewCollection = async () => {
+    const name = normalizeCollectionName(newCollectionDraft)
+    if (!name || creatingCollectionRef.current) return
+    if (findCollectionByName(collections, name)) {
+      setNewCollectionError(`A collection named "${name}" already exists.`)
+      return
+    }
+    creatingCollectionRef.current = true
+    setCreatingCollection(true)
+    setNewCollectionError(null)
+    try {
+      const id = await createCollection(name)
+      if (!id) {
+        setNewCollectionError(useMediaStore.getState().loadError ?? 'Could not create the collection. Try again.')
+        return
+      }
+      setNewCollectionDraft('')
+      notifyPage({ tone: 'success', title: 'Collection created', message: `"${name}" was added to your collections.` })
+    } catch {
+      setNewCollectionError('Could not create the collection. Try again.')
+    } finally {
+      creatingCollectionRef.current = false
+      setCreatingCollection(false)
+    }
+  }
+
+  const renderCollectionCreateRow = () => (
+    <>
+      <form className="vz-pool-create" onPointerDown={event => event.stopPropagation()} onSubmit={event => { event.preventDefault(); void submitNewCollection() }}>
+        <DreamVizTextInput
+          className="vz-pool-create__input"
+          value={newCollectionDraft}
+          placeholder="New collection name"
+          aria-label="New collection name"
+          disabled={creatingCollection}
+          onChange={event => { setNewCollectionDraft(event.target.value); setNewCollectionError(null) }}
+        />
+        <IconChipButton type="submit" disabled={creatingCollection || !newCollectionDraft.trim()} aria-label="Create collection">
+          {creatingCollection ? 'Adding…' : 'Add Collection'}
+        </IconChipButton>
+      </form>
+      {newCollectionError && <div className="vz-pool-create__error" role="alert">{newCollectionError}</div>}
+    </>
+  )
+
   const renderCollectionsView = () => {
     // Drilled into a specific collection
     if (openCollectionId && openCollection) {
@@ -1598,6 +1650,19 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
     )
   }
 
+  const renderFolderGroup = (label: 'Collections' | 'Pools', content: ReactNode) => {
+    if (!hasFolderGroup) return content
+    return (
+      <section key={label} className="mm-visual-library-group mm-folder-library-group" aria-label={label}>
+        <Collapsible label={label} icon={<AppIcon kind="folder" size={15} />}>
+          {renderGroupSearch(searchQuery, setSearchQuery, `Search ${label.toLowerCase()}`, 'library')}
+          {label === 'Collections' && renderCollectionCreateRow()}
+          {content}
+        </Collapsible>
+      </section>
+    )
+  }
+
   const libraryBody = (
     <>
       <UnderlineTabs
@@ -1639,9 +1704,9 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
         ) : libraryFilter === 'fonts' ? (
           renderFontsView()
         ) : libraryFilter === 'collections' ? (
-          renderCollectionsView()
+          renderFolderGroup('Collections', renderCollectionsView())
         ) : libraryFilter === 'pools' ? (
-          renderPoolsView()
+          renderFolderGroup('Pools', renderPoolsView())
         ) : queryError && filtered.length === 0 ? (
           <DrawerNotice tone="error" role="alert" title="Media library unavailable">
             {queryError}{' '}

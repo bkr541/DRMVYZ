@@ -1257,3 +1257,12 @@
 
 /* Group search rows align with shared group contents instead of outer rail insets. */
 .vz-media-browser--manager .mm-library-group-search { padding: 0 0 8px; border-bottom: 0; }
+
+/* Folder tabs share the Images/Videos parent group and its tinted body. */
+.vz-media-browser--manager .mm-folder-library-group .vz-pool-create {
+  padding: 0 4px 4px;
+  margin-bottom: 4px;
+}
+.vz-media-browser--manager .mm-folder-library-group .vz-pool-create__error {
+  padding: 0 4px;
+}

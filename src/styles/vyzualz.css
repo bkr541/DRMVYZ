@@ -1013,7 +1013,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 6px 0;
+  padding: 6px 6px 8px;
 }
 .vz-pool-create__input { flex: 1; min-width: 0; }
 .vz-pool-create__error {
