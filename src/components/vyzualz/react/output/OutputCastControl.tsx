@@ -1,3 +1,6 @@
+import { useWebCast, CAST_ORIGIN, type WebCastController } from './useWebCast'
+import { webCastQrPath } from './webCastQr'
+import './WebCast.css'
 import { CastPreviewWindow } from './CastPreviewWindow'
 import { BRAND_RECEIVERS } from '../../../../brand'
 import { isCanvasFrameReady } from '../../../../lib/canvasFrameReadiness'
@@ -537,6 +540,33 @@ function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(Math.max(value, minimum), Math.max(minimum, maximum))
 }
 
+function WebCastSection({ controller, aspect, canvasReady, nativeBusy }: { controller: WebCastController; aspect: OutputAspectRatio | null; canvasReady: boolean; nativeBusy: boolean }) {
+  const {view} = controller
+  const link = view.session ? `${CAST_ORIGIN}/#${view.session.token}` : ''
+  const qr = useMemo(() => link ? webCastQrPath(link) : '', [link])
+  const [copied,setCopied] = useState(false)
+  const [showLink,setShowLink] = useState(false)
+  useEffect(() => { setCopied(false); setShowLink(false) }, [link])
+  return <section className="rv-cast-device-category" aria-label="Web casting">
+    <span className="rv-cast-device-category-hdr">Web Casting</span>
+    <div className="rv-webcast-card">
+      <div className="rv-webcast-header"><span className="rv-cast-tile-icon"><CastIcon /></span><div><strong>STAGELESS Cast</strong><small>Live visuals on any compatible browser. No receiver app required.</small></div></div>
+      {!view.session ? <button type="button" className="rv-webcast-action" disabled={view.busy || nativeBusy || !canvasReady || !controller.configured} onClick={() => void controller.start(aspect ?? '16:9')}>{view.busy ? 'Creating session…' : 'Create Cast Session'}</button> : <>
+        <div className="rv-webcast-pair"><svg role="img" aria-label="Scan to join this cast" viewBox="0 0 45 45" shapeRendering="crispEdges"><rect width="45" height="45" fill="white"/><path d={qr} fill="#000"/></svg><div><small>Open cast.stagelessstudio.com</small><strong className="rv-webcast-code">{view.session.code}</strong><button className="rv-webcast-action" type="button" onClick={() => { if (!navigator.clipboard) { setShowLink(true); return } void navigator.clipboard.writeText(link).then(()=>setCopied(true),()=>setShowLink(true)) }}>{copied ? 'Link copied' : 'Copy secure link'}</button></div></div>
+        {showLink && <input className="rv-webcast-link" aria-label="Secure cast link" readOnly value={link} onFocus={event=>event.currentTarget.select()} />}
+        <p className="rv-webcast-status" role="status">{view.status} · {view.aspect} · up to 60 fps</p>
+        {view.status === 'Receiver requests access' && <div className="rv-webcast-actions"><button type="button" className="rv-webcast-action" onClick={()=>void controller.decide(true)}>Approve receiver</button><button type="button" className="rv-cast-stop" onClick={()=>void controller.decide(false)}>Deny</button></div>}
+        {view.receiverId && view.status !== 'Receiver requests access' && <button type="button" className="rv-webcast-action" onClick={()=>void controller.decide(false)}>Disconnect receiver</button>}
+        <button type="button" className="rv-cast-stop" onClick={()=>controller.stop()}>Stop Web Cast</button>
+      </>}
+      {view.busy && <button type="button" className="rv-cast-stop" onClick={()=>controller.stop()}>Cancel</button>}
+      {!controller.configured && <small>Sign-in service is not configured in this build.</small>}
+      {nativeBusy && !view.session && <small>Stop the current native output before starting a web cast.</small>}
+      {view.error && <small role="alert" className="rv-webcast-error">{view.error}</small>}
+    </div>
+  </section>
+}
+
 interface OutputCastPopoverProps {
   anchor: HTMLElement | null
   bridge: NativeOutputBridge | null
@@ -551,6 +581,7 @@ interface OutputCastPopoverProps {
   onProviderAction: (providerId: OutputProviderId, actionId: string, payload?: unknown) => Promise<void>
   onCast: (target: OutputTarget, windowMode: OutputWindowMode, aspectRatio: OutputAspectRatio) => void
   onStop: () => void
+  webCast: WebCastController
 }
 
 function OutputCastPopover({
@@ -567,6 +598,7 @@ function OutputCastPopover({
   onProviderAction,
   onCast,
   onStop,
+  webCast,
 }: OutputCastPopoverProps) {
   const [windowMode, setWindowMode] = useState<OutputWindowMode | null>(null)
   const [aspectRatio, setAspectRatio] = useState<OutputAspectRatio | null>(null)
@@ -589,7 +621,7 @@ function OutputCastPopover({
   const miracastActionAvailable = miracastProvider?.state === 'available' || miracastProvider?.state === 'initialization-failed'
   const googleCastAction = googleCastProvider?.capabilities?.actions.includes('open-picker') ? 'open-picker' : null
   const googleCastActionAvailable = googleCastProvider?.state === 'available' || googleCastProvider?.state === 'initialization-failed'
-  const readyToCast = Boolean(windowMode && aspectRatio && canvasReady && bridge)
+  const readyToCast = Boolean(windowMode && aspectRatio && canvasReady && bridge && !webCast.active)
   const showWirelessDisplays = Boolean(
     (airplayProvider && airplayProvider.state !== 'unsupported')
       || (miracastProvider && miracastProvider.state !== 'unsupported')
@@ -846,7 +878,7 @@ function OutputCastPopover({
             </div>
 
             {!bridge && (
-              <DrawerNotice tone="info" role="status" title="Desktop app required">Casting is available in the STAGELESS desktop app. Browser builds keep the visualizer local.</DrawerNotice>
+              <DrawerNotice tone="info" role="status" title="Browser output">STAGELESS Cast works in your browser. Local and native wireless displays require the desktop app.</DrawerNotice>
             )}
             {bridge && !canvasReady && (
               <DrawerNotice tone="info" role="status" title="Output canvas preparing">The active engine is still preparing its live output canvas.</DrawerNotice>
@@ -856,6 +888,8 @@ function OutputCastPopover({
                 {status.message ?? 'This output provider is currently unavailable.'}
               </DrawerNotice>
             ))}
+
+            <WebCastSection controller={webCast} aspect={aspectRatio} canvasReady={canvasReady} nativeBusy={Boolean(session || pendingTargetId || pendingProviderAction)} />
 
             {showWirelessDisplays && (
               <section className="rv-cast-device-category" aria-label="Wireless displays">
@@ -947,6 +981,8 @@ export function OutputCastControl({
   const bridge = useMemo(() => getNativeOutputBridge(), [])
   const outputAvailable = isCanvasOutputAvailable(capability)
   const safeCanvas = outputAvailable ? canvas : null
+  const webSourceRef = useRef(safeCanvas)
+  useLayoutEffect(() => { webSourceRef.current = safeCanvas }, [safeCanvas])
   const outputAvailableRef = useRef(outputAvailable)
   const refreshGenerationRef = useRef(0)
   const sessionRevisionRef = useRef(0)
@@ -956,12 +992,17 @@ export function OutputCastControl({
   const previewId = useId()
   const previewTriggerRef = useRef<HTMLButtonElement | null>(null)
   const previewSourceRef = useRef<HTMLCanvasElement | null>(null)
+  const webCast = useWebCast(aspect => {
+    const relay = createRelayCapture(webSourceRef, aspect)
+    previewSourceRef.current = relay.canvas
+    return { stream: relay.stream, stop: () => { relay.stop(); if (previewSourceRef.current === relay.canvas) previewSourceRef.current = null } }
+  }, outputAvailable)
   const [previewSessionId, setPreviewSessionId] = useState<string | null>(null)
   const [targets, setTargets] = useState<OutputTarget[]>([])
   const [session, setSession] = useState<OutputCastSession | null>(null)
   // Lock before asking native to open a receiver; native registration can race the startCast reply.
   const [pendingAspectRatio, setPendingAspectRatio] = useState<OutputAspectRatio | null>(null)
-  const activeAspectRatio = outputAvailable ? pendingAspectRatio ?? (
+  const activeAspectRatio = outputAvailable ? webCast.view.aspect ?? pendingAspectRatio ?? (
     session && (session.state === 'connecting' || session.state === 'connected' || session.state === 'disconnecting')
       ? session.aspectRatio : null
   ) : null
@@ -1003,11 +1044,11 @@ export function OutputCastControl({
   const castTransport = session?.transport ?? 'webrtc'
   useEffect(() => { reconnectorRef.current?.observe(castState) }, [castState, castId])
   useEffect(() => {
-    const active = castState === 'connecting' || castState === 'connected'
+    const active = webCast.active || castState === 'connecting' || castState === 'connected'
     setPerformanceCastActive(active)
-    recordPerformanceEvent('cast', 'cast-state', { state: castState, transport: castTransport, sessionId: castId })
+    recordPerformanceEvent('cast', 'cast-state', { state: webCast.active ? 'web-cast-active' : castState, transport: webCast.active ? 'web-cast-webrtc' : castTransport, sessionId: castId })
     return () => setPerformanceCastActive(false)
-  }, [castState, castId, castTransport])
+  }, [castState, castId, castTransport, webCast.active])
   useEffect(() => {
     if (!session?.stats || performance.now() - lastStatsLogRef.current < 10_000) return
     lastStatsLogRef.current = performance.now()
@@ -1038,8 +1079,10 @@ export function OutputCastControl({
   }, [session, castTransport])
   useEffect(() => () => { loadShedderRef.current?.reset(); setPerformancePressure('cast', 0) }, [])
 
-  const castConnected = outputAvailable && session?.state === 'connected'
-  const previewOpen = castConnected && previewSessionId === session.id
+  useEffect(() => { if (session && session.state !== 'failed' && webCast.active) webCast.stop('Native output took over the cast.') }, [session, webCast.active, webCast.stop])
+  const liveSessionId = outputAvailable ? (session?.state === 'connected' ? session.id : webCast.view.status === 'Now casting' ? webCast.view.session?.id ?? null : null) : null
+  const castConnected = liveSessionId !== null
+  const previewOpen = castConnected && previewSessionId === liveSessionId
   useEffect(() => {
     if (!castConnected) setPreviewSessionId(null)
   }, [castConnected])
@@ -1134,7 +1177,7 @@ export function OutputCastControl({
   }, [bridge, outputAvailable])
 
   const performProviderAction = useCallback(async (providerId: OutputProviderId, actionId: string, payload?: unknown) => {
-    if (!bridge?.performProviderAction || !outputAvailable) return
+    if (!bridge?.performProviderAction || !outputAvailable || (providerId === 'google-cast' && webCast.active)) return
     setError(null)
     try {
       const revision = sessionRevisionRef.current
@@ -1149,14 +1192,14 @@ export function OutputCastControl({
         setError(value instanceof Error ? value.message : 'Could not open the output provider action')
       }
     }
-  }, [bridge, outputAvailable, refresh])
+  }, [bridge, outputAvailable, refresh, webCast.active])
 
   const startCast = useCallback(async (
     target: OutputTarget,
     windowMode: OutputWindowMode,
     aspectRatio: OutputAspectRatio,
   ) => {
-    if (!bridge || !outputAvailable || !safeCanvas) return
+    if (!bridge || !outputAvailable || !safeCanvas || webCast.active) return
     setError(null)
     const request: OutputCastRequest = { targetId: target.id, windowMode, aspectRatio }
     reconnectorRef.current?.remember(request)
@@ -1178,7 +1221,7 @@ export function OutputCastControl({
     } finally {
       setPendingAspectRatio(null)
     }
-  }, [bridge, outputAvailable, safeCanvas])
+  }, [bridge, outputAvailable, safeCanvas, webCast.active])
 
   const stopCast = useCallback(async () => {
     if (!bridge) return
@@ -1217,26 +1260,26 @@ export function OutputCastControl({
       <button
         ref={triggerRef}
         type="button"
-        className={`rv-cast-trigger${session?.state === 'connected' ? ' is-active' : ''}`}
-        aria-label={session?.state === 'connected' ? `Output casting to ${session.targetName}` : 'Cast visual output'}
+        className={`rv-cast-trigger${session?.state === 'connected' || webCast.active ? ' is-active' : ''}`}
+        aria-label={session?.state === 'connected' ? `Output casting to ${session.targetName}` : webCast.active ? 'STAGELESS Cast session active' : 'Cast visual output'}
         aria-haspopup="dialog"
         aria-expanded={open}
         title={session?.state === 'connected' ? `Casting to ${session.targetName}` : 'Cast visual output'}
         onClick={() => setOpen(value => !value)}
       >
         <CastIcon />
-        {session?.state === 'connected' && <span className="rv-cast-live-dot" aria-hidden="true" />}
+        {(session?.state === 'connected' || webCast.view.status === 'Now casting') && <span className="rv-cast-live-dot" aria-hidden="true" />}
       </button>
       {castConnected && (
         <button ref={previewTriggerRef} type="button" className={`rv-cast-trigger${previewOpen ? ' is-active' : ''}`}
           aria-label={previewOpen ? 'Hide cast preview' : 'Show cast preview'} title={previewOpen ? 'Hide cast preview' : 'Show cast preview'}
           aria-pressed={previewOpen} aria-expanded={previewOpen} aria-controls={previewOpen ? previewId : undefined}
-          onClick={() => setPreviewSessionId(previewOpen ? null : session.id)}>
+          onClick={() => setPreviewSessionId(previewOpen ? null : liveSessionId)}>
           <AppIcon kind="eye" />
         </button>
       )}
       {previewOpen && !backgrounded && (
-        <CastPreviewWindow key={session.id} id={previewId} anchor={previewTriggerRef.current}
+        <CastPreviewWindow key={liveSessionId} id={previewId} anchor={previewTriggerRef.current}
           sourceRef={previewSourceRef} onClose={closePreview} />
       )}
       {open && !backgrounded && (
@@ -1254,9 +1297,11 @@ export function OutputCastControl({
           onProviderAction={performProviderAction}
           onCast={(target, windowMode, aspectRatio) => void startCast(target, windowMode, aspectRatio)}
           onStop={() => void stopCast()}
+          webCast={webCast}
         />
       )}
       {/* Failures are listed here, outside the popover, so they stay in the Notifications drawer after it is closed. */}
+      {webCast.view.error && !open && <DrawerNotice tone="error" role="alert" title="STAGELESS Cast">{webCast.view.error}</DrawerNotice>}
       {error && <DrawerNotice tone="error" role="alert" title="Casting error">{error}</DrawerNotice>}
       {session?.error && (
         <DrawerNotice tone="error" role="alert" title={session.state === 'failed' ? 'Output failed' : 'Output problem'}>

@@ -1,0 +1,18 @@
+# STAGELESS Cast — backend deployment
+
+`0061_web_cast.sql` extends the existing Stage Links registry; it does not replace the native receiver or modify existing stage-link RPCs. `web-cast` is a new Edge Function. A session allows one authenticated non-anonymous host and one approved guest receiver, with a six-character code or a 256-bit-class link token. The host's stop command revokes the link. Session TTL: eight hours; host inactivity: 90 seconds; receiver inactivity: 45 seconds. Credentials are hashed in the database. SDP is exchanged only through a service-role RPC, after host approval. Clients do not have access to the signaling tables. A receiver reset changes its generation ID so old answers cannot attach to a fresh peer. The function verifies the host JWT on every host command. Join attempts are limited to 12/minute per hashed forwarded address (proxy-dependent, not a substitute for gateway abuse controls).
+
+## Deployment (from repository root)
+
+1. Apply both provided patches with `git apply --check` first. Make sure your Supabase CLI is authenticated and linked to the SAME project as the main application. Review any other pending migrations before deployment.
+2. `npx supabase db push` (review the migration list; use a staging project first).
+3. `npx supabase functions deploy web-cast --no-verify-jwt` (needed for unauthenticated receivers and publishable API keys; the function itself verifies authenticated host JWTs and checks receiver secrets).
+4. Configure TURN for reliable internet casting. Prefer the existing Cloudflare TURN secrets: `npx supabase secrets set CF_TURN_KEY_ID='...' CF_TURN_API_TOKEN='...'`. Alternatively use `TURN_URLS`, `TURN_USERNAME`, `TURN_CREDENTIAL`. Never put a service role key or TURN provider API token in a frontend. Static TURN credentials are returned to valid sessions, so prefer expiring provider credentials. Without configured TURN, only STUN is available; cross-network connectivity is not guaranteed. The optional Cloudflare credentials are requested with a 12-hour lifetime for the 8-hour maximum session.
+5. Deploy the standalone receiver site with the same project URL and **public anon/publishable key**. Bind `cast.stagelessstudio.com` to that Vercel project and configure its exact DNS record. HTTPS is required.
+6. Run the rollback-only SQL test on staging: `npx supabase db query --linked -f supabase/tests/web_cast_security.sql`. Run `deno test supabase/functions/_shared/webCastCore.test.ts`. Review Supabase logs (do not log session tokens or SDP).
+
+## Operational notes
+
+The signaling mailbox is polled every ~1.8 seconds by each endpoint. This is deliberately independent of Supabase Realtime public-channel policies. Actual video is encrypted WebRTC, direct when possible and relayed via TURN otherwise; Supabase never transports media frames. Budget for Edge invocation, database and TURN usage. Production abuse controls, load testing, restricted-origin policy if desired, and live network/device testing are required before public rollout. Forwarded address reliability depends on the platform proxy. Host approval prevents a guessed code from exposing the performance, but a guessed code can occupy the pending receiver slot until denied or expired.
+
+Stale cast rows are pruned on creation; the existing stage-link history remains, with stale links revoked. A browser that crashes without sending leave is released by the lease. This release does not implement multi-viewer/SFU, audio, mobile-specific sender surfaces, recording or Google Cast registration. Existing native receivers and operating-system output remain independent.

@@ -1,3 +1,4 @@
+import { useWebCastActivity } from './react/output/webCastActivity'
 import { useHealthStore } from '../../stores/healthStore'
 import { ReactViewKeepAlive } from './react/ReactViewKeepAlive'
 import { requestPixGridDeckBuilderOpen } from './react/pixGrid/PixGridDeckBuilderRequest'
@@ -134,7 +135,8 @@ export function VyzualzView({ initialAppView = DEFAULT_PERFORMANCE_VIEW }: Props
     if (next) commitAppViewChange(next)
   }, [commitAppViewChange])
 
-  const castKeepsReactAlive = useHealthStore(state => state.systems.cast.state === 'ok' || state.systems.cast.state === 'healing')
+  const webCastActive = useWebCastActivity()
+  const nativeCastKeepsReactAlive = useHealthStore(state => state.systems.cast.state === 'ok' || state.systems.cast.state === 'healing')
   const openLyricManager = useCallback((intent: LyricManagerNavigationIntent) => {
     setLyricNavigationIntent(intent)
     requestAppViewChange('lyrics')
@@ -142,7 +144,7 @@ export function VyzualzView({ initialAppView = DEFAULT_PERFORMANCE_VIEW }: Props
 
   // While a cast is running (or being repaired) the React view stays mounted behind whatever page is open: it owns the visualizer the cast copies, so leaving it ended the cast.
   // It is unmounted once the cast ends, so nothing keeps rendering for no reason.
-  const reactHost = (appView === 'react' || castKeepsReactAlive)
+  const reactHost = (appView === 'react' || nativeCastKeepsReactAlive || webCastActive)
     ? (
       <ReactViewKeepAlive foreground={appView === 'react'}>
         <main className="vz-main" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
