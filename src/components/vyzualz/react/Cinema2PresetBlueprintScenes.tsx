@@ -13,6 +13,7 @@ export const ADDITIONAL_BLUEPRINT_MOTIFS = {
   'drmvyz.cinema2.fracture': ['Irregular fractured media surface', 'Suspended angular shards', 'Recessed structural fissures', 'Angular floor seams'],
   'drmvyz.cinema2.refraction': ['Suspended optical prisms', 'Beveled glass housings', 'Angular hall ribs', 'Optical floor rails'],
   'drmvyz.cinema2.mosaic': ['Tiled media wall', 'Extruded screen modules', 'Mounting channels', 'Gallery floor'],
+  'drmvyz.cinema2.exoskeleton': ['Hinged armor plates', 'Faceted core', 'Hexagonal service bays', 'Circular plinth'],
   'drmvyz.cinema2.colossus': ['Articulated arms', 'Open mechanical emblem', 'Octagonal bulkheads', 'Floor energy tracks'],
   'drmvyz.cinema2.backstreet': ['Neon wordmark', 'Glass tube returns', 'Brick courses', 'Wall mounts'],
   'drmvyz.cinema2.conduit': ['Chrome feed tubes', 'Cloud core', 'Chamber ribs', 'Segmented energy routes'],
@@ -56,6 +57,7 @@ const SUBJECT_PLANES: Record<SceneId, readonly [string, string, string, string]>
   'drmvyz.cinema2.refraction': ['', '', '', ''],
   'drmvyz.cinema2.mosaic': ['', '', '', ''],
   'drmvyz.cinema2.colossus': ['', '', '', ''],
+  'drmvyz.cinema2.exoskeleton': ['', '', '', ''],
   'drmvyz.cinema2.backstreet': ['translate(-15 8)', 'translate(-15 8)', 'translate(12 -10)', 'translate(0 22)'],
   'drmvyz.cinema2.conduit': ['translate(-15 5)', 'translate(-21 18)', 'translate(-27 20)', 'translate(0 -5)'],
   'drmvyz.cinema2.echoform': ['translate(140 72) scale(.82) translate(-165 -40)', 'translate(140 72) scale(.82) translate(-165 -40)', 'translate(-25 25)', 'translate(10 -16)'],
@@ -386,6 +388,15 @@ function OpenDecks() {
   </Scene>
 }
 
+function Exoskeleton() {
+  return <Scene id="drmvyz.cinema2.exoskeleton">
+    <g opacity=".25">{Array.from({length:12},(_,i)=><path key={i} transform={`translate(${65+i%4*46} ${28+Math.floor(i/4)*36})`} d="M-17 0-9-15H9L17 0 9 15H-9Z"/>)}</g>
+    <g opacity=".65"><ellipse cx="142" cy="23" rx="66" ry="13"/><ellipse cx="142" cy="127" rx="70" ry="14"/><ellipse cx="142" cy="127" rx="48" ry="9"/><path d="M73 23V124M211 23V124M94 31V116M190 31V116"/></g>
+    <g fill="currentColor" fillOpacity=".12">{[-1,1].map(side=><g key={side} transform={`translate(142 75) scale(${side} 1)`}>{[-28,-10,8,26].map((y,i)=><path key={y} d={`M38 ${y}l${13+i%2*4} -4 8 13-19 6-5 -5Z`}/>)}</g>)}<path d="M105 37 119 30H165L180 37 173 46H111ZM105 108 119 116H165L180 108 173 99H111Z"/></g>
+    <path d="M142 46 166 62 161 90 142 103 119 89 116 64Z M142 46V74L166 62M142 74 161 90M142 74 119 89M142 74 116 64M142 74V103" fill="currentColor" fillOpacity=".16"/>
+  </Scene>
+}
+
 function Colossus() {
   return <Scene id="drmvyz.cinema2.colossus">
     <g>{[[-1,-1],[1,-1],[-1,1],[1,1]].map(([x,y],i)=><g key={i} transform={`translate(142 70) scale(${x} ${y})`}><path d="M85 45 58 31 45 16 39 16 36 21 52 38 81 53Z" fill="currentColor" fillOpacity=".11"/><circle cx="58" cy="34" r="7"/><circle cx="82" cy="49" r="9"/><path d="M79 44 58 29 45 18M42 13 35 13 30 19M42 23 35 26 30 22"/></g>)}</g>
@@ -437,6 +448,7 @@ export const ADDITIONAL_BLUEPRINT_DRAWINGS = {
   'drmvyz.cinema2.refraction': Refraction,
   'drmvyz.cinema2.mosaic': Mosaic,
   'drmvyz.cinema2.colossus': Colossus,
+  'drmvyz.cinema2.exoskeleton': Exoskeleton,
   'drmvyz.cinema2.backstreet': Backstreet, 'drmvyz.cinema2.conduit': Conduit,
   'drmvyz.cinema2.echoform': Echoform, 'drmvyz.cinema2.echowave': Echowave,
   'drmvyz.cinema2.electric-storm': ElectricStorm, 'drmvyz.cinema2.elevhate': Elevhate,
@@ -460,6 +472,7 @@ export const ADDITIONAL_BLUEPRINT_FRAMING = {
   'drmvyz.cinema2.refraction': 'translate(112 80) scale(1.02) translate(-120 -75)',
   'drmvyz.cinema2.mosaic': 'translate(112 80) scale(1.02) translate(-120 -75)',
   'drmvyz.cinema2.colossus': 'translate(112 80) scale(1.02) translate(-120 -75)',
+  'drmvyz.cinema2.exoskeleton': 'translate(112 80) scale(1.02) translate(-120 -75)',
   'drmvyz.cinema2.backstreet': 'translate(115 79) rotate(-5) scale(1.01) translate(-120 -75)',
   'drmvyz.cinema2.conduit': 'translate(113 80) rotate(-7) scale(1.02) translate(-120 -75)',
   'drmvyz.cinema2.echoform': 'translate(112 83) rotate(-6) scale(1.03) translate(-120 -75)',

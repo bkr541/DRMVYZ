@@ -40,6 +40,7 @@ When a historical document conflicts with canonical current documentation or the
 | `docs/NEON_FOREST/NEON_FOREST-behavior-spec.md` | NEON FOREST crystal environment, controls, timing, choreography, ownership and reproducible acceptance |
 | `docs/cinema2-unified-3d-effects.md` | Current unified private-model representation controller, six compatibility presets, inspector controls, lifecycle and verification |
 | `docs/cinema2-colossus.md` | COLOSSUS mechanical bay, private model integration, controls, choreography, authority and review status |
+| `docs/cinema2-exoskeleton.md` | EXOSKELETON adaptive armor, private model integration, controls, choreography and review status |
 | `docs/cinema2-spectrum.md` | SPECTRUM circular media arena, pattern authority, media routing and validation |
 | `docs/cinema2-refraction.md` | REFRACTION optical gallery, media and pool integration, controls and review gates |
 | `docs/cinema2-fracture.md` | FRACTURE irregular media shards, geometry, pool integration and pending visual validation |

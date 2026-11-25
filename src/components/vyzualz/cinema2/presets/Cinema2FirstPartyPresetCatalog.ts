@@ -3,6 +3,7 @@ import { CINEMA2_FRACTURE_PRESET_MANIFEST } from './Cinema2FracturePreset'
 import { CINEMA2_REFRACTION_PRESET_MANIFEST } from './Cinema2RefractionPreset'
 import { CINEMA2_MOSAIC_PRESET_MANIFEST } from './Cinema2MosaicPreset'
 import { CINEMA2_COLOSSUS_PRESET_MANIFEST } from './Cinema2ColossusPreset'
+import { CINEMA2_EXOSKELETON_PRESET_MANIFEST } from './Cinema2ExoskeletonPreset'
 import { ARTIFACT_PRESET_MANIFESTS } from './Cinema2ArtifactPresets'
 import { CINEMA2_ORGANISM_PRESET_MANIFEST } from './Cinema2OrganismPreset'
 import { CINEMA2_HUD_PRESET_MANIFEST } from './Cinema2HudPreset'
@@ -77,6 +78,7 @@ import { CINEMA2_TRIPPY_BRO_PRESET_MANIFEST } from './Cinema2TrippyBroPreset'
  */
 const AUTHORED_PRESET_DECLARATIONS = Object.freeze([
   defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_COLOSSUS_PRESET_MANIFEST }),
+  defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_EXOSKELETON_PRESET_MANIFEST }),
   ...ARTIFACT_PRESET_MANIFESTS.map(manifest=>defineCinema2FirstPartyPreset({role:'reference',manifest})),
   // ORGANISM is a selectable review preset; keeper promotion requires visual acceptance.
   defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_ORGANISM_PRESET_MANIFEST }),

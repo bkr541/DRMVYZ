@@ -3,6 +3,7 @@ import { cinema2FractureNativeModuleDefinition } from './Cinema2FractureNativeMo
 import { cinema2RefractionNativeModuleDefinition } from './Cinema2RefractionNativeModule'
 import { cinema2MosaicNativeModuleDefinition } from './Cinema2MosaicNativeModule'
 import { cinema2ColossusNativeModuleDefinition } from './Cinema2ColossusNativeModule'
+import { cinema2ExoskeletonNativeModuleDefinition } from './Cinema2ExoskeletonNativeModule'
 import { artifactNativeModuleDefinitions } from './Cinema2ArtifactNativeModule'
 import { cinema2OrganismNativeModuleDefinition } from './Cinema2OrganismNativeModule'
 import { cinema2HudNativeModuleDefinition } from './Cinema2HudNativeModule'
@@ -355,3 +356,5 @@ if (!overdriveRegistration.ok) throw new Error('Cinema 2.0 OVERDRIVE module regi
 
 const colossusRegistration = cinema2NativeModuleRegistry.register(cinema2ColossusNativeModuleDefinition)
 if (!colossusRegistration.ok) throw new Error('Cinema 2.0 COLOSSUS module registration failed.')
+const exoskeletonRegistration = cinema2NativeModuleRegistry.register(cinema2ExoskeletonNativeModuleDefinition)
+if (!exoskeletonRegistration.ok) throw new Error('Cinema 2.0 EXOSKELETON module registration failed.')
