@@ -8,6 +8,7 @@ import goonzMaster from '../../../assets/goonz_true_vector_master.svg?raw'
  * foreground at the right, secondary subjects at the left, open title volume.
  * These drawings never read or trace a rendered frame. */
 export const ADDITIONAL_BLUEPRINT_MOTIFS = {
+  'drmvyz.cinema2.refraction': ['Suspended optical prisms', 'Beveled glass housings', 'Angular hall ribs', 'Optical floor rails'],
   'drmvyz.cinema2.mosaic': ['Tiled media wall', 'Extruded screen modules', 'Mounting channels', 'Gallery floor'],
   'drmvyz.cinema2.colossus': ['Articulated arms', 'Open mechanical emblem', 'Octagonal bulkheads', 'Floor energy tracks'],
   'drmvyz.cinema2.backstreet': ['Neon wordmark', 'Glass tube returns', 'Brick courses', 'Wall mounts'],
@@ -47,6 +48,7 @@ type SceneId = keyof typeof ADDITIONAL_BLUEPRINT_MOTIFS
  * the focal geometry inside the slice window avoids losing a face, cap, or lens
  * to cropping while secondary objects still fall into the left-edge fade. */
 const SUBJECT_PLANES: Record<SceneId, readonly [string, string, string, string]> = {
+  'drmvyz.cinema2.refraction': ['', '', '', ''],
   'drmvyz.cinema2.mosaic': ['', '', '', ''],
   'drmvyz.cinema2.colossus': ['', '', '', ''],
   'drmvyz.cinema2.backstreet': ['translate(-15 8)', 'translate(-15 8)', 'translate(12 -10)', 'translate(0 22)'],
@@ -388,6 +390,15 @@ function Colossus() {
   </Scene>
 }
 
+function Refraction() {
+  return <Scene id="drmvyz.cinema2.refraction">
+    <g opacity=".35"><path d="M20 15H260L228 42H58ZM20 15V118L58 95V42M260 15V118L228 95V42M20 118L58 95H228L260 118M58 95L34 145M228 95L253 145"/></g>
+    <g opacity=".45">{[65,115,165,215].map((x,i)=><path key={x} d={`M${x} 29l19 37h-38z M${x} 29l8 -6 19 37 -8 6`} fill="currentColor" fillOpacity={.06+i*.02}/>)}</g>
+    <g>{[88,144,200].map((x,i)=><g key={x} transform={`translate(${x} 82) scale(1 ${i%2?-1:1})`}><path d="M0 -39 34 23H-34Z M0 -30 27 19H-27Z" fill="currentColor" fillOpacity=".15" fillRule="evenodd"/><path d="M0 -39 9 -45 43 17 34 23M43 17H-25L-34 23"/><path d="M-21 15 0 -22 21 15Z" fill="currentColor" fillOpacity=".09"/></g>)}</g>
+    <g opacity=".55"><path d="M52 125H233M71 132H214M91 139H193"/></g>
+  </Scene>
+}
+
 function Mosaic() {
   return <Scene id="drmvyz.cinema2.mosaic">
     <g>{Array.from({length:40},(_,i)=><rect key={i} x={55+(i%8)*21} y={27+Math.floor(i/8)*16} width="19" height="14" rx="1" fill="currentColor" fillOpacity=".08"/>)}</g>
@@ -398,6 +409,7 @@ function Mosaic() {
 }
 
 export const ADDITIONAL_BLUEPRINT_DRAWINGS = {
+  'drmvyz.cinema2.refraction': Refraction,
   'drmvyz.cinema2.mosaic': Mosaic,
   'drmvyz.cinema2.colossus': Colossus,
   'drmvyz.cinema2.backstreet': Backstreet, 'drmvyz.cinema2.conduit': Conduit,
@@ -418,6 +430,7 @@ export const ADDITIONAL_BLUEPRINT_DRAWINGS = {
 
 /** Small, distinct camera poses preserve hand-placed open title volumes. */
 export const ADDITIONAL_BLUEPRINT_FRAMING = {
+  'drmvyz.cinema2.refraction': 'translate(112 80) scale(1.02) translate(-120 -75)',
   'drmvyz.cinema2.mosaic': 'translate(112 80) scale(1.02) translate(-120 -75)',
   'drmvyz.cinema2.colossus': 'translate(112 80) scale(1.02) translate(-120 -75)',
   'drmvyz.cinema2.backstreet': 'translate(115 79) rotate(-5) scale(1.01) translate(-120 -75)',

@@ -13,6 +13,19 @@ const MAPPED_BY_RULE = 'The preset maps this saved value to its targets through 
 const NEVER_ZOOMS = 'Open Decks never zooms or turns: its only camera movement is the slight left and right sway authored in the preset.'
 
 export const CINEMA2_AUTO_COVERAGE_EXEMPT: Readonly<Record<string, Readonly<Record<string, string>>>> = Object.freeze({
+  refraction: Object.freeze({
+    'refraction-reactivity': 'User-owned media presentation, physical alignment or modulation authority.',
+    'refraction-prism-depth': 'User-owned media presentation, physical alignment or modulation authority.',
+    'refraction-bevel': 'User-owned media presentation, physical alignment or modulation authority.',
+    'refraction-spacing': 'User-owned media presentation, physical alignment or modulation authority.',
+    'refraction-media-scale': 'User-owned media presentation, physical alignment or modulation authority.',
+    'refraction-media-x': 'User-owned media presentation, physical alignment or modulation authority.',
+    'refraction-media-y': 'User-owned media presentation, physical alignment or modulation authority.',
+    'refraction-media-rotation': 'User-owned media presentation, physical alignment or modulation authority.',
+    'refraction-media-opacity': 'User-owned media presentation, physical alignment or modulation authority.',
+    'refraction-media-brightness': 'User-owned media presentation, physical alignment or modulation authority.',
+    'refraction-transition': 'User-owned media presentation, physical alignment or modulation authority.',
+  }),
   mosaic: Object.freeze({
     'mosaic-reactivity': 'User-owned media presentation, physical alignment or modulation authority.',
     'mosaic-gap': 'User-owned media presentation, physical alignment or modulation authority.',
