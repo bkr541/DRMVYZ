@@ -1,3 +1,4 @@
+import { tessellate } from '../cinema2/modules/fracture/FractureDomain'
 import type { ReactNode } from 'react'
 import cloudMaster from '../../../assets/dvydrm_cloud_logo_clean_master.svg?raw'
 import wordmarkMaster from '../../../assets/dvydrm_wordmark_clean_master.svg?raw'
@@ -9,6 +10,7 @@ import goonzMaster from '../../../assets/goonz_true_vector_master.svg?raw'
  * These drawings never read or trace a rendered frame. */
 export const ADDITIONAL_BLUEPRINT_MOTIFS = {
   'drmvyz.cinema2.spectrum': ['Curved panoramic bays', 'Circular platform', 'Concentric floor tracks', 'Overhead truss rings'],
+  'drmvyz.cinema2.fracture': ['Irregular fractured media surface', 'Suspended angular shards', 'Recessed structural fissures', 'Angular floor seams'],
   'drmvyz.cinema2.refraction': ['Suspended optical prisms', 'Beveled glass housings', 'Angular hall ribs', 'Optical floor rails'],
   'drmvyz.cinema2.mosaic': ['Tiled media wall', 'Extruded screen modules', 'Mounting channels', 'Gallery floor'],
   'drmvyz.cinema2.colossus': ['Articulated arms', 'Open mechanical emblem', 'Octagonal bulkheads', 'Floor energy tracks'],
@@ -50,6 +52,7 @@ type SceneId = keyof typeof ADDITIONAL_BLUEPRINT_MOTIFS
  * to cropping while secondary objects still fall into the left-edge fade. */
 const SUBJECT_PLANES: Record<SceneId, readonly [string, string, string, string]> = {
   'drmvyz.cinema2.spectrum': ['', '', '', ''],
+  'drmvyz.cinema2.fracture': ['', '', '', ''],
   'drmvyz.cinema2.refraction': ['', '', '', ''],
   'drmvyz.cinema2.mosaic': ['', '', '', ''],
   'drmvyz.cinema2.colossus': ['', '', '', ''],
@@ -400,6 +403,16 @@ function Spectrum() {
   </Scene>
 }
 
+const FRACTURE_BLUEPRINT_CELLS=tessellate(32,17)
+function Fracture() {
+  return <Scene id="drmvyz.cinema2.fracture">
+    <g opacity=".7">{FRACTURE_BLUEPRINT_CELLS.map(cell=><polygon key={cell.id} points={cell.polygon.map(p=>`${145+p.x*23},${74-p.y*20}`).join(' ')} fill="currentColor" fillOpacity=".07"/>)}</g>
+    <g>{[1,8,18,25].map((id,i)=>{const cell=FRACTURE_BLUEPRINT_CELLS[id]!;return <polygon key={id} transform={`translate(${i%2?13:-10} ${i<2?-8:8})`} points={cell.polygon.map(p=>`${145+p.x*23},${74-p.y*20}`).join(' ')} fill="currentColor" fillOpacity=".22"/>})}</g>
+    <g opacity=".45"><path d="M32 18L49 31 39 115 20 128 M248 15L234 36 241 109 260 128 M49 31L74 14 209 20 234 36 M20 128L39 115 241 109 260 128"/></g>
+    <g opacity=".5"><path d="M39 115L15 147M82 118L60 147M205 118L226 147M241 109L271 147M34 137L245 137"/></g>
+  </Scene>
+}
+
 function Refraction() {
   return <Scene id="drmvyz.cinema2.refraction">
     <g opacity=".35"><path d="M20 15H260L228 42H58ZM20 15V118L58 95V42M260 15V118L228 95V42M20 118L58 95H228L260 118M58 95L34 145M228 95L253 145"/></g>
@@ -420,6 +433,7 @@ function Mosaic() {
 
 export const ADDITIONAL_BLUEPRINT_DRAWINGS = {
   'drmvyz.cinema2.spectrum': Spectrum,
+  'drmvyz.cinema2.fracture': Fracture,
   'drmvyz.cinema2.refraction': Refraction,
   'drmvyz.cinema2.mosaic': Mosaic,
   'drmvyz.cinema2.colossus': Colossus,
@@ -442,6 +456,7 @@ export const ADDITIONAL_BLUEPRINT_DRAWINGS = {
 /** Small, distinct camera poses preserve hand-placed open title volumes. */
 export const ADDITIONAL_BLUEPRINT_FRAMING = {
   'drmvyz.cinema2.spectrum': 'translate(112 80) scale(1.02) translate(-120 -75)',
+  'drmvyz.cinema2.fracture': 'translate(112 80) scale(1.02) translate(-120 -75)',
   'drmvyz.cinema2.refraction': 'translate(112 80) scale(1.02) translate(-120 -75)',
   'drmvyz.cinema2.mosaic': 'translate(112 80) scale(1.02) translate(-120 -75)',
   'drmvyz.cinema2.colossus': 'translate(112 80) scale(1.02) translate(-120 -75)',

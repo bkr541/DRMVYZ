@@ -1,4 +1,5 @@
 import { cinema2SpectrumNativeModuleDefinition } from './Cinema2SpectrumNativeModule'
+import { cinema2FractureNativeModuleDefinition } from './Cinema2FractureNativeModule'
 import { cinema2RefractionNativeModuleDefinition } from './Cinema2RefractionNativeModule'
 import { cinema2MosaicNativeModuleDefinition } from './Cinema2MosaicNativeModule'
 import { cinema2ColossusNativeModuleDefinition } from './Cinema2ColossusNativeModule'
@@ -345,6 +346,8 @@ const spectrumRegistration = cinema2NativeModuleRegistry.register(cinema2Spectru
 if (!spectrumRegistration.ok) throw new Error('Cinema 2.0 SPECTRUM module registration failed.')
 const refractionRegistration = cinema2NativeModuleRegistry.register(cinema2RefractionNativeModuleDefinition)
 if (!refractionRegistration.ok) throw new Error('Cinema 2.0 REFRACTION module registration failed.')
+const fractureRegistration = cinema2NativeModuleRegistry.register(cinema2FractureNativeModuleDefinition)
+if (!fractureRegistration.ok) throw new Error('Cinema 2.0 FRACTURE module registration failed.')
 const mosaicRegistration = cinema2NativeModuleRegistry.register(cinema2MosaicNativeModuleDefinition)
 if (!mosaicRegistration.ok) throw new Error('Cinema 2.0 MOSAIC module registration failed.')
 const overdriveRegistration = cinema2NativeModuleRegistry.register(cinema2OverdriveNativeModuleDefinition)

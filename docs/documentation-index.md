@@ -42,6 +42,7 @@ When a historical document conflicts with canonical current documentation or the
 | `docs/cinema2-colossus.md` | COLOSSUS mechanical bay, private model integration, controls, choreography, authority and review status |
 | `docs/cinema2-spectrum.md` | SPECTRUM circular media arena, pattern authority, media routing and validation |
 | `docs/cinema2-refraction.md` | REFRACTION optical gallery, media and pool integration, controls and review gates |
+| `docs/cinema2-fracture.md` | FRACTURE irregular media shards, geometry, pool integration and pending visual validation |
 | `docs/cinema2-mosaic.md` | MOSAIC modular media wall, controls, pool workflow and pending validation |
 | `docs/cinema2-auto-performance.md` | Cinema 2.0 Auto Performance: inventory of every preset, the pattern-substitution and gated-choreography implementations, per-preset behavior, lifecycle, saved-settings rules and how to add it to a new preset |
 | `docs/cinema2-mainframe.md` | Mainframe operator controls, source regeneration, model attributes, patterns, quality policy, lifecycle, acceptance, and known limits |

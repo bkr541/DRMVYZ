@@ -1,4 +1,5 @@
 import { CINEMA2_SPECTRUM_PRESET_MANIFEST } from './Cinema2SpectrumPreset'
+import { CINEMA2_FRACTURE_PRESET_MANIFEST } from './Cinema2FracturePreset'
 import { CINEMA2_REFRACTION_PRESET_MANIFEST } from './Cinema2RefractionPreset'
 import { CINEMA2_MOSAIC_PRESET_MANIFEST } from './Cinema2MosaicPreset'
 import { CINEMA2_COLOSSUS_PRESET_MANIFEST } from './Cinema2ColossusPreset'
@@ -103,6 +104,7 @@ const AUTHORED_PRESET_DECLARATIONS = Object.freeze([
   defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_EVERYWHERE_PRESET_MANIFEST }),
   defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_SPECTRUM_PRESET_MANIFEST }),
   defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_REFRACTION_PRESET_MANIFEST }),
+  defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_FRACTURE_PRESET_MANIFEST }),
   defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_MOSAIC_PRESET_MANIFEST }),
   defineCinema2FirstPartyPreset({ role: 'keeper', manifest: CINEMA2_OVERDRIVE_PRESET_MANIFEST }),
   defineCinema2FirstPartyPreset({ role: 'keeper', manifest: CINEMA2_ORBITAL_PRESET_MANIFEST }),
