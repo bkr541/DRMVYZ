@@ -1,4 +1,3 @@
-import { AppIcon } from '../../../components/shared/icons/AppIcon'
 import { presetArtworkBackdrop } from '../../../components/vyzualz/presetManager/PresetLibraryCard'
 import type { PresetManagerRecord } from '../../../components/vyzualz/presetManager/presetManagerCatalog'
 import { ReactPresetArtwork, ReactPresetCard } from '../../../components/vyzualz/react/ReactPresetCard'
@@ -42,8 +41,8 @@ export function AdminPresetTile({ preset, shown, active, checked, changed, onSel
         activateLabel={`Select ${shown.name}`}
         onActivate={onSelect}
         secondaryActions={[{
-          id: 'select', iconOnly: true, label: `${checked ? 'Deselect' : 'Select'} ${shown.name} for bulk actions`, title: checked ? 'Remove from the selection' : 'Add to the selection',
-          icon: <AppIcon kind={checked ? 'check' : 'plus'} size={12} color="currentColor" />, onSelect: onToggleChecked,
+          id: 'select', iconOnly: true, pressed: checked, label: `${checked ? 'Deselect' : 'Select'} ${shown.name} for bulk actions`, title: checked ? 'Remove from the selection' : 'Add to the selection',
+          onSelect: onToggleChecked,
         }]}
       />
     </div>
@@ -60,9 +59,7 @@ export function AdminPresetTableRow({ preset, shown, active, checked, changed, o
     <tr className={active ? 'is-selected' : undefined} data-checked={checked || undefined} data-status={preset.status ?? 'unset'} data-preset-id={preset.record.id} onClick={onSelect}>
       <td className="adm-cell-check">
         <button className="adm-check" type="button" aria-pressed={checked} onClick={event => { event.stopPropagation(); onToggleChecked() }}
-          aria-label={`${checked ? 'Deselect' : 'Select'} ${shown.name} for bulk actions`} title={checked ? 'Remove from the selection' : 'Add to the selection'}>
-          <AppIcon kind={checked ? 'check' : 'plus'} size={13} color="currentColor" />
-        </button>
+          aria-label={`${checked ? 'Deselect' : 'Select'} ${shown.name} for bulk actions`} title={checked ? 'Remove from the selection' : 'Add to the selection'} />
       </td>
       <td>
         <button type="button" className="adm-row-button" aria-pressed={active} aria-label={`Select ${shown.name}`} onClick={event => { event.stopPropagation(); onSelect() }}>

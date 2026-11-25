@@ -43,6 +43,8 @@ export interface ReactPresetCardSecondaryAction {
   title?: string
   icon?: ReactNode
   iconOnly?: boolean
+  /** Toggle actions can expose their current state without changing other actions. */
+  pressed?: boolean
   tone?: 'default' | 'danger'
   disabled?: boolean
   onSelect: () => void
@@ -220,6 +222,7 @@ export function ReactPresetCard({
             action.onSelect()
           }}
           aria-label={action.ariaLabel ?? action.label}
+          aria-pressed={action.pressed}
           title={action.title ?? action.ariaLabel ?? action.label}
           disabled={action.disabled}
         >

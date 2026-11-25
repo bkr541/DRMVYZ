@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { AppIcon } from '../../../components/shared/icons/AppIcon'
 import { HeaderActionIcon } from '../../../components/vyzualz/layout/HeaderActionIcon'
 import { HeaderIconKey } from '../../../components/vyzualz/layout/HeaderIconKey'
-import { RailWindowHeader } from '../../../components/vyzualz/layout/RailWindowHeader'
 import { presetArtworkBackdrop } from '../../../components/vyzualz/presetManager/PresetLibraryCard'
 import { ConfirmDialog } from '../../../components/vyzualz/react/controls/ConfirmDialog'
 import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
@@ -187,7 +185,6 @@ export function PackPane(props: Props) {
           </div>
         </section>
         <aside className="adm-detail adm-detail--preset" aria-label="Pack details">
-          <RailWindowHeader side="right" icon={<AppIcon kind="settings" size={15} color="currentColor" aria-hidden="true" />} label="Inspector" />
           <div className="adm-detail-scroll rv-inspector-scroll">
             {selected ? <>
               <PackStage pack={selected} presets={props.presets} members={props.members} />

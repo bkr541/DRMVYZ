@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom'
 import { AppIcon } from '../../../components/shared/icons/AppIcon'
 import { HeaderActionIcon } from '../../../components/vyzualz/layout/HeaderActionIcon'
 import { HeaderIconKey } from '../../../components/vyzualz/layout/HeaderIconKey'
-import { RailWindowHeader } from '../../../components/vyzualz/layout/RailWindowHeader'
 import { notify } from '../../../stores/notificationStore'
 import { ConfirmDialog } from '../../../components/vyzualz/react/controls/ConfirmDialog'
 import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
@@ -177,7 +176,7 @@ export function PresetCatalogPane({ presets, packs, section, active = true, onSa
             <UnderlineDropdown id="adm-pack" value={filter.packId} onChange={value => patchFilter({ packId: value })} ariaLabel="Filter by pack" menuLabel="Pack" title="Pack" size="dense" menuWidth={190} showDescriptions={false}
               options={[{ value: ALL, label: 'All Packs' }, { value: NO_PACK, label: 'No Pack' }, ...packs.map(pack => ({ value: pack.id, label: pack.name }))]} />
             <UnderlineDropdown id="adm-sort" value={sort} onChange={value => setSort(value as PresetSortKey)} ariaLabel="Sort presets" menuLabel="Sort" title="Sort" size="dense" menuWidth={190} showDescriptions={false} options={SORTS} />
-            <UnderlineDropdown id="adm-status-filter" value={filter.status} onChange={value => patchFilter({ status: value })} ariaLabel="Filter by status" menuLabel="Status" title="Status" size="dense" menuWidth={190} showDescriptions={false}
+            <UnderlineDropdown id="adm-status-filter" value={filter.status} onChange={value => patchFilter({ status: value })} ariaLabel="Filter by status" menuLabel="Status" title="Status" size="dense" menuWidth={190} menuAlign="end" showDescriptions={false}
               options={STATUS_FILTERS.map(option => ({ value: option.value, label: `${option.value === ALL ? 'All Statuses' : option.label} (${counts[option.value as keyof typeof counts].toLocaleString()})` }))} />
           </div>
           <div className="adm-status-row">
@@ -210,7 +209,6 @@ export function PresetCatalogPane({ presets, packs, section, active = true, onSa
           )}
         </section>
         <aside className="adm-detail adm-detail--preset" aria-label="Preset details">
-          <RailWindowHeader side="right" icon={<AppIcon kind="settings" size={15} color="currentColor" aria-hidden="true" />} label="Inspector" />
           <div className="adm-detail-scroll rv-inspector-scroll">
           {selected && edit ? (
             <>

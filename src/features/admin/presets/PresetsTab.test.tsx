@@ -76,7 +76,7 @@ describe('Admin Preset Catalog inside the real Admin page', () => {
     expect(qa('.fw-app-header [data-app-header-slot="controls"] .adm-header-actions button').map(button => button.getAttribute('aria-label'))).toEqual(['Save changes', 'Publish preset', 'Reset to shipped', 'Discard unsaved changes'])
     // The header is the page's own, so the stand-in is not showing.
     expect(q('.fw-app-header-fallback')!.hidden).toBe(true)
-    expect(qa('[data-preset-id]')).toHaveLength(3)
+    expect(qa('.adm-list [data-preset-id]')).toHaveLength(3)
   })
 
   it('takes the header actions away again when another tab opens, and brings them back', async () => {
@@ -94,9 +94,9 @@ describe('Admin Preset Catalog inside the real Admin page', () => {
     await click(q('[aria-label="Select Charlie for bulk actions"]'))
     await click(q('.adm-header-actions button[aria-label="Publish 3 presets"]'))
     await click([...document.querySelectorAll('button')].find(button => button.textContent === 'Publish' && !button.closest('.adm-bulk') && !button.closest('.adm-publish')) ?? null)
-    await until(() => qa('[data-preset-id][data-status="published"]').length === 3)
+    await until(() => qa('.adm-list [data-preset-id][data-status="published"]').length === 3)
     expect(data.saves.map(save => [save.key, save.status, save.before])).toEqual([['alpha', 'published', 0], ['bravo', 'published', 1], ['charlie', 'published', 2]])
-    expect(qa('[data-preset-id]').map(card => card.getAttribute('data-status'))).toEqual(['published', 'published', 'published'])
+    expect(qa('.adm-list [data-preset-id]').map(card => card.getAttribute('data-status'))).toEqual(['published', 'published', 'published'])
     expect(q('[aria-label="Filter by status"]')!.textContent).toContain('All Statuses (3)')
   })
 
@@ -134,6 +134,7 @@ describe('Admin Preset Catalog inside the real Admin page', () => {
     expect(qa('.fw-app-header [data-app-header-slot="controls"] .adm-header-actions button').map(button => button.getAttribute('aria-label')).filter(label => /pack/i.test(label ?? ''))).toEqual([])
     await click(qa('.adm-pane[data-active="true"] .adm-card-button')[0]!)
     const stage = q('.adm-pane[data-active="true"] .adm-stage')!
+    expect(q('.adm-pane[data-active="true"] .adm-detail .rw-window-header')).toBeNull()
     expect(stage.querySelector('.adm-preview-title h2')!.textContent).toBe('Starters')
     expect(stage.textContent).toContain('The first pack.')
     expect(stage.querySelectorAll('.adm-pack-grid .adm-tile')).toHaveLength(1)
@@ -171,6 +172,8 @@ describe('Admin Preset Catalog inside the real Admin page', () => {
     expect(grid.querySelectorAll('[role="combobox"]')).toHaveLength(5)
     const css = readFileSync(resolve(process.cwd(), 'src/features/admin/admin.css'), 'utf8')
     expect(css).toContain('repeat(5, minmax(85px, 1fr))')
+    expect(css).toContain('@container adm-catalog-browser')
+    expect(css).toContain('height: 32px; min-height: 32px !important;')
     expect(css).toContain('prefers-reduced-motion: reduce')
     expect(css).toContain('clip-path: inset(0 0 100% 0)')
   })

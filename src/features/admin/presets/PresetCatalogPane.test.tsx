@@ -91,7 +91,7 @@ const type = async (input: HTMLInputElement | HTMLTextAreaElement, value: string
   await act(async () => { Object.getOwnPropertyDescriptor(proto, 'value')!.set!.call(input, value); input.dispatchEvent(new Event('input', { bubbles: true })) })
 }
 const field = (label: string) => qa('.rv-ctrl-row').find(entry => entry.querySelector('label')?.textContent === label)!.querySelector<HTMLInputElement | HTMLTextAreaElement>('input, textarea')!
-const names = () => qa('[data-preset-id]').map(entry => entry.getAttribute('data-preset-id')!.replace('cinema2:', ''))
+const names = () => qa('.adm-list [data-preset-id]').map(entry => entry.getAttribute('data-preset-id')!.replace('cinema2:', ''))
 const headerKey = (label: RegExp) => qa<HTMLButtonElement>('[data-testid="header-actions"] button').find(button => label.test(button.getAttribute('aria-label') ?? ''))!
 const statusOptions = () => [...document.body.querySelectorAll('[role="listbox"] [role="option"]')]
 const statusLabels = () => statusOptions().map(entry => entry.querySelector('.drm-dropdown__option-label')?.textContent)
@@ -101,7 +101,7 @@ const selectStatus = async (label: string) => { await openStatus(); await click(
 describe('Preset Catalog: library', () => {
   it('shows every preset as a table row with its artwork, name and status, and counts each status in the filter dropdown', async () => {
     expect(names()).toEqual(['alpha', 'bravo', 'charlie', 'delta'])
-    expect(qa('[data-preset-id]').every(row => row.tagName === 'TR' && row.querySelector('img.rv-preset-blueprint-image'))).toBe(true)
+    expect(qa('.adm-list [data-preset-id]').every(row => row.tagName === 'TR' && row.querySelector('img.rv-preset-blueprint-image'))).toBe(true)
     expect(qa('th').map(cell => cell.textContent)).toEqual(['Select', 'Preset', 'Engine', 'Category', 'Status'])
     expect(q('[data-preset-id="cinema2:alpha"]')!.getAttribute('data-status')).toBe('published')
     expect(q('[data-preset-id="cinema2:bravo"]')!.getAttribute('data-status')).toBe('draft')
@@ -123,6 +123,8 @@ describe('Preset Catalog: library', () => {
     const split = q('.adm-split')!
     expect([...split.children].map(child => child.tagName)).toEqual(['SECTION', 'ASIDE'])
     const detail = q('aside.adm-detail')!
+    expect(detail.firstElementChild?.classList.contains('adm-detail-scroll')).toBe(true)
+    expect(detail.querySelector('.rw-window-header')).toBeNull()
     expect(detail.querySelector('.adm-preview-art')).not.toBeNull()
     expect(detail.querySelector('.adm-facts')!.textContent).toContain('Cinema 2.0')
     expect(detail.querySelector('.adm-preview-description')!.textContent).toBe('Alpha description')
@@ -161,6 +163,40 @@ describe('Preset Catalog: library', () => {
     expect(q('.adm-preview-title h2')!.textContent).toBe('Charlie')
   })
 
+  it('uses empty toggle buttons for bulk selection in list and grid, independently of the inspector', async () => {
+    const bulkButton = (name: string) => byLabel(name)
+    let toggle = bulkButton('Select Charlie for bulk actions')
+    expect(toggle.childElementCount).toBe(0)
+    expect(toggle.getAttribute('aria-pressed')).toBe('false')
+    await click(toggle)
+    expect(toggle.getAttribute('aria-pressed')).toBe('true')
+    expect(q('.adm-preview-title h2')!.textContent).toBe('Alpha')
+    await click(byLabel('Grid view'))
+    toggle = bulkButton('Deselect Charlie for bulk actions')
+    expect(toggle.childElementCount).toBe(0)
+    expect(toggle.getAttribute('aria-pressed')).toBe('true')
+    await click(toggle)
+    expect(toggle.getAttribute('aria-pressed')).toBe('false')
+    expect(q('.adm-bulk')).toBeNull()
+    expect(q('.adm-preview-title h2')!.textContent).toBe('Alpha')
+  })
+
+  it('anchors the rightmost status menu to the trigger end in a body portal', async () => {
+    const trigger = byLabel('Filter by status')
+    const rect = { left: 650, right: 780, top: 90, bottom: 122, width: 130, height: 32 } as DOMRect
+    const geometry = vi.spyOn(trigger, 'getBoundingClientRect').mockReturnValue(rect)
+    try {
+      await openStatus()
+      const menu = document.getElementById(trigger.getAttribute('aria-controls')!)!
+      expect(menu.parentElement).toBe(document.body)
+      expect(parseFloat(menu.style.left) + parseFloat(menu.style.width)).toBe(rect.right)
+      expect(trigger.getAttribute('aria-expanded')).toBe('true')
+      await click(statusOptions()[0]!)
+      expect(trigger.getAttribute('aria-expanded')).toBe('false')
+      expect(document.getElementById(menu.id)).toBeNull()
+    } finally { geometry.mockRestore() }
+  })
+
   it('moves the selection with the arrow keys', async () => {
     const list = q('.adm-list')!
     await act(async () => { list.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })) })
@@ -180,9 +216,19 @@ describe('Preset Catalog: preview and inspector', () => {
 
   it('shows how users will see it, with an unsaved name applied', async () => {
     await type(field('Name'), 'Alpha Renamed')
-    await click(qa('[role="tab"]').find(tab => tab.textContent === 'IN THE APP')!)
     expect(q('.adm-inapp-list')!.textContent).toContain('Alpha Renamed')
     expect(q('.adm-inapp-grid')!.textContent).toContain('Alpha Renamed')
+  })
+
+  it('shows every inspector section in order in the same scroll area, without tabs', () => {
+    const detail = q('.adm-detail-scroll')!
+    expect(detail.querySelector('[role="tablist"]')).toBeNull()
+    expect([...detail.querySelectorAll('.drc-header')].map(button => button.textContent)).toEqual([
+      'Publishing', 'Preset Info', 'Tags & Collections', 'Store Listing', 'Technical', 'In the App',
+    ])
+    expect(field('Store Title')).toBeInstanceOf(HTMLInputElement)
+    expect(field('Preset ID').readOnly).toBe(true)
+    expect(detail.querySelector('.adm-inapp-grid')).not.toBeNull()
   })
 
   it('keeps an edit as a draft, marks the card Modified, and keeps the draft when moving to another preset and back', async () => {
@@ -351,7 +397,7 @@ describe('Preset Catalog: header actions and saving everything', () => {
     await click(headerKey(/Save changes/))
     expect(calls.saveMany).toHaveLength(1)
     expect(calls.saveMany[0]!.map(change => [change.preset.record.sourceId, change.row?.name])).toEqual([['alpha', 'Alpha Two'], ['bravo', 'Bravo Two']])
-    expect(qa('.adm-edited').length + qa('[data-preset-id]').filter(card => card.textContent?.includes('Modified')).length).toBe(0)
+    expect(qa('.adm-edited').length + qa('.adm-list [data-preset-id]').filter(card => card.textContent?.includes('Modified')).length).toBe(0)
     expect(useNotificationStore.getState().events.admin[0]?.message).toContain('Saved 2 presets.')
   })
 
