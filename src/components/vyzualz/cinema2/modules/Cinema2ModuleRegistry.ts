@@ -1,3 +1,4 @@
+import { cinema2SpectrumNativeModuleDefinition } from './Cinema2SpectrumNativeModule'
 import { cinema2RefractionNativeModuleDefinition } from './Cinema2RefractionNativeModule'
 import { cinema2MosaicNativeModuleDefinition } from './Cinema2MosaicNativeModule'
 import { cinema2ColossusNativeModuleDefinition } from './Cinema2ColossusNativeModule'
@@ -340,6 +341,8 @@ for(const definition of artifactNativeModuleDefinitions){
  if(!registration.ok) throw new Error(`Cinema 2.0 artifact module registration failed: ${registration.diagnostics.map(d=>d.message).join('; ')}`)
 }
 
+const spectrumRegistration = cinema2NativeModuleRegistry.register(cinema2SpectrumNativeModuleDefinition)
+if (!spectrumRegistration.ok) throw new Error('Cinema 2.0 SPECTRUM module registration failed.')
 const refractionRegistration = cinema2NativeModuleRegistry.register(cinema2RefractionNativeModuleDefinition)
 if (!refractionRegistration.ok) throw new Error('Cinema 2.0 REFRACTION module registration failed.')
 const mosaicRegistration = cinema2NativeModuleRegistry.register(cinema2MosaicNativeModuleDefinition)

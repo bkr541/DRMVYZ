@@ -13,6 +13,19 @@ const MAPPED_BY_RULE = 'The preset maps this saved value to its targets through 
 const NEVER_ZOOMS = 'Open Decks never zooms or turns: its only camera movement is the slight left and right sway authored in the preset.'
 
 export const CINEMA2_AUTO_COVERAGE_EXEMPT: Readonly<Record<string, Readonly<Record<string, string>>>> = Object.freeze({
+  spectrum: Object.freeze({
+    'spectrum-reactivity': 'User-owned alignment, media presentation or modulation authority.',
+    'spectrum-arena-radius': 'User-owned alignment, media presentation or modulation authority.',
+    'spectrum-display-height': 'User-owned alignment, media presentation or modulation authority.',
+    'spectrum-bay-gap': 'User-owned alignment, media presentation or modulation authority.',
+    'spectrum-media-scale': 'User-owned alignment, media presentation or modulation authority.',
+    'spectrum-media-x': 'User-owned alignment, media presentation or modulation authority.',
+    'spectrum-media-y': 'User-owned alignment, media presentation or modulation authority.',
+    'spectrum-media-rotation': 'User-owned alignment, media presentation or modulation authority.',
+    'spectrum-media-opacity': 'User-owned alignment, media presentation or modulation authority.',
+    'spectrum-media-brightness': 'User-owned alignment, media presentation or modulation authority.',
+    'spectrum-transition': 'User-owned alignment, media presentation or modulation authority.',
+  }),
   refraction: Object.freeze({
     'refraction-reactivity': 'User-owned media presentation, physical alignment or modulation authority.',
     'refraction-prism-depth': 'User-owned media presentation, physical alignment or modulation authority.',
