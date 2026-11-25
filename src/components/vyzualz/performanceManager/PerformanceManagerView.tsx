@@ -49,7 +49,7 @@ export function PerformanceManagerView() {
       <WorkspaceRail side="left" label="Performance Manager engines" collapsed={leftCollapsed} onToggleCollapsed={() => setLeftCollapsed(v => !v)} className="rw-frame--left">
         <RailWindowHeader side="left" label="Performance Workspace" icon={<AppIcon kind="grid" size={15} />} />
         <div className="rv-workspace-tabs-wrap">
-          <RailTabs variant="underline" className="rv-context-workspace-tabs" ariaLabel="Performance Manager library tabs" activeTab={leftTab} onChange={setLeftTab} tabs={[{ id: 'engine', label: 'ENGINE' }, { id: 'placeholder-1', label: '—', disabled: true }, { id: 'placeholder-2', label: '—', disabled: true }]} />
+          <RailTabs variant="underline" className="rv-context-workspace-tabs" ariaLabel="Performance Manager library tabs" activeTab={leftTab} onChange={setLeftTab} tabs={[{ id: 'engine', label: 'ENGINE' }, { id: 'placeholder-1', label: '', disabled: true }, { id: 'placeholder-2', label: '', disabled: true }]} />
         </div>
         <div className="vz-panel-body">
           {leftTab === 'engine' && <div className="pfm-engine-grid" role="group" aria-label="Engines">

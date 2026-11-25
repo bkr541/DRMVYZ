@@ -4,7 +4,8 @@
 import React, { act, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { useNotificationStore } from '../../../stores/notificationStore'
+import { NotificationPageProvider, useNotificationStore } from '../../../stores/notificationStore'
+import { HeaderNotificationsButton } from '../../../components/vyzualz/shared/HeaderNotificationsButton'
 import { WithNotificationDrawer, drawerText } from '../../../test/WithNotificationDrawer'
 import type { PresetManagerRecord } from '../../../components/vyzualz/presetManager/presetManagerCatalog'
 import type { PresetMetadataRow } from '../../presetCatalog/presetMetadata'
@@ -62,12 +63,15 @@ let headerHost: HTMLDivElement
 let root: ReturnType<typeof createRoot>
 let headerState: HTMLElement | null = null
 
-function Page() {
+function Page({ useBell = false }: { useBell?: boolean }) {
   const [element, setElement] = useState<HTMLElement | null>(null)
   headerState = element
   return <>
     <div ref={setElement} data-testid="header-actions" />
-    <AdminHeaderActionsContext.Provider value={element}><WithNotificationDrawer page="admin"><Harness /></WithNotificationDrawer></AdminHeaderActionsContext.Provider>
+    <AdminHeaderActionsContext.Provider value={element}>
+      {useBell ? <NotificationPageProvider value="admin"><HeaderNotificationsButton page="admin" iconOnly /><Harness /></NotificationPageProvider>
+        : <WithNotificationDrawer page="admin"><Harness /></WithNotificationDrawer>}
+    </AdminHeaderActionsContext.Provider>
   </>
 }
 
@@ -399,6 +403,29 @@ describe('Preset Catalog: header actions and saving everything', () => {
     expect(calls.saveMany[0]!.map(change => [change.preset.record.sourceId, change.row?.name])).toEqual([['alpha', 'Alpha Two'], ['bravo', 'Bravo Two']])
     expect(qa('.adm-edited').length + qa('.adm-list [data-preset-id]').filter(card => card.textContent?.includes('Modified')).length).toBe(0)
     expect(useNotificationStore.getState().events.admin[0]?.message).toContain('Saved 2 presets.')
+  })
+
+  it('keeps a bulk save confirmation out of the inspector until the Notifications bell is opened', async () => {
+    await act(async () => root.render(<Page useBell />))
+    await type(field('Name'), 'Alpha Two')
+    await click(byLabel('Select Bravo')); await type(field('Name'), 'Bravo Two')
+    await click(headerKey(/Save changes/))
+
+    const message = 'Saved 2 presets.'
+    expect(calls.saveMany).toHaveLength(1)
+    expect(document.body.querySelector('.vz-notifications-drawer')).toBeNull()
+    expect(host.textContent).not.toContain(message)
+    expect(q('.adm-detail')?.querySelector('.dv-notice[data-tone="success"]')).toBeNull()
+    expect(useNotificationStore.getState().events.admin).toHaveLength(1)
+    expect(useNotificationStore.getState().events.admin[0]).toMatchObject({ tone: 'success', title: 'Saved', message, unread: true })
+    const bell = byLabel('Notifications (1)')
+    expect(bell.getAttribute('data-attention')).toBe('unread')
+    await click(bell)
+
+    expect(drawerText()).toContain(message)
+    expect(document.body.querySelectorAll('.vz-notifications-drawer .dv-notice[data-tone="success"]')).toHaveLength(1)
+    expect(host.textContent).not.toContain(message)
+    expect(useNotificationStore.getState().events.admin[0]?.unread).toBe(false)
   })
 
   it('saves everything with Ctrl+S, and discards everything from the header', async () => {
