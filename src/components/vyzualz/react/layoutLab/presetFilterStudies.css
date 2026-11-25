@@ -5,8 +5,8 @@
   --pf-panel: #151a1d;
   --pf-accent: #8ef4ff;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
-  max-width: 1260px;
+  grid-template-columns: minmax(0, 360px);
+  max-width: 360px;
   gap: 28px 22px;
   padding: 12px 0 22px;
   color: var(--pf-ink);
@@ -69,79 +69,56 @@
   padding: 0 14px 14px;
 }
 
-.ll-pf-scope {
-  display: flex;
-  justify-content: center;
-  gap: 18px;
-  margin: 14px 0 12px;
-}
-.ll-pf-scope button {
+.ll-pf-controls { display: grid; gap: 9px; padding-top: 14px; }
+.ll-pf-chips { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.ll-pf-filter-trigger.dv-icon-chip {
   position: relative;
-  padding: 4px 7px;
-  border: 0;
-  background: none;
-  color: var(--pf-muted);
-  font: var(--type-tab);
-  letter-spacing: .1em;
-  text-transform: uppercase;
-  cursor: pointer;
+  flex: 0 0 30px;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  justify-content: center;
 }
-.ll-pf-scope button[aria-pressed='true'] { color: var(--color-primary); }
-.ll-pf-scope button[aria-pressed='true']::before {
+.ll-pf-filter-trigger .dv-icon-chip__icon { width: 14px; height: 14px; }
+.ll-pf-filter-trigger[data-has-filters='true']::after {
   content: '';
   position: absolute;
-  inset: 50% auto auto -3px;
-  width: 5px;
-  height: 5px;
-  border-radius: 100%;
+  top: 3px;
+  right: 3px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
   background: currentColor;
-  transform: translateY(-50%);
 }
-
-.ll-pf-controls { display: grid; gap: 9px; }
-.ll-pf-chips { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
-.ll-pf-chips .ll-pf-chip {
-  min-height: 24px;
-  padding: 0 8px;
-  border: 1px solid var(--pf-line);
-  border-radius: 999px;
-  background: #20282c;
-  color: var(--pf-ink);
-}
-.ll-pf-chips .ll-pf-chip:hover,
-.ll-pf-chips .ll-pf-chip[aria-pressed='true'] {
-  border-color: #5ca8b4;
-  background: #18363e;
-  color: var(--pf-accent);
-}
-.ll-pf-tokens .ll-pf-chip {
-  border-style: dashed;
-  border-radius: 4px;
-  background: #131e23;
-  color: #a5d3dc;
-}
-.ll-pf-tokens .ll-pf-chip[aria-pressed='true'] { border-style: solid; }
-
-.ll-pf-dropdown-filter { width: auto; flex: none; }
-.ll-pf-filter-trigger { flex: none; }
-.ll-pf-trigger-count { color: var(--pf-accent); }
-.ll-pf-filter-popover {
+/* The shared anchored popover keeps its positioning, Escape and focus restoration;
+   only this study gets a compact filter-menu treatment instead of an info card. */
+.drm-info-popover-backdrop:has(+ .ll-pf-filter-popover) { background: transparent; backdrop-filter: none; }
+.drm-info-popover.ll-pf-filter-popover {
   box-sizing: border-box;
+  min-width: 0;
   --pf-ink: var(--drm-info-text, #e0e8ec);
-  --pf-line: var(--drm-info-divider, #344046);
+  --pf-muted: var(--drm-info-muted, #a0aeb4);
+  --pf-line: rgba(154, 178, 188, .18);
   --pf-accent: var(--drm-info-accent, #8ef4ff);
+  color-scheme: dark;
+  border-color: var(--pf-line);
 }
-.ll-pf-filter-popover .ll-pf-facets { border: 0; background: transparent; }
-.ll-pf-filter-popover .ll-pf-facets summary { padding-inline: 0; }
-.ll-pf-filter-popover .ll-pf-facets .ll-pf-options { padding-inline: 0; }
-
-.ll-pf-facets { border: 1px solid var(--pf-line); border-radius: 4px; background: #11171a; }
+.ll-pf-filter-popover::before { display: none; }
+.ll-pf-filter-popover .drm-info-popover__header { padding: 14px 42px 14px 14px; text-align: left; border-bottom: 1px solid var(--pf-line); }
+.ll-pf-filter-popover .drm-info-popover__header-row { align-items: flex-start; }
+.ll-pf-filter-popover .drm-info-popover__header-icon { display: none; }
+.ll-pf-filter-popover .drm-info-popover__title { font-size: 13px; font-weight: 650; }
+.ll-pf-filter-popover .drm-info-popover__close { top: 6px; right: 6px; }
+.ll-pf-filter-popover .drm-info-popover__body { padding: 0 14px; }
+.ll-pf-filter-popover .drm-info-popover__footer { justify-content: flex-end; padding: 10px 12px; border-top: 1px solid var(--pf-line); }
+.ll-pf-reset { margin-right: auto; padding: 5px 0; border: 0; background: none; color: var(--pf-muted); font: var(--type-field-value); cursor: pointer; }
+.ll-pf-reset:hover { color: var(--pf-accent); }
 .ll-pf-facets details + details { border-top: 1px solid var(--pf-line); }
 .ll-pf-facets summary {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 9px;
+  padding: 11px 0;
   list-style: none;
   color: var(--pf-ink);
   font: var(--type-nested-group-heading);
@@ -149,19 +126,34 @@
 }
 .ll-pf-facets summary::-webkit-details-marker { display: none; }
 .ll-pf-facets details[open] summary svg { transform: rotate(180deg); }
-.ll-pf-facets summary em { margin-inline-start: 4px; color: var(--pf-accent); font-style: normal; }
-.ll-pf-facets .ll-pf-options { padding: 0 9px 6px; }
+.ll-pf-facets summary em { margin-inline-start: 7px; color: var(--pf-accent); font-style: normal; }
+.ll-pf-name-search {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 7px 9px;
+  margin-bottom: 6px;
+  background: rgba(255, 255, 255, .04);
+  border: 1px solid var(--pf-line);
+  border-radius: 4px;
+  color: var(--pf-ink);
+  font: var(--type-field-value);
+}
+.ll-pf-options { max-height: 150px; overflow-y: auto; scrollbar-width: thin; padding: 0 2px 8px; }
 .ll-pf-options label {
   display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 4px 0;
+  gap: 8px;
+  min-height: 28px;
+  padding: 3px 5px;
+  border-radius: 3px;
   color: var(--pf-ink);
   font: var(--type-field-label);
   cursor: pointer;
+  overflow-wrap: anywhere;
 }
-.ll-pf-options input { margin: 0; accent-color: #4ac7db; }
-.ll-pf-option-count { margin-inline-start: auto; color: var(--pf-muted); }
+.ll-pf-options label:hover { background: rgba(255, 255, 255, .05); }
+.ll-pf-options input { flex: none; margin: 0; accent-color: #4ac7db; }
+.ll-pf-no-options { margin: 5px; color: var(--pf-muted); font: var(--type-field-value); }
 
 .ll-pf-results-bar {
   display: flex;
@@ -189,9 +181,8 @@
   font: var(--type-field-value);
   text-align: center;
 }
-.ll-pf-scope button:focus-visible,
 .ll-pf-controls :is(button, select, input, summary):focus-visible,
-.ll-pf-filter-popover :is(input, summary):focus-visible,
+.ll-pf-filter-popover :is(input, summary, button):focus-visible,
 .ll-pf-results-bar button:focus-visible {
   outline: 1px solid var(--pf-accent);
   outline-offset: 2px;

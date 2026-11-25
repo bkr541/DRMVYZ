@@ -161,69 +161,39 @@ describe('persistent Layout Lab tabs', () => {
       .not.toContainEqual(expect.objectContaining({ id: retiredId }))
   })
 
-  it('opens Preset Filter with five independent Inspector previews', async () => {
+  it('opens only the inline Preset Filter and applies actual preset names', async () => {
     await render()
     expect(tab(16).textContent).toBe('Preset Filter')
     await act(async () => tab(16).click())
     const panel = host.querySelector<HTMLElement>('#layout-lab-tab-16-panel')!
     expect(panel.hidden).toBe(false)
     const studies = [...panel.querySelectorAll('[data-preset-filter-study]')]
-    expect(studies.map(study => study.getAttribute('data-preset-filter-study'))).toEqual(['chips', 'dropdowns', 'popover', 'facets', 'tokens'])
-    const laser = [...studies[0]!.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === 'Laser')!
-    await act(async () => laser.click())
-    expect(studies[0]!.querySelector('[role="status"]')?.textContent).toBe('2 presets')
-    expect(studies[1]!.querySelector('[role="status"]')?.textContent).toBe('10 presets')
-
-    const [dropdownTrigger, popoverTrigger] = studies.slice(1, 3).map(study =>
-      study.querySelector<HTMLButtonElement>('button.ll-pf-filter-trigger')!,
-    )
-    expect(dropdownTrigger.className).toBe(popoverTrigger.className)
-    expect(dropdownTrigger.innerHTML).toBe(popoverTrigger.innerHTML)
-    await act(async () => dropdownTrigger.click())
-    const menu = document.getElementById(dropdownTrigger.getAttribute('aria-controls')!)
-    expect(menu?.classList.contains('drm-dropdown__menu')).toBe(true)
-    const option = [...menu!.querySelectorAll<HTMLElement>('[role="option"]')].find(row => row.textContent === 'Architecture')!
-    const groups = [...menu!.querySelectorAll('.drm-dropdown__group-label')].map(group => group.textContent)
-    expect(groups).toEqual([
-      'Search in', 'Engine', 'Source', 'Category', 'Tags', 'Author', 'Visual capabilities', 'Audio capabilities',
-      'Preset type', 'Favorites', 'My tags', 'Collections', 'Preset pack', 'Year added', 'Year updated',
-    ])
-    await act(async () => option.click())
-    expect(studies[1]!.querySelector('[role="status"]')?.textContent).toBe('4 presets')
-
-    const result = () => studies[2]!.querySelector('[role="status"]')?.textContent
-    await act(async () => popoverTrigger.click())
-    const dialog = document.getElementById(popoverTrigger.getAttribute('aria-controls')!)!
+    expect(studies.map(study => study.getAttribute('data-preset-filter-study'))).toEqual(['dropdowns'])
+    const study = studies[0]!
+    const trigger = study.querySelector<HTMLButtonElement>('button.ll-pf-filter-trigger')!
+    expect(trigger.textContent).toBe('')
+    expect(trigger.getAttribute('aria-label')).toBe('Filters')
+    const result = () => study.querySelector('[role="status"]')?.textContent
+    const initial = result()
+    await act(async () => trigger.click())
+    const dialog = document.getElementById(trigger.getAttribute('aria-controls')!)!
     expect(dialog.classList.contains('drm-info-popover')).toBe(true)
-    expect([...dialog.querySelectorAll('summary')].map(summary => summary.textContent)).toEqual(groups)
-    const choose = async (group: string, value: string) => {
-      const options = dialog.querySelector(`[role="group"][aria-label="${group}"]`)!
-      const option = [...options.querySelectorAll('label')].find(label => label.textContent === value)!
-      await act(async () => {
-        options.closest('details')!.open = true
-        option.querySelector('input')!.click()
-      })
-    }
-    const apply = () => [...dialog.querySelectorAll('button')].find(button => button.textContent === 'Apply')!
-    await choose('Source', 'User')
-    await choose('Collections', 'Demo Set')
-    await choose('Visual capabilities', 'Camera Motion')
-    expect(result()).toBe('10 presets')
-    await act(async () => apply().click())
+    expect([...dialog.querySelectorAll('summary')].map(summary => summary.textContent)).toEqual([
+      'Preset name', 'Category', 'Favorites', 'Tags', 'Collections',
+    ])
+    const names = dialog.querySelector('[role="group"][aria-label="Preset name"]')!
+    const option = [...names.querySelectorAll('label')].find(label => label.textContent?.toLowerCase() === 'afterhours')!
+    expect(option).toBeDefined()
+    const presetName = option.textContent!
+    await act(async () => option.querySelector('input')!.click())
+    expect(result()).toBe(initial)
+    await act(async () => [...dialog.querySelectorAll('button')].find(button => button.textContent === 'Apply (1)')!.click())
     expect(result()).toBe('1 preset')
-    expect(studies[2]!.querySelector('[aria-label="Select Opening Set"]')).not.toBeNull()
-    const search = studies[2]!.querySelector<HTMLInputElement>('input[aria-label="Search presets"]')!
-    await act(async () => {
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(search, 'laser sweeps')
-      search.dispatchEvent(new Event('input', { bubbles: true }))
-    })
-    expect(result()).toBe('1 preset')
-    await act(async () => popoverTrigger.click())
-    const searchDialog = document.getElementById(popoverTrigger.getAttribute('aria-controls')!)!
-    const nameOption = [...searchDialog.querySelectorAll('label')].find(label => label.textContent === 'Name')!
-    await act(async () => nameOption.querySelector('input')!.click())
-    await act(async () => [...searchDialog.querySelectorAll('button')].find(button => button.textContent === 'Apply')!.click())
-    expect(result()).toBe('0 presets')
+    expect(study.querySelector(`[aria-label="Select ${presetName}"]`)).not.toBeNull()
+    expect(trigger.dataset.hasFilters).toBe('true')
+    await act(async () => study.querySelector<HTMLButtonElement>(`[aria-label="Remove ${presetName}"]`)!.click())
+    expect(result()).toBe(initial)
+    expect(trigger.dataset.hasFilters).toBe('false')
   })
 
   it('shows four static Live Input mockups, including both spectrum disclosure states', async () => {
