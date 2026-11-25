@@ -13,6 +13,7 @@ export const ADDITIONAL_BLUEPRINT_MOTIFS = {
   'drmvyz.cinema2.fracture': ['Irregular fractured media surface', 'Suspended angular shards', 'Recessed structural fissures', 'Angular floor seams'],
   'drmvyz.cinema2.refraction': ['Suspended optical prisms', 'Beveled glass housings', 'Angular hall ribs', 'Optical floor rails'],
   'drmvyz.cinema2.mosaic': ['Tiled media wall', 'Extruded screen modules', 'Mounting channels', 'Gallery floor'],
+  'drmvyz.cinema2.monument': ['Extruded hero', 'Stepped podium', 'Hall buttresses', 'Floor relays'],
   'drmvyz.cinema2.exoskeleton': ['Hinged armor plates', 'Faceted core', 'Hexagonal service bays', 'Circular plinth'],
   'drmvyz.cinema2.colossus': ['Articulated arms', 'Open mechanical emblem', 'Octagonal bulkheads', 'Floor energy tracks'],
   'drmvyz.cinema2.backstreet': ['Neon wordmark', 'Glass tube returns', 'Brick courses', 'Wall mounts'],
@@ -57,6 +58,7 @@ const SUBJECT_PLANES: Record<SceneId, readonly [string, string, string, string]>
   'drmvyz.cinema2.refraction': ['', '', '', ''],
   'drmvyz.cinema2.mosaic': ['', '', '', ''],
   'drmvyz.cinema2.colossus': ['', '', '', ''],
+  'drmvyz.cinema2.monument': ['', '', '', ''],
   'drmvyz.cinema2.exoskeleton': ['', '', '', ''],
   'drmvyz.cinema2.backstreet': ['translate(-15 8)', 'translate(-15 8)', 'translate(12 -10)', 'translate(0 22)'],
   'drmvyz.cinema2.conduit': ['translate(-15 5)', 'translate(-21 18)', 'translate(-27 20)', 'translate(0 -5)'],
@@ -388,6 +390,15 @@ function OpenDecks() {
   </Scene>
 }
 
+function Monument() {
+  return <Scene id="drmvyz.cinema2.monument">
+    <g opacity=".35">{[0,1,2,3].map(i=><path key={i} d={`M${28+i*17} 15V112L120 79 ${212-i*17} 112V15M${28+i*17} 112L${15+i*20} 146M${212-i*17} 112L${225-i*20} 146`}/>)}</g>
+    <path d="M47 112H193L210 127H30ZM32 128H208L220 141H20Z" fill="currentColor" fillOpacity=".12"/>
+    <path d="M53 106V45H66L81 73 96 45H109V106H96V68L81 94 66 68V106ZM123 106V45H138L162 79V45H176V106H162L137 72V106Z" fill="currentColor" fillOpacity=".22"/>
+    <path d="M109 45l7 -6v61l-7 6M176 45l7 -6v61l-7 6M53 45l7 -6h13M123 45l7 -6h15" opacity=".8"/>
+  </Scene>
+}
+
 function Exoskeleton() {
   return <Scene id="drmvyz.cinema2.exoskeleton">
     <g opacity=".25">{Array.from({length:12},(_,i)=><path key={i} transform={`translate(${65+i%4*46} ${28+Math.floor(i/4)*36})`} d="M-17 0-9-15H9L17 0 9 15H-9Z"/>)}</g>
@@ -448,6 +459,7 @@ export const ADDITIONAL_BLUEPRINT_DRAWINGS = {
   'drmvyz.cinema2.refraction': Refraction,
   'drmvyz.cinema2.mosaic': Mosaic,
   'drmvyz.cinema2.colossus': Colossus,
+  'drmvyz.cinema2.monument': Monument,
   'drmvyz.cinema2.exoskeleton': Exoskeleton,
   'drmvyz.cinema2.backstreet': Backstreet, 'drmvyz.cinema2.conduit': Conduit,
   'drmvyz.cinema2.echoform': Echoform, 'drmvyz.cinema2.echowave': Echowave,
@@ -472,6 +484,7 @@ export const ADDITIONAL_BLUEPRINT_FRAMING = {
   'drmvyz.cinema2.refraction': 'translate(112 80) scale(1.02) translate(-120 -75)',
   'drmvyz.cinema2.mosaic': 'translate(112 80) scale(1.02) translate(-120 -75)',
   'drmvyz.cinema2.colossus': 'translate(112 80) scale(1.02) translate(-120 -75)',
+  'drmvyz.cinema2.monument': 'translate(120 75) scale(1) translate(-120 -75)',
   'drmvyz.cinema2.exoskeleton': 'translate(112 80) scale(1.02) translate(-120 -75)',
   'drmvyz.cinema2.backstreet': 'translate(115 79) rotate(-5) scale(1.01) translate(-120 -75)',
   'drmvyz.cinema2.conduit': 'translate(113 80) rotate(-7) scale(1.02) translate(-120 -75)',
