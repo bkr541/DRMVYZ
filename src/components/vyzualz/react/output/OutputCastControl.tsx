@@ -53,6 +53,38 @@ const WINDOW_OPTIONS: ReadonlyArray<{ id: OutputWindowMode; label: string; descr
 
 const ASPECT_OPTIONS: readonly OutputAspectRatio[] = ['16:9', '16:10', '4:3', '3:2', '1:1', '9:16']
 
+const CAST_LAYOUTS = [
+  { id: 'list', label: 'Compact List' },
+  { id: 'tabs', label: 'Output Tabs' },
+  { id: 'matrix', label: 'Device Matrix' },
+  { id: 'format', label: 'Format Preview' },
+  { id: 'dock', label: 'Cast Dock' },
+] as const
+type CastLayout = typeof CAST_LAYOUTS[number]['id']
+const CAST_CATEGORIES = [
+  { id: 'web', label: 'Browser' },
+  { id: 'wireless', label: 'Wireless' },
+  { id: 'local', label: 'Local' },
+  { id: 'receiver', label: 'Receivers' },
+] as const
+type CastCategory = typeof CAST_CATEGORIES[number]['id']
+
+function OutputFormatPreview({ aspect, mode }: { aspect: OutputAspectRatio | null; mode: OutputWindowMode | null }) {
+  const ratio = aspect ?? '16:9'
+  const [width, height] = ratio.split(':').map(Number)
+  const frameWidth = Math.min(185, 78 * width / height)
+  const frameHeight = frameWidth * height / width
+  const modeLabel = WINDOW_OPTIONS.find(option => option.id === mode)?.label
+  return (
+    <div className="rv-cast-format-preview" role="img" aria-label={`Output framing preview: ${ratio}${modeLabel ? `, ${modeLabel}` : ''}${aspect ? '' : ', default illustration'}`}>
+      <div className="rv-cast-format-frame" style={{ width: frameWidth, height: frameHeight }}>
+        <DisplayIcon network={false} />
+      </div>
+      <span className="rv-cast-format-label">{ratio}{modeLabel ? ` · ${modeLabel}` : ''}{!aspect ? ' · Preview' : ''}</span>
+    </div>
+  )
+}
+
 function CastIcon() { return <AppIcon kind="cast" /> }
 
 function WindowModeIcon({ mode }: { mode: OutputWindowMode }) {
@@ -540,16 +572,16 @@ function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(Math.max(value, minimum), Math.max(minimum, maximum))
 }
 
-function WebCastSection({ controller, aspect, canvasReady, nativeBusy }: { controller: WebCastController; aspect: OutputAspectRatio | null; canvasReady: boolean; nativeBusy: boolean }) {
+function WebCastSection({ controller, aspect, canvasReady, nativeBusy, hidden }: { controller: WebCastController; aspect: OutputAspectRatio | null; canvasReady: boolean; nativeBusy: boolean; hidden: boolean }) {
   const {view} = controller
   const link = view.session ? `${CAST_ORIGIN}/#${view.session.token}` : ''
   const qr = useMemo(() => link ? webCastQrPath(link) : '', [link])
   const [copied,setCopied] = useState(false)
   const [showLink,setShowLink] = useState(false)
   useEffect(() => { setCopied(false); setShowLink(false) }, [link])
-  return <section className="rv-cast-device-category" aria-label="Web casting">
+  return <section className="rv-cast-device-category rv-cast-category--web" aria-label="Web casting" hidden={hidden}>
     <span className="rv-cast-device-category-hdr">Web Casting</span>
-    <div className="rv-webcast-card">
+    <div className={`rv-webcast-card${view.session || view.busy || view.error || nativeBusy || !controller.configured ? ' rv-webcast-card--expanded' : ''}`}>
       <div className="rv-webcast-header"><span className="rv-cast-tile-icon"><CastIcon /></span><div><strong>STAGELESS Cast</strong><small>Live visuals on any compatible browser. No receiver app required.</small></div></div>
       {!view.session ? <button type="button" className="rv-webcast-action" disabled={view.busy || nativeBusy || !canvasReady || !controller.configured} onClick={() => void controller.start(aspect ?? '16:9')}>{view.busy ? 'Creating session…' : 'Create Cast Session'}</button> : <>
         <div className="rv-webcast-pair"><svg role="img" aria-label="Scan to join this cast" viewBox="0 0 45 45" shapeRendering="crispEdges"><rect width="45" height="45" fill="white"/><path d={qr} fill="#000"/></svg><div><small>Open cast.stagelessstudio.com</small><strong className="rv-webcast-code">{view.session.code}</strong><button className="rv-webcast-action" type="button" onClick={() => { if (!navigator.clipboard) { setShowLink(true); return } void navigator.clipboard.writeText(link).then(()=>setCopied(true),()=>setShowLink(true)) }}>{copied ? 'Link copied' : 'Copy secure link'}</button></div></div>
@@ -582,6 +614,8 @@ interface OutputCastPopoverProps {
   onCast: (target: OutputTarget, windowMode: OutputWindowMode, aspectRatio: OutputAspectRatio) => void
   onStop: () => void
   webCast: WebCastController
+  layout: CastLayout
+  onLayoutChange: (layout: CastLayout) => void
 }
 
 function OutputCastPopover({
@@ -599,7 +633,11 @@ function OutputCastPopover({
   onCast,
   onStop,
   webCast,
+  layout,
+  onLayoutChange,
 }: OutputCastPopoverProps) {
+  const [category, setCategory] = useState<CastCategory>('web')
+  const categoryHidden = (value: CastCategory) => layout === 'tabs' && category !== value
   const [windowMode, setWindowMode] = useState<OutputWindowMode | null>(null)
   const [aspectRatio, setAspectRatio] = useState<OutputAspectRatio | null>(null)
   const [pendingTargetId, setPendingTargetId] = useState<string | null>(null)
@@ -687,7 +725,7 @@ function OutputCastPopover({
       window.removeEventListener('scroll', updatePosition, true)
       observer?.disconnect()
     }
-  }, [updatePosition])
+  }, [updatePosition, layout, category])
 
   const start = (target: OutputTarget) => {
     if (!windowMode || !aspectRatio || !readyToCast) return
@@ -732,7 +770,7 @@ function OutputCastPopover({
               onClick={() => start(target)}
             >
               <span className="rv-cast-tile-icon"><DisplayIcon network={target.kind === 'network'} /></span>
-              <strong>{target.name}</strong>
+              <span className="rv-cast-device-copy"><strong>{target.name}</strong></span>
               <span className={`rv-cast-tile-pill${isLive ? ' is-live' : ''}`}>{stateLabel}</span>
             </button>
           )
@@ -772,7 +810,7 @@ function OutputCastPopover({
   return createPortal(
     <section
       ref={popoverRef}
-      className={`rv-cast-popover rv-cast-popover--${placement}`}
+      className={`rv-cast-popover rv-cast-popover--${placement} rv-cast-layout--${layout}`}
       style={popoverStyle}
       role="dialog"
       aria-labelledby={titleId}
@@ -782,6 +820,15 @@ function OutputCastPopover({
           <header className="rv-cast-compact-title">
             <span className="rv-cast-compact-title-icon"><CastIcon /></span>
             <h2 id={titleId}>Cast Output</h2>
+            <label className="rv-cast-layout-control">
+              <span>Layout</span>
+              <select aria-label="Cast layout" value={layout} onChange={event => {
+                const next = CAST_LAYOUTS.find(option => option.id === event.currentTarget.value)
+                if (next) onLayoutChange(next.id)
+              }}>
+                {CAST_LAYOUTS.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}
+              </select>
+            </label>
             <button type="button" className="rv-cast-icon-btn rv-cast-icon-btn--close" onClick={onClose} aria-label="Close cast panel">
               <CloseIcon />
             </button>
@@ -828,6 +875,11 @@ function OutputCastPopover({
               </div>
             </fieldset>
           </div>
+
+          {layout === 'format' && <OutputFormatPreview aspect={aspectRatio} mode={windowMode} />}
+          {!readyToCast && bridge && canvasReady && !webCast.active && (!windowMode || !aspectRatio) && (
+            <p className="rv-cast-device-note rv-cast-format-hint">Select a window mode and aspect ratio to cast to a display.</p>
+          )}
 
           {/* Current status — devices already in use or being negotiated,
               not "available" ones, so this sits above (not under) Available
@@ -889,75 +941,90 @@ function OutputCastPopover({
               </DrawerNotice>
             ))}
 
-            <WebCastSection controller={webCast} aspect={aspectRatio} canvasReady={canvasReady} nativeBusy={Boolean(session || pendingTargetId || pendingProviderAction)} />
-
-            {showWirelessDisplays && (
-              <section className="rv-cast-device-category" aria-label="Wireless displays">
-                <span className="rv-cast-device-category-hdr">Wireless Displays</span>
-                <div className="rv-cast-tile-grid">
-                  {airplayProvider && airplayProvider.state !== 'unsupported' && (
-                    <button
-                      type="button"
-                      className="rv-cast-tile"
-                      disabled={!bridge?.performProviderAction || !airplayAction || !airplayActionAvailable || Boolean(pendingProviderAction)}
-                      onClick={() => airplayAction && void performProviderAction('airplay', airplayAction)}
-                    >
-                      <span className="rv-cast-tile-icon"><AppleLogoIcon /></span>
-                      <strong>Open macOS Displays</strong>
-                      <span className="rv-cast-tile-detail">Mirror or extend to an AirPlay display.</span>
-                      <span className="rv-cast-tile-pill">
-                        {pendingProviderAction === 'airplay:open-system-picker' ? 'Opening…' : 'Open'}
-                      </span>
-                    </button>
-                  )}
-
-                  {miracastProvider && miracastProvider.state !== 'unsupported' && (
-                    <button
-                      type="button"
-                      className="rv-cast-tile"
-                      disabled={!bridge?.performProviderAction || !miracastAction || !miracastActionAvailable || Boolean(pendingProviderAction)}
-                      onClick={() => miracastAction && void performProviderAction('miracast', miracastAction)}
-                    >
-                      <span className="rv-cast-tile-icon"><WindowsLogoIcon /></span>
-                      <strong>Open Windows Displays</strong>
-                      <span className="rv-cast-tile-detail">Use Connect under Multiple displays.</span>
-                      <span className="rv-cast-tile-pill">
-                        {pendingProviderAction === 'miracast:open-system-picker' ? 'Opening…' : 'Open'}
-                      </span>
-                    </button>
-                  )}
-
-                  {googleCastProvider && (
-                    <button
-                      type="button"
-                      className="rv-cast-tile"
-                      disabled={!bridge?.performProviderAction || !googleCastAction || !googleCastActionAvailable || !readyToCast || Boolean(pendingProviderAction) || Boolean(session)}
-                      onClick={() => googleCastAction && void performProviderAction('google-cast', googleCastAction, { windowMode, aspectRatio })}
-                    >
-                      <span className="rv-cast-tile-icon"><GoogleLogoIcon /></span>
-                      <strong>Choose Google Cast Device</strong>
-                      <span className="rv-cast-tile-detail">{googleCastProvider.state === 'configuration-required'
-                        ? 'Configure the Cast receiver app ID and HTTPS sender companion first.'
-                        : 'Choose a Cast device in the supported browser Web Sender companion.'}</span>
-                      <span className={`rv-cast-tile-pill${googleCastProvider.state === 'available' || googleCastProvider.state === 'initialization-failed' ? '' : ' is-muted'}`}>
-                        {pendingProviderAction === 'google-cast:open-picker' ? 'Opening…' : googleCastProvider.state === 'available' || googleCastProvider.state === 'initialization-failed' ? 'Choose' : 'Setup'}
-                      </span>
-                    </button>
-                  )}
-                </div>
-              </section>
+            {layout === 'tabs' && (
+              <div className="rv-right-subtabs rv-cast-category-tabs" role="group" aria-label="Output categories">
+                {CAST_CATEGORIES.map(option => (
+                  <button key={option.id} type="button" className={category === option.id ? 'is-active' : ''}
+                    aria-pressed={category === option.id} onClick={() => setCategory(option.id)}>{option.label}</button>
+                ))}
+              </div>
             )}
+            <div className="rv-cast-destination-layout">
+              <WebCastSection controller={webCast} aspect={aspectRatio} canvasReady={canvasReady}
+                nativeBusy={Boolean(session || pendingTargetId || pendingProviderAction)}
+                hidden={categoryHidden('web') && !webCast.active && !webCast.view.session && !webCast.view.busy && !webCast.view.error} />
 
-            <section className="rv-cast-device-category" aria-label="Local displays">
-              <span className="rv-cast-device-category-hdr">Local Displays</span>
-              {renderTargets(groups.displays, 'No local displays are currently available.')}
-            </section>
+              {showWirelessDisplays && (
+                <section className="rv-cast-device-category rv-cast-category--wireless" aria-label="Wireless displays" hidden={categoryHidden('wireless')}>
+                  <span className="rv-cast-device-category-hdr">Wireless Displays</span>
+                  <div className="rv-cast-tile-grid">
+                    {airplayProvider && airplayProvider.state !== 'unsupported' && (
+                      <button
+                        type="button"
+                        className="rv-cast-tile"
+                        disabled={!bridge?.performProviderAction || !airplayAction || !airplayActionAvailable || Boolean(pendingProviderAction)}
+                        onClick={() => airplayAction && void performProviderAction('airplay', airplayAction)}
+                      >
+                        <span className="rv-cast-tile-icon"><AppleLogoIcon /></span>
+                        <span className="rv-cast-device-copy"><strong>Open macOS Displays</strong>
+                        <span className="rv-cast-tile-detail">Mirror or extend to an AirPlay display.</span></span>
+                        <span className="rv-cast-tile-pill">
+                          {pendingProviderAction === 'airplay:open-system-picker' ? 'Opening…' : 'Open'}
+                        </span>
+                      </button>
+                    )}
 
-            <section className="rv-cast-device-category" aria-label="STAGELESS receivers">
-              <span className="rv-cast-device-category-hdr">{BRAND_RECEIVERS}</span>
-              {renderTargets(groups.network, 'No STAGELESS receivers were found on this network.')}
-              <p className="rv-cast-device-note">Open STAGELESS on another computer to make it discoverable. Each Receiver V2 display is selectable independently; first use asks the receiving computer to approve pairing.</p>
-            </section>
+                    {miracastProvider && miracastProvider.state !== 'unsupported' && (
+                      <button
+                        type="button"
+                        className="rv-cast-tile"
+                        disabled={!bridge?.performProviderAction || !miracastAction || !miracastActionAvailable || Boolean(pendingProviderAction)}
+                        onClick={() => miracastAction && void performProviderAction('miracast', miracastAction)}
+                      >
+                        <span className="rv-cast-tile-icon"><WindowsLogoIcon /></span>
+                        <span className="rv-cast-device-copy"><strong>Open Windows Displays</strong>
+                        <span className="rv-cast-tile-detail">Use Connect under Multiple displays.</span></span>
+                        <span className="rv-cast-tile-pill">
+                          {pendingProviderAction === 'miracast:open-system-picker' ? 'Opening…' : 'Open'}
+                        </span>
+                      </button>
+                    )}
+
+                    {googleCastProvider && (
+                      <button
+                        type="button"
+                        className="rv-cast-tile"
+                        disabled={!bridge?.performProviderAction || !googleCastAction || !googleCastActionAvailable || !readyToCast || Boolean(pendingProviderAction) || Boolean(session)}
+                        onClick={() => googleCastAction && void performProviderAction('google-cast', googleCastAction, { windowMode, aspectRatio })}
+                      >
+                        <span className="rv-cast-tile-icon"><GoogleLogoIcon /></span>
+                        <span className="rv-cast-device-copy"><strong>Choose Google Cast Device</strong>
+                        <span className="rv-cast-tile-detail">{googleCastProvider.state === 'configuration-required'
+                          ? 'Configure the Cast receiver app ID and HTTPS sender companion first.'
+                          : 'Choose a Cast device in the supported browser Web Sender companion.'}</span></span>
+                        <span className={`rv-cast-tile-pill${googleCastProvider.state === 'available' || googleCastProvider.state === 'initialization-failed' ? '' : ' is-muted'}`}>
+                          {pendingProviderAction === 'google-cast:open-picker' ? 'Opening…' : googleCastProvider.state === 'available' || googleCastProvider.state === 'initialization-failed' ? 'Choose' : 'Setup'}
+                        </span>
+                      </button>
+                    )}
+                  </div>
+                </section>
+              )}
+
+              {layout === 'tabs' && category === 'wireless' && !showWirelessDisplays && (
+                <div className="rv-cast-empty">No wireless display providers are available on this device.</div>
+              )}
+              <section className="rv-cast-device-category rv-cast-category--local" aria-label="Local displays" hidden={categoryHidden('local')}>
+                <span className="rv-cast-device-category-hdr">Local Displays</span>
+                {renderTargets(groups.displays, 'No local displays are currently available.')}
+              </section>
+
+              <section className="rv-cast-device-category rv-cast-category--receiver" aria-label="STAGELESS receivers" hidden={categoryHidden('receiver')}>
+                <span className="rv-cast-device-category-hdr">{BRAND_RECEIVERS}</span>
+                {renderTargets(groups.network, 'No STAGELESS receivers were found on this network.')}
+                <p className="rv-cast-device-note">Open STAGELESS on another computer to make it discoverable. Each Receiver V2 display is selectable independently; first use asks the receiving computer to approve pairing.</p>
+              </section>
+            </div>
           </div>
         </div>
       </div>
@@ -989,6 +1056,7 @@ export function OutputCastControl({
   const unmountStopTimerRef = useRef<number | null>(null)
   const triggerRef = useRef<HTMLButtonElement | null>(null)
   const [open, setOpen] = useState(false)
+  const [castLayout, setCastLayout] = useState<CastLayout>('list')
   const previewId = useId()
   const previewTriggerRef = useRef<HTMLButtonElement | null>(null)
   const previewSourceRef = useRef<HTMLCanvasElement | null>(null)
@@ -1298,6 +1366,8 @@ export function OutputCastControl({
           onCast={(target, windowMode, aspectRatio) => void startCast(target, windowMode, aspectRatio)}
           onStop={() => void stopCast()}
           webCast={webCast}
+          layout={castLayout}
+          onLayoutChange={setCastLayout}
         />
       )}
       {/* Failures are listed here, outside the popover, so they stay in the Notifications drawer after it is closed. */}

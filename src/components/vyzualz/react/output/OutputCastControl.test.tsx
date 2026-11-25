@@ -250,6 +250,57 @@ describe('OutputCastControl', () => {
     })
   })
 
+  it('switches all five cast layouts without changing output selections or launching a session', async () => {
+    const trigger = container.querySelector<HTMLButtonElement>('[aria-label="Cast visual output"]')!
+    await act(async () => trigger.click())
+    const dialog = document.querySelector<HTMLElement>('.rv-cast-popover')!
+    const select = dialog.querySelector<HTMLSelectElement>('[aria-label="Cast layout"]')!
+    const changeLayout = async (value: string) => {
+      await act(async () => {
+        select.value = value
+        select.dispatchEvent(new Event('change', { bubbles: true }))
+      })
+      expect(dialog.classList.contains(`rv-cast-layout--${value}`)).toBe(true)
+      const settings = dialog.querySelector('.rv-cast-settings-bar')!
+      const devices = dialog.querySelector('.rv-cast-devices-section')!
+      expect(settings.compareDocumentPosition(devices) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    }
+    expect(select.value).toBe('list')
+    expect([...select.options].map(option => option.value)).toEqual(['list', 'tabs', 'matrix', 'format', 'dock'])
+    await act(async () => buttonWithText('Full Screen').click())
+    await act(async () => buttonWithText('9:16').click())
+    await changeLayout('tabs')
+    const web = dialog.querySelector<HTMLElement>('[aria-label="Web casting"]')!
+    const local = dialog.querySelector<HTMLElement>('[aria-label="Local displays"]')!
+    expect(web.hidden).toBe(false)
+    expect(local.hidden).toBe(true)
+    await act(async () => dialog.querySelector<HTMLButtonElement>('[aria-label="Output categories"] button:nth-child(3)')!.click())
+    expect(web.hidden).toBe(true)
+    expect(local.hidden).toBe(false)
+    await changeLayout('matrix')
+    expect(web.hidden).toBe(false)
+    expect(local.hidden).toBe(false)
+    await changeLayout('format')
+    const frame = dialog.querySelector<HTMLElement>('.rv-cast-format-frame')!
+    expect(parseFloat(frame.style.width)).toBeLessThan(parseFloat(frame.style.height))
+    expect(dialog.querySelector('.rv-cast-format-preview')?.getAttribute('aria-label')).toContain('9:16, Full Screen')
+    await changeLayout('dock')
+    expect(dialog.querySelector('.rv-cast-format-preview')).toBeNull()
+    expect(startCast).not.toHaveBeenCalled()
+    await act(async () => buttonWithText('Stage Screen').click())
+    expect(startCast).toHaveBeenCalledTimes(1)
+    expect(startCast).toHaveBeenCalledWith({ targetId: 'display:2', windowMode: 'fullscreen', aspectRatio: '9:16' })
+    await changeLayout('list')
+    expect(dialog.textContent).toContain('Stop Output')
+    expect(startCast).toHaveBeenCalledTimes(1)
+    expect(stopCast).not.toHaveBeenCalled()
+    await act(async () => buttonWithText('Stop Output').click())
+    await changeLayout('dock')
+    await act(async () => trigger.click())
+    await act(async () => trigger.click())
+    expect(document.querySelector<HTMLSelectElement>('[aria-label="Cast layout"]')?.value).toBe('dock')
+  })
+
   it('locks the selected performance format before native start and releases it on stop', async () => {
     const onAspect = vi.fn()
     await act(async () => root.render(<OutputCastControl canvas={canvas} onPerformanceAspectChange={onAspect} />))
