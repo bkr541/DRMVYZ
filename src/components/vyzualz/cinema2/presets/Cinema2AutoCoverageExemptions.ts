@@ -13,6 +13,19 @@ const MAPPED_BY_RULE = 'The preset maps this saved value to its targets through 
 const NEVER_ZOOMS = 'Open Decks never zooms or turns: its only camera movement is the slight left and right sway authored in the preset.'
 
 export const CINEMA2_AUTO_COVERAGE_EXEMPT: Readonly<Record<string, Readonly<Record<string, string>>>> = Object.freeze({
+  mosaic: Object.freeze({
+    'mosaic-reactivity': 'User-owned media presentation, physical alignment or modulation authority.',
+    'mosaic-gap': 'User-owned media presentation, physical alignment or modulation authority.',
+    'mosaic-thickness': 'User-owned media presentation, physical alignment or modulation authority.',
+    'mosaic-frame-width': 'User-owned media presentation, physical alignment or modulation authority.',
+    'mosaic-media-scale': 'User-owned media presentation, physical alignment or modulation authority.',
+    'mosaic-media-x': 'User-owned media presentation, physical alignment or modulation authority.',
+    'mosaic-media-y': 'User-owned media presentation, physical alignment or modulation authority.',
+    'mosaic-media-rotation': 'User-owned media presentation, physical alignment or modulation authority.',
+    'mosaic-media-opacity': 'User-owned media presentation, physical alignment or modulation authority.',
+    'mosaic-media-brightness': 'User-owned media presentation, physical alignment or modulation authority.',
+    'mosaic-transition': 'User-owned media presentation, physical alignment or modulation authority.',
+  }),
   colossus: Object.freeze({
     'colossus-reactivity': 'User-owned fit, alignment or modulation authority; never changed by Auto Performance.',
     'colossus-model-scale': 'User-owned fit, alignment or modulation authority; never changed by Auto Performance.',

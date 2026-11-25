@@ -1,3 +1,4 @@
+import { cinema2MosaicNativeModuleDefinition } from './Cinema2MosaicNativeModule'
 import { cinema2ColossusNativeModuleDefinition } from './Cinema2ColossusNativeModule'
 import { artifactNativeModuleDefinitions } from './Cinema2ArtifactNativeModule'
 import { cinema2OrganismNativeModuleDefinition } from './Cinema2OrganismNativeModule'
@@ -338,6 +339,8 @@ for(const definition of artifactNativeModuleDefinitions){
  if(!registration.ok) throw new Error(`Cinema 2.0 artifact module registration failed: ${registration.diagnostics.map(d=>d.message).join('; ')}`)
 }
 
+const mosaicRegistration = cinema2NativeModuleRegistry.register(cinema2MosaicNativeModuleDefinition)
+if (!mosaicRegistration.ok) throw new Error('Cinema 2.0 MOSAIC module registration failed.')
 const overdriveRegistration = cinema2NativeModuleRegistry.register(cinema2OverdriveNativeModuleDefinition)
 if (!overdriveRegistration.ok) throw new Error('Cinema 2.0 OVERDRIVE module registration failed.')
 

@@ -38,7 +38,7 @@ export function Cinema2MediaSourcePanel({ runtime, onOpenMediaManager }: Cinema2
   )
   const [selectedSlotId, setSelectedSlotId] = useState<string>('')
   const [actionMenu, setActionMenu] = useState<({ mediaId: string } & MediaLibraryCardActionAnchor) | null>(null)
-  const poolCapable = snapshot.slots.some(slot => slot.id === 'everywhere-screen-media' || slot.id === 'overdrive-core-media')
+  const poolCapable = snapshot.slots.some(slot => slot.id === 'everywhere-screen-media' || slot.id === 'overdrive-core-media' || slot.id === 'mosaic-wall-media')
   const activePool = useReactStore(state => state.canvasOrchestrationSettings.mediaPools.find(pool => pool.id === state.canvasOrchestrationSettings.activeMediaPoolId) ?? null)
   const request = useRef(0)
   useEffect(() => { setActionMenu(null); return () => { request.current++ } }, [runtime])

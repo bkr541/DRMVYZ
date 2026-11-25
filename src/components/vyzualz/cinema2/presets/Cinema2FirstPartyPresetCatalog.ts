@@ -1,3 +1,4 @@
+import { CINEMA2_MOSAIC_PRESET_MANIFEST } from './Cinema2MosaicPreset'
 import { CINEMA2_COLOSSUS_PRESET_MANIFEST } from './Cinema2ColossusPreset'
 import { ARTIFACT_PRESET_MANIFESTS } from './Cinema2ArtifactPresets'
 import { CINEMA2_ORGANISM_PRESET_MANIFEST } from './Cinema2OrganismPreset'
@@ -98,6 +99,7 @@ const AUTHORED_PRESET_DECLARATIONS = Object.freeze([
   defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_LIVEWIRE_PRESET_MANIFEST }),
   defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_CORRIDOR_PRESET_MANIFEST }),
   defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_EVERYWHERE_PRESET_MANIFEST }),
+  defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_MOSAIC_PRESET_MANIFEST }),
   defineCinema2FirstPartyPreset({ role: 'keeper', manifest: CINEMA2_OVERDRIVE_PRESET_MANIFEST }),
   defineCinema2FirstPartyPreset({ role: 'keeper', manifest: CINEMA2_ORBITAL_PRESET_MANIFEST }),
   // Complete native implementation; human visual acceptance pending.

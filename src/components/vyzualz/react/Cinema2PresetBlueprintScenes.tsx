@@ -8,6 +8,7 @@ import goonzMaster from '../../../assets/goonz_true_vector_master.svg?raw'
  * foreground at the right, secondary subjects at the left, open title volume.
  * These drawings never read or trace a rendered frame. */
 export const ADDITIONAL_BLUEPRINT_MOTIFS = {
+  'drmvyz.cinema2.mosaic': ['Tiled media wall', 'Extruded screen modules', 'Mounting channels', 'Gallery floor'],
   'drmvyz.cinema2.colossus': ['Articulated arms', 'Open mechanical emblem', 'Octagonal bulkheads', 'Floor energy tracks'],
   'drmvyz.cinema2.backstreet': ['Neon wordmark', 'Glass tube returns', 'Brick courses', 'Wall mounts'],
   'drmvyz.cinema2.conduit': ['Chrome feed tubes', 'Cloud core', 'Chamber ribs', 'Segmented energy routes'],
@@ -46,6 +47,7 @@ type SceneId = keyof typeof ADDITIONAL_BLUEPRINT_MOTIFS
  * the focal geometry inside the slice window avoids losing a face, cap, or lens
  * to cropping while secondary objects still fall into the left-edge fade. */
 const SUBJECT_PLANES: Record<SceneId, readonly [string, string, string, string]> = {
+  'drmvyz.cinema2.mosaic': ['', '', '', ''],
   'drmvyz.cinema2.colossus': ['', '', '', ''],
   'drmvyz.cinema2.backstreet': ['translate(-15 8)', 'translate(-15 8)', 'translate(12 -10)', 'translate(0 22)'],
   'drmvyz.cinema2.conduit': ['translate(-15 5)', 'translate(-21 18)', 'translate(-27 20)', 'translate(0 -5)'],
@@ -386,7 +388,17 @@ function Colossus() {
   </Scene>
 }
 
+function Mosaic() {
+  return <Scene id="drmvyz.cinema2.mosaic">
+    <g>{Array.from({length:40},(_,i)=><rect key={i} x={55+(i%8)*21} y={27+Math.floor(i/8)*16} width="19" height="14" rx="1" fill="currentColor" fillOpacity=".08"/>)}</g>
+    <g>{[10,19,28].map(i=><path key={i} d={`M${55+(i%8)*21} ${27+Math.floor(i/8)*16}l6 -5h19v14l-6 5v-14z`} fill="currentColor" fillOpacity=".25"/>)}</g>
+    <g opacity=".55"><path d="M42 18H232V116H42ZM48 20V114M226 20V114M38 15V119M236 15V119"/></g>
+    <g opacity=".35"><path d="M42 116L22 142H253L232 116M62 116L48 142M110 116L106 142M178 116L183 142M215 116L233 142"/></g>
+  </Scene>
+}
+
 export const ADDITIONAL_BLUEPRINT_DRAWINGS = {
+  'drmvyz.cinema2.mosaic': Mosaic,
   'drmvyz.cinema2.colossus': Colossus,
   'drmvyz.cinema2.backstreet': Backstreet, 'drmvyz.cinema2.conduit': Conduit,
   'drmvyz.cinema2.echoform': Echoform, 'drmvyz.cinema2.echowave': Echowave,
@@ -406,6 +418,7 @@ export const ADDITIONAL_BLUEPRINT_DRAWINGS = {
 
 /** Small, distinct camera poses preserve hand-placed open title volumes. */
 export const ADDITIONAL_BLUEPRINT_FRAMING = {
+  'drmvyz.cinema2.mosaic': 'translate(112 80) scale(1.02) translate(-120 -75)',
   'drmvyz.cinema2.colossus': 'translate(112 80) scale(1.02) translate(-120 -75)',
   'drmvyz.cinema2.backstreet': 'translate(115 79) rotate(-5) scale(1.01) translate(-120 -75)',
   'drmvyz.cinema2.conduit': 'translate(113 80) rotate(-7) scale(1.02) translate(-120 -75)',
