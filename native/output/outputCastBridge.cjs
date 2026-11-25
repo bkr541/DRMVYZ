@@ -401,6 +401,7 @@ function installOutputCastBridge({
   ipcMain,
   screen,
   shell = null,
+  clipboard = null,
   dialog = null,
   platform = process.platform,
   openSystemDisplays = null,
@@ -897,6 +898,17 @@ function installOutputCastBridge({
     const url = event.senderFrame?.url || event.sender.getURL()
     return isTrustedAppUrl(url)
   }
+
+  // Narrow, write-only clipboard action: the renderer can copy a valid pairing
+  // code even when Chromium's clipboard permission is unavailable.
+  registerIpcHandler('drmvyz:output:copy-web-cast-code', (event, code) => {
+    if (!isTrustedSender(event)) throw new Error('Untrusted web cast clipboard request')
+    if (typeof code !== 'string' || !/^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{6}$/.test(code)) {
+      throw new Error('Invalid web cast session code')
+    }
+    if (!clipboard) throw new Error('Native clipboard unavailable')
+    clipboard.writeText(code)
+  })
 
   registerIpcHandler('drmvyz:output:list-targets', async event => {
     if (!isTrustedSender(event)) throw new Error('Untrusted output target request')

@@ -14199,7 +14199,9 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 .rv-cast-popover-surface {
   max-height: min(580px, calc(100vh - 24px));
-  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   border: 1px solid rgba(103, 247, 255, 0.3);
   border-radius: var(--radius-group);
   background:
@@ -14209,20 +14211,27 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   backdrop-filter: blur(16px);
 }
 
-.rv-cast-popover-surface::-webkit-scrollbar { width: 4px; }
-.rv-cast-popover-surface::-webkit-scrollbar-track { background: transparent; }
-.rv-cast-popover-surface::-webkit-scrollbar-thumb { background: rgba(74, 199, 219, 0.22); border-radius: 4px; }
+.rv-cast-panel-body::-webkit-scrollbar { width: 4px; }
+.rv-cast-panel-body::-webkit-scrollbar-track { background: transparent; }
+.rv-cast-panel-body::-webkit-scrollbar-thumb { background: rgba(74, 199, 219, 0.22); border-radius: 4px; }
 
-/* Shared production cast surface; layout variants below reuse its visual tokens. */
+/* Fixed header and independently scrolling cast settings and destinations. */
 
 .rv-cast-panel-body {
-  padding: 16px 18px 18px;
+  padding: 0 18px 18px;
   display: flex;
   flex-direction: column;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
   gap: 14px;
 }
 
+.rv-cast-panel-body > * { flex-shrink: 0; }
+
 .rv-cast-compact-title {
+  flex: 0 0 auto;
+  padding: 16px 18px 12px;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -14530,7 +14539,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-cast-devices-section {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 4px;
 }
 
 .rv-cast-device-heading {
@@ -14688,8 +14697,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   .rv-cast-tile-grid { grid-template-columns: repeat(3, 1fr); }
 }
 
-/* Cast Output layout variants. The original surface, icon rail, session and
-   provider colors remain shared. Only destination presentation changes. */
+/* Output Tabs: preserve the original surface, icon rail, session and provider colors. */
 .rv-cast-popover .rv-cast-panel-body { gap: 12px; }
 .rv-cast-popover .rv-cast-settings-bar { row-gap: 9px; }
 .rv-cast-popover .rv-cast-rail-section legend { margin-bottom: 5px; }
@@ -14702,28 +14710,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-cast-popover .rv-cast-tile strong { font-size: 10px; overflow-wrap: anywhere; }
 .rv-cast-popover .rv-cast-tile-detail { font-size: 9px; overflow-wrap: anywhere; }
 .rv-cast-popover .rv-cast-tile-pill { display: block; font-size: 8px; line-height: 1.1; text-align: center; }
-.rv-cast-popover button:focus-visible,
-.rv-cast-popover select:focus-visible { outline: 1px solid #67f7ff; outline-offset: 2px; }
-.rv-cast-layout-control {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  color: rgba(196, 207, 211, 0.6);
-  font: 600 9px/1 var(--az-font-data, Inter, system-ui, sans-serif);
-}
-.rv-cast-layout-control select {
-  min-width: 0;
-  max-width: 132px;
-  padding: 5px 4px;
-  border: 1px solid rgba(154, 178, 188, 0.18);
-  border-radius: var(--radius-group);
-  background: rgba(255, 255, 255, 0.02);
-  color: rgba(232, 244, 248, 0.9);
-  font: inherit;
-  color-scheme: dark;
-  cursor: pointer;
-}
-.rv-cast-layout-control option { background: #0b171d; color: #e8f4f8; }
+.rv-cast-popover button:focus-visible { outline: 1px solid #67f7ff; outline-offset: 2px; }
 .rv-cast-format-hint { margin-top: -5px; }
 .rv-cast-destination-layout { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .rv-cast-destination-layout [hidden] { display: none !important; }
@@ -14731,10 +14718,9 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-cast-destination-layout .rv-cast-tile { min-width: 0; }
 .rv-cast-destination-layout .rv-cast-tile-pill { margin-top: auto; }
 
-/* 03 Compact List and 05 Output Tabs share the compact device row. */
-.rv-cast-layout--list .rv-cast-tile-grid,
+/* Output Tabs use the compact device row. */
 .rv-cast-layout--tabs .rv-cast-tile-grid { display: flex; flex-direction: column; gap: 5px; }
-:is(.rv-cast-layout--list, .rv-cast-layout--tabs, .rv-cast-layout--format) .rv-cast-tile {
+.rv-cast-layout--tabs .rv-cast-tile {
   flex-direction: row;
   align-items: center;
   text-align: left;
@@ -14743,117 +14729,32 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   min-height: 42px;
   width: 100%;
 }
-:is(.rv-cast-layout--list, .rv-cast-layout--tabs, .rv-cast-layout--format) .rv-cast-tile-icon { margin: 0; }
-:is(.rv-cast-layout--list, .rv-cast-layout--tabs, .rv-cast-layout--format) .rv-cast-device-copy { flex: 1; }
-:is(.rv-cast-layout--list, .rv-cast-layout--tabs, .rv-cast-layout--format) .rv-cast-tile-pill {
+.rv-cast-layout--tabs .rv-cast-tile-icon { margin: 0; }
+.rv-cast-layout--tabs .rv-cast-device-copy { flex: 1; }
+.rv-cast-layout--tabs .rv-cast-tile-pill {
   width: auto;
   min-width: 48px;
   margin: 0;
   padding: 5px 8px;
   flex-shrink: 0;
 }
-.rv-cast-layout--list .rv-webcast-card:not(.rv-webcast-card--expanded) {
-  flex-direction: row;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 9px;
-  min-height: 42px;
-}
-.rv-cast-layout--list .rv-webcast-card:not(.rv-webcast-card--expanded) .rv-webcast-header { flex: 1; min-width: 0; gap: 8px; }
-.rv-cast-layout--list .rv-webcast-card:not(.rv-webcast-card--expanded) .rv-webcast-action { flex-shrink: 0; max-width: 110px; padding: 5px 8px; font-size: 8px; }
-.rv-cast-layout--list .rv-webcast-card:not(.rv-webcast-card--expanded) strong { font-size: 10px; }
-.rv-cast-layout--list .rv-webcast-card:not(.rv-webcast-card--expanded) small { font-size: 9px; }
 .rv-cast-popover .rv-cast-category-tabs {
   margin: 0;
-  padding: 0 0 4px;
+  padding: 0;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 2px;
 }
 .rv-cast-popover .rv-cast-category-tabs button { font-size: 9px; padding: 6px; }
-.rv-cast-layout--tabs .rv-cast-destination-layout { min-height: 104px; gap: 8px; }
+.rv-cast-layout--tabs .rv-cast-destination-layout { gap: 8px; }
 
-/* 06 Device Matrix, 08 Format Preview and 09 Cast Dock share one responsive
-   grid. Receiver records and any active web pairing card stay full-width. */
-:is(.rv-cast-layout--matrix, .rv-cast-layout--format, .rv-cast-layout--dock) .rv-cast-destination-layout {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
-}
-:is(.rv-cast-layout--matrix, .rv-cast-layout--format, .rv-cast-layout--dock) :is(.rv-cast-category--web, .rv-cast-category--wireless, .rv-cast-category--local),
-:is(.rv-cast-layout--matrix, .rv-cast-layout--format, .rv-cast-layout--dock) :is(.rv-cast-category--wireless, .rv-cast-category--local) > .rv-cast-tile-grid { display: contents; }
-:is(.rv-cast-layout--matrix, .rv-cast-layout--format, .rv-cast-layout--dock) :is(.rv-cast-category--web, .rv-cast-category--wireless, .rv-cast-category--local) > .rv-cast-device-category-hdr {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
-:is(.rv-cast-layout--matrix, .rv-cast-layout--format, .rv-cast-layout--dock) :is(.rv-cast-category--receiver, .rv-webcast-card--expanded, .rv-cast-category--local > .rv-cast-empty) { grid-column: 1 / -1; }
-:is(.rv-cast-layout--matrix, .rv-cast-layout--format, .rv-cast-layout--dock) .rv-cast-category--receiver { margin-top: 4px; }
-:is(.rv-cast-layout--matrix, .rv-cast-layout--format, .rv-cast-layout--dock) .rv-cast-category--receiver .rv-cast-tile-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-:is(.rv-cast-layout--matrix, .rv-cast-layout--dock) .rv-cast-tile { min-height: 88px; justify-content: flex-start; gap: 5px; padding: 9px; }
-:is(.rv-cast-layout--matrix, .rv-cast-layout--dock) .rv-cast-tile-icon { width: 24px; height: 24px; }
-:is(.rv-cast-layout--matrix, .rv-cast-layout--dock) .rv-webcast-card:not(.rv-webcast-card--expanded) { padding: 9px; gap: 5px; min-width: 0; }
-:is(.rv-cast-layout--matrix, .rv-cast-layout--dock) .rv-webcast-card:not(.rv-webcast-card--expanded) .rv-webcast-header { flex-direction: column; text-align: center; gap: 5px; }
-:is(.rv-cast-layout--matrix, .rv-cast-layout--dock) .rv-webcast-card:not(.rv-webcast-card--expanded) .rv-webcast-action { margin-top: auto; font-size: 8px; padding: 5px 4px; }
-:is(.rv-cast-layout--matrix, .rv-cast-layout--dock, .rv-cast-layout--format) .rv-webcast-card:not(.rv-webcast-card--expanded) strong { font-size: 10px; }
-:is(.rv-cast-layout--matrix, .rv-cast-layout--dock, .rv-cast-layout--format) .rv-webcast-card:not(.rv-webcast-card--expanded) small { font-size: 9px; }
-.rv-cast-format-preview {
-  height: 108px;
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  border: 1px solid rgba(154, 178, 188, 0.18);
-  border-radius: var(--radius-group);
-  background: rgba(6, 10, 14, 0.85);
-}
-.rv-cast-format-frame {
-  position: relative;
-  display: grid;
-  place-items: center;
-  max-width: 90%;
-  overflow: hidden;
-  border: 1px solid rgba(103, 247, 255, 0.48);
-  background: radial-gradient(ellipse at center, rgba(74, 199, 219, 0.16), transparent 80%), #0b171d;
-  color: #67f7ff;
-  transition: width 160ms, height 160ms;
-}
-.rv-cast-format-frame svg { width: 23px; height: 23px; }
-.rv-cast-format-frame::before, .rv-cast-format-frame::after { content: ''; position: absolute; width: 200%; height: 1px; background: rgba(74, 199, 219, 0.16); transform: rotate(30deg); }
-.rv-cast-format-frame::after { transform: rotate(-30deg); }
-.rv-cast-format-label { position: absolute; bottom: 5px; right: 8px; color: rgba(232, 244, 248, 0.62); font: 600 9px/1 var(--az-font-data, Inter, system-ui, sans-serif); }
-.rv-cast-layout--format .rv-cast-tile { min-height: 54px; }
-.rv-cast-layout--format .rv-cast-tile-pill { min-width: 0; padding: 4px; font-size: 7.5px; }
-.rv-cast-layout--format .rv-webcast-card:not(.rv-webcast-card--expanded) { gap: 6px; padding: 7px 9px; }
-.rv-cast-layout--format .rv-webcast-card:not(.rv-webcast-card--expanded) .rv-webcast-action { margin-top: auto; font-size: 8px; padding: 5px; }
-.rv-cast-layout--dock { width: min(780px, calc(100vw - 24px)); }
-.rv-cast-layout--dock .rv-cast-rail-divider { display: block; }
-.rv-cast-layout--dock .rv-cast-destination-layout { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.rv-cast-layout--dock .rv-cast-category--receiver .rv-cast-tile-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.rv-cast-layout--dock .rv-cast-tile { min-height: 96px; }
-@media (max-width: 800px) {
-  .rv-cast-layout--dock .rv-cast-destination-layout,
-  .rv-cast-layout--dock .rv-cast-category--receiver .rv-cast-tile-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .rv-cast-layout--dock .rv-cast-rail-divider { display: none; }
-}
 @media (max-width: 430px) {
-  .rv-cast-popover .rv-cast-panel-body { padding: 12px; gap: 10px; }
+  .rv-cast-popover .rv-cast-panel-body { padding: 0 12px 12px; gap: 10px; }
+  .rv-cast-popover .rv-cast-compact-title { padding: 12px 12px 10px; }
   .rv-cast-popover .rv-cast-rail-group { gap: 4px; }
   .rv-cast-popover .rv-cast-rail-group button { min-width: 36px; padding: 6px 4px; }
   .rv-cast-popover .rv-cast-category-tabs { justify-content: flex-start; }
-  .rv-cast-layout--format .rv-cast-destination-layout,
-  .rv-cast-layout--format .rv-cast-category--receiver .rv-cast-tile-grid { grid-template-columns: minmax(0, 1fr); }
-  .rv-cast-layout-control > span { display: none; }
-  .rv-cast-layout-control select { max-width: 110px; }
-  .rv-cast-layout--list .rv-webcast-card:not(.rv-webcast-card--expanded) { flex-wrap: wrap; }
 }
-@media (prefers-reduced-motion: reduce) { .rv-cast-format-frame { transition: none; } }
 
 /* Layout Lab: disconnected PixGrid production-parity mock surfaces. */
 .rv-layout-lab-pix-grid-canvas {

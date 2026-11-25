@@ -99,6 +99,7 @@ export interface OutputReceiverRequest {
 }
 
 export interface NativeOutputBridge {
+  copyWebCastCode?: (code: string) => Promise<void>
   listTargets: () => Promise<OutputTarget[]>
   getTargetSnapshot?: () => Promise<OutputTargetSnapshot>
   getSession: () => Promise<OutputCastSession | null>

@@ -159,6 +159,7 @@ describe('OutputCastControl production path', () => {
       }
       await act(async () => buttonWithText('Full Screen').click())
       await act(async () => buttonWithText('16:9').click())
+      await act(async () => buttonWithText('Local').click())
       await act(async () => buttonWithText('Stage Screen').click())
 
       const managedSession = installed.targetManager.getSession()

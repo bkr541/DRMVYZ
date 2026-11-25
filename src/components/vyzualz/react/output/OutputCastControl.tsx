@@ -53,14 +53,6 @@ const WINDOW_OPTIONS: ReadonlyArray<{ id: OutputWindowMode; label: string; descr
 
 const ASPECT_OPTIONS: readonly OutputAspectRatio[] = ['16:9', '16:10', '4:3', '3:2', '1:1', '9:16']
 
-const CAST_LAYOUTS = [
-  { id: 'list', label: 'Compact List' },
-  { id: 'tabs', label: 'Output Tabs' },
-  { id: 'matrix', label: 'Device Matrix' },
-  { id: 'format', label: 'Format Preview' },
-  { id: 'dock', label: 'Cast Dock' },
-] as const
-type CastLayout = typeof CAST_LAYOUTS[number]['id']
 const CAST_CATEGORIES = [
   { id: 'web', label: 'Browser' },
   { id: 'wireless', label: 'Wireless' },
@@ -68,22 +60,6 @@ const CAST_CATEGORIES = [
   { id: 'receiver', label: 'Receivers' },
 ] as const
 type CastCategory = typeof CAST_CATEGORIES[number]['id']
-
-function OutputFormatPreview({ aspect, mode }: { aspect: OutputAspectRatio | null; mode: OutputWindowMode | null }) {
-  const ratio = aspect ?? '16:9'
-  const [width, height] = ratio.split(':').map(Number)
-  const frameWidth = Math.min(185, 78 * width / height)
-  const frameHeight = frameWidth * height / width
-  const modeLabel = WINDOW_OPTIONS.find(option => option.id === mode)?.label
-  return (
-    <div className="rv-cast-format-preview" role="img" aria-label={`Output framing preview: ${ratio}${modeLabel ? `, ${modeLabel}` : ''}${aspect ? '' : ', default illustration'}`}>
-      <div className="rv-cast-format-frame" style={{ width: frameWidth, height: frameHeight }}>
-        <DisplayIcon network={false} />
-      </div>
-      <span className="rv-cast-format-label">{ratio}{modeLabel ? ` · ${modeLabel}` : ''}{!aspect ? ' · Preview' : ''}</span>
-    </div>
-  )
-}
 
 function CastIcon() { return <AppIcon kind="cast" /> }
 
@@ -103,10 +79,6 @@ function AspectRatioIcon({ ratio }: { ratio: OutputAspectRatio }) {
 function AvailableDevicesIcon() { return <AppIcon kind="people" /> }
 
 function RefreshIcon() { return <AppIcon kind="sync" /> }
-
-function DisplayIcon({ network }: { network: boolean }) {
-  return <AppIcon kind={network ? 'cast' : 'monitor'} />
-}
 
 function CloseIcon() { return <AppIcon kind="close" /> }
 
@@ -576,16 +548,44 @@ function WebCastSection({ controller, aspect, canvasReady, nativeBusy, hidden }:
   const {view} = controller
   const link = view.session ? `${CAST_ORIGIN}/#${view.session.token}` : ''
   const qr = useMemo(() => link ? webCastQrPath(link) : '', [link])
-  const [copied,setCopied] = useState(false)
-  const [showLink,setShowLink] = useState(false)
-  useEffect(() => { setCopied(false); setShowLink(false) }, [link])
+  const [copyResult, setCopyResult] = useState<{ sessionId: string; success: boolean } | null>(null)
+  const [showLink, setShowLink] = useState(false)
+  const linkId = useId()
+  useEffect(() => { setCopyResult(null); setShowLink(false) }, [link])
+  const copied = copyResult?.sessionId === view.session?.id && copyResult?.success === true
+  const copyFailed = copyResult?.sessionId === view.session?.id && copyResult?.success === false
+  const copyCode = async () => {
+    const session = view.session
+    if (!session) return
+    try {
+      const nativeCopy = getNativeOutputBridge()?.copyWebCastCode
+      if (nativeCopy) await nativeCopy(session.code)
+      else await navigator.clipboard.writeText(session.code)
+      setCopyResult({ sessionId: session.id, success: true })
+    } catch {
+      setCopyResult({ sessionId: session.id, success: false })
+    }
+  }
   return <section className="rv-cast-device-category rv-cast-category--web" aria-label="Web casting" hidden={hidden}>
     <span className="rv-cast-device-category-hdr">Web Casting</span>
     <div className={`rv-webcast-card${view.session || view.busy || view.error || nativeBusy || !controller.configured ? ' rv-webcast-card--expanded' : ''}`}>
       <div className="rv-webcast-header"><span className="rv-cast-tile-icon"><CastIcon /></span><div><strong>STAGELESS Cast</strong><small>Live visuals on any compatible browser. No receiver app required.</small></div></div>
       {!view.session ? <button type="button" className="rv-webcast-action" disabled={view.busy || nativeBusy || !canvasReady || !controller.configured} onClick={() => void controller.start(aspect ?? '16:9')}>{view.busy ? 'Creating session…' : 'Create Cast Session'}</button> : <>
-        <div className="rv-webcast-pair"><svg role="img" aria-label="Scan to join this cast" viewBox="0 0 45 45" shapeRendering="crispEdges"><rect width="45" height="45" fill="white"/><path d={qr} fill="#000"/></svg><div><small>Open cast.stagelessstudio.com</small><strong className="rv-webcast-code">{view.session.code}</strong><button className="rv-webcast-action" type="button" onClick={() => { if (!navigator.clipboard) { setShowLink(true); return } void navigator.clipboard.writeText(link).then(()=>setCopied(true),()=>setShowLink(true)) }}>{copied ? 'Link copied' : 'Copy secure link'}</button></div></div>
-        {showLink && <input className="rv-webcast-link" aria-label="Secure cast link" readOnly value={link} onFocus={event=>event.currentTarget.select()} />}
+        <div className="rv-webcast-pair">
+          <svg role="img" aria-label="Scan to join this cast" viewBox="0 0 45 45" shapeRendering="crispEdges"><rect width="45" height="45" fill="white"/><path d={qr} fill="#000"/></svg>
+          <div>
+            <small>Open cast.stagelessstudio.com</small>
+            <strong className="rv-webcast-code">{view.session.code}</strong>
+            <div className="rv-webcast-session-actions" role="group" aria-label="Cast session actions">
+              <button className={`rv-cast-icon-btn${copied ? ' is-active' : ''}`} type="button" aria-label="Copy session code" title={copied ? 'Session code copied' : 'Copy session code'} onClick={() => void copyCode()}><AppIcon kind={copied ? 'check' : 'copy'} /></button>
+              <button className={`rv-cast-icon-btn${showLink ? ' is-active' : ''}`} type="button" aria-label={showLink ? 'Hide session URL' : 'Show session URL'} title={showLink ? 'Hide session URL' : 'Show session URL'} aria-expanded={showLink} aria-controls={showLink ? linkId : undefined} onClick={() => setShowLink(value => !value)}><AppIcon kind={showLink ? 'eyeOff' : 'eye'} /></button>
+              <button className="rv-cast-icon-btn" type="button" aria-label="Launch session in browser" title="Launch session in browser" onClick={() => window.open(link, '_blank', 'noopener,noreferrer')}><AppIcon kind="open" /></button>
+            </div>
+            {copied && <small role="status">Session code copied.</small>}
+            {copyFailed && <small role="alert" className="rv-webcast-error">Could not copy the session code. Select the code to copy it manually.</small>}
+          </div>
+        </div>
+        {showLink && <input id={linkId} className="rv-webcast-link" aria-label="Secure cast link" readOnly value={link} onFocus={event => event.currentTarget.select()} />}
         <p className="rv-webcast-status" role="status">{view.status} · {view.aspect} · up to 60 fps</p>
         {view.status === 'Receiver requests access' && <div className="rv-webcast-actions"><button type="button" className="rv-webcast-action" onClick={()=>void controller.decide(true)}>Approve receiver</button><button type="button" className="rv-cast-stop" onClick={()=>void controller.decide(false)}>Deny</button></div>}
         {view.receiverId && view.status !== 'Receiver requests access' && <button type="button" className="rv-webcast-action" onClick={()=>void controller.decide(false)}>Disconnect receiver</button>}
@@ -614,8 +614,6 @@ interface OutputCastPopoverProps {
   onCast: (target: OutputTarget, windowMode: OutputWindowMode, aspectRatio: OutputAspectRatio) => void
   onStop: () => void
   webCast: WebCastController
-  layout: CastLayout
-  onLayoutChange: (layout: CastLayout) => void
 }
 
 function OutputCastPopover({
@@ -633,11 +631,9 @@ function OutputCastPopover({
   onCast,
   onStop,
   webCast,
-  layout,
-  onLayoutChange,
 }: OutputCastPopoverProps) {
   const [category, setCategory] = useState<CastCategory>('web')
-  const categoryHidden = (value: CastCategory) => layout === 'tabs' && category !== value
+  const categoryHidden = (value: CastCategory) => category !== value
   const [windowMode, setWindowMode] = useState<OutputWindowMode | null>(null)
   const [aspectRatio, setAspectRatio] = useState<OutputAspectRatio | null>(null)
   const [pendingTargetId, setPendingTargetId] = useState<string | null>(null)
@@ -725,7 +721,7 @@ function OutputCastPopover({
       window.removeEventListener('scroll', updatePosition, true)
       observer?.disconnect()
     }
-  }, [updatePosition, layout, category])
+  }, [updatePosition, category])
 
   const start = (target: OutputTarget) => {
     if (!windowMode || !aspectRatio || !readyToCast) return
@@ -810,30 +806,20 @@ function OutputCastPopover({
   return createPortal(
     <section
       ref={popoverRef}
-      className={`rv-cast-popover rv-cast-popover--${placement} rv-cast-layout--${layout}`}
+      className={`rv-cast-popover rv-cast-popover--${placement} rv-cast-layout--tabs`}
       style={popoverStyle}
       role="dialog"
       aria-labelledby={titleId}
     >
       <div className="rv-cast-popover-surface">
+        <header className="rv-cast-compact-title">
+          <span className="rv-cast-compact-title-icon"><CastIcon /></span>
+          <h2 id={titleId}>Cast Output</h2>
+          <button type="button" className="rv-cast-icon-btn rv-cast-icon-btn--close" onClick={onClose} aria-label="Close cast panel" title="Close cast panel">
+            <CloseIcon />
+          </button>
+        </header>
         <div className="rv-cast-panel-body">
-          <header className="rv-cast-compact-title">
-            <span className="rv-cast-compact-title-icon"><CastIcon /></span>
-            <h2 id={titleId}>Cast Output</h2>
-            <label className="rv-cast-layout-control">
-              <span>Layout</span>
-              <select aria-label="Cast layout" value={layout} onChange={event => {
-                const next = CAST_LAYOUTS.find(option => option.id === event.currentTarget.value)
-                if (next) onLayoutChange(next.id)
-              }}>
-                {CAST_LAYOUTS.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}
-              </select>
-            </label>
-            <button type="button" className="rv-cast-icon-btn rv-cast-icon-btn--close" onClick={onClose} aria-label="Close cast panel">
-              <CloseIcon />
-            </button>
-          </header>
-
           {/* Degrouped — no enclosing background/border box; Window and
               Aspect Ratio sit directly in one plain row. */}
           <div className="rv-cast-settings-bar">
@@ -876,7 +862,6 @@ function OutputCastPopover({
             </fieldset>
           </div>
 
-          {layout === 'format' && <OutputFormatPreview aspect={aspectRatio} mode={windowMode} />}
           {!readyToCast && bridge && canvasReady && !webCast.active && (!windowMode || !aspectRatio) && (
             <p className="rv-cast-device-note rv-cast-format-hint">Select a window mode and aspect ratio to cast to a display.</p>
           )}
@@ -929,6 +914,13 @@ function OutputCastPopover({
               </button>
             </div>
 
+            <div className="rv-right-subtabs rv-cast-category-tabs" role="group" aria-label="Output categories">
+              {CAST_CATEGORIES.map(option => (
+                <button key={option.id} type="button" className={category === option.id ? 'is-active' : ''}
+                  aria-pressed={category === option.id} onClick={() => setCategory(option.id)}>{option.label}</button>
+              ))}
+            </div>
+
             {!bridge && (
               <DrawerNotice tone="info" role="status" title="Browser output">STAGELESS Cast works in your browser. Local and native wireless displays require the desktop app.</DrawerNotice>
             )}
@@ -941,14 +933,6 @@ function OutputCastPopover({
               </DrawerNotice>
             ))}
 
-            {layout === 'tabs' && (
-              <div className="rv-right-subtabs rv-cast-category-tabs" role="group" aria-label="Output categories">
-                {CAST_CATEGORIES.map(option => (
-                  <button key={option.id} type="button" className={category === option.id ? 'is-active' : ''}
-                    aria-pressed={category === option.id} onClick={() => setCategory(option.id)}>{option.label}</button>
-                ))}
-              </div>
-            )}
             <div className="rv-cast-destination-layout">
               <WebCastSection controller={webCast} aspect={aspectRatio} canvasReady={canvasReady}
                 nativeBusy={Boolean(session || pendingTargetId || pendingProviderAction)}
@@ -1011,7 +995,7 @@ function OutputCastPopover({
                 </section>
               )}
 
-              {layout === 'tabs' && category === 'wireless' && !showWirelessDisplays && (
+              {category === 'wireless' && !showWirelessDisplays && (
                 <div className="rv-cast-empty">No wireless display providers are available on this device.</div>
               )}
               <section className="rv-cast-device-category rv-cast-category--local" aria-label="Local displays" hidden={categoryHidden('local')}>
@@ -1056,7 +1040,6 @@ export function OutputCastControl({
   const unmountStopTimerRef = useRef<number | null>(null)
   const triggerRef = useRef<HTMLButtonElement | null>(null)
   const [open, setOpen] = useState(false)
-  const [castLayout, setCastLayout] = useState<CastLayout>('list')
   const previewId = useId()
   const previewTriggerRef = useRef<HTMLButtonElement | null>(null)
   const previewSourceRef = useRef<HTMLCanvasElement | null>(null)
@@ -1366,8 +1349,6 @@ export function OutputCastControl({
           onCast={(target, windowMode, aspectRatio) => void startCast(target, windowMode, aspectRatio)}
           onStop={() => void stopCast()}
           webCast={webCast}
-          layout={castLayout}
-          onLayoutChange={setCastLayout}
         />
       )}
       {/* Failures are listed here, outside the popover, so they stay in the Notifications drawer after it is closed. */}

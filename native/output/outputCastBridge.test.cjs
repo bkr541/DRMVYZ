@@ -307,6 +307,7 @@ test('LAN service failure is isolated from local display output and shutdown rel
   const screen = new FakeScreen()
   const boundHosts = []
   let localRelayServer
+  const clipboardWrites = []
   const installed = installOutputCastBridge({
     app,
     BrowserWindow: FakeBrowserWindow,
@@ -316,7 +317,8 @@ test('LAN service failure is isolated from local display output and shutdown rel
     googleCastAppId: 'A1B2C3D4',
     googleCastSenderUrl: 'https://cast.example.test/sender/',
     openGoogleCastCompanion: async () => {},
-    isTrustedAppUrl: () => true,
+    clipboard: { writeText: code => clipboardWrites.push(code) },
+    isTrustedAppUrl: url => url === 'file:///app/index.html',
     listenHttpServer: async (server, host) => {
       boundHosts.push(host)
       if (host === '127.0.0.1') { localRelayServer = server; return 43123 }
@@ -333,6 +335,12 @@ test('LAN service failure is isolated from local display output and shutdown rel
   const event = { sender, senderFrame: { url: 'file:///app/index.html' } }
 
   try {
+    const copyCode = handlers.get('drmvyz:output:copy-web-cast-code')
+    copyCode(event, 'F2LDE3')
+    assert.deepEqual(clipboardWrites, ['F2LDE3'])
+    assert.throws(() => copyCode(event, 'https://cast.stagelessstudio.com/#secret'), /Invalid web cast session code/)
+    assert.throws(() => copyCode({ ...event, senderFrame: { url: 'https://untrusted.example' } }, 'F2LDE3'), /Untrusted/)
+    assert.deepEqual(clipboardWrites, ['F2LDE3'])
     const startCast = handlers.get('drmvyz:output:start-cast')
     assert.equal(typeof startCast, 'function')
     const session = await startCast(event, {

@@ -2,7 +2,7 @@
 
 const path = require('node:path')
 const { pathToFileURL } = require('node:url')
-const { app, BrowserWindow, dialog, ipcMain, net, protocol, screen, session, shell, systemPreferences } = require('electron')
+const { app, BrowserWindow, clipboard, dialog, ipcMain, net, protocol, screen, session, shell, systemPreferences } = require('electron')
 const { BRAND_NAME } = require('./brand.cjs')
 const { applyStagelessProfile } = require('../native/system/userDataMigration.cjs')
 
@@ -273,7 +273,7 @@ if (!app.requestSingleInstanceLock()) {
     if (!useDevServer) registerAppProtocol()
     configureSessionSecurity()
     installRekordboxUsbBridge({ ipcMain, dialog, BrowserWindow, app, log })
-    installOutputCastBridge({ app, BrowserWindow, ipcMain, screen, shell, dialog, isTrustedAppUrl })
+    installOutputCastBridge({ app, BrowserWindow, ipcMain, screen, shell, clipboard, dialog, isTrustedAppUrl })
     installDiagnosticsBridge({ ipcMain, log, app })
     installSystemMetricsBridge({ app, ipcMain, log })
     installCameraAccessBridge({ ipcMain, shell, systemPreferences, log })

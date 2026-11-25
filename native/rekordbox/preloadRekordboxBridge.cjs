@@ -31,6 +31,7 @@ contextBridge.exposeInMainWorld('drmvyzNative', Object.freeze({
     lookupIndexedTracks: filePaths => ipcRenderer.invoke('drmvyz:rekordbox:lookup-indexed-tracks', filePaths),
   }),
   output: Object.freeze({
+    copyWebCastCode: code => ipcRenderer.invoke('drmvyz:output:copy-web-cast-code', code),
     listTargets: () => ipcRenderer.invoke('drmvyz:output:list-targets'),
     getTargetSnapshot: () => ipcRenderer.invoke('drmvyz:output:get-target-snapshot'),
     getSession: () => ipcRenderer.invoke('drmvyz:output:get-session'),

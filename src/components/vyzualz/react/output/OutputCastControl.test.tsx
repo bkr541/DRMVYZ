@@ -9,6 +9,7 @@ import type { NativeOutputBridge, OutputCastRequest, OutputCastSession, OutputRe
 import { CANVAS_FRACTURES_OUTPUT_DEFERRED } from '../canvasFracturesOutputContract'
 import { drawerText, WithNotificationDrawer } from '../../../../test/WithNotificationDrawer'
 import { OutputCastControl } from './OutputCastControl'
+import * as webCastModule from './useWebCast'
 import { getPerformancePressure, resetPerformancePressureForTests } from '../../../../lib/performancePressure'
 
 const targets: OutputTarget[] = [
@@ -234,6 +235,7 @@ describe('OutputCastControl', () => {
     expect(dialog?.classList.contains('rv-cast-popover')).toBe(true)
     expect(dialog?.getAttribute('aria-modal')).toBeNull()
     expect(document.body.querySelector('.rv-cast-overlay')).toBeNull()
+    await act(async () => buttonWithText('Local').click())
     const device = buttonWithText('Stage Screen')
     expect(device.disabled).toBe(true)
 
@@ -250,55 +252,83 @@ describe('OutputCastControl', () => {
     })
   })
 
-  it('switches all five cast layouts without changing output selections or launching a session', async () => {
+  it('uses only Output Tabs and keeps the title and close control outside the scroll body', async () => {
     const trigger = container.querySelector<HTMLButtonElement>('[aria-label="Cast visual output"]')!
     await act(async () => trigger.click())
     const dialog = document.querySelector<HTMLElement>('.rv-cast-popover')!
-    const select = dialog.querySelector<HTMLSelectElement>('[aria-label="Cast layout"]')!
-    const changeLayout = async (value: string) => {
-      await act(async () => {
-        select.value = value
-        select.dispatchEvent(new Event('change', { bubbles: true }))
-      })
-      expect(dialog.classList.contains(`rv-cast-layout--${value}`)).toBe(true)
-      const settings = dialog.querySelector('.rv-cast-settings-bar')!
-      const devices = dialog.querySelector('.rv-cast-devices-section')!
-      expect(settings.compareDocumentPosition(devices) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    }
-    expect(select.value).toBe('list')
-    expect([...select.options].map(option => option.value)).toEqual(['list', 'tabs', 'matrix', 'format', 'dock'])
-    await act(async () => buttonWithText('Full Screen').click())
-    await act(async () => buttonWithText('9:16').click())
-    await changeLayout('tabs')
+    expect(dialog.classList.contains('rv-cast-layout--tabs')).toBe(true)
+    expect(dialog.querySelector('select')).toBeNull()
+    const header = dialog.querySelector('header')!
+    const body = dialog.querySelector('.rv-cast-panel-body')!
+    expect(header.parentElement).toBe(body.parentElement)
+    expect(header.querySelector('[aria-label="Close cast panel"]')).not.toBeNull()
+    expect(body.contains(header)).toBe(false)
+    const tabs = dialog.querySelector('[aria-label="Output categories"]')!
+    expect([...tabs.querySelectorAll('button')].map(button => button.textContent)).toEqual(['Browser', 'Wireless', 'Local', 'Receivers'])
+    expect(dialog.querySelector('.rv-cast-device-heading')?.nextElementSibling).toBe(tabs)
     const web = dialog.querySelector<HTMLElement>('[aria-label="Web casting"]')!
     const local = dialog.querySelector<HTMLElement>('[aria-label="Local displays"]')!
     expect(web.hidden).toBe(false)
     expect(local.hidden).toBe(true)
-    await act(async () => dialog.querySelector<HTMLButtonElement>('[aria-label="Output categories"] button:nth-child(3)')!.click())
+    await act(async () => buttonWithText('Full Screen').click())
+    await act(async () => buttonWithText('9:16').click())
+    await act(async () => buttonWithText('Local').click())
     expect(web.hidden).toBe(true)
     expect(local.hidden).toBe(false)
-    await changeLayout('matrix')
-    expect(web.hidden).toBe(false)
-    expect(local.hidden).toBe(false)
-    await changeLayout('format')
-    const frame = dialog.querySelector<HTMLElement>('.rv-cast-format-frame')!
-    expect(parseFloat(frame.style.width)).toBeLessThan(parseFloat(frame.style.height))
-    expect(dialog.querySelector('.rv-cast-format-preview')?.getAttribute('aria-label')).toContain('9:16, Full Screen')
-    await changeLayout('dock')
-    expect(dialog.querySelector('.rv-cast-format-preview')).toBeNull()
     expect(startCast).not.toHaveBeenCalled()
     await act(async () => buttonWithText('Stage Screen').click())
-    expect(startCast).toHaveBeenCalledTimes(1)
     expect(startCast).toHaveBeenCalledWith({ targetId: 'display:2', windowMode: 'fullscreen', aspectRatio: '9:16' })
-    await changeLayout('list')
-    expect(dialog.textContent).toContain('Stop Output')
-    expect(startCast).toHaveBeenCalledTimes(1)
-    expect(stopCast).not.toHaveBeenCalled()
     await act(async () => buttonWithText('Stop Output').click())
-    await changeLayout('dock')
+    await act(async () => header.querySelector<HTMLButtonElement>('[aria-label="Close cast panel"]')!.click())
     await act(async () => trigger.click())
-    await act(async () => trigger.click())
-    expect(document.querySelector<HTMLSelectElement>('[aria-label="Cast layout"]')?.value).toBe('dock')
+    expect(document.querySelector('[aria-label="Output categories"] button[aria-pressed="true"]')?.textContent).toBe('Browser')
+  })
+
+  it('copies the pairing code, independently toggles the URL, and launches the exact session', async () => {
+    // Remount so switching from the real hook to a mocked controller does not alter hook order.
+    await act(async () => root.render(null))
+    const session = { id: 'cast-1', code: 'F2LDE3', token: 'a'.repeat(64), expiresAt: '2026-12-01T00:00:00Z', iceServers: [] }
+    const link = `${webCastModule.CAST_ORIGIN}/#${session.token}`
+    vi.spyOn(webCastModule, 'useWebCast').mockReturnValue({
+      view: { session, receiverId: null, status: 'Waiting for receiver', busy: false, error: null, aspect: '16:9' },
+      active: true, configured: true, start: vi.fn(async () => {}), stop: vi.fn(), decide: vi.fn(async () => {}),
+    })
+    const nativeCopy = vi.fn(async (_code: string) => {})
+    bridge.copyWebCastCode = nativeCopy
+    const open = vi.spyOn(window, 'open').mockReturnValue(null)
+    await act(async () => root.render(<OutputCastControl canvas={canvas} />))
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="STAGELESS Cast session active"]')!.click())
+    const action = (label: string) => document.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!
+    const revealedLink = () => document.querySelector<HTMLInputElement>('[aria-label="Secure cast link"]')
+    expect(document.querySelectorAll('.rv-webcast-session-actions button')).toHaveLength(3)
+    expect(revealedLink()).toBeNull()
+    await act(async () => action('Copy session code').click())
+    expect(nativeCopy).toHaveBeenCalledWith(session.code)
+    expect(document.body.textContent).toContain('Session code copied.')
+    expect(revealedLink()).toBeNull()
+    await act(async () => action('Show session URL').click())
+    expect(revealedLink()?.value).toBe(link)
+    await act(async () => action('Hide session URL').click())
+    expect(revealedLink()).toBeNull()
+    await act(async () => action('Launch session in browser').click())
+    expect(open).toHaveBeenCalledWith(link, '_blank', 'noopener,noreferrer')
+    expect(revealedLink()).toBeNull()
+    nativeCopy.mockRejectedValueOnce(new Error('clipboard denied'))
+    await act(async () => action('Copy session code').click())
+    expect(document.body.textContent).toContain('Could not copy the session code.')
+    expect(revealedLink()).toBeNull()
+    const original = Object.getOwnPropertyDescriptor(navigator, 'clipboard')
+    const browserCopy = vi.fn(async (_code: string) => {})
+    delete bridge.copyWebCastCode
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: browserCopy } })
+    try {
+      await act(async () => action('Copy session code').click())
+      expect(browserCopy).toHaveBeenCalledWith(session.code)
+      expect(revealedLink()).toBeNull()
+    } finally {
+      if (original) Object.defineProperty(navigator, 'clipboard', original)
+      else Reflect.deleteProperty(navigator, 'clipboard')
+    }
   })
 
   it('locks the selected performance format before native start and releases it on stop', async () => {
@@ -312,6 +342,7 @@ describe('OutputCastControl', () => {
     await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Cast visual output"]')?.click())
     await act(async () => buttonWithText('Full Screen').click())
     await act(async () => buttonWithText('9:16').click())
+    await act(async () => buttonWithText('Local').click())
     await act(async () => buttonWithText('Stage Screen').click())
     expect(startCast).toHaveBeenCalledWith({ targetId: 'display:2', windowMode: 'fullscreen', aspectRatio: '9:16' })
     expect(onAspect).toHaveBeenLastCalledWith('9:16')
@@ -328,6 +359,8 @@ describe('OutputCastControl', () => {
     expect(document.body.textContent).toContain('Wireless Displays')
     expect(document.body.textContent).toContain('Local Displays')
     expect(document.body.textContent).toContain('STAGELESS Receivers')
+    await act(async () => buttonWithText('Receivers').click())
+    expect(buttonWithText('Booth Mac · STAGELESS — Stage LED').closest('[hidden]')).toBeNull()
   })
 
 
@@ -455,6 +488,7 @@ describe('OutputCastControl', () => {
 
     expect(document.body.textContent).toContain('Google Cast')
     expect(document.body.textContent).toContain('Configure the Cast receiver app ID and HTTPS sender companion first.')
+    await act(async () => buttonWithText('Wireless').click())
     const picker = buttonWithText('Choose Google Cast Device')
     expect(picker.disabled).toBe(true)
     expect(document.body.textContent).toContain('Google Cast deployment configuration is missing.')
@@ -480,6 +514,7 @@ describe('OutputCastControl', () => {
     if (!document.body.querySelector('[role="dialog"]')) await act(async () => trigger?.click())
     await act(async () => buttonWithText('Full Screen').click())
     await act(async () => buttonWithText('16:9').click())
+    await act(async () => buttonWithText('Wireless').click())
     const picker = buttonWithText('Choose Google Cast Device')
     expect(picker.disabled).toBe(false)
     await act(async () => picker.click())
@@ -680,6 +715,7 @@ describe('OutputCastControl', () => {
     await act(async () => trigger?.click())
 
     expect(document.body.textContent).toContain('Wireless Displays')
+    await act(async () => buttonWithText('Wireless').click())
     await act(async () => buttonWithText('Open macOS Displays').click())
 
     expect(performProviderAction).toHaveBeenCalledWith('airplay', 'open-system-picker', undefined)
@@ -702,6 +738,7 @@ describe('OutputCastControl', () => {
     await act(async () => trigger?.click())
 
     expect(document.body.textContent).toContain('Wireless Displays')
+    await act(async () => buttonWithText('Wireless').click())
     await act(async () => buttonWithText('Open Windows Displays').click())
 
     expect(performProviderAction).toHaveBeenCalledWith('miracast', 'open-system-picker', undefined)
@@ -720,6 +757,7 @@ describe('OutputCastControl', () => {
     await act(async () => trigger?.click())
     await act(async () => buttonWithText('Full Screen').click())
     await act(async () => buttonWithText('16:9').click())
+    await act(async () => buttonWithText('Local').click())
     await act(async () => buttonWithText('Stage Screen').click())
 
     await act(async () => root.render(
