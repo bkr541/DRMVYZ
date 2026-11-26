@@ -132,6 +132,7 @@ if ((slug === 'corridor' || slug === 'everywhere') && query.has('inspector')) {
     const element = document.createElement('aside')
     element.id = `${slug}-inspector`
     element.style.cssText = 'position:fixed;z-index:10;right:0;top:0;bottom:0;width:365px;overflow:auto;background:#14191f;color:#fff;padding:10px'
+    if (slug === 'everywhere') Object.assign(element.style, { display: 'flex', flexDirection: 'column', overflow: 'hidden', boxSizing: 'border-box' })
     document.body.append(element)
     const root = createRoot(element)
     root.render(createElement(Cinema2InspectorPanel, { runtime, surface: 'design', sharedAudioAnalysis: false }))

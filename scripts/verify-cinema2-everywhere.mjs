@@ -121,7 +121,24 @@ try {
   await expect(control('pattern').locator('select, [role="combobox"]')).toBeEnabled()
   await expect(control('trigger')).toHaveCount(0)
   await expect(control('pool-trigger')).toHaveCount(0)
+  const subgroup = label => inspector.getByRole('button', {name:label,exact:true})
+  await expect(subgroup('Camera')).toHaveAttribute('aria-expanded','false')
+  await expect(subgroup('CRT Finish')).toHaveAttribute('aria-expanded','false')
+  await subgroup('Camera').focus()
+  await subgroup('Camera').press('Enter')
+  await expect(subgroup('Camera')).toBeFocused()
   await expect(control('camera-motion').getByRole('switch')).toBeChecked()
+  await subgroup('CRT Finish').click()
+  await expect(control('scan')).toBeVisible()
+  const distance = control('camera-distance').locator('input[type=range]')
+  await change({'camera-distance':[.5,-.3,1]})
+  await expect(distance).toHaveValue('15')
+  await distance.focus()
+  await distance.press('ArrowRight')
+  await expect.poll(async () => {
+    const [x,y,z] = JSON.parse((await api('status')).authored).values['everywhere-camera-distance']
+    return x === .5 && y === -.3 && Math.abs(z-1.1)<1e-6
+  }).toBe(true)
   for (const group of ['Master Controls','Design','Effects','Palette']) {
     await expect(inspector.getByText(group,{exact:true})).toBeVisible()
   }
@@ -131,9 +148,34 @@ try {
   await expect(control('pattern').locator('select, [role="combobox"]')).toBeDisabled()
   await expect(control('trigger')).toHaveCount(1)
   await expect(control('bpm-sync').getByRole('switch')).toBeEnabled()
+  await expect(distance).toBeDisabled()
+  await expect(control('scan').locator('input')).toBeDisabled()
+  await expect(subgroup('Camera')).toHaveAttribute('aria-expanded','true')
+  await expect(subgroup('CRT Finish')).toHaveAttribute('aria-expanded','true')
   await inspector.screenshot({path:join(output,'inspector.png')})
 
-  await open(false, 'source')
+  await open(false, 'source&inspector')
+  const verifySourceInspector = async mode => {
+    await inspector.evaluate(element => { element.style.display = 'flex' })
+    await expect(subgroup('Screen Media')).toHaveAttribute('aria-expanded','true')
+    await expect(control('brightness')).toBeVisible()
+    await expect(control('screen-media')).toHaveCount(0)
+    for (const id of ['media-layout','media-fit','content-motion','scale-variation','screen-power','hero-readability']) {
+      await expect(control(id)).toHaveCount(mode==='eyes' ? 0 : 1)
+    }
+    await expect(control('pool-trigger')).toHaveCount(mode==='pool' ? 1 : 0)
+    for (const width of [365,250]) {
+      await inspector.evaluate((element,value) => { element.style.width = `${value}px` },width)
+      const scroll = inspector.locator('.rv-inspector-scroll')
+      await expect(scroll).toBeVisible()
+      await scroll.evaluate(element => { element.scrollTop = element.scrollHeight })
+      assert(await scroll.evaluate(element => element.scrollTop > 0), 'Inspector must scroll in its own rail')
+      await scroll.evaluate(element => { element.scrollTop = 0 })
+      await inspector.screenshot({path:join(output,`inspector-${mode}-${width}.png`)})
+    }
+    await inspector.evaluate(element => { element.style.width = '365px'; element.style.display = 'none' })
+  }
+  await verifySourceInspector('eyes')
   const library = page.locator('#everywhere-source')
   await expect(library.getByText('Media Library',{exact:true})).toBeVisible()
   const sourceCard = library.locator('[data-cinema2-active-source]')
@@ -142,6 +184,7 @@ try {
   await page.getByRole('menuitem',{name:'Make Active'}).click()
   await expect.poll(async () => (await api('status')).media.slots[0].source?.id).toBe('crt-test-image')
   await expect.poll(async () => inspection(await api('advanceBy',.05)).userMedia).toBe(true)
+  await verifySourceInspector('single')
   await library.screenshot({path:join(output,'source.png')})
   await library.evaluate(element => { element.style.display = 'none' })
   const choreographed = await capture('media-choreographed')
@@ -173,6 +216,7 @@ try {
   await library.getByRole('button',{name:'Activate pool CRT Review Pool'}).click()
   assert.equal((await api('status')).media.slots[0].source,null)
   assert.equal(inspection(await api('advanceBy',.05)).sourceMode,'pool')
+  await verifySourceInspector('pool')
   await change({pattern:'static-switch','media-layout':'repeat','pool-trigger':'kick',motion:.8})
   await api('setMusic',{active:true,event:null})
   await expect.poll(async () => inspection(await api('advanceBy',.05)).poolReadyChannels).toBe(2)
@@ -196,6 +240,7 @@ try {
   await page.getByRole('menuitem',{name:'Restore Default Eyes'}).click()
   await expect(library.locator('[data-cinema2-active-source]').getByText('Default Eyes',{exact:true})).toBeVisible()
   assert.equal((await api('status')).authored,authoredBeforeReset)
+  await verifySourceInspector('eyes')
   assert.equal((await api('status')).media.slots[0].source,null)
   assert.equal(inspection(await api('advanceBy',.05)).sourceMode,'eyes')
   assert.deepEqual(errors,[])
