@@ -1,4 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import * as THREE from 'three'
+import { ExoskeletonScene } from '../modules/exoskeleton/ExoskeletonScene'
+import type { Cinema2ThreeLibrary } from '../modules/three/Cinema2ThreeLibrary'
+import { EXOSKELETON_PALETTE } from '../modules/exoskeleton/ExoskeletonGeometry'
 import { CINEMA2_EXOSKELETON_PRESET_MANIFEST as manifest } from '../presets/Cinema2ExoskeletonPreset'
 import { CINEMA2_AFTERHOURS_TRIGGER_OPTIONS } from '../presets/Cinema2AfterhoursPreset'
 import { compileCinema2NativePreset } from '../presets/Cinema2PresetCompiler'
@@ -46,6 +50,47 @@ describe('EXOSKELETON',()=>{
     }
     const p=armorPose(0,0,input),drop=armorPose(0,0,{...input,drop:1});expect(drop.travel).toBeGreaterThan(p.travel)
     const locked=armorPose(0,0,{...input,safety:0});const other=armorPose(0,0,{...input,safety:0,pattern:'deployment',phase:10,kick:1});expect(locked.angle).toBe(other.angle);expect(locked.travel).toBe(other.travel)
+  })
+  it('keeps actual instanced armor clear of transformed tall/wide heroes, preserves material and resets source',()=>{
+    const root=new THREE.Group(),scene=new ExoskeletonScene({THREE} as Cinema2ThreeLibrary,root)
+    const values:Record<string,number|string|boolean>={'plate-count':'24','model-scale':1.2,'model-yaw':48,'model-pitch':25,'model-roll':20,'model-x':.2,'model-y':-.2,'shell-clearance':.12,'plate-thickness':.12,'front-aperture':.5}
+    const read={n:(key:string,fallback:number)=>typeof values[key]==='number'?values[key] as number:fallback,text:(key:string,fallback:string)=>typeof values[key]==='string'?values[key] as string:fallback,on:(key:string)=>values[key]!==false,color:(key:keyof typeof EXOSKELETON_PALETTE)=>EXOSKELETON_PALETTE[key]}
+    const shell=root.getObjectByName('exoskeleton-adaptive-armor')!
+    const blade=shell.getObjectByName('exoskeleton-blade') as THREE.InstancedMesh
+    const fastener=shell.getObjectByName('exoskeleton-fastener') as THREE.InstancedMesh
+    const assertClear=(hero:THREE.Object3D)=>{
+      root.updateMatrixWorld(true);hero.updateMatrixWorld(true)
+      const heroBox=new THREE.Box3().setFromObject(hero),matrix=new THREE.Matrix4(),bounds=new THREE.Box3()
+      shell.traverse(node=>{
+        if(!(node instanceof THREE.InstancedMesh))return
+        node.geometry.computeBoundingBox()
+        for(let i=0;i<node.count;i++){
+          node.getMatrixAt(i,matrix);matrix.premultiply(node.matrixWorld)
+          bounds.copy(node.geometry.boundingBox!).applyMatrix4(matrix)
+          expect(bounds.intersectsBox(heroBox),`${node.name} instance ${i}`).toBe(false)
+        }
+      })
+    }
+    const defaultHero=root.children.find(child=>child.type==='Group'&&child!==shell)!
+    try{
+      scene.apply(read,input,0,0,'high');expect(blade.count).toBe(48);expect(fastener.count).toBe(96);assertClear(defaultHero)
+      const initial=blade.instanceMatrix.array.slice()
+      scene.apply(read,{...input,pattern:'deployment',drop:1},5,.4,'low')
+      expect(blade.instanceMatrix.array).not.toEqual(initial);expect(fastener.count).toBe(0);assertClear(defaultHero)
+      for(const size of [[.12,9,.4],[8,.15,.5],[.5,.25,9]] as const){
+        const material=new THREE.MeshStandardMaterial({color:0xff3366,transparent:true,opacity:.62,metalness:.15,roughness:.72})
+        const model=new THREE.Mesh(new THREE.BoxGeometry(size[0],size[1],size[2]),material);model.position.set(2,-1,4)
+        scene.attachModel(model)
+        for(const {value} of EXOSKELETON_PATTERNS)for(const phase of [0,2,5,9]){
+          scene.apply(read,{...input,pattern:value,drop:phase===5?1:0},phase,.3,'medium');assertClear(model)
+          expect(defaultHero.visible).toBe(false);expect(model.visible).toBe(true)
+        }
+        expect(material.color.getHex()).toBe(0xff3366);expect(material.opacity).toBe(.62);expect(material.transparent).toBe(true);expect(material.roughness).toBe(.72)
+        scene.detachModel(model);model.geometry.dispose();material.dispose()
+      }
+      values['plate-count']='12';scene.apply(read,input,0,0,'low');expect(blade.count).toBe(24);expect(defaultHero.visible).toBe(true);assertClear(defaultHero)
+      expect(scene.estimateAdditionalGpuBytes()).toBeGreaterThan(0)
+    }finally{scene.dispose()}
   })
   it('applies manual pattern edits, pauses phase and resets on track replacement',()=>{
     const perf=new ExoskeletonPerformance(i=>(i%7)/7),values:Record<string,unknown>={pattern:'armor','bpm-sync':true,'pattern-change':false,'auto-performance':false}

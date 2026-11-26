@@ -11,7 +11,7 @@ export class ExoskeletonPerformance {
   private readonly clock=new Cinema2BeatClock()
   private readonly resolver=new Cinema2PatternControlResolver<Cinema2AfterhoursTriggerId>()
   private readonly controller:Cinema2MainframePatternController<ExoskeletonPattern>
-  private readonly auto=new Cinema2PatternAutoPerformance<ExoskeletonPattern>({buildPattern:'armor',dropPattern:'deployment',dropBeats:3,mood:{options:{calm:['retraction','exposure'],driving:['mechanical-relay','deployment'],tense:['armor','full-assembly'],peak:['deployment','full-assembly']}}})
+  private readonly auto=new Cinema2PatternAutoPerformance<ExoskeletonPattern>({buildPattern:'full-assembly',dropPattern:'deployment',dropBeats:3,mood:{options:{calm:['armor','exposure','retraction'],driving:['mechanical-relay','deployment'],tense:['armor','full-assembly'],peak:['deployment','full-assembly']}}})
   private identity='';private lastTime:number|null=null;private lastBeat:number|null=null;private lastPattern:ExoskeletonPattern|null=null;private wasPlaying=false
   private lastTimestamp:number|null=null;private lastRevision:number|null=null;private lastAuto=false;private suppressEvent:string|null=null;private lastSavedChange=false;private lastSavedTrigger:Cinema2AfterhoursTriggerId='bar4'
   previousPattern:ExoskeletonPattern='armor';patternBlend=1

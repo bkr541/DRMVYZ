@@ -18,19 +18,28 @@ export function armorHalfExtent(half:number,largest:number,clearance:number){ret
 export interface ArmorInput {pattern:ExoskeletonPattern;previousPattern?:ExoskeletonPattern;blend?:number;phase:number;routePhase:number;opening:number;travel:number;kick:number;snare:number;bass:number;mid:number;build:number;drop:number;vocal:number;safety:number}
 export interface ArmorPose {angle:number;travel:number;pulse:number}
 function pose(index:number,bank:number,p:ArmorInput):ArmorPose{
-  const w=p.phase*Math.PI/4, stagger=index*.47+bank*.69, wave=.5+.5*Math.sin(w-stagger), latch=Math.pow(.5+.5*Math.cos(w*.5),5)
+  // Each stable ID owns a different mechanical sequence, not a different light color.
+  const w=p.phase*Math.PI/4, stagger=index*.65+bank*.85
+  const wave=.5+.5*Math.sin(w-stagger), cycle=.5+.5*Math.cos(w*.5)
+  const latch=clamp01((cycle-.18)*1.45), ordered=clamp01((cycle*1.8-(index*.12+bank*.07)))
   let opening=0,travel=0,relay=0
   switch(p.pattern){
-    case 'armor':opening=-.32*wave;travel=-.24*wave;relay=.22*wave;break
-    case 'deployment':opening=.24*wave;travel=.40*wave;relay=wave;break
-    case 'retraction':opening=.38;travel=.48;relay=.10;break
-    case 'exposure':opening=(bank%2?1:-1)*.32*Math.sin(w*.7);travel=.18*(bank%2?1-wave:wave);relay=bank%2?wave:1-wave;break
-    case 'mechanical-relay':opening=.32*wave-.10;travel=.25*wave;relay=Math.pow(wave,3);break
-    case 'full-assembly':opening=-.45*latch+.22*(1-latch);travel=-.4*latch+.2*(1-latch);relay=latch;break
+    case 'armor': // dormant: nested, gently breathing plates
+      opening=-.65+.12*wave;travel=-.48+.08*wave;relay=.10*wave;break
+    case 'deployment': // expansion: alternating banks unfold in a pressure wave
+      opening=.24+.34*wave;travel=.34+.38*wave;relay=wave;break
+    case 'retraction': // controlled collapse: hinge closes before carriage retracts
+      opening=.36-.95*latch;travel=.42-.92*clamp01((latch-.25)/.75);relay=.15*(1-latch);break
+    case 'exposure': // reveal: opposing side shutters park outward, rear stays low
+      opening=bank===4?-.44:.38+.18*wave;travel=bank===4?-.30:.43+.12*wave;relay=bank===4?.12:wave;break
+    case 'mechanical-relay': // articulated drive: short alternating hinge/piston strokes
+      opening=.54*Math.pow(wave,3)-.22;travel=.48*Math.pow(.5+.5*Math.sin(w-stagger-.7),3)-.18;relay=Math.pow(wave,4);break
+    case 'full-assembly': // staged assembly: latching starts at the lowest index
+      opening=.35-.88*ordered;travel=.35-.75*clamp01((ordered-.2)/.8);relay=ordered;break
   }
   const motion=p.safety*(1-.3*clamp01(p.vocal));const kick=index%2===bank%2?p.kick:0
-  const amount=clamp01(p.opening+motion*(opening+.15*p.mid+.25*kick-.20*p.build+.45*p.drop))
-  const distance=clamp01(p.travel+motion*(travel+.20*p.bass+.35*p.drop))
+  const amount=clamp01(p.opening+motion*(opening+.15*p.mid+.25*kick-.20*p.build+.65*p.drop))
+  const distance=clamp01(p.travel+motion*(travel+.20*p.bass+.48*p.drop))
   const packet=((p.routePhase-index*.11-bank*.16)%1+1)%1
   return {angle:amount*65*Math.PI/180,travel:distance*.60,pulse:clamp01(.4*relay+.6*Math.max(0,1-packet*5)+.20*p.snare*(index%2===bank%2?1:0)+.45*p.drop)}
 }
