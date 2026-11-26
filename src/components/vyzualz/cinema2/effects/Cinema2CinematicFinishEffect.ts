@@ -56,6 +56,7 @@ uniform float u_vignetteSoftness;
 uniform float u_grain;
 uniform float u_grainSize;
 uniform float u_aberration;
+uniform float u_protectMedia; // opt-in: source alpha is unprotected coverage
 out vec4 outColor;
 
 float luma(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
@@ -116,8 +117,10 @@ void main() {
   display += noise * u_grain * 0.11 * midtone;
   display += (gradientNoise(gl_FragCoord.xy + 5.0) - 0.5) / 255.0;
 
-  float m = clamp(u_mix, 0.0, 1.0);
-  outColor = vec4(mix(base.rgb, clamp(display, 0.0, 1.0), m), base.a);
+  float m = clamp(u_mix, 0.0, 1.0) * mix(1.0, base.a, u_protectMedia);
+  // Protected media is already display-encoded; consume the internal mask
+  // here and restore opaque output for the single-world-pass preset.
+  outColor = vec4(mix(base.rgb, clamp(display, 0.0, 1.0), m), mix(base.a, 1.0, u_protectMedia));
 }`
 
 const NUMERIC: readonly Cinema2EffectNumericRange[] = Object.freeze([
@@ -133,6 +136,7 @@ const NUMERIC: readonly Cinema2EffectNumericRange[] = Object.freeze([
   ['grain', 0, 1],
   ['grainSize', 0.5, 4],
   ['aberration', 0, 1],
+  ['protectMedia', 0, 1],
 ])
 
 const NEUTRAL_TINT: readonly [number, number, number] = Object.freeze([0.5, 0.5, 0.5]) as readonly [number, number, number]
@@ -159,7 +163,7 @@ class CinematicFinishEffectInstance implements Cinema2EffectInstance {
       requiredUniforms: ['u_source', 'u_mix'],
       optionalUniforms: [
         'u_resolution', 'u_time', 'u_exposure', 'u_toneMap', 'u_contrast', 'u_saturation', 'u_temperature', 'u_tint',
-        'u_shadowTint', 'u_highlightTint', 'u_tintAmount', 'u_vignette', 'u_vignetteSoftness', 'u_grain', 'u_grainSize', 'u_aberration',
+        'u_shadowTint', 'u_highlightTint', 'u_tintAmount', 'u_vignette', 'u_vignetteSoftness', 'u_grain', 'u_grainSize', 'u_aberration', 'u_protectMedia',
       ],
     })
     if (!result.program) throw new Error(`Shader compilation failed at ${result.error.stage} for "${result.error.label}": ${result.error.log}`)
@@ -178,6 +182,7 @@ class CinematicFinishEffectInstance implements Cinema2EffectInstance {
     program.activate()
     program.setVec2('u_resolution', context.width, context.height)
     program.setFloat('u_mix', context.mix)
+    program.setFloat('u_protectMedia', clamp(number(p, 'protectMedia', 0), 0, 1))
     program.setFloat('u_time', context.frame.elapsedTimeSec)
     program.setFloat('u_exposure', clamp(number(p, 'exposure', 1), 0.1, 4))
     program.setInt('u_toneMap', Math.round(clamp(number(p, 'toneMap', CINEMA2_TONE_MAP.filmic), 0, 2)))

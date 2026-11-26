@@ -130,6 +130,7 @@ uniform vec2 u_texel;
 uniform float u_intensity;
 uniform float u_mix;
 uniform vec3 u_tint;
+uniform float u_protectMedia; // opt-in: source alpha is unprotected coverage
 out vec4 outColor;
 vec3 tap(vec2 uv) { return texture(u_bloom, clamp(uv, vec2(0.0), vec2(1.0))).rgb; }
 void main() {
@@ -139,6 +140,7 @@ void main() {
   glow += (tap(v_uv + vec2(t.x, 0.0)) + tap(v_uv - vec2(t.x, 0.0)) + tap(v_uv + vec2(0.0, t.y)) + tap(v_uv - vec2(0.0, t.y))) * 2.0;
   glow += tap(v_uv + t) + tap(v_uv - t) + tap(v_uv + vec2(t.x, -t.y)) + tap(v_uv + vec2(-t.x, t.y));
   glow *= u_tint * (u_intensity / 16.0);
+  glow *= mix(1.0, base.a, u_protectMedia);
   vec3 linear = pow(max(base.rgb, vec3(0.0)), vec3(2.2)) + glow;
   vec3 bloomed = pow(linear, vec3(1.0 / 2.2));
   outColor = vec4(mix(base.rgb, bloomed, clamp(u_mix, 0.0, 1.0)), base.a);
@@ -151,6 +153,7 @@ const NUMERIC: readonly Cinema2EffectNumericRange[] = Object.freeze([
   ['spread', 0, 1],
   ['levels', 1, 8],
   ['clampMax', 1, 1024],
+  ['protectMedia', 0, 1],
 ])
 
 const WHITE: readonly [number, number, number] = Object.freeze([1, 1, 1]) as readonly [number, number, number]
@@ -186,7 +189,7 @@ class HdrBloomEffectInstance implements Cinema2EffectInstance {
     this.prefilter = createProgram(gl, `${label}/prefilter`, PREFILTER_SOURCE, ['u_source'], ['u_texel', 'u_threshold', 'u_knee', 'u_clampMax'])
     this.downsample = createProgram(gl, `${label}/downsample`, DOWNSAMPLE_SOURCE, ['u_source'], ['u_texel'])
     this.upsample = createProgram(gl, `${label}/upsample`, UPSAMPLE_SOURCE, ['u_coarse', 'u_fine'], ['u_texel', 'u_spread'])
-    this.composite = createProgram(gl, `${label}/composite`, COMPOSITE_SOURCE, ['u_source', 'u_bloom'], ['u_texel', 'u_intensity', 'u_mix', 'u_tint'])
+    this.composite = createProgram(gl, `${label}/composite`, COMPOSITE_SOURCE, ['u_source', 'u_bloom'], ['u_texel', 'u_intensity', 'u_mix', 'u_tint', 'u_protectMedia'])
     this.pass = new FullscreenPass(gl)
     // Half-float levels keep the LEDs' brightness through the chain; without float render support the chain is 8-bit (the glow then
     // only reaches what the scene clipped to white).
@@ -275,6 +278,7 @@ class HdrBloomEffectInstance implements Cinema2EffectInstance {
     program.setVec2('u_texel', top ? 1 / top.width : 0, top ? 1 / top.height : 0)
     program.setFloat('u_intensity', bloom ? intensity : 0)
     program.setFloat('u_mix', context.mix)
+    program.setFloat('u_protectMedia', clamp(number(context.parameters, 'protectMedia', 0), 0, 1))
     program.setVec3('u_tint', tint[0], tint[1], tint[2])
     this.pass.run(program, context.target, context.width, context.height, [
       { unit: 0, texture: context.input.texture, uniformName: 'u_source' },

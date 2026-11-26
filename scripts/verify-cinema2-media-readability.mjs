@@ -17,15 +17,18 @@ function shader(source, name) {
     return subtract ? String(Number(constant)-Number(subtract)) : constant
   })
 }
+const effects = new URL('../src/components/vyzualz/cinema2/effects/', import.meta.url)
 const shaders = { corridor: shader(corridorSource, 'FRAGMENT'), overdrive: shader(overdriveSource, 'fragment') }
+const postShaders = { bloom: shader(await readFile(new URL('Cinema2HdrBloomEffect.ts', effects), 'utf8'), 'COMPOSITE_SOURCE'),
+  finish: shader(await readFile(new URL('Cinema2CinematicFinishEffect.ts', effects), 'utf8'), 'FRAGMENT_SOURCE') }
 
-async function test(shaders) {
+async function test(shaders, postShaders) {
   const results = {}
   const size = 128
   const canvas = document.createElement('canvas')
   canvas.width = canvas.height = size
   document.body.append(canvas)
-  const gl = canvas.getContext('webgl2', { antialias: false, preserveDrawingBuffer: true })
+  const gl = canvas.getContext('webgl2', { antialias: false, premultipliedAlpha: false, preserveDrawingBuffer: true })
   if (!gl) throw Error('WebGL2 unavailable')
   const compile = (type, source) => {
     const s = gl.createShader(type); gl.shaderSource(s, source); gl.compileShader(s)
@@ -34,11 +37,11 @@ async function test(shaders) {
   }
   const vertex = `#version 300 es
   precision highp float;
-  out vec2 vUV;out vec3 vPosition;out float vDepth;flat out vec3 vCell;flat out vec2 vPart;out vec3 vLocal;
-  void main(){vec2 p=vec2(gl_VertexID==1?3.:-1.,gl_VertexID==2?3.:-1.);gl_Position=vec4(p,0.,1.);vUV=p*.5+.5;vPosition=vec3(0.,0.,-4.);vDepth=.1;vCell=vec3(1.,1.,0.);vPart=vec2(4.,0.);vLocal=vec3(p*1.36,1.);}`
+  out vec2 v_uv;out vec2 vUV;out vec3 vPosition;out float vDepth;flat out vec3 vCell;flat out vec2 vPart;out vec3 vLocal;
+  void main(){vec2 p=vec2(gl_VertexID==1?3.:-1.,gl_VertexID==2?3.:-1.);gl_Position=vec4(p,0.,1.);vUV=p*.5+.5;v_uv=vUV;vPosition=vec3(0.,0.,-4.);vDepth=.1;vCell=vec3(1.,1.,0.);vPart=vec2(4.,0.);vLocal=vec3(p*1.36,1.);}`
   // Bank 1 / row 1 / lane 0 is Night Transit's media lane. The selected
   // near face is deliberately held at the same depth in all music states.
-  const programs = Object.fromEntries(Object.entries(shaders).map(([name, source]) => {
+  const programs = Object.fromEntries(Object.entries({...shaders,...postShaders}).map(([name, source]) => {
     if (name === 'overdrive') source = '#version 300 es\nprecision highp float;\nout vec4 fragColor;\n'+source.replace(/varying /g,'in ').replace(/texture2D/g,'texture').replace(/gl_FragColor/g,'fragColor')
     const p = gl.createProgram(), vs=compile(gl.VERTEX_SHADER,vertex), fs=compile(gl.FRAGMENT_SHADER,source)
     gl.attachShader(p,vs);gl.attachShader(p,fs);gl.linkProgram(p);gl.deleteShader(vs);gl.deleteShader(fs)
@@ -52,14 +55,14 @@ async function test(shaders) {
   gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false);gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL,false)
   const upload = (rgba) => gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array(rgba))
   const uploadImage = image => gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,image)
-  const pixel = (x=.5,y=.5) => {const out=new Uint8Array(4);gl.readPixels(Math.floor(x*size),Math.floor(y*size),1,1,gl.RGBA,gl.UNSIGNED_BYTE,out);return Array.from(out.slice(0,3))}
+  const pixel = (x=.5,y=.5,rgba=false) => {const out=new Uint8Array(4);gl.readPixels(Math.floor(x*size),Math.floor(y*size),1,1,gl.RGBA,gl.UNSIGNED_BYTE,out);return Array.from(rgba?out:out.slice(0,3))}
   const draw = (name, options={}) => {
     const p=programs[name];gl.useProgram(p)
     const f=(key,v)=>gl.uniform1f(gl.getUniformLocation(p,key),v), i=(key,v)=>gl.uniform1i(gl.getUniformLocation(p,key),v)
     const v=(key,values)=>gl[`uniform${values.length}fv`](gl.getUniformLocation(p,key),values)
     if(name==='corridor'){
-      v('uLook',[0,0,.85,options.gain??.86]);v('uAccents',options.accents??[0,0,0,0]);i('uPattern',0);f('uHaze',.23);f('uTravel',0);f('uCorridorWidth',2.35)
-      v('uVoid',[.01,.01,.01]);v('uWall',[.05,.05,.05]);v('uAmber',[1,.55,.12]);v('uHot',[1,.7,.2]);v('uMarkings',[1,1,1]);v('uFeedAspect',options.missing?[0,0,0]:[options.aspect??1,0,0]);i('uFeedCount',options.native?0:1);f('uPoolStep',0);i('uFeed0',0);i('uFeed1',0);i('uFeed2',0)
+      v('uLook',[0,0,options.density??.85,options.gain??.86]);v('uAccents',options.accents??[0,0,0,0]);i('uPattern',options.pattern??0);f('uHaze',.23);f('uTravel',0);f('uCorridorWidth',2.35)
+      v('uVoid',[.01,.01,.01]);v('uWall',[.05,.05,.05]);v('uAmber',options.pink?[1,.05,.65]:[1,.55,.12]);v('uHot',options.pink?[1,1,1]:[1,.7,.2]);v('uMarkings',[1,1,1]);v('uFeedAspect',options.pool?[1,1,1]:options.missing?[0,0,0]:[options.aspect??1,0,0]);i('uFeedCount',options.native?0:options.pool?3:1);f('uPoolStep',options.poolStep??0);i('uFeed0',0);i('uFeed1',options.pool?1:0);i('uFeed2',options.pool?2:0)
     } else {
       i('uMedia',0);i('uText',0);v('uColor',[.9,.12,.95]);f('uMode',options.native?0:3);f('uStyle',options.style??2);f('uGain',options.gain??1.5);f('uMediaGain',options.mediaGain??1);f('uPhase',0);f('uAspect',options.aspect??1);f('uScale',1);f('uAngle',0);f('uBass',0)
     }
@@ -67,7 +70,7 @@ async function test(shaders) {
     if(gl.getError()!==gl.NO_ERROR)throw Error(`WebGL error in ${name}`)
     return pixel()
   }
-  for (const name of Object.keys(programs)) {
+  for (const name of Object.keys(shaders)) {
     upload([128,80,40,255])
     const idle=draw(name,{gain:.35}),build=draw(name,{gain:.86,accents:[.3,.2,.7,0]}),drop=draw(name,{gain:1.45,accents:[1,1,1,1]})
     // Keep the native fixture below the 8-bit readback ceiling for the
@@ -82,8 +85,30 @@ async function test(shaders) {
     upload([0,0,255,255]);const blue=draw(name,alphaOptions)
     upload([255,255,255,255]);draw(name,{aspect:4,gain:.15});const contained= pixel(.5,.60),padding=pixel(.5,.76)
     results[name]={idle,build,drop,black,transparent,missing,native,half,red,green,blue,contained,padding}
+    if(name==='corridor'){
+      upload([128,80,40,255]);draw(name,{density:.05,pink:true,gain:0});results[name].unlit=pixel(.5,.5,true)
+      draw(name,{pink:true,accents:[1,1,1,1],gain:1.45});results[name].pinkDrop=pixel(.5,.5,true)
+      upload([0,0,0,255]);draw(name,{pink:true,gain:1.45,accents:[1,1,1,1]});results[name].blackMask=pixel(.5,.5,true)
+      upload([255,0,0,0]);draw(name);results[name].transparentMask=pixel(.5,.5,true)
+      upload([255,0,0,128]);draw(name,alphaOptions);results[name].halfMask=pixel(.5,.5,true)
+      draw(name,{missing:true});results[name].missingMask=pixel(.5,.5,true)
+      upload([255,255,255,255]);draw(name,{aspect:4});results[name].wideCenter=pixel(.5,.5,true);results[name].widePadding=pixel(.5,.7,true)
+      // Shaft does not select lane 0 on bank 1. A selected source must not
+      // accidentally cover the other three lanes.
+      draw(name,{pattern:3});results[name].otherLane=pixel(.5,.5,true)
+      draw(name,{pattern:3,native:true});results[name].otherLaneNative=pixel(.5,.5,true)
+      const poolTextures=[]
+      for(const [unit,rgba] of [[1,[0,255,0,255]],[2,[0,0,255,255]]]){
+        const feed=gl.createTexture();poolTextures.push(feed);gl.activeTexture(gl.TEXTURE0+unit);gl.bindTexture(gl.TEXTURE_2D,feed)
+        gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST)
+        gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array(rgba))
+      }
+      gl.activeTexture(gl.TEXTURE0);upload([255,0,0,255]);results[name].pool=[]
+      for(const poolStep of [0,1,2]){draw(name,{pool:true,poolStep});results[name].pool.push(pixel(.5,.5,true))}
+      poolTextures.forEach(feed=>gl.deleteTexture(feed))
+    }
     if(name==='overdrive'){
-      results[name].dimRaster=draw(name,{style:1,gain:.15});results[name].brightRaster=draw(name,{style:1,gain:1.45});
+      upload([255,255,255,255]);results[name].dimRaster=draw(name,{style:1,gain:.15});results[name].brightRaster=draw(name,{style:1,gain:1.45});
       results[name].halfExposure=draw(name,{mediaGain:.5});
     }
   }
@@ -91,7 +116,7 @@ async function test(shaders) {
   // the same top-down, straight-alpha form as the canonical media runtime.
   const svg='<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128"><path fill="#f00" d="M0 0h128v32H0z"/><path fill="#00f" d="M0 96h128v32H0z"/><text x="64" y="75" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="32" fill="white">DJ</text></svg>'
   const image = new Image(); image.src='data:image/svg+xml,'+encodeURIComponent(svg);await image.decode();uploadImage(image)
-  for(const name of Object.keys(programs)){
+  for(const name of Object.keys(shaders)){
     draw(name);results[name].svgTop=pixel(.5,.85);results[name].svgBottom=pixel(.5,.15)
   }
   // Video uploads must retain source color on successive decoded frames.
@@ -101,13 +126,35 @@ async function test(shaders) {
     const playing=video.play();track.requestFrame();await playing
     for(const [key,color] of [['videoRed','#ff0000'],['videoGreen','#00ff00']]){
       const next=new Promise((resolve,reject)=>{const timeout=setTimeout(()=>reject(Error('Video frame timeout')),5000);video.requestVideoFrameCallback(()=>{clearTimeout(timeout);resolve()})});ctx.fillStyle=color;ctx.fillRect(0,0,32,32);track.requestFrame();await next;uploadImage(video)
-      for(const name of Object.keys(programs))results[name][key]=draw(name)
+      for(const name of Object.keys(shaders))results[name][key]=draw(name)
     }
   } finally {video.pause();video.srcObject=null;track.stop()}
-  gl.deleteTexture(texture);Object.values(programs).forEach(p=>gl.deleteProgram(p));return results
+  // Feed the actual production composite and finish shaders a representative
+  // neighbouring HDR halo. Read each pass separately; alpha is internal metadata.
+  const postDraw = (name, protect) => {
+    const p=programs[name];gl.useProgram(p)
+    const f=(key,v)=>gl.uniform1f(gl.getUniformLocation(p,key),v), i=(key,v)=>gl.uniform1i(gl.getUniformLocation(p,key),v)
+    const v=(key,values)=>gl[`uniform${values.length}fv`](gl.getUniformLocation(p,key),values)
+    i('u_source',0);f('u_protectMedia',protect);f('u_mix',name==='bloom'?1:.72)
+    if(name==='bloom'){i('u_bloom',1);v('u_texel',[0,0]);v('u_tint',[1,.83,.63]);f('u_intensity',1.2)}
+    else {v('u_resolution',[size,size]);f('u_exposure',.86);i('u_toneMap',1);f('u_contrast',1.06);f('u_saturation',1.05);f('u_vignette',.33);f('u_vignetteSoftness',.6);f('u_grainSize',1.5)}
+    gl.drawArrays(gl.TRIANGLES,0,3)
+    if(gl.getError()!==gl.NO_ERROR)throw Error(`WebGL error in ${name}`)
+    return pixel(.5,.5,true)
+  }
+  const halo=gl.createTexture();gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D,halo)
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST)
+  gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array([255,255,255,255]));gl.activeTexture(gl.TEXTURE0)
+  upload([128,80,40,0]);const protectedBloom=postDraw('bloom',1),legacyBloom=postDraw('bloom',0)
+  upload(protectedBloom);const protectedFinish=postDraw('finish',1),legacyFinish=postDraw('finish',0)
+  upload([128,80,40,255]);const nativeBloom=postDraw('bloom',1),nativeLegacyBloom=postDraw('bloom',0)
+  const nativeFinish=postDraw('finish',1),nativeLegacyFinish=postDraw('finish',0)
+  upload([0,0,0,0]);const protectedBlack=postDraw('bloom',1);upload(protectedBlack);const finishedBlack=postDraw('finish',1)
+  Object.assign(results.corridor,{protectedBloom,legacyBloom,protectedFinish,legacyFinish,nativeBloom,nativeLegacyBloom,nativeFinish,nativeLegacyFinish,finishedBlack})
+  gl.deleteTexture(halo);gl.deleteTexture(texture);Object.values(programs).forEach(p=>gl.deleteProgram(p));return results
 }
 
-const html = `<!doctype html><meta charset="utf-8"><body><script>window.result=(${test.toString()})(${JSON.stringify(shaders)}).then(result=>({result}),error=>({error:String(error.stack||error)}))</script>`
+const html = `<!doctype html><meta charset="utf-8"><body><script>window.result=(${test.toString()})(${JSON.stringify(shaders)},${JSON.stringify(postShaders)}).then(result=>({result}),error=>({error:String(error.stack||error)}))</script>`
 if (process.argv[2] === '--html') {
   // Allows the same fixture to be exercised with system Chromium when the
   // project's npm dependencies cannot be installed (e.g. offline CI).
@@ -134,7 +181,19 @@ function verify(results) {
     assert(delta(r.half,r.red.map((v,i)=>Math.round((v+r.transparent[i])/2)))<=3,`${name}: alpha blend failed`)
     dominant(r.red,0);dominant(r.green,1);dominant(r.blue,2);dominant(r.videoRed,0);dominant(r.videoGreen,1)
   }
-  assert(delta(results.corridor.transparent,results.corridor.native)<=1,'Corridor transparent media must reveal native fixture')
+  const c=results.corridor
+  assert(delta(c.transparent,c.native)<=1,'Corridor transparent media must reveal native fixture')
+  assert(delta(c.idle,[128,80,40])<=1,'Corridor must retain display-encoded source colors')
+  for(const name of ['unlit','pinkDrop','protectedBloom']) assert(delta(c[name],[128,80,40,0])<=1,`Corridor ${name}: media must retain color and protection`)
+  assert(delta(c.protectedFinish,[128,80,40,255])<=1,'Finish must restore opaque output without grading artwork')
+  assert(delta(c.blackMask,[0,0,0,0])<=1 && delta(c.finishedBlack,[0,0,0,255])<=1,'Black art must not receive bloom or grading')
+  assert(c.transparentMask[3]===255 && c.missingMask[3]===255 && Math.abs(c.halfMask[3]-127)<=1,'Mask must follow source alpha')
+  assert(delta(c.legacyBloom,c.protectedBloom)>30 && delta(c.legacyFinish.slice(0,3),c.protectedFinish.slice(0,3))>2,'Protection must be opt-in')
+  assert(delta(c.nativeBloom,c.nativeLegacyBloom)<=1 && delta(c.nativeFinish,c.nativeLegacyFinish)<=1,'Native pixels must retain the old post treatment')
+  assert(delta(c.wideCenter,[255,255,255,0])<=1 && delta(c.widePadding,[0,0,0,0])<=1,'Wide media must be contained with protected black padding')
+  assert(delta(c.otherLane,c.otherLaneNative)<=1 && c.otherLane[3]===255,'Nonselected lanes must remain native')
+  assert(c.pool.every((rgba,index)=>delta(rgba,[[255,0,0,0],[0,255,0,0],[0,0,255,0]][index])<=1),'Pool steps must sample the expected channel')
+
   assert(Math.max(...results.overdrive.padding)<10 && Math.min(...results.overdrive.contained)>240,'Overdrive must contain a wide source without stretching')
   assert(delta(results.overdrive.halfExposure,[128,128,128])<=1,'Existing exposure must remain effective')
   assert(delta(results.overdrive.dimRaster,results.overdrive.brightRaster)>30,'Raster must retain reactive fixture gain')

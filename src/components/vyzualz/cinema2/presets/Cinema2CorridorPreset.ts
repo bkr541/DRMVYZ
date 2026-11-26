@@ -149,10 +149,10 @@ const manifest: Cinema2NativePresetManifest = {
   environment: { backgroundColor: CORRIDOR_COLORS.voidColor, controls: { backgroundColor: ref('void') } },
   effects: [
     { id: bloom, typeId: CINEMA2_HDR_BLOOM_EFFECT_TYPE_ID, version: 1, enabled: true, order: 0, scope: 'output',
-      parameters: { mix: 1, threshold: 1.45, knee: 0.29, intensity: 0.36, spread: 0.47, levels: 5, clampMax: 12, tint: [1, 0.83, 0.63, 1] },
+      parameters: { mix: 1, protectMedia: 1, threshold: 1.45, knee: 0.29, intensity: 0.36, spread: 0.47, levels: 5, clampMax: 12, tint: [1, 0.83, 0.63, 1] },
       parameterBindings: { intensity: ref('bloom') } },
     { id: finish, typeId: CINEMA2_CINEMATIC_FINISH_EFFECT_TYPE_ID, version: 1, enabled: true, order: 1, scope: 'output',
-      parameters: { mix: 0.72, exposure: 0.86, contrast: 1.06, saturation: 1.05, vignette: 0.33, grain: 0, aberration: 0 } },
+      parameters: { mix: 0.72, protectMedia: 1, exposure: 0.86, contrast: 1.06, saturation: 1.05, vignette: 0.33, grain: 0, aberration: 0 } },
   ],
   choreography: {
     tempoSyncParameter: ref('bpm-sync'),

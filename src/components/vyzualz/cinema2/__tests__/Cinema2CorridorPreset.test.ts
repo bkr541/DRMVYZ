@@ -37,6 +37,18 @@ describe('Corridor', () => {
     expect(CORRIDOR_PATTERNS.map(pattern => corridorPoolTrigger(pattern.value))).toEqual(['bar4','beat4','bar','bar4','beat2','bar'])
   })
 
+  it('opts only the single opaque Corridor world into local media protection through both finishing passes', () => {
+    expect(manifest.layers).toHaveLength(1)
+    expect(manifest.layers?.[0]?.role).toBe('world')
+    expect(manifest.output?.alphaMode).toBe('opaque')
+    expect(manifest.effects?.find(effect => effect.typeId === 'hdr-bloom')?.parameters).toMatchObject({
+      protectMedia: 1, threshold: 1.45, intensity: .36,
+    })
+    expect(manifest.effects?.find(effect => effect.typeId === 'cinematic-finish')?.parameters).toMatchObject({
+      protectMedia: 1, mix: .72, exposure: .86,
+    })
+  })
+
   it('builds a backing, telescoping mount, rigid body, bevel, recessed strip and face for every cell', () => {
     const geometry = buildCorridorGeometry()
     const cells = new Map<string, Map<number, number[]>>()

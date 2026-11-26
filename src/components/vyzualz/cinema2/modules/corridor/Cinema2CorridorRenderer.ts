@@ -181,7 +181,7 @@ float selection(float row, float bank, float lane, float random, float density) 
 }
 
 // At most one of four lanes per bank and bay can carry a picture. The
-// original pattern envelope still decides whether that fixture is lit.
+// pattern still chooses the media lane; light intensity does not control its opacity.
 // World-space addressing prevents pictures jumping as mesh bays recycle.
 float mediaLane(float row, float bank) {
   if (uPattern == 1) return mod(row + bank,4.0); // diagonal relay
@@ -214,9 +214,9 @@ vec4 mediaPicture(float bank, float random, float detail, int channel) {
   if (channel == 0) picture = texture(uFeed0,uv);
   else if (channel == 1) picture = texture(uFeed1,uv);
   else picture = texture(uFeed2,uv);
-  // The slot runtime uploads straight-alpha sRGB bytes, not an sRGB texture.
-  vec3 linear = mix(picture.rgb/12.92,pow((picture.rgb+.055)/1.055,vec3(2.4)),step(vec3(.04045),picture.rgb));
-  return vec4(linear,picture.a);
+  // Canonical slot bytes and the HDR post graph are both display-encoded.
+  // Do not decode here: bloom/finish perform their own linearization.
+  return picture;
 }
 
 float motif(vec2 p, float kind) {
@@ -314,14 +314,13 @@ void main() {
     metal += lampColor * (edge*.19+spill*.045) * uLook.w;
     float warmGrain = (1.0-smoothstep(.21,.48,length(local))) * .14 + stipple;
     emission = lampColor * diffuser * fixture * min(5.5,(.50+2.95*level)*uLook.w) * warmGrain;
-    if (uFeedCount > 0 && lane == mediaLane(row,bank) && fixture > .001 && diffuser > .001) {
+    if (uFeedCount > 0 && lane == mediaLane(row,bank) && diffuser > .001) {
       int channel = int(mod(row + bank*2.0 + uPoolStep,float(uFeedCount)));
       vec4 picture = mediaPicture(bank,random,detail,channel);
-      // The choreography still recruits the panel; its coverage is not an
-      // exposure multiplier. Keep source white at linear 1 (below the bloom
-      // threshold), and never bleed the drop ring through an opaque picture.
-      // Straight alpha reveals the original fixture only where the art permits.
-      mediaOverlay = vec4(picture.rgb,picture.a*diffuser*fixture);
+      // Pattern placement is independent of the reactive diffuser envelope.
+      // Transparent pixels still reveal the original fixture; opaque black
+      // and letterbox bars must not become emissive when the ring hits.
+      mediaOverlay = vec4(picture.rgb,picture.a*diffuser);
     }
     float mark = motif(local,hash(id + 67.0));
     float annotation = step(.60,detail) * (1.0-fixture) * (0.62 + .30 * uAccents.y);
@@ -330,8 +329,15 @@ void main() {
   float vignette = exp(-pow(distanceIn * (.034 + uHaze *.13),1.34));
   float apertureFade = 1.0-smoothstep(24.0,33.0,distanceIn);
   float depthFade = mix(.67,1.0,smoothstep(.75,4.6,distanceIn));
-  vec3 surface = mix(metal+emission+marking,mediaOverlay.rgb,mediaOverlay.a);
-  outColor = vec4(mix(uVoid,surface,vignette*apertureFade*depthFade),1.0);
+  vec3 fixtureSurface = mix(uVoid,metal+emission+marking,vignette*apertureFade*depthFade);
+  // Preserve near-field color, including dark artwork. Far artwork fades
+  // neutrally rather than inheriting the palette or near-camera vignette.
+  float mediaFade = exp(-pow(max(0.0,distanceIn-4.0)*(.034+uHaze*.13),1.34));
+  vec3 mediaSurface = mix(uVoid,mediaOverlay.rgb * mediaFade,apertureFade);
+  // The single opaque world pass uses alpha internally as the unprotected
+  // fraction for bloom/finish. Finish restores opaque output; this is not
+  // canvas transparency. Missing feeds and transparent pixels keep alpha 1.
+  outColor = vec4(mix(fixtureSurface,mediaSurface,mediaOverlay.a),1.0-mediaOverlay.a);
 }`
 
 // Static mesh: wall backing, telescoping housing, beveled lip, recessed LED channel,
