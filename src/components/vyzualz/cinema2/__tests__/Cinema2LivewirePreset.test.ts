@@ -19,6 +19,9 @@ import { LIVEWIRE_GLYPH_METRICS, LIVEWIRE_GLYPH_MESHES } from '../modules/livewi
 import { livewireGlyphShapes } from '../modules/livewire/Cinema2LivewireContours'
 import { resolveCinema2SayItTextLayout } from '../modules/sayIt/Cinema2SayItTextLayout'
 
+import { buildLivewireStage, Cinema2LivewireEnvironment, livewireStageLight } from '../modules/livewire/Cinema2LivewireEnvironment'
+import { LIVEWIRE_FLOOR_Y, type LivewirePerformance } from '../modules/livewire/Cinema2LivewireBridge'
+
 const manifest = CINEMA2_LIVEWIRE_PRESET_MANIFEST
 const parameter = (name: string) => manifest.parameters!.find(item => item.id === `livewire-${name}`)!
 
@@ -179,5 +182,64 @@ describe('LIVEWIRE shared camera authority', () => {
         }
       }
     }
+  })
+})
+
+
+describe('LIVEWIRE recessed environment', () => {
+  const idle: LivewirePerformance = {
+    coverage: 0.45, intensity: 1, period: 4, motion: 0.8, playing: false,
+    energy: 0, vocal: 0, kick: 0, snare: 0, transient: 0, build: 0, drop: 0, silence: 0,
+  }
+  const parts = buildLivewireStage(LIVEWIRE_FLOOR_Y)
+  const conduits = parts.filter(part => part.kind === 'conduit')
+  const levels = (look: LivewirePerformance, pattern = 0, phase = 0.31) =>
+    conduits.map(part => livewireStageLight(part, pattern, phase, look))
+  const peak = (look: LivewirePerformance) => Math.max(...levels(look))
+
+  it('spans the full text envelope in two recessed layers without crossing the floor or glyphs', () => {
+    expect(parts.length).toBeLessThan(200)
+    expect(new Set(parts.filter(part => part.kind === 'shell').map(part => part.position[2])).size).toBeGreaterThan(1)
+    expect(Math.max(...parts.map(part => part.position[0] + part.size[0] / 2))).toBeGreaterThan(5.4 / 2)
+    for (const part of parts) {
+      expect(part.position[2] + part.size[2] / 2).toBeLessThan(-1)
+      expect(part.position[1] - part.size[1] / 2).toBeGreaterThanOrEqual(LIVEWIRE_FLOOR_Y - 1e-8)
+    }
+  })
+
+  it('uses distinct banks, traveling highlights and bounded shared accents with vocal and silence protection', () => {
+    const playing = { ...idle, playing: true }
+    const drop = { ...playing, energy: 1, drop: 1, build: 1, kick: 1, snare: 1, transient: 1 }
+    expect(peak(idle)).toBeLessThan(0.005)
+    expect(peak(drop)).toBeGreaterThan(peak(playing) * 3)
+    expect(peak({ ...drop, vocal: 1 })).toBeLessThan(peak(drop) * 0.4)
+    expect(levels({ ...drop, silence: 1 })).toEqual(levels(idle))
+    expect(levels({ ...drop, motion: 0 })).toEqual(levels(idle))
+    expect(levels({ ...drop, intensity: 0 }).every(value => value === 0)).toBe(true)
+    expect(Math.max(...levels({ ...drop, intensity: 1.6, motion: 1 }))).toBeLessThanOrEqual(0.22)
+    expect(levels(playing, 0, 0.12)).not.toEqual(levels(playing, 0, 0.62))
+    expect(new Set(Array.from({ length: 6 }, (_, pattern) => JSON.stringify(levels(playing, pattern)))).size).toBe(6)
+  })
+
+  it('uses one reusable instance batch and disposes its owned resources', () => {
+    const scene = new THREE.Scene()
+    const environment = new Cinema2LivewireEnvironment(THREE, scene, LIVEWIRE_FLOOR_Y)
+    const mesh = scene.children[0]!.children[0] as THREE.InstancedMesh
+    const material = mesh.material as THREE.MeshBasicMaterial
+    const disposed: string[] = []
+    mesh.addEventListener('dispose', () => disposed.push('instances'))
+    mesh.geometry.addEventListener('dispose', () => disposed.push('geometry'))
+    material.addEventListener('dispose', () => disposed.push('material'))
+    environment.update(0, 0, idle, [0.025, 0.88, 1])
+    const before = Array.from(mesh.instanceColor!.array)
+    environment.update(0, 0.31, { ...idle, playing: true, drop: 1 }, [0.025, 0.88, 1])
+    expect(Array.from(mesh.instanceColor!.array)).not.toEqual(before)
+    expect(mesh.count).toBe(parts.length)
+    expect(environment.estimateGpuBytes()).toBeLessThan(32 * 1024)
+    expect(scene.children).toHaveLength(1)
+    environment.dispose()
+    environment.dispose()
+    expect(scene.children).toHaveLength(0)
+    expect(disposed.sort()).toEqual(['geometry', 'instances', 'material'])
   })
 })

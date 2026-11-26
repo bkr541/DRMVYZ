@@ -7,6 +7,7 @@ import type { Cinema2ThreeLoadedAsset } from '../three/Cinema2ThreeAssetCache'
 import type { Cinema2ThreeLibrary } from '../three/Cinema2ThreeLibrary'
 import { LIVEWIRE_GLYPH_MESHES, LIVEWIRE_GLYPH_METRICS, LIVEWIRE_MAX_BARS } from './Cinema2LivewireGlyphs'
 
+import { Cinema2LivewireEnvironment } from './Cinema2LivewireEnvironment'
 import { applyLivewireLedMaterial, applyLivewireMetalMaterial, type LivewireLightUniforms } from './Cinema2LivewireMaterials'
 
 export const LIVEWIRE_FLOOR_Y = -0.91
@@ -32,9 +33,11 @@ export interface LivewirePerformance {
   transient: number
   build: number
   drop: number
+  silence: number
 }
 
 export class Cinema2LivewireBridge extends Cinema2SayItBridge {
+  private readonly environment: Cinema2LivewireEnvironment
   private phase = 0
   private patternBeats = 0
   private pattern: Cinema2SayItDrawState['pattern'] | null = null
@@ -43,6 +46,16 @@ export class Cinema2LivewireBridge extends Cinema2SayItBridge {
   constructor(gl: WebGL2RenderingContext, library: Cinema2ThreeLibrary, asset: Readonly<Cinema2ThreeLoadedAsset>,
     private readonly getPerformance: () => Readonly<LivewirePerformance>) {
     super(gl, library, asset, LIVEWIRE_GLYPH_MESHES)
+    this.environment = new Cinema2LivewireEnvironment(library.THREE, this.scene, LIVEWIRE_FLOOR_Y)
+  }
+
+  override estimateGpuBytes(): number {
+    return super.estimateGpuBytes() + this.environment.estimateGpuBytes()
+  }
+
+  override dispose(): void {
+    this.environment.dispose()
+    super.dispose()
   }
 
   protected override applyState(
@@ -70,6 +83,8 @@ export class Cinema2LivewireBridge extends Cinema2SayItBridge {
       pattern: 'solid',
       ledMusicIntensity: 1,
     }, profile)
+
+    this.environment.update(pattern, this.phase, look, draw.outlineColor)
 
     for (const [index, glyph] of this.glyphs.entries()) {
       const material = glyph.ledMaterial

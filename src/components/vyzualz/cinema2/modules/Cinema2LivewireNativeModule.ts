@@ -16,7 +16,7 @@ export function createCinema2LivewireNativeModuleDefinition(options: TypographyO
     create(context) {
       let state: LivewirePerformance = {
         coverage: 0.45, intensity: 1, period: 4, motion: 0.8, playing: false,
-        energy: 0, vocal: 0, kick: 0, snare: 0, transient: 0, build: 0, drop: 0,
+        energy: 0, vocal: 0, kick: 0, snare: 0, transient: 0, build: 0, drop: 0, silence: 0,
       }
       const adapt = (parameters: Cinema2ModuleParameterReadFacet, hostSync = true): Cinema2ModuleParameterReadFacet => ({
         ...parameters,
@@ -67,6 +67,7 @@ export function createCinema2LivewireNativeModuleDefinition(options: TypographyO
               transient: Math.max(signal('ledTransient'), signal('highs') * 0.38),
               build: signal('buildAmount'),
               drop: signal('dropAccent'),
+              silence: active ? frame.mood?.silence ?? 0 : 0,
             }
             core.lifecycle.update({ ...update, parameters: adapt(parameters, frame.transport?.bpmSync !== false) })
           },

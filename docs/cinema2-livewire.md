@@ -6,6 +6,14 @@ The camera is nearly head-on, above the floor with reflection space below the ba
 
 The metal stays in place as LED segments move. With no active audio the wordmark holds its sparse pattern, with a chosen primary edge per glyph. A kick runs along the bars, a snare accents upper segments, and high-band transients add a short sweep. Energy and bass vary the extent of the lit regions. Vocal presence pulls the sweep back to keep the lettering readable. The Visual Director's build widens the lit region and a drop lifts selected bars at the outer edges while bloom releases. These accents modulate the current pattern. The base pattern changes only through its manual control or the shared Pattern Change controller.
 
+## Recessed environment (LIV-02)
+
+Nine staggered architectural bays occupy two world-space depths behind the wordmark. Their recessed vertical conduits and interrupted upper/lower service rails use the same resolved pattern and sweep phase as the existing letters. Local illumination is represented by narrow light cores and subdued adjacent surface spill; no global light, particles, haze, new camera, or additional post-processing pass is introduced. The shared camera provides parallax. The floor continues to consume the original scene color and depth. The stage remains behind the maximum 5.4-unit-wide glyph layout and above the floor; framing continues to prioritize the wordmark, not the architectural edges.
+
+The stage uses existing controls only: LED Intensity (0–1.6, default 1) scales the conduits, Motion Amount (0–1, default 0.8) scales travel and accents, Sweep Period (2–12 reference seconds, default 4) and BPM Sync use the existing typography phase, and LED Color tints both cores and spill. Pattern / Pattern Change / Trigger continue to be owned by the shared controller. Auto Performance supplies existing resolved energy, build and event accents; vocals attenuate the background and the shared silence gate withdraws active lighting. Idle and Motion Amount zero leave only faint static structure and recessed cores. The stage's linear color is capped at 0.22, with spill at 23% of the core, well below the hero LEDs' authored emissive intensity. No new persistent parameters or migration are needed.
+
+The environment uses a single depth-tested instanced box batch (171 instances, 2,052 triangles), with the same topology at all quality tiers, no extra textures or render targets, and owned resources released with the native bridge. The numeric limits are authored starting points and require production visual acceptance.
+
 ## Pattern library
 
 | Pattern | Native LED arrangement |

@@ -149,6 +149,30 @@ try {
   const restored = await pixels('restored')
   assert(restored.some(value => value > 160), 'Context recovery must restore LED geometry')
   checks.push({ name: 'portrait and context restoration retain the rendered glyphs' })
+  // Isolate the space above a short wordmark with camera and bloom disabled.
+  // The upper ROI excludes the floor and the foreground text; it should reveal
+  // depth on a drop, then recede when transport returns to idle.
+  await page.setViewportSize({ width: 960, height: 600 })
+  await open('off')
+  await api('setParameters', { text: 'LIVEWIRE', 'camera-motion': false, bloom: 0, 'auto-performance': true })
+  const stagePixels = async name => {
+    const png = await page.screenshot()
+    await writeFile(join(output, `${name}.png`), png)
+    return sharp(png).extract({ left: 160, top: 40, width: 640, height: 175 }).removeAlpha().raw().toBuffer()
+  }
+  const stageIdle = await stagePixels('stage-idle')
+  await api('setMusic', { active: true, energy: 0.85, bass: 0.7, build: 0.95, sectionBuild: true })
+  await api('advanceBy', 0.5)
+  await stagePixels('stage-build')
+  await api('setMusic', { event: 'drop', eventId: 142, build: 0, sectionBuild: false }, 0.04)
+  await api('advanceBy', 0.17)
+  const stageDrop = await stagePixels('stage-drop')
+  changes('drop reveals recessed background above wordmark', stageIdle, stageDrop, 0.02)
+  await api('setMusic', { paused: true, event: null })
+  const stagePause = await stagePixels('stage-paused')
+  await api('advanceBy', 0.4)
+  assert(delta(stagePause, await stagePixels('stage-paused-held')) < 0.03, 'Stage illumination must hold on pause')
+  checks.push({ name: 'recessed stage holds on pause' })
   // Isolate camera travel from the LED sweep, then verify actual production pixels
   // as well as the authoritative camera matrices (the floor reads the same camera).
   await page.setViewportSize({ width: 960, height: 600 })
