@@ -32,6 +32,8 @@ try{
   await api('pause');const paused=await capture('pause');await page.waitForTimeout(300);assert(!different(paused,await capture('pause-held')),'Paused geometry should hold')
   await api('stop');await api('reset');await freeze();await api('play',120,true);await api('audioFixture');const silent=await capture('audio-silence')
   await api('audioFixture',{band:'bass',energy:.7});await page.waitForTimeout(300);assert(different(silent,await capture('audio-bass')),'Bass must visibly affect geometry')
+  await api('audioFixture',{band:'high',energy:.7});await page.waitForTimeout(300);const highs=await capture('audio-highs');assert(different(silent,highs),'Highs must visibly activate HUD instrumentation')
+  await api('audioFixture',{cue:'snare',energy:.7});assert(different(highs,await capture('audio-snare')),'Snare must visibly accent HUD instrumentation')
   await api('set','patternChange',true);await api('set','trigger','kick');await api('audioFixture');const read=async()=>{const s=await api('prepare');return s.modules.modules.find(m=>m.moduleId==='hud-reactor')?.inspection}
   const before=await read();await api('audioFixture',{cue:'kick',energy:.7});assert.notEqual((await read()).activePattern,before.activePattern)
   const triggered=await read();await page.waitForTimeout(250);assert.equal((await read()).activePattern,triggered.activePattern,'Held kick must not replay')
@@ -47,7 +49,7 @@ try{
   await api('showInspector',false);await capture('drop');await api('audioFixture',{energy:0});await page.waitForTimeout(900);await capture('silent-stop');assert.equal(await api('saved'),saved,'Auto Performance must not mutate saved parameters')
   await api('set','autoPerformance',false);await api('showInspector',true);assert.equal(await control('motion').locator('input[type=range]').isDisabled(),false);await api('showInspector',false)
   await api('stop');await api('reset');await freeze()
-  for(const [width,height] of [[960,540],[640,640],[540,960]]){await page.setViewportSize({width,height});assert(visible(await capture(`aspect-${width}x${height}`)))}
+  for(const [width,height] of [[960,540],[1280,540],[640,640],[540,960]]){await page.setViewportSize({width,height});assert(visible(await capture(`aspect-${width}x${height}`)))}
   const savedBefore=await api('saved');await api('reenter');assert.equal(await api('saved'),savedBefore);await capture('reentry')
   const outputPng=Buffer.from((await api('captureOutput')).split(',')[1],'base64');await writeFile(path.join(output,'canvas-stream.png'),outputPng);assert(visible(await sharp(outputPng).removeAlpha().raw().toBuffer()))
   const final=await api('dispose');assert.equal(final.resources.activeLeaseCount,0);await writeFile(path.join(output,'lifecycle.json'),JSON.stringify(final,null,2));assert.deepEqual(errors,[])

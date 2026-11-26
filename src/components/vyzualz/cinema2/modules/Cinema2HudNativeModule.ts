@@ -68,7 +68,7 @@ export class Cinema2HudMotion {
     if(animate&&this.lastBeat!=null)this.phase+=Math.max(0,Math.min(1,beat-this.lastBeat))*controls.rate*controls.motion
     if(!present||reset)this.signals=zeroHudSignals()
     if(active&&!reset&&frame.audio)for(const key of HUD_SIGNALS){const value=parameters.get(key);this.signals[key]=typeof value==='number'&&Number.isFinite(value)?clamp(value):0}
-    const next=sampleHud(this.activePattern,this.phase,controls,this.signals)
+    const next=sampleHud(this.activePattern,this.phase,controls,this.signals,frame.viewport.width/Math.max(1,frame.viewport.height))
     const progress=clamp(beat-this.transitionStart)
     this.geometry=this.transitionFrom&&progress<1?blendHud(this.transitionFrom,next,progress):next
     if(progress>=1)this.transitionFrom=null

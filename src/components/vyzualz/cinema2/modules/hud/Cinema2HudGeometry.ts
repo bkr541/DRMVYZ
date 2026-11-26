@@ -14,6 +14,7 @@ export const HUD_SIGNALS=['sub','bass','mid','high','air','flux','vocal','build'
 export type HudSignals=Record<typeof HUD_SIGNALS[number],number>
 export const zeroHudSignals=()=>Object.fromEntries(HUD_SIGNALS.map(key=>[key,0])) as HudSignals
 export const HUD_STRIDE=12
+export const HUD_PERIPHERAL_PRIMITIVES=136
 const TAU=Math.PI*2
 const clamp=(v:number,min=0,max=1)=>Math.max(min,Math.min(max,v))
 const wave=(v:number)=>.5+.5*Math.sin(v)
@@ -35,7 +36,7 @@ export function buildHudMesh():Float32Array {
 }
 
 /** Each primitive has stable identity across patterns. No randomness or music detection. */
-export function sampleHud(pattern:HudPattern,phase:number,c:HudControls,s:HudSignals):Float32Array {
+export function sampleHud(pattern:HudPattern,phase:number,c:HudControls,s:HudSignals,aspect=16/9):Float32Array {
   const out:number[]=[]
   const t=phase*TAU/8
   const a=c.reactivity, sub=s.sub*a, bass=s.bass*a, kick=s.kick*a, drop=s.drop*a, snare=s.snare*a
@@ -129,6 +130,74 @@ export function sampleHud(pattern:HudPattern,phase:number,c:HudControls,s:HudSig
     line(x,y,-1.1*zSpace,.95*frameScale,theta+Math.PI*.5,.045*frameScale,.08,3,0)
     line(x,y,-1.06*zSpace,.34*frameScale,theta+Math.PI*.5,.024*frameScale,.04,2,emission*frameScale*(.16+s.bar*a*.48))
     for(let j=0;j<5;j++)line(x+Math.cos(theta)*.13*frameScale,y+Math.sin(theta)*.13*frameScale+(j-2)*.09*frameScale,-1.12*zSpace,.047*frameScale,0,.034*frameScale,.035,4,emission*frameScale*(.08+treble*.2))
+  }
+  // HUD-01: append stable, independently lit instrumentation; leave every core
+  // primitive and its ordering intact. Keep the outer frame in world space behind
+  // the reactor. The shared camera fits to 1.3 on narrow stages, so rotate the
+  // banks toward the extra vertical space instead of shrinking the central HUD.
+  const ratio=Number.isFinite(aspect)&&aspect>0?aspect:16/9
+  const portrait=smooth((1.25-ratio)/.4)
+  const bankAngle=portrait*Math.PI/2
+  const bankRadius=4.85+clamp((ratio-1.3)*2.3,0,3.1)
+  const fine=clamp(treble+snare*.45)
+  const accentGain=emission*(.35+.65*c.coverage)*(pattern==='collapse'?.35+.35*scale:1)
+  // Two graduated arcs, inset from the viewport edges. Bass stays with the
+  // original ring meters; high-frequency detail animates the outer graduations.
+  const graduationRadius=3.66+.12*drop+.09*kick
+  for(let side=0;side<2;side++){
+    const axis=Math.PI/2+side*Math.PI
+    const start=axis-.60
+    arc(0,0,-1.32*zSpace-.34,graduationRadius,start,1.2,.027,.04,3,0)
+    for(let i=0;i<17;i++){
+      const theta=start+i*1.2/16
+      const major=i%4===0
+      const head=wrap(i/17-t*scan*.25+side*.5)
+      const lit=pattern==='radar'?Math.exp(-head*9):smooth((.16+.38*c.coverage*density-head)*6)
+      const length=(major?.17:.085)*(1+.32*fine)
+      line(Math.cos(theta)*(graduationRadius+.10),Math.sin(theta)*(graduationRadius+.10),-1.28*zSpace-.34,length,theta,major?.035:.024,.035,major?2:4,accentGain*(.12+.24*lit+.34*fine))
+    }
+    // A short traveling scan head, confined to the peripheral arc.
+    const head=start+.10+wrap(t*scan*.19+side*.5)*.99
+    arc(0,0,-1.18*zSpace-.34,graduationRadius-.10,head,.09,.045,.04,2,accentGain*(.15+.28*fine+.15*build))
+  }
+  for(let side=0;side<2;side++){
+    const theta=bankAngle+side*Math.PI, nx=Math.cos(theta),ny=Math.sin(theta)
+    const tx=-ny,ty=nx
+    // Bank-local coordinates: u is outward, v is along the panel. A bounded
+    // phrase accent opens its spacing; no new phrase detection or timing state.
+    const spread=1+.08*s.phrase*a+.06*build
+    const baseZ=-1.50-.30*zSpace
+    const direction=pattern==='counter-spin'||pattern==='overload'?(side===0?1:-1):1
+    const bankLine=(u:number,v:number,z:number,length:number,angle:number,width:number,role:number,gain:number)=>
+      line(nx*(bankRadius+u)+tx*v*spread,ny*(bankRadius+u)+ty*v*spread,z,length,theta+angle,width,.04,role,gain)
+    // Machined rails and four corner returns rather than a text-filled UI card.
+    for(const u of [-.66,.66])bankLine(u,0,baseZ,2.55*spread,Math.PI/2,.045,3,0)
+    for(const v of [-1.30,1.30]){
+      bankLine(-.43,v,baseZ,.46,0,.042,3,0)
+      bankLine(.43,v,baseZ,.46,0,.042,3,0)
+      bankLine(.48,v,baseZ+.06,.23,0,.032,2,accentGain*(.17+.25*snare))
+    }
+    // Eight telemetry channels with persistent unlit tracks and short luminous
+    // inserts. Highs/snare change their fill; the bass does not drive these bars.
+    for(let i=0;i<8;i++){
+      const v=(i-3.5)*.29
+      const chase=wrap(i/8-direction*t*scan*.29+side*.33)
+      const gate=pattern==='lock-on'?(i===1||i===6?1:.15):pattern==='segment-chase'?smooth((.24-chase)*8):wave(chase*TAU)
+      const fill=clamp(.22+.35*gate+.32*fine+.09*build,.14,1)
+      bankLine(.21,v,baseZ+.08,.68,0,.080,3,0)
+      bankLine(-.13+.34*fill,v,baseZ+.14,.68*fill,0,.052,1,accentGain*(.16+.20*gate+.38*fine))
+      bankLine(.60,v,baseZ+.14,.055,0,.055,4,accentGain*(.12+.24*fine+.16*gate))
+    }
+    // A continuous, stylized spectral trace (not a fabricated PCM display).
+    // Connect adjacent samples as solid line segments in a distinct depth plane.
+    const trace=(i:number)=>-.40+(.055+.16*fine+.045*build)*Math.sin(i*.95-direction*t*1.6+side)*Math.cos(i*.38+t*.65)
+    for(let i=0;i<16;i++){
+      const u0=trace(i),u1=trace(i+1),v0=(i/16-.5)*2.2,v1=((i+1)/16-.5)*2.2
+      const du=u1-u0,dv=(v1-v0)*spread
+      bankLine((u0+u1)/2,(v0+v1)/2,baseZ+.23,Math.hypot(du,dv),Math.atan2(dv,du),.034,2,accentGain*(.19+.34*fine))
+    }
+    const cursor=(wrap(direction*t*scan*.18+side*.5)-.5)*2.25
+    bankLine(-.40,cursor,baseZ+.30,.38,0,.028,4,accentGain*(.13+.32*fine))
   }
   return new Float32Array(out)
 }

@@ -46,15 +46,25 @@ Program transitions interpolate matching primitive roles; paused/manual selectio
 
 Continuous shared choreography resolves sub to radial expansion, bass to meter length, mid to satellite orbital displacement, high/air to indicator activity, spectral flux to localized light activity, vocal to reduced accents, build to shutter compression; Director intensity/build/impact supply bounded macro changes. Shared event envelopes: kick outward pulse, snare alternating bright banks, beat indicator chase accent, downbeat shutter accent, bar bracket accent, phrase alignment, section satellite shift, drop radial expansion and all-layer accents. Beat-grid rules use not-silent; drop is not gated. Mood drives span Design and Effects: see the explicit drive table in the manifest; each factor multiplies the authored value, is scaled by Audio Reactivity and clamped by the target range. Silence reduces motion and emission.
 
+## HUD-01 peripheral instrumentation
+
+The original 1,068 primitives (core rings, aperture, satellites and brackets) retain their geometry and ordering. An appended 136-instance layer uses the existing beveled mesh, depth target and palette without additional draw calls, shaders, assets or Inspector controls. Two graduated radial arcs and short scan heads surround the reactor. Two machined instrument banks contain eight telemetry channels, a connected stylized spectral trace (not a raw PCM waveform) and a restrained scan cursor. The banks rotate toward the available vertical space on narrow stages; the core's existing camera fit is unchanged. Layer positions remain behind the core and the peripheral geometry stays stable across all nine patterns and interpolation.
+
+- Existing Master Intensity, Light Coverage and Audio Reactivity govern peripheral prominence; Ring Separation changes layer depth. Existing Motion Amount, Motion Rate and BPM Sync govern all scans and traces. These retain their existing defaults, ranges and manual/mood ownership. No new persisted IDs or migration are necessary.
+- Shared high, air, spectral flux and snare envelopes change fine tick lengths, telemetry fills, trace amplitude and accent gain. Bass remains on the original core meters. Build and phrase affect bounded scan intensity and bank spacing; kick/drop open the radial graduations slightly. The existing pattern's scan, density and direction modulate the outer elements; collapse leaves a subdued external reference frame instead of collapsing it onto the core. Palette roles remain Indicators, Meters, Satellite Modules and Machined Metal; all existing Effects remain on the shared render graph.
+- Geometry budget: 1,204 instances / 245,616 triangles versus 1,068 / 217,872 previously (+12.7%); still one instanced world draw. The added instance-buffer payload is 6,528 bytes. This is a static cost comparison, not a measured GPU frame-time benchmark. Test narrow, square, wide and ultrawide outputs and all pattern transitions in the production harness before visual signoff.
+
 ## Acceptance / release
 
 Reference catalog role until actual production canvas and human visual acceptance. Test the three recordings against default, radar, orbital and collapse; review all nine patterns, each palette role, min/max controls, idle, pause, seek, reset, re-entry, 16:9 and portrait, all 11 triggers, manual selection during cycling, no stale event, global/local BPM sync, silent stop and drop, Auto on/off saved values and Inspector lock/readouts. Verify production preview and casting share the existing native output path. Do not promote to keeper solely on compile/test success.
 
-Validation of this patch: native compiler and first-party authoring validator reported no diagnostics; six focused regression cases passed via a local TypeScript assertion runner. Full Vitest, application build and production-browser acceptance remain pending: dependency installation was blocked by registry DNS, and Chromium could not establish a usable WebGL context in the review environment. On a configured development machine, run:
+Original HUD port validation: native compiler and first-party authoring validator reported no diagnostics; six focused regression cases passed via a local TypeScript assertion runner. Full Vitest, application build and production-browser acceptance remain pending: dependency installation was blocked by registry DNS, and Chromium could not establish a usable WebGL context in the review environment. On a configured development machine, run:
 
 ```sh
 npx vitest run src/components/vyzualz/cinema2/__tests__/Cinema2HudPreset.test.ts
 npm run test:e2e:cinema2-hud
 ```
+
+HUD-01 local validation: 450 deterministic geometry samples across nine patterns, five phases, two audio states and five aspect ratios preserved the core byte-for-byte and passed peripheral framing, signal-isolation and stable-topology checks. The production browser harness has additional highs/snare and ultrawide checkpoints. Full typecheck/build/Vitest/browser execution remains blocked in this environment by missing dependencies (registry DNS failure); an isolated Chromium WebGL attempt returned no context. No visual acceptance, GPU timing or thumbnail refresh is claimed.
 
 Review the rendered output before authorizing a keeper promotion.

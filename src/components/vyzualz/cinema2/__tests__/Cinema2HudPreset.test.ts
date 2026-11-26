@@ -4,7 +4,7 @@ import { compileCinema2NativePreset } from '../presets/Cinema2PresetCompiler'
 import { validateCinema2PresetAuthoringConventions } from '../presets/Cinema2PresetAuthoring'
 import { withCinema2AutoCoverage } from '../presets/Cinema2AutoCoverage'
 import { CINEMA2_AFTERHOURS_TRIGGER_IDS } from '../modules/Cinema2AfterhoursNativeModule'
-import { HUD_COLOR_KEYS,HUD_DEFAULTS,HUD_PATTERNS,HUD_STRIDE,buildHudMesh,sampleHud,zeroHudSignals } from '../modules/hud/Cinema2HudGeometry'
+import { HUD_COLOR_KEYS,HUD_DEFAULTS,HUD_PATTERNS,HUD_PERIPHERAL_PRIMITIVES,HUD_STRIDE,blendHud,buildHudMesh,sampleHud,zeroHudSignals } from '../modules/hud/Cinema2HudGeometry'
 import { hudRuntimeFixture } from './support/HudRuntimeFixture'
 import { DEFAULT_MI_FRAME } from '../../../../features/musicIntelligence/constants'
 
@@ -33,6 +33,59 @@ describe('HUD native preset',()=>{
       for(const b of samples.slice(i+1))expect(difference(a,b)).toBe(true)
     }
     expect(mesh.length/9*samples[0]!.length/HUD_STRIDE).toBeLessThan(300000)
+  })
+  it('appends a stable peripheral instrument layer without changing the core or its aspect behavior',()=>{
+    const peripheralSize=HUD_PERIPHERAL_PRIMITIVES*HUD_STRIDE
+    const wide=sampleHud('reactor',2,HUD_DEFAULTS,signals,16/9)
+    expect(wide.length/HUD_STRIDE).toBe(1068+HUD_PERIPHERAL_PRIMITIVES)
+    const core=wide.slice(0,-peripheralSize),outer=wide.slice(-peripheralSize)
+    for(const aspect of [21/9,4/3,1,9/16]){
+      const geometry=sampleHud('reactor',2,HUD_DEFAULTS,signals,aspect)
+      expect(geometry.slice(0,-peripheralSize)).toEqual(core)
+      expect(difference(geometry.slice(-peripheralSize),outer)).toBe(true)
+      expect(geometry.length).toBe(wide.length)
+    }
+    for(const pattern of HUD_PATTERNS){
+      const next=sampleHud(pattern,2,HUD_DEFAULTS,signals,9/16)
+      const mixed=blendHud(wide,next,.5)
+      expect(mixed.every(Number.isFinite)).toBe(true)
+      for(let i=wide.length-peripheralSize;i<wide.length;i+=HUD_STRIDE){
+        expect(next[i+8]).toBe(wide[i+8]) // stable palette role
+        expect(next[i+10]).toBe(wide[i+10]) // stable geometry kind
+      }
+    }
+  })
+  it('separates peripheral highs and snare from bass-driven core meters, with bounded gains and framing',()=>{
+    const sample=(s=signals,aspect=16/9)=>sampleHud('reactor',2,HUD_DEFAULTS,s,aspect)
+    const size=HUD_PERIPHERAL_PRIMITIVES*HUD_STRIDE,base=sample()
+    const outer=(g:Float32Array)=>g.slice(-size)
+    const bass=sample({...signals,bass:1})
+    expect(difference(base.slice(0,-size),bass.slice(0,-size))).toBe(true)
+    expect(outer(bass)).toEqual(outer(base))
+    for(const key of ['high','air','flux','snare','phrase','drop'] as const){
+      expect(difference(outer(sample({...signals,[key]:1})),outer(base))).toBe(true)
+      expect(outer(sampleHud('reactor',2,{...HUD_DEFAULTS,reactivity:0},{...signals,[key]:1}))).toEqual(outer(sampleHud('reactor',2,{...HUD_DEFAULTS,reactivity:0},signals)))
+    }
+    // Conservative centered-camera bounds, including solid primitive extents,
+    // across the existing min-aspect fit and maximum normalized signal input.
+    const peak=Object.fromEntries(Object.keys(signals).map(key=>[key,1])) as typeof signals
+    for(const aspect of [21/9,16/9,4/3,1,9/16])for(const pattern of HUD_PATTERNS){
+      const g=outer(sampleHud(pattern,3.7,HUD_DEFAULTS,peak,aspect))
+      for(let i=0;i<g.length;i+=HUD_STRIDE){
+        const [x,y,z,r,angle,span,width,depth,role,gain,mode]=g.subarray(i,i+HUD_STRIDE)
+        expect(gain).toBeGreaterThanOrEqual(0);expect(gain).toBeLessThan(2)
+        const halfY=(13-z!-depth!/2)*Math.tan(38*Math.PI/360)*Math.max(1,1.3/aspect)
+        const halfX=halfY*aspect
+        const count=mode===1?2:13
+        for(let j=0;j<count;j++){
+          const u=j/(count-1),theta=mode===1?angle!:angle!+span!*u
+          const dist=mode===1?r!*(u-.5):r!
+          expect(Math.abs(x!+Math.cos(theta)*dist)+width!/2).toBeLessThan(halfX)
+          expect(Math.abs(y!+Math.sin(theta)*dist)+width!/2).toBeLessThan(halfY)
+        }
+        expect(role).toBeGreaterThanOrEqual(1);expect(role).toBeLessThanOrEqual(4)
+      }
+    }
   })
   it('changes geometry with each authored numeric design control and distinct audio routes',()=>{
     const base=sampleHud('reactor',2,HUD_DEFAULTS,signals)
