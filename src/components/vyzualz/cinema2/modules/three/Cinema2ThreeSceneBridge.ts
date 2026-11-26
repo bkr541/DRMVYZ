@@ -107,6 +107,8 @@ export interface Cinema2ThreeAtlHoeLightSpec {
 }
 
 export interface Cinema2ThreeSceneOptions {
+  /** Opt in to surfacing a rejected shader warmup as a fatal draw error. */
+  strictShaderPreparation?: boolean
   /** Optional preset-owned controller for named model surfaces that need richer runtime behavior than material overrides. */
   modelController?: Readonly<{
     inspect?(): Readonly<Record<string, unknown>>
@@ -307,6 +309,7 @@ export class Cinema2ThreeSceneBridge {
   private readonly diagnostics: Cinema2ThreeBridgeDiagnostic[] = []
   private upgraded = false
   private compiling = false
+  private shaderPreparationError: Error | null = null
   private quality: Cinema2RenderQualityLevel | null = null
   private appliedOverrides: Readonly<Cinema2ThreeMaterialOverrides> | null = null
   private userModelPalette = false
@@ -533,6 +536,7 @@ export class Cinema2ThreeSceneBridge {
     this.appliedOverrides = null; this.quality = null
     // Invalidate the old model’s texture upload and shader preparation; reuse the host environment.
     this.preparationGeneration++
+    this.shaderPreparationError = null
     this.pendingTextures.length = 0
     // A selection during initial environment warm-up must not bypass environment creation.
     this.stage = 'environment'
@@ -579,6 +583,7 @@ export class Cinema2ThreeSceneBridge {
     atlHoe: Readonly<Cinema2ThreeAtlHoeDraw> | null = null,
   ): void {
     if (this.disposed) return
+    if (this.shaderPreparationError) throw this.shaderPreparationError
     if (!exec.depthAvailable) throw new Error('Cinema 2.0 Three scene module requires a render target with a depth attachment.')
     const camera = exec.camera
     const lighting = exec.lightingEnvironment
@@ -1144,6 +1149,11 @@ export class Cinema2ThreeSceneBridge {
           if (this.disposed || generation !== this.preparationGeneration) return
           // Do not mask semantic shader failures as a successfully prepared render.
           // Other Three presets keep the pre-existing warm-up behavior.
+          if (this.options.strictShaderPreparation) {
+            this.stage = 'failed'
+            this.shaderPreparationError = new Error(`Three shader compilation failed: ${error instanceof Error ? error.message : String(error)}`)
+            return
+          }
           if (!this.options.mainframe && !this.options.atlHoe) { this.stage = 'ready'; return }
           this.stage = 'failed'
           this.diagnostics.push({

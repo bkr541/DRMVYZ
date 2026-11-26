@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import * as THREE from 'three'
+import { Cinema2ModuleRuntime } from '../modules/Cinema2ModuleRuntime'
+import { Cinema2ModuleRegistry } from '../modules/Cinema2ModuleRegistry'
+import { Cinema2EverywherePool } from '../modules/everywhere/Cinema2EverywherePool'
+import { Cinema2MediaSlotRuntime } from '../media/Cinema2MediaSlotRuntime'
+import { Cinema2ThreeSceneBridge } from '../modules/three/Cinema2ThreeSceneBridge'
 import { SpectrumScene, type SpectrumLook } from '../modules/spectrum/SpectrumScene'
 import { setCinema2ThreeLibraryLoaderForTests, type Cinema2ThreeLibrary } from '../modules/three/Cinema2ThreeLibrary'
 import { SPECTRUM_COLORS } from '../modules/spectrum/SpectrumDomain'
@@ -12,7 +17,7 @@ import { CINEMA2_AUTO_COVERAGE_EXEMPT } from '../presets/Cinema2AutoCoverageExem
 import { CINEMA2_AFTERHOURS_TRIGGER_OPTIONS } from '../presets/Cinema2AfterhoursPreset'
 import { CANVAS_POOL_AUTOMATION_TRIGGER_OPTIONS } from '../../react/canvasPerformance/CanvasPerformanceTypes'
 import { SPECTRUM_PATTERNS, bayAngle, spectrumPose, spectrumUv, floorPulse, type SpectrumMotion } from '../modules/spectrum/SpectrumDomain'
-import { SpectrumPerformance, cinema2SpectrumNativeModuleDefinition } from '../modules/Cinema2SpectrumNativeModule'
+import { SpectrumPerformance, cinema2SpectrumNativeModuleDefinition, SPECTRUM_INITIALIZATION_TIMEOUT_MS } from '../modules/Cinema2SpectrumNativeModule'
 import type { Cinema2ModuleUpdateContext } from '../modules/Cinema2ModuleContracts'
 const parameter=(name:string)=>manifest.parameters!.find(p=>p.id===`spectrum-${name}`)!
 const motion:SpectrumMotion={pattern:'orbit',phase:1.8,opening:.35,tilt:8,floorRelay:.55,sweep:.55,overhead:.35,intensity:.75,safe:true,readability:true,vocal:0,kick:0,snare:0,drop:0,bass:0,mid:0,build:0,downbeat:0,phrase:0,impact:0,high:0,energy:0,beat:0}
@@ -110,5 +115,90 @@ describe('SPE-01 native scene regression',()=>{
       const retired=create();draw(retired);retired.lifecycle.dispose();resolve(library);await settle();draw(retired)
       expect(acquire).toHaveBeenCalledTimes(1);expect(retired.getDiagnostics?.()).toEqual([])
     }finally{setCinema2ThreeLibraryLoaderForTests(null)}
+  })
+})
+
+
+describe('QA-03 bounded initialization',()=>{
+  const settle=async()=>{for(let i=0;i<8;i++)await Promise.resolve()}
+  const execution={} as Cinema2ModuleRenderExecutionContext
+  const create=(acquire:ReturnType<typeof vi.fn>,withPool=false)=>cinema2SpectrumNativeModuleDefinition.create({
+    module:manifest.modules![0],randomness:{sample:()=>.5},resources:{acquire},media:{get:()=>null},
+    ...(withPool?{mediaPoolSource:{getSelection:()=>null,resolve:()=>null}}:{}),
+  } as unknown as Cinema2ModuleCreateContext)
+  const draw=(instance:ReturnType<typeof create>)=>instance.render!.providers[0]!.execute(execution)
+  const inspect=(instance:ReturnType<typeof create>)=>(instance as unknown as {inspect:()=>unknown}).inspect()
+  it('bounds unresolved imports without leasing the pool and ignores late completion',async()=>{
+    const clock=vi.spyOn(globalThis.performance,'now').mockReturnValue(0)
+    const acquire=vi.fn();let resolve!:(value:Cinema2ThreeLibrary)=>void
+    const load=vi.fn(()=>new Promise<Cinema2ThreeLibrary>(done=>{resolve=done}))
+    setCinema2ThreeLibraryLoaderForTests(load)
+    try{
+      const first=create(acquire,true);draw(first);draw(first)
+      expect(load).toHaveBeenCalledTimes(1);expect(acquire).not.toHaveBeenCalled()
+      clock.mockReturnValue(SPECTRUM_INITIALIZATION_TIMEOUT_MS)
+      draw(first);expect(inspect(first)).toMatchObject({renderState:'recoverable-failure',renderReady:false})
+      expect(first.getDiagnostics?.()).toEqual([expect.objectContaining({message:expect.stringContaining('timed out')})])
+      resolve(library);await settle();draw(first)
+      expect(acquire).not.toHaveBeenCalled();expect(inspect(first)).toMatchObject({renderState:'recoverable-failure'})
+      first.lifecycle.dispose()
+      acquire.mockReturnValue({ready:false,getDiagnostics:()=>[]})
+      const next=create(acquire);draw(next);await settle();draw(next)
+      expect(acquire).toHaveBeenCalledTimes(1);expect(inspect(next)).toMatchObject({renderState:'warming'})
+      next.lifecycle.dispose()
+    }finally{clock.mockRestore();setCinema2ThreeLibraryLoaderForTests(null)}
+  })
+  it('does not retain a warming bridge forever and propagates failure to the resource-owning host',async()=>{
+    const clock=vi.spyOn(globalThis.performance,'now').mockReturnValue(0)
+    const acquire=vi.fn(()=>({ready:false,getDiagnostics:()=>[]}))
+    setCinema2ThreeLibraryLoaderForTests(async()=>library)
+    try{
+      const instance=create(acquire);draw(instance);await settle();draw(instance)
+      expect(acquire).toHaveBeenCalledTimes(1)
+      clock.mockReturnValue(SPECTRUM_INITIALIZATION_TIMEOUT_MS)
+      expect(()=>draw(instance)).toThrow('warmup deadline exceeded')
+      expect(inspect(instance)).toMatchObject({renderState:'fatal',renderReady:false})
+      draw(instance);expect(acquire).toHaveBeenCalledTimes(1);instance.lifecycle.dispose()
+    }finally{clock.mockRestore();setCinema2ThreeLibraryLoaderForTests(null)}
+  })
+  it('retires real host-owned pool leases on fatal arena construction',async()=>{
+    const compiled=compileCinema2NativePreset(manifest);if(!compiled.ok)throw Error(JSON.stringify(compiled.diagnostics))
+    const registry=new Cinema2ModuleRegistry();expect(registry.register(cinema2SpectrumNativeModuleDefinition).ok).toBe(true)
+    const gl={} as WebGL2RenderingContext,media=new Cinema2MediaSlotRuntime(gl,manifest.mediaSlots??[])
+    const host=new Cinema2ModuleRuntime(gl,compiled.plan,{} as ConstructorParameters<typeof Cinema2ModuleRuntime>[2],registry,media,
+      {sample:()=>.5} as unknown as ConstructorParameters<typeof Cinema2ModuleRuntime>[5],undefined,{getSelection:()=>null,resolve:async()=>null})
+    const dispose=vi.spyOn(Cinema2EverywherePool.prototype,'dispose')
+    const badLibrary={...library,THREE:{...THREE,Group:class {constructor(){throw Error('fixture arena failure')}}}} as unknown as Cinema2ThreeLibrary
+    setCinema2ThreeLibraryLoaderForTests(async()=>badLibrary)
+    try{
+      host.activate();const provider=host.getRenderPassProviders()[0]!
+      provider.execute(execution);await settle()
+      expect(()=>provider.execute(execution)).toThrow('fixture arena failure')
+      expect(dispose).toHaveBeenCalledTimes(1)
+      expect(host.getSnapshot()).toMatchObject({failedModuleCount:1,activeResourceLeaseCount:0,estimatedGpuBytes:0})
+      expect(host.getSnapshot().modules[0]!.diagnostics).toEqual([expect.objectContaining({message:expect.stringContaining('fixture arena failure')})])
+      provider.execute(execution);expect(dispose).toHaveBeenCalledTimes(1)
+    }finally{host.dispose();media.dispose();dispose.mockRestore();setCinema2ThreeLibraryLoaderForTests(null)}
+  })
+  it('never treats a rejected strict shader warmup as ready or publishes an error after disposal',async()=>{
+    // Invoke the real preparation boundary with an injected compile promise; no fake rendered frame.
+    const setup=()=>{
+      let reject!:(reason:Error)=>void
+      const bridge=Object.assign(Object.create(Cinema2ThreeSceneBridge.prototype),{
+        stage:'compile',compiling:false,disposed:false,preparationGeneration:0,
+        shaderPreparationError:null,options:{strictShaderPreparation:true},
+        renderer:{compileAsync:()=>new Promise<void>((_,fail)=>{reject=fail})},
+      }) as Cinema2ThreeSceneBridge
+      // Private method access is confined to this fixture, not production callers.
+      ;(bridge as unknown as {warmUp:()=>void}).warmUp()
+      return {bridge,reject}
+    }
+    const active=setup();active.reject(new Error('fixture shader failure'));await settle()
+    expect(active.bridge.ready).toBe(false)
+    expect(()=>active.bridge.draw(execution,{} as Parameters<Cinema2ThreeSceneBridge['draw']>[1])).toThrow('fixture shader failure')
+    const retired=setup();Object.assign(retired.bridge,{disposed:true});retired.reject(new Error('stale shader failure'));await settle()
+    expect(retired.bridge.ready).toBe(false)
+    expect(()=>retired.bridge.draw(execution,{} as Parameters<Cinema2ThreeSceneBridge['draw']>[1])).not.toThrow()
+    expect(retired.bridge).toHaveProperty('shaderPreparationError',null)
   })
 })

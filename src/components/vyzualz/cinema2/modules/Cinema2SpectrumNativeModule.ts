@@ -14,6 +14,7 @@ import { Cinema2ThreeSceneBridge, CINEMA2_THREE_DEFAULT_OVERRIDES } from './thre
 import { describeCinema2LoadedModel } from './three/Cinema2ThreeAssetMetadata'
 
 export const CINEMA2_SPECTRUM_MODULE_TYPE_ID=cinema2StableId<Cinema2ModuleTypeId>('spectrum-native')
+export const SPECTRUM_INITIALIZATION_TIMEOUT_MS=30_000
 export class SpectrumPerformance {
   private readonly clock=new Cinema2BeatClock();private readonly policy=new Cinema2PatternControlResolver<Cinema2AfterhoursTriggerId>()
   private readonly controller:Cinema2MainframePatternController<SpectrumPattern>
@@ -63,39 +64,49 @@ export class SpectrumPerformance {
 export const cinema2SpectrumNativeModuleDefinition:Readonly<Cinema2ModuleTypeDefinition>={
   typeId:CINEMA2_SPECTRUM_MODULE_TYPE_ID,version:1,
   create(context:Cinema2ModuleCreateContext){
+    const performanceNow=()=>globalThis.performance.now()
     const performance=new SpectrumPerformance(i=>context.randomness.sample('spectrum-pattern-order',i))
     const source=context.mediaPoolSource
     // Existing named-pool channels are runtime-local, not authored or persisted slots.
-    const pool=source?context.resources.acquire('spectrum:pool','SpectrumMediaPool',gl=>new Cinema2EverywherePool({getSelection:()=>{const l=performance.look;return l?.visible&&(l.mode==='auto'||l.mode==='pool')?source.getSelection():null},resolve:id=>source.resolve(id)},new Cinema2MediaSlotRuntime(gl,EVERYWHERE_POOL_SLOTS)),p=>p.dispose()):null
+    const acquirePool=()=>source?context.resources.acquire('spectrum:pool','SpectrumMediaPool',gl=>new Cinema2EverywherePool({getSelection:()=>{const l=performance.look;return l?.visible&&(l.mode==='auto'||l.mode==='pool')?source.getSelection():null},resolve:id=>source.resolve(id)},new Cinema2MediaSlotRuntime(gl,EVERYWHERE_POOL_SLOTS)),p=>p.dispose()):null
+    let pool:ReturnType<typeof acquirePool>=null
     type RenderState = 'idle'|'loading'|'warming'|'ready'|'recoverable-failure'|'fatal'|'disposed'
     let library:Cinema2ThreeLibrary|null=null,scene:SpectrumScene|null=null,bridge:Cinema2ThreeSceneBridge|null=null,reported=-1
-    let renderState:RenderState='idle'
+    let renderState:RenderState='idle',deadline=0
     const diagnostics:Cinema2ModuleDiagnostic[]=[]
     const report=(stage:string,e:unknown)=>diagnostics.push({code:'CINEMA2_SPECTRUM_FAILED',message:`Spectrum ${stage}: ${e instanceof Error?e.message:String(e)}`,path:'$.modules'})
     return {
       lifecycle:{
         update(update:Cinema2ModuleUpdateContext){performance.update(update);const f=performance.poolFrame;pool?.update(f.identity,f.event,f.reset,f.paused,f.suppress)},
-        dispose(){renderState='disposed';library=null},
+        dispose(){renderState='disposed';library=null;bridge=null;pool=null},
       },
       render:{providers:[{id:`${context.module.id}:arena`,moduleId:context.module.id,intent:'world' as const,execute(execution){
         if(renderState==='disposed'||renderState==='recoverable-failure'||renderState==='fatal')return
         if(renderState==='idle'){
-          renderState='loading'
+          renderState='loading';deadline=performanceNow()+SPECTRUM_INITIALIZATION_TIMEOUT_MS
           // The shared loader clears rejected promises. Reactivation or context restoration
           // creates a fresh module; do not initiate a new download every animation frame.
           void loadCinema2ThreeLibrary().then(value=>{
             if(renderState!=='loading')return
-            library=value;renderState='warming'
+            if(performanceNow()>=deadline){renderState='recoverable-failure';report('Three library load timed out; reselect Spectrum to retry',new Error('Initialization deadline exceeded'));return}
+            library=value;renderState='warming';deadline=performanceNow()+SPECTRUM_INITIALIZATION_TIMEOUT_MS
           }).catch(error=>{
             if(renderState!=='loading')return
             renderState='recoverable-failure';report('Three library load failed; reselect Spectrum to retry',error)
           })
         }
+        // No GPU leases are acquired until the lazy library has resolved. A timed-out
+        // import cannot publish into this instance even if it eventually settles.
+        if(renderState==='loading'&&performanceNow()>=deadline){
+          renderState='recoverable-failure';report('Three library load timed out; reselect Spectrum to retry',new Error('Initialization deadline exceeded'));return
+        }
         try{
+          if(renderState==='warming'&&bridge?.ready!==true&&performanceNow()>=deadline)throw new Error('Spectrum arena warmup deadline exceeded; reselect Spectrum to retry')
           if(library&&!bridge){
+            pool=acquirePool()
             const lib=library,root=new lib.THREE.Group()
             bridge=context.resources.acquire('spectrum:scene','SpectrumArena',gl=>new Cinema2ThreeSceneBridge(gl,lib,[{asset:{id:'spectrum-arena',scene:root,animations:[],triangleCount:0,gpuBytes:0,metadata:describeCinema2LoadedModel(root)},node:null,preserveMaterials:true}],{
-              hdr:true,modelController:{
+              hdr:true,strictShaderPreparation:true,modelController:{
                 attach:r=>{scene=new SpectrumScene(lib,r)},
                 beforeDraw:quality=>{
                   const l=performance.look;if(!l)return
@@ -124,6 +135,7 @@ export const cinema2SpectrumNativeModuleDefinition:Readonly<Cinema2ModuleTypeDef
           // have attached; release it here. For a leased bridge, the host retires the
           // module and disposes every resource when this original exception propagates.
           if(!bridge){scene?.dispose();scene=null}
+          // The host records the thrown error and retires all acquired leases.
           throw error
         }
       }}]},
