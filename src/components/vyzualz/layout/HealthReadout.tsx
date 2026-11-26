@@ -1,7 +1,7 @@
 import { HEALTH_LABELS, HEALTH_SYSTEMS, useHealthStore, type HealthState, type HealthSystem } from '../../../stores/healthStore'
 import { HeaderReadout } from './HeaderReadout'
 
-const CHIP_TEXT: Readonly<Record<HealthSystem, string>> = { cast: 'CAST', audio: 'AUDIO', graphics: 'GFX' }
+const CHIP_TEXT: Readonly<Record<HealthSystem, string>> = { cast: 'Cast', audio: 'Audio', graphics: 'Gfx' }
 const STATE_TEXT: Readonly<Record<HealthState, string>> = {
   idle: 'not in use',
   ok: 'working',

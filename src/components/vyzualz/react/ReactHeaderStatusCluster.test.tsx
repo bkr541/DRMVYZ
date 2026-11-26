@@ -64,7 +64,7 @@ describe('Option E React header readouts', () => {
     expect(['cast', 'audio', 'graphics'].map(chip)).toEqual(['idle', 'ok', 'ok'])
     const health = container.querySelector('[data-health-readout]')!
     expect(health.closest('.vz-header-readout')?.querySelector('.vz-header-readout-label')?.textContent).toBe('HEALTH')
-    expect([...health.querySelectorAll('.vz-header-readout-primary')].map(el => el.textContent)).toEqual(['CAST', 'AUDIO', 'GFX'])
+    expect([...health.querySelectorAll('.vz-header-readout-primary')].map(el => el.textContent)).toEqual(['Cast', 'Audio', 'Gfx'])
     expect(health.querySelectorAll('.vz-header-readout-led')).toHaveLength(3)
     const quality = container.querySelector('[data-performance-metric="quality"]')!
     expect([...health.querySelectorAll('.vz-header-readout-primary')].every(el =>
