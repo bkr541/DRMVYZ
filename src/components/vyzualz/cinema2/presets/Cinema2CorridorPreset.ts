@@ -90,7 +90,7 @@ const parameters: readonly Cinema2ParameterManifest[] = [
     { ...base('trigger','Trigger','design','Pattern',3,'Musical event that advances the active pattern.'), type: 'enum',
       defaultValue: 'bar4', options: CINEMA2_AFTERHOURS_TRIGGER_OPTIONS, visibleWhen: [{ kind: 'parameter-equals', parameterId: parameter('pattern-change'), value: true }] },
     { ...base('panel-media','Panel Media','design','Panel Media',1,'Choose an image, SVG or video in the Source tab’s Media Library.'), type: 'media', defaultValue: null, mediaSlot: cinema2Ref(CINEMA2_CORRIDOR_MEDIA_SLOT) },
-    { ...base('pool-trigger','Pool Trigger','design','Panel Media',2,'Advance the active pool independently of Pattern Change; Program follows the current corridor pattern.'), type: 'enum', metadata: { inspectorSource: { slot: CINEMA2_CORRIDOR_MEDIA_SLOT, requires: 'pool' } }, defaultValue: 'program', options: [{ value: 'program', label: 'Program cadence' }, ...CINEMA2_AFTERHOURS_TRIGGER_OPTIONS] },
+    { ...base('pool-trigger','Pool Trigger','design','Panel Media',2,'Advance the active pool independently of Pattern Change; Program advances at shared phrase boundaries.'), type: 'enum', metadata: { inspectorSource: { slot: CINEMA2_CORRIDOR_MEDIA_SLOT, requires: 'pool' } }, defaultValue: 'program', options: [{ value: 'program', label: 'Program cadence' }, ...CINEMA2_AFTERHOURS_TRIGGER_OPTIONS] },
     slider('bloom','Bloom','effects','Atmosphere',1,0.36,0,1.2,'Restrained glow from bright panel cores.'),
     slider('haze','Depth Haze','effects','Atmosphere',2,0.23,0,1,'Falloff matching the distance through the dark passage.'),
     swatch('void','Void','voidColor',1,'Dark color at the end of the passage.'),

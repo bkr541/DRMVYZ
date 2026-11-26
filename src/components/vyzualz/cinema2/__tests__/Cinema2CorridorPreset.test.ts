@@ -34,7 +34,42 @@ describe('Corridor', () => {
     expect(manifest.modules?.[0]?.media?.panelMedia?.$ref).toBe(CINEMA2_CORRIDOR_MEDIA_SLOT)
     expect(parameter('panel-media').mediaSlot?.$ref).toBe(CINEMA2_CORRIDOR_MEDIA_SLOT)
     expect(parameter('pool-trigger')).toMatchObject({ defaultValue: 'program', options: [{ value: 'program', label: 'Program cadence' }, ...CINEMA2_AFTERHOURS_TRIGGER_OPTIONS] })
-    expect(CORRIDOR_PATTERNS.map(pattern => corridorPoolTrigger(pattern.value))).toEqual(['bar4','beat4','bar','bar4','beat2','bar'])
+    expect(CORRIDOR_PATTERNS.map(pattern => corridorPoolTrigger(pattern.value))).toEqual(Array(6).fill('phrase'))
+  })
+
+  it('keeps phrase sequencing independent of a manual pattern edit and re-arms on a cadence change', () => {
+    const performance = new Cinema2CorridorPerformance(() => .5)
+    const values: Record<string, unknown> = { pattern: 'night-transit', poolTrigger: 'program', motion: .75, patternChange: true, trigger: 'phrase' }
+    const update = (time: number, paused = false) => performance.update({
+      parameters: { get: (key: string) => values[key] },
+      frame: {
+        contextGeneration: 1, elapsedTimeSec: time, deltaTimeSec: .1, mood: null, director: null,
+        transport: { trackId: 'track', sourcePresent: true, playing: !paused, paused, animationActive: !paused, timeSec: time, bpm: 120 },
+        audio: {
+          upstream: { sourceId: 'track', publisherId: 'test', analysisRevision: 1, timelineRevision: 1, timeSec: time },
+          discontinuity: { generation: 0 },
+          rhythm: { fixedClocks: { 16: { boundary: null } }, kick: { id: 'kick-1' } },
+          structure: { analyzedPhrases: { available: true, value: [{ id: 'phrase-1', timeSec: 1 }, { id: 'phrase-2', timeSec: 2 }] } },
+        },
+      },
+    } as unknown as Cinema2ModuleUpdateContext)
+    update(.9)
+    expect(performance.poolFrame).toMatchObject({ reset: true, event: null })
+    values.pattern = 'gate'
+    expect(update(1).pattern).toBe('gate')
+    expect(performance.poolFrame).toMatchObject({ event: 'phrase-1', patternChanged: false })
+    update(1.1)
+    expect(performance.poolFrame.event).toBeNull()
+    expect(update(1.9).pattern).toBe('gate')
+    update(2)
+    expect(performance.poolFrame).toMatchObject({ event: 'phrase-2', patternChanged: false })
+    update(2.1, true)
+    expect(performance.poolFrame).toMatchObject({ event: null, paused: true })
+    values.poolTrigger = 'kick'
+    update(2.2)
+    expect(performance.poolFrame).toMatchObject({ event: 'kick-1', patternChanged: true })
+    update(.2)
+    expect(performance.poolFrame.reset).toBe(true)
   })
 
   it('opts only the single opaque Corridor world into local media protection through both finishing passes', () => {

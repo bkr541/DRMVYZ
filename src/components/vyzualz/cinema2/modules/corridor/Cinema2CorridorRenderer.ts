@@ -180,24 +180,43 @@ float selection(float row, float bank, float lane, float random, float density) 
   return strength * (.67 + .33 * sin(row*.78-phase*2.45+bank*.72)*sin(row*.78-phase*2.45+bank*.72));
 }
 
-// At most one of four lanes per bank and bay can carry a picture. The
-// pattern still chooses the media lane; light intensity does not control its opacity.
-// World-space addressing prevents pictures jumping as mesh bays recycle.
-float mediaLane(float row, float bank) {
-  if (uPattern == 1) return mod(row + bank,4.0); // diagonal relay
-  if (uPattern == 2) return mod(row * (bank < 1.5 ? 1.0 : -1.0) + bank,4.0);
-  if (uPattern == 3) return mod(bank,2.0) < .5 ? -1.0 : 1.0 + mod(row+bank,2.0);
-  if (uPattern == 4) return mod(floor(hash(vec2(row,bank)+81.0)*4.0)+floor(uLook.y*2.0),4.0);
-  if (uPattern == 5) return mod(row + 2.0*bank,4.0); // alternating gate spokes
-  return mod(row + 3.0*bank,4.0); // staggered night transit
+// Four of sixteen cassettes per world bay on average carry artwork. Roles
+// are spatial, never chosen from a time-dependent random value or brightness.
+// 0 = native lamp, 1 = hybrid (picture with a wider reactive surround),
+// 2 = dedicated display (full diffuser aperture, recessed LED still active).
+float mediaRole(float row, float bank, float lane) {
+  float parity = mod(row,2.0);
+  if (uPattern == 1) { // diagonal relay, full display heads / hybrid tails
+    return lane == mod(row+bank,4.0) ? 1.0+mod(row+bank+1.0,2.0) : 0.0;
+  }
+  if (uPattern == 2) { // alternating left/right banks, two adjacent lanes
+    if (bank == parity*2.0) return lane == 1.0 ? 2.0 : (lane == 2.0 ? 1.0 : 0.0);
+    if (mod(bank,2.0) == 1.0 && lane == 1.0+mod(row+bank,2.0)) return 1.0;
+    return 0.0;
+  }
+  if (uPattern == 3) { // overhead / floor ribbon; side walls remain lighting
+    if (mod(bank,2.0) == 1.0 && (lane == 1.0 || lane == 2.0))
+      return lane == 1.0+mod(row+bank,2.0) ? 2.0 : 1.0;
+    return 0.0;
+  }
+  if (uPattern == 4) { // paired fault islands, stable even as lamps glitch
+    if (mod(bank,2.0) != parity) return 0.0;
+    float first = mod(floor(hash(vec2(row,bank)+81.0)*2.0),2.0)*2.0;
+    return lane == first ? 2.0 : (lane == first+1.0 ? 1.0 : 0.0);
+  }
+  if (uPattern == 5) { // clustered hero gate: full image ring / pure light bay
+    if (parity != 1.0) return 0.0;
+    return lane == 1.0 ? 2.0 : (lane == 2.0 ? 1.0 : 0.0);
+  }
+  return lane == mod(row+3.0*bank,4.0) ? 2.0-mod(row+bank,2.0) : 0.0;
 }
 
-vec4 mediaPicture(float bank, float random, float detail, int channel) {
+vec4 mediaPicture(float bank, float random, float detail, int channel, float aperture) {
   float aspect = uFeedAspect[channel];
   if (aspect <= 0.0) return vec4(0.0);
   // The four banks have different local orientations. Keep artwork upright
   // relative to the vanishing point, using the actual physical face aspect.
-  vec2 uv = (vUV - .135) / .73;
+  vec2 uv = (vUV-.5)/(2.0*aperture)+.5;
   float across = uCorridorWidth * ${CORRIDOR_BANK_SPAN} * 2.0 / ${LANES}.0 * mix(.72,1.0,random);
   float axial = ${CORRIDOR_BAY_LENGTH} * mix(.66,1.0,detail);
   float screenAspect = across / axial;
@@ -314,13 +333,29 @@ void main() {
     metal += lampColor * (edge*.19+spill*.045) * uLook.w;
     float warmGrain = (1.0-smoothstep(.21,.48,length(local))) * .14 + stipple;
     emission = lampColor * diffuser * fixture * min(5.5,(.50+2.95*level)*uLook.w) * warmGrain;
-    if (uFeedCount > 0 && lane == mediaLane(row,bank) && diffuser > .001) {
-      int channel = int(mod(row + bank*2.0 + uPoolStep,float(uFeedCount)));
-      vec4 picture = mediaPicture(bank,random,detail,channel);
-      // Pattern placement is independent of the reactive diffuser envelope.
-      // Transparent pixels still reveal the original fixture; opaque black
-      // and letterbox bars must not become emissive when the ring hits.
-      mediaOverlay = vec4(picture.rgb,picture.a*diffuser);
+    if (uFeedCount > 0 && diffuser > .001) {
+      float role = mediaRole(row,bank,lane);
+      if (role > .5) {
+        int channel = int(mod(row + bank*2.0 + uPoolStep,float(uFeedCount)));
+        // The drop brings forward a cluster of existing hybrid screens without
+        // swapping their identity, decoder or image. Dedicated screens hold.
+        float hero = clamp(uAccents.w,0.0,1.0) * (1.0-smoothstep(5.0,12.0,bayCenter));
+        float aperture = role > 1.5 ? .365 : mix(.285,.365,hero);
+        // Relay opens the hybrid surround in a directional wave. Contain the
+        // entire image in the changing aperture rather than crop or dim it.
+        if (uPattern == 1 && role < 1.5) {
+          float reveal = .5+.5*cos((row+bank*1.8-uLook.y*2.0)*.8976);
+          aperture = mix(aperture,.365,reveal*.75);
+        }
+        float boundary = boxSdf(local,vec2(aperture),.014);
+        float mediaMask = min(diffuser,1.0-smoothstep(-aa,aa,boundary));
+        if (mediaMask > .001) {
+          vec4 picture = mediaPicture(bank,random,detail,channel,aperture);
+          // Keep source exposure independent of the reactive lamp. Transparent
+          // pixels and missing channels reveal the original fixture and mask.
+          mediaOverlay = vec4(picture.rgb,picture.a*mediaMask);
+        }
+      }
     }
     float mark = motif(local,hash(id + 67.0));
     float annotation = step(.60,detail) * (1.0-fixture) * (0.62 + .30 * uAccents.y);

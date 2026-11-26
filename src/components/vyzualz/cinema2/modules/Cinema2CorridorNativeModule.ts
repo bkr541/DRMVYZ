@@ -22,15 +22,10 @@ const DEFAULT_LOOK: Readonly<CorridorLook> = {
   haze: 0.23, pattern: 'night-transit', kick: 0, bass: 0, extensionBuild: 0, transient: 0, build: 0, drop: 0,
 }
 
-export function corridorPoolTrigger(pattern: CorridorPattern): Cinema2AfterhoursTriggerId {
-  switch (pattern) {
-    case 'relay': return 'beat4'
-    case 'counterflow': return 'bar'
-    case 'shaft': return 'bar4'
-    case 'signal-fault': return 'beat2'
-    case 'gate': return 'bar'
-    default: return 'bar4'
-  }
+// Program cadence is intentionally phrase-length for every visual pattern:
+// changing the light arrangement must not cause rapid artwork cuts.
+export function corridorPoolTrigger(_pattern: CorridorPattern): Cinema2AfterhoursTriggerId {
+  return 'phrase'
 }
 
 /** Runtime-only phase and pattern authority; persistent values remain in Parameter State. */
@@ -139,7 +134,9 @@ export class Cinema2CorridorPerformance {
     const mediaTrigger = CINEMA2_AFTERHOURS_TRIGGER_IDS.find(trigger => trigger === parameters.get('poolTrigger'))
       ?? corridorPoolTrigger(this.look.pattern)
     this.poolFrame = { identity, reset, paused: !playing,
-      patternChanged: selection?.changed === true || desired !== this.authored || mediaTrigger !== this.lastMediaTrigger,
+      // Only a cadence change re-arms the shared pool. A simultaneous pattern
+      // change must not swallow a fresh phrase event.
+      patternChanged: mediaTrigger !== this.lastMediaTrigger,
       event: playing && motion > 0 && !(auto && (frame.mood?.silence ?? 0) > .5)
         ? resolveCinema2AfterhoursTriggerEventIdentity(frame, mediaTrigger, reset ? null : this.previousTime) : null,
     }

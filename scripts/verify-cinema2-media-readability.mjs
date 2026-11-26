@@ -37,8 +37,8 @@ async function test(shaders, postShaders) {
   }
   const vertex = `#version 300 es
   precision highp float;
-  out vec2 v_uv;out vec2 vUV;out vec3 vPosition;out float vDepth;flat out vec3 vCell;flat out vec2 vPart;out vec3 vLocal;
-  void main(){vec2 p=vec2(gl_VertexID==1?3.:-1.,gl_VertexID==2?3.:-1.);gl_Position=vec4(p,0.,1.);vUV=p*.5+.5;v_uv=vUV;vPosition=vec3(0.,0.,-4.);vDepth=.1;vCell=vec3(1.,1.,0.);vPart=vec2(4.,0.);vLocal=vec3(p*1.36,1.);}`
+  uniform vec3 uTestCell;out vec2 v_uv;out vec2 vUV;out vec3 vPosition;out float vDepth;flat out vec3 vCell;flat out vec2 vPart;out vec3 vLocal;
+  void main(){vec2 p=vec2(gl_VertexID==1?3.:-1.,gl_VertexID==2?3.:-1.);gl_Position=vec4(p,0.,1.);vUV=p*.5+.5;v_uv=vUV;vPosition=vec3(0.,0.,-4.);vDepth=.1;vCell=uTestCell;vPart=vec2(4.,0.);vLocal=vec3(p*1.36,1.);}`
   // Bank 1 / row 1 / lane 0 is Night Transit's media lane. The selected
   // near face is deliberately held at the same depth in all music states.
   const programs = Object.fromEntries(Object.entries({...shaders,...postShaders}).map(([name, source]) => {
@@ -61,7 +61,7 @@ async function test(shaders, postShaders) {
     const f=(key,v)=>gl.uniform1f(gl.getUniformLocation(p,key),v), i=(key,v)=>gl.uniform1i(gl.getUniformLocation(p,key),v)
     const v=(key,values)=>gl[`uniform${values.length}fv`](gl.getUniformLocation(p,key),values)
     if(name==='corridor'){
-      v('uLook',[0,0,options.density??.85,options.gain??.86]);v('uAccents',options.accents??[0,0,0,0]);i('uPattern',options.pattern??0);f('uHaze',.23);f('uTravel',0);f('uCorridorWidth',2.35)
+      v('uTestCell',options.cell??[1,1,0]);v('uLook',[options.worldBay??0,options.phase??0,options.density??.85,options.gain??.86]);v('uAccents',options.accents??[0,0,0,0]);i('uPattern',options.pattern??0);f('uHaze',.23);f('uTravel',0);f('uCorridorWidth',2.35)
       v('uVoid',[.01,.01,.01]);v('uWall',[.05,.05,.05]);v('uAmber',options.pink?[1,.05,.65]:[1,.55,.12]);v('uHot',options.pink?[1,1,1]:[1,.7,.2]);v('uMarkings',[1,1,1]);v('uFeedAspect',options.pool?[1,1,1]:options.missing?[0,0,0]:[options.aspect??1,0,0]);i('uFeedCount',options.native?0:options.pool?3:1);f('uPoolStep',options.poolStep??0);i('uFeed0',0);i('uFeed1',options.pool?1:0);i('uFeed2',options.pool?2:0)
     } else {
       i('uMedia',0);i('uText',0);v('uColor',[.9,.12,.95]);f('uMode',options.native?0:3);f('uStyle',options.style??2);f('uGain',options.gain??1.5);f('uMediaGain',options.mediaGain??1);f('uPhase',0);f('uAspect',options.aspect??1);f('uScale',1);f('uAngle',0);f('uBass',0)
@@ -106,6 +106,28 @@ async function test(shaders, postShaders) {
       gl.activeTexture(gl.TEXTURE0);upload([255,0,0,255]);results[name].pool=[]
       for(const poolStep of [0,1,2]){draw(name,{pool:true,poolStep});results[name].pool.push(pixel(.5,.5,true))}
       poolTextures.forEach(feed=>gl.deleteTexture(feed))
+      // Exercise the actual fragment role selection at every cassette center.
+      // A protected center identifies a picture independent of its RGB/brightness.
+      upload([128,80,40,255]);results[name].layouts=[]
+      for(let pattern=0;pattern<6;pattern++){
+        const selected=[],later=[],recycled=[]
+        for(let bank=0;bank<4;bank++)for(let row=0;row<12;row++)for(let lane=0;lane<4;lane++){
+          const cell=[bank,row,lane],key=`${bank}:${row}:${lane}`
+          draw(name,{pattern,cell});if(pixel(.5,.5,true)[3]<5)selected.push(key)
+          draw(name,{pattern,cell,phase:7.3,accents:[1,1,1,1]});if(pixel(.5,.5,true)[3]<5)later.push(key)
+          // An identical world cell after one recycled bay has the same role.
+          if(row>0){draw(name,{pattern,cell:[bank,row-1,lane],worldBay:1});if(pixel(.5,.5,true)[3]<5)recycled.push(key)}
+        }
+        results[name].layouts.push({selected,later,recycled})
+      }
+      draw(name,{pattern:1,cell:[0,1,1],phase:0});results[name].relayOpen=pixel(.81,.5,true)
+      draw(name,{pattern:1,cell:[0,1,1],phase:2.25});results[name].relayClosed=pixel(.81,.5,true)
+      draw(name,{pattern:5,cell:[1,1,2]});results[name].heroIdle=pixel(.82,.5,true)
+      draw(name,{pattern:5,cell:[1,1,2],accents:[0,0,0,1]});results[name].heroDrop=pixel(.82,.5,true)
+      draw(name,{pattern:5,cell:[1,1,2],accents:[0,0,0,1]});results[name].heroCenter=pixel(.5,.5,true)
+      draw(name,{pattern:5,cell:[1,1,2],missing:true});results[name].heroMissing=pixel(.5,.5,true)
+      draw(name,{pattern:5,cell:[1,1,2],native:true});results[name].heroNative=pixel(.5,.5,true)
+
     }
     if(name==='overdrive'){
       upload([255,255,255,255]);results[name].dimRaster=draw(name,{style:1,gain:.15});results[name].brightRaster=draw(name,{style:1,gain:1.45});
@@ -193,6 +215,21 @@ function verify(results) {
   assert(delta(c.wideCenter,[255,255,255,0])<=1 && delta(c.widePadding,[0,0,0,0])<=1,'Wide media must be contained with protected black padding')
   assert(delta(c.otherLane,c.otherLaneNative)<=1 && c.otherLane[3]===255,'Nonselected lanes must remain native')
   assert(c.pool.every((rgba,index)=>delta(rgba,[[255,0,0,0],[0,255,0,0],[0,0,255,0]][index])<=1),'Pool steps must sample the expected channel')
+  for(const {selected,later,recycled} of c.layouts){
+    assert.equal(selected.length,48,'Every pattern must reserve 75% of fixtures for native light')
+    assert.deepEqual(later,selected,'Phase and drop must not move artwork identities')
+    assert.deepEqual(recycled,selected.filter(key=>Number(key.split(':')[1])>0),'Recycled bays must preserve world-space identities')
+  }
+  assert.equal(new Set(c.layouts.map(layout=>JSON.stringify(layout.selected))).size,6,'All six media arrangements must differ')
+  const counter=c.layouts[2].selected
+  assert(counter.every(key=>{const [bank,row]=key.split(':').map(Number);return bank%2===1||bank===2*(row%2)}),'Counterflow must alternate side banks')
+  assert(c.layouts[3].selected.every(key=>Number(key.split(':')[0])%2===1),'Shaft must reserve the side walls for light')
+  assert(c.layouts[5].selected.every(key=>Number(key.split(':')[1])%2===1),'Gate must leave alternate bays fully native')
+  assert(c.relayOpen[3]<5 && c.relayClosed[3]>250,'Relay must open the hybrid surround in a directional wave')
+  assert(c.heroIdle[3]>250 && c.heroDrop[3]<5,'Drop must expand the near-field hybrid aperture')
+  assert(delta(c.heroCenter,[128,80,40,0])<=1,'Hero picture must retain source RGB during the drop')
+  assert(delta(c.heroMissing,c.heroNative)<=1,'Missing hybrid feed must return to native fixture')
+
 
   assert(Math.max(...results.overdrive.padding)<10 && Math.min(...results.overdrive.contained)>240,'Overdrive must contain a wide source without stretching')
   assert(delta(results.overdrive.halfExposure,[128,128,128])<=1,'Existing exposure must remain effective')
