@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { AppIcon } from '../../../shared/icons/AppIcon'
 import { InfoPopover } from '../../../shared/InfoPopover'
+import { HeaderIconKey } from '../../layout/HeaderIconKey'
 import { RailWindowHeader } from '../../layout/RailWindowHeader'
 import { cinema2NativePresetRegistry } from '../../cinema2'
 import { applyPresetMetadata } from '../../../../features/presetCatalog/presetMetadata'
@@ -18,12 +19,15 @@ import { PresetSearchRow } from '../controls/PresetSearchRow'
 import { TagPill } from '../controls/TagPill'
 import {
   DEFAULT_FILTERS, appliedFilters, getFilterGroups, matchesPreset, searchStudyPresets, toggleValue,
+  getStudyMatchingValues, getStudyMatchParts,
   type Facet, type FilterGroup, type FilterPreset, type Filters,
 } from './presetFilterStudyData'
 import railStyles from '../../layout/RailWindowHeader.css?inline'
 import popoverStyles from '../../../shared/InfoPopover/InfoPopover.css?inline'
 import reactStyles from '../../../../styles/reactView.css?inline'
 import mediaStyles from '../../../../styles/vyzualz.css?inline'
+import headerStyles from '../../layout/HeaderControlGroup.css?inline'
+import viewToggleStyles from '../controls/LibraryViewToggle.css?inline'
 import styles from './presetFilterStudies.css?inline'
 
 // The Inspector study represents one engine, not a cross-engine library.
@@ -166,6 +170,12 @@ function PresetFilterPreview({ records }: { records: readonly FilterPreset[] }) 
   </section>
 }
 
+function HighlightedSearchValue({ value, query }: { value: string; query: string }) {
+  return <>{getStudyMatchParts(value, query).map((part, index) => part.matched
+    ? <mark key={index} className="ll-pf-smart-highlight">{part.text}</mark>
+    : <span key={index}>{part.text}</span>)}</>
+}
+
 // Non-modal autocomplete: keep focus in the input while the results overlay is open.
 // Selection and favorites are local to Layout Lab, just like the original study.
 function SmartPresetFilterPreview({ records }: { records: readonly FilterPreset[] }) {
@@ -174,6 +184,7 @@ function SmartPresetFilterPreview({ records }: { records: readonly FilterPreset[
   const input = useRef<HTMLInputElement>(null)
   const [query, setQuery] = useState('')
   const [scope, setScope] = useState<PresetScopeTab>('system')
+  const nextScope = scope === 'system' ? 'user' : 'system'
   const [selected, setSelected] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
   const [highlighted, setHighlighted] = useState<string | null>(null)
@@ -239,26 +250,33 @@ function SmartPresetFilterPreview({ records }: { records: readonly FilterPreset[
                 {query && <button type="button" className="vz-md-search-clear" aria-label="Clear smart search" title="Clear search"
                   onClick={() => { changeQuery(''); input.current?.focus() }}><AppIcon kind="close" size={14} /></button>}
               </div>
-              <div className="rv-right-subtabs ll-pf-scope-toggle" role="group" aria-label="Preset scope">
-                {(['system', 'user'] as const).map(value => <button key={value} type="button"
-                  className={scope === value ? 'is-active' : ''} aria-pressed={scope === value}
-                  onClick={() => { setScope(value); setSelected(''); closeSearch() }}>{value === 'system' ? 'System' : 'User'}</button>)}
+              <div className="vz-md-view-toggles">
+                <div className="vz-header-group dv-library-view-toggle" data-preset-scope={scope}
+                  role="group" aria-label={`Preset scope: ${scope === 'system' ? 'System' : 'User'}`}>
+                  <HeaderIconKey label={nextScope === 'user' ? 'User presets' : 'System presets'}
+                    icon={<AppIcon kind={nextScope === 'user' ? 'user' : 'layers'} size={12}
+                      viewBox={nextScope === 'user' ? '6 2 20 28' : '2 2 28 28'} color="currentColor" />}
+                    onClick={() => { setScope(nextScope); setSelected(''); closeSearch() }} />
+                </div>
               </div>
             </div>
             {open && <div className="ll-pf-smart-popover">
               <div className="ll-pf-smart-summary">{results.length} {results.length === 1 ? 'match' : 'matches'}</div>
               <div id={listId} role="listbox" aria-label="Matching presets" className="ll-pf-smart-options">
-                {results.map((preset, index) => <div key={preset.id} id={optionId(index)} role="option"
-                  aria-selected={activeIndex === index} className="ll-pf-smart-option"
-                  onMouseDown={event => event.preventDefault()}
-                  onClick={() => selectResult(preset)}>
-                  <strong>{preset.name}</strong>
-                  <dl>
-                    <dt>Category</dt><dd>{preset.category || 'None'}</dd>
-                    <dt>Tags</dt><dd>{preset.tags.length ? preset.tags.join(' · ') : 'None'}</dd>
-                    <dt>Collections</dt><dd>{preset.collections.length ? preset.collections.map(collection => collection.name).join(' · ') : 'None'}</dd>
-                  </dl>
-                </div>)}
+                {results.map((preset, index) => {
+                  const matchingValues = getStudyMatchingValues(preset, query)
+                  return <div key={preset.id} id={optionId(index)} role="option"
+                    aria-selected={activeIndex === index} className="ll-pf-smart-option"
+                    onMouseDown={event => event.preventDefault()}
+                    onClick={() => selectResult(preset)}>
+                    <strong><HighlightedSearchValue value={preset.name} query={query} /></strong>
+                    {matchingValues.length > 0 && <div className="ll-pf-smart-matches">
+                      {matchingValues.map((value, index) => <span key={value}>
+                        {index > 0 && ' · '}<HighlightedSearchValue value={value} query={query} />
+                      </span>)}
+                    </div>}
+                  </div>
+                })}
               </div>
               {!results.length && <p className="ll-pf-smart-no-results">No matching presets.</p>}
             </div>}
@@ -279,7 +297,7 @@ function SmartPresetFilterPreview({ records }: { records: readonly FilterPreset[
 export function PresetFilterStudies() {
   const records = useStudyPresets()
   return <div className="ll-pf-studies" aria-label="Preset Filter studies">
-    <style>{`@scope (.ll-pf-studies) { ${railStyles}\n${mediaStyles}\n${reactStyles} }\n${popoverStyles}\n${styles}`}</style>
+    <style>{`@scope (.ll-pf-studies) { ${railStyles}\n${mediaStyles}\n${reactStyles}\n${headerStyles.replaceAll(':root', ':scope')}\n${viewToggleStyles} }\n${popoverStyles}\n${styles}`}</style>
     <PresetFilterPreview records={records} />
     <SmartPresetFilterPreview records={records} />
   </div>

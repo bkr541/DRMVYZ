@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { appliedFilters, getFilterGroups, matchesPreset, searchStudyPresets, toggleValue, type FilterPreset } from './presetFilterStudyData'
+import { appliedFilters, getFilterGroups, getStudyMatchingValues, getStudyMatchParts, matchesPreset, searchStudyPresets, toggleValue, type FilterPreset } from './presetFilterStudyData'
 
 const presets: FilterPreset[] = [
   { id: 'a', artworkId: 'a', name: 'Afterhours', description: 'Laser scene', category: 'Lighting', tags: ['Laser', 'Night'], favorite: true, collections: [{ id: 'c1', name: 'Club' }] },
@@ -45,5 +45,32 @@ describe('smart preset search', () => {
   it('ranks name matches above metadata matches, preserving input order otherwise', () => {
     const metadataMatch = { ...presets[1], tags: ['Afterhours'] }
     expect(searchStudyPresets([metadataMatch, presets[0]], 'after')).toEqual([presets[0], metadataMatch])
+  })
+  it('returns only matching metadata values, deduplicating the same category and tag', () => {
+    const cinematic = { ...presets[0], category: 'cinematic', tags: ['cinematic', 'Cinematic', '3d', 'chrome'] }
+    expect(getStudyMatchingValues(cinematic, 'CIN')).toEqual(['cinematic'])
+    expect(getStudyMatchingValues(cinematic, 'cin club')).toEqual(['cinematic', 'Club'])
+    expect(getStudyMatchingValues(cinematic, 'after')).toEqual([])
+    expect(getStudyMatchingValues(cinematic, '  ')).toEqual([])
+  })
+  it('highlights literal, case-insensitive substrings in their original spelling', () => {
+    expect(getStudyMatchParts('cinematic', 'CIN')).toEqual([
+      { text: 'cin', matched: true }, { text: 'ematic', matched: false },
+    ])
+    expect(getStudyMatchParts('Cinematic', 'IN mat')).toEqual([
+      { text: 'C', matched: false }, { text: 'in', matched: true },
+      { text: 'e', matched: false }, { text: 'mat', matched: true }, { text: 'ic', matched: false },
+    ])
+    expect(getStudyMatchParts('banana', 'ana')).toEqual([
+      { text: 'b', matched: false }, { text: 'anana', matched: true },
+    ])
+    const literal = { ...presets[0], tags: ['C++', 'a.b'] }
+    expect(searchStudyPresets([literal], '++')).toEqual([literal])
+    expect(getStudyMatchingValues(literal, '+')).toEqual(['C++'])
+    expect(getStudyMatchParts('a.b', '.')).toEqual([
+      { text: 'a', matched: false }, { text: '.', matched: true }, { text: 'b', matched: false },
+    ])
+    expect(searchStudyPresets([literal], '[')).toEqual([])
+    expect(getStudyMatchParts('Afterhours', ' ')).toEqual([{ text: 'Afterhours', matched: false }])
   })
 })

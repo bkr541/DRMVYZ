@@ -54,17 +54,56 @@ export function appliedFilters(groups: readonly FilterGroup[], filters: Filters)
     .map(option => ({ ...option, id: group.id })))
 }
 
+// Treat search tokens as literal text, including punctuation in real tags.
+function searchTokens(query: string): string[] {
+  return query.trim().split(/\s+/).filter(Boolean).map(token => token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+}
+
+function metadataValues(preset: FilterPreset): readonly string[] {
+  return [preset.category, ...preset.tags, ...preset.collections.map(collection => collection.name)]
+}
+
+/** Only metadata values that explain a hit; don't repeat a category/tag with the same text. */
+export function getStudyMatchingValues(preset: FilterPreset, query: string): string[] {
+  const patterns = searchTokens(query).map(token => new RegExp(token, 'iu'))
+  const seen = new Set<string>()
+  return metadataValues(preset).filter(value => {
+    const key = value.toLowerCase()
+    if (seen.has(key) || !patterns.some(pattern => pattern.test(value))) return false
+    seen.add(key)
+    return true
+  })
+}
+
+/** Preserve the original spelling and mark every matching character, including overlapping tokens. */
+export function getStudyMatchParts(value: string, query: string): { text: string; matched: boolean }[] {
+  const marks = new Uint8Array(value.length)
+  for (const token of searchTokens(query)) {
+    // A lookahead finds overlapping occurrences without consuming the matched text.
+    for (const match of value.matchAll(new RegExp(`(?=(${token}))`, 'giu'))) {
+      marks.fill(1, match.index, match.index + match[1].length)
+    }
+  }
+  const parts: { text: string; matched: boolean }[] = []
+  for (let start = 0; start < value.length;) {
+    let end = start + 1
+    while (end < value.length && marks[end] === marks[start]) end++
+    parts.push({ text: value.slice(start, end), matched: Boolean(marks[start]) })
+    start = end
+  }
+  return parts
+}
+
 /** Smart study only: every typed token must match at least one searchable field.
  * Rank title matches first; preserve the catalog's order within each rank. */
 export function searchStudyPresets(presets: readonly FilterPreset[], query: string): FilterPreset[] {
   const needle = query.trim().toLowerCase()
   if (!needle) return [...presets]
-  const tokens = needle.split(/\s+/)
+  const patterns = searchTokens(query).map(token => new RegExp(token, 'iu'))
   return presets.flatMap(preset => {
     const name = preset.name.toLowerCase()
-    const fields = [name, preset.category, ...preset.tags, ...preset.collections.map(collection => collection.name)]
-      .map(value => value.toLowerCase())
-    if (!tokens.every(token => fields.some(field => field.includes(token)))) return []
+    const fields = [preset.name, ...metadataValues(preset)]
+    if (!patterns.every(pattern => fields.some(field => pattern.test(field)))) return []
     const rank = name === needle ? 0 : name.startsWith(needle) ? 1 : name.includes(needle) ? 2 : 3
     return [{ preset, rank }]
   }).sort((a, b) => a.rank - b.rank).map(result => result.preset)

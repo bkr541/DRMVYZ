@@ -191,19 +191,6 @@
 /* Smart-search study only; keep the original Inspector frame and card sizing. */
 [data-preset-filter-study="smart-search"] .ll-pf-scroll { flex: 1; }
 .ll-pf-smart-anchor { position: relative; min-width: 0; }
-.ll-pf-smart-anchor .ll-pf-scope-toggle.rv-right-subtabs {
-  flex: none;
-  width: auto;
-  margin: 0;
-  padding: 0;
-  min-width: 0;
-}
-.ll-pf-smart-anchor .ll-pf-scope-toggle button {
-  flex: none;
-  min-width: 0;
-  padding-inline: 9px;
-  white-space: nowrap;
-}
 .ll-pf-smart-popover {
   position: absolute;
   z-index: 5;
@@ -230,13 +217,17 @@
 .ll-pf-smart-option + .ll-pf-smart-option { border-top: 1px solid var(--pf-line); }
 .ll-pf-smart-option:hover, .ll-pf-smart-option[aria-selected='true'] { background: rgba(74, 199, 219, .09); border-inline-start-color: var(--pf-accent); }
 .ll-pf-smart-option strong { color: var(--pf-ink); font: var(--type-nested-group-heading); }
-.ll-pf-smart-option dl {
-  display: grid;
-  grid-template-columns: 76px minmax(0, 1fr);
-  gap: 3px 6px;
-  margin: 5px 0 0;
+.ll-pf-smart-matches {
+  margin-top: 4px;
+  color: var(--pf-muted);
   font: var(--type-field-value);
+  line-height: 1.45;
 }
-.ll-pf-smart-option dt { color: var(--pf-muted); }
-.ll-pf-smart-option dd { margin: 0; color: var(--pf-ink); }
+.ll-pf-smart-highlight {
+  padding: 0;
+  color: var(--pf-accent);
+  background: rgba(74, 199, 219, .14);
+  border-radius: 2px;
+  font-weight: 700;
+}
 .ll-pf-smart-no-results { margin: 0; padding: 10px; color: var(--pf-muted); font: var(--type-field-value); }
