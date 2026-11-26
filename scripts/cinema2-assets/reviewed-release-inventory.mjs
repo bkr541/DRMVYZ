@@ -24,11 +24,13 @@ export function coverageValid(report) {
 export function capabilityPlan(meta) {
   const controls=meta.controls??[],modules=meta.modules??[],slots=meta.mediaSlots??[]
   const model=controls.find(p=>p.metadata?.editor==='user-model-selector')
-  const modelBound=!!model&&modules.some(m=>m.parameterBindings?.userModel?.$ref===model.id)
+  const modelModules=modules.filter(m=>model&&m.parameterBindings?.userModel?.$ref===model.id)
+  const modelBound=modelModules.length>0
+  const presentation=controls.find(p=>p.label==='Model Presentation')
   const cameraRefs=(meta.cameras??[]).map(c=>c.controls??{})
   const controlFor=ref=>controls.find(p=>p.id===ref?.$ref)
   const cameraMode=cameraRefs.map(c=>controlFor(c.rigMode)).find(p=>p?.options?.some(o=>o.value==='home')&&p.options.some(o=>o.value==='drift'))
   const cameraPermission=cameraRefs.map(c=>controlFor(c.motionEnabled)).find(p=>p?.type==='boolean')
   const content=controls.find(p=>modules.some(m=>m.parameterBindings?.['content-type']?.$ref===p.id)&&p.options?.some(o=>o.value==='text')&&p.options.some(o=>o.value==='model'))
-  return {fixedAssets:modules.flatMap(m=>Array.isArray(m.config?.instances)?m.config.instances.map(x=>x.asset):[]),media:Object.fromEntries(['image','video','svg'].map(kind=>[kind,slots.filter(s=>s.accepts.includes(kind)).map(s=>({id:s.id,required:s.required===true}))])),model:model?{id:model.id,bound:modelBound,contentMode:content?.id??null,fixedAssets:modules.flatMap(m=>Array.isArray(m.config?.instances)?m.config.instances.map(x=>x.asset):[])}:null,camera:{permission:cameraPermission?.id??null,mode:cameraMode?.id??null},patternTriggers:controls.find(p=>p.label==='Trigger')?.options?.map(o=>o.value)??[]}
+  return {fixedAssets:modules.flatMap(m=>Array.isArray(m.config?.instances)?m.config.instances.map(x=>x.asset):[]),media:Object.fromEntries(['image','video','svg'].map(kind=>[kind,slots.filter(s=>s.accepts.includes(kind)).map(s=>({id:s.id,required:s.required===true}))])),model:model?{id:model.id,bound:modelBound,sourcePolicy:modelModules.some(m=>m.config?.userModelPreview)?'representation-preview': 'optional-replacement',moduleTypes:modelModules.map(m=>m.typeId),presentationModes:presentation?.options?.map(o=>o.value)??[],contentMode:content?.id??null,fixedAssets:modules.flatMap(m=>Array.isArray(m.config?.instances)?m.config.instances.map(x=>x.asset):[])}:null,camera:{permission:cameraPermission?.id??null,mode:cameraMode?.id??null},patternTriggers:controls.find(p=>p.label==='Trigger')?.options?.map(o=>o.value)??[]}
 }

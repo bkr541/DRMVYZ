@@ -1,3 +1,4 @@
+import { cinema2UserModelCache } from '../../components/vyzualz/cinema2/model/Cinema2UserModelCache'
 import { Cinema2Runtime } from '../../components/vyzualz/cinema2/runtime/Cinema2Runtime'
 import { Cinema2AudioIntelligenceBridge } from '../../components/vyzualz/cinema2/audio/Cinema2AudioIntelligenceBridge'
 import type { Cinema2MediaKind, Cinema2ParameterId, Cinema2PresetId, Cinema2RenderQualityLevel } from '../../components/vyzualz/cinema2/contracts/Cinema2NativePresetManifest'
@@ -176,7 +177,7 @@ const api = {
     }
     return runtime.getMediaSlotRuntimeSnapshot()
   },
-  async modelFixture(remove = false, variant: 'primary' | 'replacement' | 'missing' = 'primary') {
+  async modelFixture(remove = false, variant: import('./Cinema2ReleaseModelFixture').ReleaseModelVariant = 'primary') {
     const parameter = (manifest.parameters ?? []).find(p => p.metadata?.editor === 'user-model-selector')
     if (!parameter) throw Error('Model selector absent')
     const fixture = await import('./Cinema2ReleaseModelFixture')
@@ -184,6 +185,10 @@ const api = {
     const result = runtime.getParameterState().setPersistentValue(parameter.id, value)
     if (!result.ok) throw Error(JSON.stringify(result.diagnostics))
     return runtime.getParameterState().getValue(parameter.id)
+  },
+  modelCache() { return cinema2UserModelCache.getSnapshot() },
+  async modelEditorReference(variant: Exclude<import('./Cinema2ReleaseModelFixture').ReleaseModelVariant, 'missing'>) {
+    return (await import('./Cinema2ReleaseModelFixture')).captureReleaseModelEditor(variant)
   },
   switchPreset(id: Cinema2PresetId, nextQuality: Cinema2RenderQualityLevel, saved?: string) {
     runtime.dispose()

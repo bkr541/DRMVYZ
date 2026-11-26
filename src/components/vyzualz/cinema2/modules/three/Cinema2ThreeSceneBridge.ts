@@ -553,6 +553,25 @@ export class Cinema2ThreeSceneBridge {
     this.userModelPalette = enabled; this.appliedOverrides = null
   }
 
+  /** Read-only evidence of the instance-local materials after the owning controller
+   * has applied its presentation. No references to cached textures or meshes escape. */
+  inspectUserModelMaterials() {
+    const describe = (texture: ThreeNamespace.Texture | null) => texture ? {
+      colorSpace: texture.colorSpace, channel: texture.channel, offset: texture.offset.toArray(),
+      repeat: texture.repeat.toArray(), rotation: texture.rotation, flipY: texture.flipY,
+    } : null
+    return { presentation: this.userModelPresentation, palette: this.userModelPalette,
+      sceneEnvironmentIntensity: this.scene.environmentIntensity,
+      materials: this.placed.filter(p => p.userModel).flatMap(p => p.materials.map(({material: m, part, slot, base}) => ({
+        part, name: m.name, visible: slot.mesh.visible, color: m.color.getHexString(),
+        roughness: m.roughness, metalness: m.metalness, emissive: m.emissive.getHexString(), emissiveIntensity: m.emissiveIntensity,
+        opacity: m.opacity, transparent: m.transparent, alphaTest: m.alphaTest, depthWrite: m.depthWrite, side: m.side,
+        map: describe(m.map), normalMap: describe(m.normalMap), alphaMap: describe(m.alphaMap),
+        environment: base.envMap ? 'authored' : m.envMap ? 'neutral' : 'scene', envMapIntensity: m.envMapIntensity,
+      }))),
+    }
+  }
+
   /** Non-fatal problems (for example a shipped environment that failed to load and fell back to the built-in room). */
   getDiagnostics(): readonly Cinema2ThreeBridgeDiagnostic[] {
     const model = this.options.modelController?.getDiagnostics?.() ?? []

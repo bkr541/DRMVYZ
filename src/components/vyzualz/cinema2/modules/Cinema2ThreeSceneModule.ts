@@ -163,6 +163,7 @@ export interface Cinema2ThreeSceneModuleOptions {
 export interface Cinema2ThreeSceneModuleInspection {
   state: Cinema2ThreeSceneModuleState
   userModel?: Cinema2UserModelSlotSnapshot
+  userModelMaterials?: ReturnType<Cinema2ThreeSceneBridge['inspectUserModelMaterials']>
   loadedAssetCount: number
   skippedInstanceCount: number
 }
@@ -488,7 +489,7 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
           const modelDiagnostics: Cinema2ModuleDiagnostic[] = status && status.status !== 'ready' ? [{ code: `CINEMA2_USER_MODEL_${status.status.toUpperCase()}`, path: `module.${context.module.id}.userModel`, message: status.message ?? 'Loading the pinned private model…' }] : []
           return [...modelDiagnostics, ...(bridge ? [...diagnostics, ...bridge.getDiagnostics().map(entry => ({ ...entry, path: `module.${context.module.id}` }))] : diagnostics)]
         },
-        inspect: (): Cinema2ThreeSceneModuleInspection => ({ ...modelController?.inspect?.(), state, loadedAssetCount: loaded.length, skippedInstanceCount: Math.max(0, requested.length - held.length), ...(userSlot ? { userModel: userSlot.getSnapshot() } : {}) }),
+        inspect: (): Cinema2ThreeSceneModuleInspection => ({ ...modelController?.inspect?.(), state, loadedAssetCount: loaded.length, skippedInstanceCount: Math.max(0, requested.length - held.length), ...(userSlot ? { userModel: userSlot.getSnapshot(), userModelMaterials: bridge?.inspectUserModelMaterials() } : {}) }),
       }
     },
   })

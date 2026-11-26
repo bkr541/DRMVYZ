@@ -5,6 +5,7 @@ import { join, resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import os from 'node:os'
 import { inventory, config, pixelEvidence, visibleIssues, controlEvidence, technicalIssues, retiredIssues, p95, regressionIssues, recordCheck, assertion, scenarioDecision, presetStatus, reportStatus, reportExitCode, fullInventoryStatus, motionEvidence, pairwiseEvidence, sourceVisibility, fallbackEvidence, triggerEvidence, recoveryEvidence } from './release-acceptance-core.mjs'
+import { materialRegions, compareMaterialRegions, authoredMaterialEvidence } from './model-fidelity-evidence.mjs'
 import { reviewedEntries, validateInventory, inventoryCoverage, capabilityPlan } from './reviewed-release-inventory.mjs'
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'../..')
 const args=process.argv.slice(2)
@@ -15,7 +16,7 @@ const parent=join(root,'artifacts/cinema2-release');await mkdir(parent,{recursiv
 const output=await mkdtemp(join(parent,'run-'));console.log(`Release evidence: ${output}`)
 const hash=bytes=>createHash('sha256').update(bytes).digest('hex')
 const save=(path,data)=>writeFile(path,JSON.stringify(data,null,2)+'\n')
-const report={schemaVersion:3,technicalStatus:'incomplete',config,inventory:keys,...coverage,fullInventoryStatus:'incomplete',releaseApproval:false,environment:{platform:os.platform(),arch:os.arch(),cpu:os.cpus()[0]?.model, node:process.version},
+const report={schemaVersion:4,technicalStatus:'incomplete',config,inventory:keys,...coverage,fullInventoryStatus:'incomplete',releaseApproval:false,environment:{platform:os.platform(),arch:os.arch(),cpu:os.cpus()[0]?.model, node:process.version},
   presets:Object.fromEntries(keys.map(key=>[key,{status:'not-run',reason:'Browser not started'}])),
   gates:{humanVisual:'pending',electronPreview:'not-run',electronFullscreen:'not-run',casting:'not-run',performanceComparison:'not-run'},errors:[],blockers:[]}
 let vite,browser
@@ -29,7 +30,7 @@ try {
   const probe=await browser.newPage();report.environment.gl=await probe.evaluate(()=>{const gl=document.createElement('canvas').getContext('webgl2');if(!gl)return null;const ext=gl.getExtension('WEBGL_debug_renderer_info');return {vendor:gl.getParameter(ext?.UNMASKED_VENDOR_WEBGL??gl.VENDOR),renderer:gl.getParameter(ext?.UNMASKED_RENDERER_WEBGL??gl.RENDERER)}});await probe.close()
   if(!report.environment.gl)throw Error('WebGL2 unavailable in Chromium')
   const preflight=await browser.newPage()
-  try { await preflight.goto(vite.resolvedUrls.local[0]+'src/test/browser/cinema2-release-inventory.html');await preflight.waitForFunction(()=>!!window.__cinema2ResolveReviewedIds,{},{timeout:30000});report.registry=await preflight.evaluate(ids=>window.__cinema2ResolveReviewedIds(ids),coverage.expectedIds);validateInventory(reviewedEntries,report.registry) } finally { await preflight.close() }
+  try { await preflight.goto(vite.resolvedUrls.local[0]+'src/test/browser/cinema2-release-inventory.html');await preflight.waitForFunction(()=>!!window.__cinema2ResolveReviewedIds,{},{timeout:30000});report.registry=await preflight.evaluate(ids=>window.__cinema2ResolveReviewedIds(ids),coverage.expectedIds);validateInventory(reviewedEntries,report.registry);report.modelInventory=await preflight.evaluate(()=>window.__cinema2ModelInventory()) } finally { await preflight.close() }
   for(const key of keys){
     const folder=join(output,key);await mkdir(folder,{recursive:true})
     const result={status:'running',errors:[],checks:[],required:['scenario:manual-controls','scenario:patterns','scenario:camera','scenario:transport-auto','scenario:media','scenario:model','scenario:reentry','frame:default','final-dispose'],frames:[],metrics:{},humanVisual:'pending'};report.presets[key]=result
@@ -106,7 +107,11 @@ try {
       if(imageSlots.length)result.mustPass.push('media-loaded','media-pixel-evidence','media-fallback-evidence')
       for(const name of imageSlots.length?['media-loaded','media-pixel-evidence','media-fallback-evidence','media-hidden-negative-control']:['media'])requireCheck(name)
       for(const name of meta.controls.some(p=>p.metadata?.editor==='user-model-selector')?['model-loaded','model-pixel-evidence','model-fallback-evidence']:['model'])requireCheck(name)
-      if(capabilities.model){if(find('Model Visible')?.type==='boolean')result.mustPass.push('model-hidden-negative-control');else notApplicable('model-hidden-negative-control','No hard model visibility control in manifest');result.mustPass.push('model-loaded','model-pixel-evidence','model-fallback-evidence');if(key==='chamber')result.mustPass.push('chamber-model-placement');if(capabilities.model.contentMode)result.mustPass.push('native-typography','native-typography-visible','model-replacement','model-replacement-visible','model-failed-load','model-failed-load-fallback','typography-saved-restored','typography-pixel-restored')}
+      if(capabilities.model){result.mustPass.push('model-material-fidelity','model-authored-materials','model-pinned-upgrade','model-cache-released','model-pinned-reentry','model-replacement','model-replacement-visible','model-failed-load','model-failed-load-fallback');if(find('Model Visible')?.type==='boolean')result.mustPass.push('model-hidden-negative-control');else notApplicable('model-hidden-negative-control','No hard model visibility control in manifest');result.mustPass.push('model-loaded','model-pixel-evidence','model-fallback-evidence');if(key==='chamber')result.mustPass.push('chamber-model-placement');if(capabilities.model.contentMode)result.mustPass.push('native-typography','native-typography-visible','model-replacement','model-replacement-visible','model-failed-load','model-failed-load-fallback','typography-saved-restored','typography-pixel-restored')}
+      if(capabilities.model)for(const mode of capabilities.model.presentationModes.filter(m=>m!=='original')){
+        result.mustPass.push(`model-mode-${mode}`,`model-original-restored-${mode}`)
+        if(['brushed','edge'].includes(mode))result.mustPass.push(`model-stylization-${mode}`)
+      }
       for(const name of result.mustPass)requireCheck(name)
       // Center-facing sources vs wrapping banks; the latter can occupy every zone.
       const mediaZones=['overdrive','livewire'].includes(key)?[1,3,4,5,7]:[0,1,2,3,4,5,6,7,8]
@@ -269,6 +274,7 @@ try {
         for(const name of ['model-loaded','model-pixel-evidence','model-fallback-evidence'])requireCheck(name)
         await set(auto,false);await set(change,false);await lockCamera()
         const presentation=find('Model Presentation');if(presentation?.options?.some(o=>o.value==='original'))await set(presentation,'original')
+        const materialState=f=>f.inspections.find(m=>m.userModelMaterials)?.userModelMaterials
         const visible=find('Model Visible');if(visible?.type==='boolean')await set(visible,true)
         const content=meta.controls.find(p=>p.id===capabilities.model.contentMode)
         const text=content&&find('Text'),font=content&&find('Font');let typography,typographyAA
@@ -290,10 +296,10 @@ try {
           await api('prepare');await api('prepare')
           const beforeRemoval=await api('diagnostics')
           if(action==='remove')await api('modelFixture',true)
-          if(action==='replacement'||action==='missing')binding=await api('modelFixture',false,action)
+          if(['replacement','missing','upgrade','wrong-color','opaque','no-texture','no-mask'].includes(action))binding=await api('modelFixture',false,action)
           await api('prepare')
           const f=await capture(name,'breakdown',30,false,'none')
-          return {...sameSettingsWithout(f,modelControl.id),binding,beforeRemoval}
+          return {...sameSettingsWithout(f,modelControl.id),binding,beforeRemoval,cache:await api('modelCache')}
         }
         const a=await sample('model-before','off'),aa=await sample('model-before-aa','off'),on=await sample('model','on'),removed=await sample('model-fallback','remove')
         const model=modelState(on),ready=model?.status==='ready'&&model.binding===on.binding&&on.binding.startsWith('user-model:')
@@ -314,15 +320,59 @@ try {
           await set(visible,true)
         }
         if(key==='chamber')check('chamber-model-placement',on.inspections.some(m=>m.modelPlaced===true&&m.source==='dark-chamber.glb')&&removed.inspections.some(m=>m.modelPlaced===false)?[]:['Chamber model not placed or cleared'])
-        if(content){
-          const onAA=await sample('model-on-aa','on'),replacement=await sample('model-replacement','replacement')
+        const onAA=await sample('model-on-aa','on')
+        const wrongColor=await sample('model-wrong-color','wrong-color'),opaque=await sample('model-opaque','opaque'),noTexture=await sample('model-no-texture','no-texture'),noMask=await sample('model-no-mask','no-mask')
+        const editorCapture=async(name,variant)=>{
+          const {png,...reference}=await api('modelEditorReference',variant)
+          const image=Buffer.from(png.split(',')[1],'base64'),file=`${name}.png`;await writeFile(join(folder,file),image)
+          const {data,info}=await sharp(image).toColourspace('srgb').removeAlpha().raw().toBuffer({resolveWithObject:true})
+          result.editorReferences??=[];result.editorReferences.push({name,file,sha256:hash(image),...reference,width:info.width,height:info.height})
+          return {data,width:info.width,height:info.height,binding:reference.binding,materials:reference.materials}
+        }
+        const e=await editorCapture('editor-primary','primary'),ee=await editorCapture('editor-primary-aa','primary'),ec=await editorCapture('editor-wrong-color','wrong-color'),eo=await editorCapture('editor-opaque','opaque'),et=await editorCapture('editor-no-texture','no-texture'),em=await editorCapture('editor-no-mask','no-mask')
+        const editor=materialRegions({primary:e,repeat:ee,wrongColor:ec,opaque:eo,noTexture:et,noMask:em})
+        const production=materialRegions({primary:on,repeat:onAA,wrongColor,opaque,noTexture,noMask,native:aa})
+        const bound=[on,onAA,wrongColor,opaque,noTexture,noMask].every(f=>modelState(f)?.status==='ready'&&modelState(f)?.binding===f.binding)
+        const sameVersions=e.binding===on.binding&&ee.binding===onAA.binding&&ec.binding===wrongColor.binding&&eo.binding===opaque.binding&&et.binding===noTexture.binding&&em.binding===noMask.binding
+        const matched=[onAA,wrongColor,opaque,noTexture,noMask].every(f=>JSON.stringify(f.conditions)===JSON.stringify(on.conditions))
+        if(!bound||!sameVersions||!matched)check('model-material-fidelity',['Material capture used an incorrect or unready pinned source'],{bound,sameVersions,matched})
+        else decide('model-material-fidelity',compareMaterialRegions(editor,production))
+        decide('model-authored-materials',authoredMaterialEvidence(e.materials,materialState(on)?.materials))
+        // Rebind v1 while the library advertises v2; recreate with serialized
+        // selection, then exercise every supported presentation on that instance.
+        await sample('model-mode-primary','on')
+        const pinnedSaved=await api('saved')
+        await freshRuntime(pinnedSaved,'model-pinned-reentry');await api('prepare');await api('prepare');await api('prepare')
+        const reentry=await capture('model-pinned-reentry','breakdown',30,false,'none')
+        check('model-pinned-reentry',modelState(reentry)?.binding===on.binding&&modelState(reentry)?.status==='ready'&&reentry.settings===pinnedSaved?[]:['Pinned model changed on source reentry'],modelState(reentry))
+        if(presentation?.options?.some(o=>o.value==='original')){
+          for(const option of presentation.options.filter(o=>o.value!=='original')){
+            await set(presentation,option.value);const styled=await capture(`model-mode-${option.value}`,'breakdown',15,false,'none')
+            const actual=materialState(styled),expected=['brushed','edge'].includes(option.value)?'stylized':option.value
+            check(`model-mode-${option.value}`,actual?.presentation===expected&&modelState(styled)?.binding===on.binding&&actual.materials.length>0?[]:['Presentation did not reach the bound model'],actual)
+            if(option.value==='brushed'||option.value==='edge'){
+              const key=option.value==='brushed'?'roughness':'emissiveIntensity'
+              check(`model-stylization-${option.value}`,actual?.materials.some(m=>e.materials.some(r=>r.name===m.name&&Math.abs(r[key]-m[key])>1e-5))?[]:['Explicit stylization did not change its authored surface channel'],actual)
+            }
+            await set(presentation,'original');const back=await capture(`model-restored-${option.value}`,'breakdown',15,false,'none')
+            decide(`model-original-restored-${option.value}`,authoredMaterialEvidence(e.materials,materialState(back)?.materials))
+          }
+        }else notApplicable('model-presentation-roundtrip','No selectable Model Presentation enum')
+        const upgrade=await sample('model-explicit-upgrade','upgrade')
+        check('model-pinned-upgrade',modelState(on)?.binding===on.binding&&on.binding.endsWith(':1')&&upgrade.binding===on.binding.replace(/:1$/,':2')&&modelState(upgrade)?.binding===upgrade.binding&&modelState(upgrade)?.status==='ready'?[]:['Pinned v1 or explicit v2 binding was not preserved'],{before:modelState(on),after:modelState(upgrade)})
+        {
+          const replacement=await sample('model-replacement','replacement')
           const previousBinding=replacement.beforeRemoval.modules.modules.find(m=>m.inspection?.userModel)?.inspection.userModel
           check('model-replacement',previousBinding?.binding===on.binding&&previousBinding.status==='ready'&&modelState(replacement)?.binding===replacement.binding&&modelState(replacement)?.status==='ready'&&replacement.binding!==on.binding?[]:['Replacement pinned binding not ready'])
           decide('model-replacement-visible',sourceVisibility(on,onAA,replacement,{ready:modelState(replacement)?.status==='ready'}))
           const missing=await sample('model-failed-load','missing')
           check('model-failed-load',modelState(missing)?.binding===missing.binding&&['error','missing','unauthorized'].includes(modelState(missing)?.status)?[]:['Failed model did not produce an explicit failure state'])
           decide('model-failed-load-fallback',fallbackEvidence(a,aa,on,missing,modelState(missing)?.binding===missing.binding&&['error','missing','unauthorized'].includes(modelState(missing)?.status)))
-          await api('modelFixture',true);await set(content,'text');const restoredSaved=await api('saved')
+        }
+        await api('modelFixture',true);await api('prepare');const cache=await api('modelCache')
+        check('model-cache-released',on.cache.heldCount>0&&removed.cache.entryCount===0&&removed.cache.heldCount===0&&cache.entryCount===0&&cache.heldCount===0?[]:['Private model cache did not hold/release the expected leases'],{loaded:on.cache,removed:removed.cache,final:cache})
+        if(content){
+          await set(content,'text');const restoredSaved=await api('saved')
           const values=JSON.parse(restoredSaved).values
           check('typography-saved-restored',JSON.stringify(values)===JSON.stringify(result.typographySaved)?[]:['Text/font or saved source settings changed'])
           const textSample=async name=>{await freshRuntime(restoredSaved,name);await api('prepare');await api('prepare');await api('prepare');return capture(name,'breakdown',30,true,'none')}

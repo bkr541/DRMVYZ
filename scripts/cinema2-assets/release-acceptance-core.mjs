@@ -1,7 +1,7 @@
 import { inspectPixels } from './quality-review-core.mjs'
 import { coverageValid, inventoryVersion, equalSet } from './reviewed-release-inventory.mjs'
 export { inventory } from './reviewed-release-inventory.mjs'
-export const config = Object.freeze({ fixture: 'qa02-v3/sys04-review-v1', fps: 30, dpr: 1, width: 960, height: 540, quality: 'high' })
+export const config = Object.freeze({ fixture: 'qa04-v4/sys04-review-v1', fps: 30, dpr: 1, width: 960, height: 540, quality: 'high' })
 export function pixelEvidence(rgb, width, height) {
   if (!(rgb instanceof Uint8Array) || !Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width <= 0 || height <= 0 || rgb.length !== width * height * 3) throw Error('Unexpected RGB dimensions')
   const zones = Array.from({ length: 9 }, () => ({ min: 255, max: 0, chromatic: 0, lit: 0, count: 0 }))

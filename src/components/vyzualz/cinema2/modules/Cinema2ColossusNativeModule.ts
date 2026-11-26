@@ -28,6 +28,6 @@ export const cinema2ColossusNativeModuleDefinition:Readonly<Cinema2ModuleTypeDef
         slot=new Cinema2UserModelSlot(lib,asset=>bridge?.replaceUserModel(asset?{asset,node:null,preserveMaterials:true,userModel:true}:null));slot.select(performance.model)
       }catch(error){scene?.dispose();report(error);return}}
       if(bridge){bridge.setUserModelPresentation(performance.text('material-mode','original'));bridge.draw(execution,{...CINEMA2_THREE_DEFAULT_OVERRIDES,environmentIntensity:performance.n('reflection',.25)});if(bridge.ready){const bytes=bridge.estimateGpuBytes();if(bytes!==reported){reported=bytes;context.resources.reportGpuBytes(bytes)}}}
-    }}]},getDiagnostics:()=>{const snapshot=slot?.getSnapshot();return snapshot&&snapshot.status!=='ready'?[...diagnostics,{code:`CINEMA2_USER_MODEL_${snapshot.status.toUpperCase()}`,path:`module.${context.module.id}.userModel`,message:snapshot.message??'Loading the pinned private model…'}]:diagnostics},inspect:()=>({...performance.inspect(),renderReady:bridge?.ready===true,userModel:slot?.getSnapshot()})}
+    }}]},getDiagnostics:()=>{const snapshot=slot?.getSnapshot();return snapshot&&snapshot.status!=='ready'?[...diagnostics,{code:`CINEMA2_USER_MODEL_${snapshot.status.toUpperCase()}`,path:`module.${context.module.id}.userModel`,message:snapshot.message??'Loading the pinned private model…'}]:diagnostics},inspect:()=>({...performance.inspect(),renderReady:bridge?.ready===true,userModel:slot?.getSnapshot(),userModelMaterials:bridge?.inspectUserModelMaterials()})}
   },
 }

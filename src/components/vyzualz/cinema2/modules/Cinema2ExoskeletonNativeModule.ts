@@ -25,6 +25,6 @@ export const cinema2ExoskeletonNativeModuleDefinition:Readonly<Cinema2ModuleType
         const lighting=execution.lightingEnvironment
         const drawExecution=lighting&&scene?.usesOriginalImportedLighting(mode)?{...execution,lightingEnvironment:exoskeletonOriginalLighting(lighting)}:execution
         bridge.draw(drawExecution,{...CINEMA2_THREE_DEFAULT_OVERRIDES,environmentIntensity:performance.n('reflection',.25)});if(bridge.ready){const bytes=bridge.estimateGpuBytes();if(bytes!==reported){reported=bytes;context.resources.reportGpuBytes(bytes)}}}
-    }}]},getDiagnostics:()=>{const snapshot=slot?.getSnapshot();return snapshot&&snapshot.status!=='ready'?[...diagnostics,{code:`CINEMA2_USER_MODEL_${snapshot.status.toUpperCase()}`,path:`module.${context.module.id}.userModel`,message:snapshot.message??'Loading the pinned private model…'}]:diagnostics},inspect:()=>({...performance.inspect(),renderReady:bridge?.ready===true,userModel:slot?.getSnapshot()})}
+    }}]},getDiagnostics:()=>{const snapshot=slot?.getSnapshot();return snapshot&&snapshot.status!=='ready'?[...diagnostics,{code:`CINEMA2_USER_MODEL_${snapshot.status.toUpperCase()}`,path:`module.${context.module.id}.userModel`,message:snapshot.message??'Loading the pinned private model…'}]:diagnostics},inspect:()=>({...performance.inspect(),renderReady:bridge?.ready===true,userModel:slot?.getSnapshot(),userModelMaterials:bridge?.inspectUserModelMaterials()})}
   },
 }
