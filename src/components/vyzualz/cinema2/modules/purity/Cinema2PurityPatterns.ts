@@ -24,7 +24,7 @@ export class PuritySelection {
     const rebase = input.reset || this.revision !== input.editRevision
     const authorityChanged = this.auto !== input.auto
     const base = this.base.update({ authoredPattern: input.authored, patternChange: input.enabled, trigger: input.trigger,
-      triggerEventId: input.playing ? input.event : null, absoluteBeat: input.beats, reset: rebase }).activePattern
+      triggerEventId: input.playing ? input.event : null, absoluteBeat: input.beats, reset: input.reset, reselect: rebase && !input.reset }).activePattern
     if (rebase || authorityChanged || !input.auto) this.override = null
     if (this.override && (input.timeSec >= this.override.until || (this.override.kind === 'build' && !input.buildEvent))) this.override = null
     if (!rebase && !authorityChanged && input.auto && input.playing) {

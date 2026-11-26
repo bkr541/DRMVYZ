@@ -1,3 +1,4 @@
+import { Cinema2PatternEventLatch } from '../../conductor/Cinema2PatternEventLatch'
 import {
   CINEMA2_AFTERHOURS_TRIGGER_IDS,
   resolveCinema2AfterhoursTriggerEventIdentity,
@@ -29,7 +30,10 @@ export interface Cinema2MainframePatternControllerInput<Pattern extends string =
   readonly trigger: Cinema2MainframeTriggerId
   readonly triggerEventId: string | null
   readonly absoluteBeat: number
+  /** Source/seek reset: clears event history. */
   readonly reset?: boolean
+  /** Explicit re-selection (including the same saved value): keep observed event identities. */
+  readonly reselect?: boolean
 }
 
 /** Fisher-Yates with engine-owned indexed samples: stable per activation and independent of frame consumption. */
@@ -65,7 +69,8 @@ export class Cinema2MainframePatternController<Pattern extends string = Cinema2M
   private patternChange: boolean | null = null
   private trigger: Cinema2MainframeTriggerId | null = null
   private patternStartBeat = 0
-  private lastTriggerEventId: string | null = null
+  // At most one observed identity per canonical trigger. A null frame is not a new event.
+  private readonly events = new Cinema2PatternEventLatch<Cinema2MainframeTriggerId>()
 
   constructor(
     private readonly cycle: readonly Pattern[],
@@ -79,28 +84,26 @@ export class Cinema2MainframePatternController<Pattern extends string = Cinema2M
     const authoredChanged = this.authoredPattern != null && input.authoredPattern !== this.authoredPattern
     const toggled = this.patternChange != null && input.patternChange !== this.patternChange
     const triggerChanged = this.trigger != null && input.trigger !== this.trigger
+    if (input.reset) this.events.reset()
+    const fresh = this.events.observe(input.trigger, input.triggerEventId)
     let changed = false
 
-    if (input.reset || authoredChanged || toggled || this.authoredPattern == null) {
+    if (input.reset || input.reselect || authoredChanged || toggled || this.authoredPattern == null) {
       changed = this.activePattern !== input.authoredPattern || authoredChanged || toggled
       this.activePattern = input.authoredPattern
-      this.patternStartBeat = this.authoredPattern == null && !input.reset ? 0 : absoluteBeat
+      this.patternStartBeat = this.authoredPattern == null && !input.reset && !input.reselect ? 0 : absoluteBeat
       // Do not consume an event already present on the edit/toggle/trigger/reset frame.
-      this.lastTriggerEventId = input.triggerEventId
     } else if (triggerChanged) {
       // Changing trigger authority must not change the currently visible pattern.
-      this.lastTriggerEventId = input.triggerEventId
     } else if (!input.patternChange) {
       if (this.activePattern !== input.authoredPattern) {
         this.activePattern = input.authoredPattern
         this.patternStartBeat = absoluteBeat
         changed = true
       }
-      this.lastTriggerEventId = input.triggerEventId
-    } else if (input.triggerEventId && input.triggerEventId !== this.lastTriggerEventId) {
+    } else if (fresh) {
       this.activePattern = nextCinema2MainframePattern(this.cycle, this.activePattern)
       this.patternStartBeat = absoluteBeat
-      this.lastTriggerEventId = input.triggerEventId
       changed = true
     }
 
@@ -115,7 +118,7 @@ export class Cinema2MainframePatternController<Pattern extends string = Cinema2M
     this.patternChange = null
     this.trigger = null
     this.patternStartBeat = 0
-    this.lastTriggerEventId = null
+    this.events.reset()
   }
 }
 

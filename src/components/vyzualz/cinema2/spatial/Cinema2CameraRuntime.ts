@@ -235,30 +235,33 @@ export class Cinema2CameraRuntime {
     const motionDeltaTimeSec = motionActive ? frame.deltaTimeSec : 0
     const safety = resolveSafety(camera)
     const motionSafety = resolveMotionSafety(camera.controls, this.parameters)
-    const tempoState = motion?.tempo ? this.advanceTempo(camera, motion.tempo, frame) : null
+    const motionPermission = (motionEnabled ? 1 : 0) * masterAmount * motionSafety.motionScale
+    const hardMotionOff = motionPermission === 0
+    const tempoState = motion?.tempo ? this.advanceTempo(camera, motion.tempo, frame, hardMotionOff) : null
     const authoredTimeSec = tempoState ? this.flightTimeSec : frame.elapsedTimeSec
-    const motionTimeSec = authoredTimeSec * motionSafety.travelScale
+    const motionTimeSec = hardMotionOff ? 0 : authoredTimeSec * motionSafety.travelScale
     let pose = this.resolveBaseRig(camera, frame, motionTimeSec)
-    pose = applyAuthoredTransition(camera, pose, frame.elapsedTimeSec * motionSafety.travelScale)
+    pose = applyAuthoredTransition(camera, pose, hardMotionOff ? 0 : frame.elapsedTimeSec * motionSafety.travelScale)
     const safetyReference = clonePose(pose)
     pose = this.applyUserControls(camera, pose, safety)
     const userPose = pose
-    pose = blendPose(userPose, this.applyTargetContributions(userPose), motionEnabled ? motionSafety.motionScale * masterAmount : 0)
+    pose = blendPose(userPose, this.applyTargetContributions(userPose), motionPermission)
     const basePosition = pose.position
-    const motionAmount = clamp(finite(this.readControl(camera.controls, 'motionAmount') ?? undefined, 1), 0, 2) * motionSafety.motionScale * masterAmount * (motionEnabled ? 1 : 0)
+    const motionAmount = clamp(finite(this.readControl(camera.controls, 'motionAmount') ?? undefined, 1), 0, 2) * motionPermission
     if (motion?.drift) pose = applyDrift(pose, motion.drift, motionTimeSec, motionAmount)
-    // A bound Zoom on Kick toggle owns the kick zoom outright (full strength when on, none when off), independent of the motion amount.
+    // A bound Zoom on Kick toggle is independent of the sway amount, not the hard motion permission.
     const kickZoom = camera.controls?.kickZoom
-      ? (readToggleControl(camera.controls, 'kickZoom', this.parameters) ? motionSafety.motionScale : 0)
+      ? (readToggleControl(camera.controls, 'kickZoom', this.parameters) ? motionPermission : 0)
       : motionAmount
     if (motion?.tempo && tempoState) pose = applyTempoSway(pose, motion.tempo, tempoState.beats, this.punchEnvelope, motionAmount, kickZoom)
     if (motion?.orbit?.center) {
-      const enabled = !camera.controls?.orbitMotionEnabled || readToggleControl(camera.controls, 'orbitMotionEnabled', this.parameters)
+      const enabled = !hardMotionOff && (!camera.controls?.orbitMotionEnabled || readToggleControl(camera.controls, 'orbitMotionEnabled', this.parameters))
       const beat = tempoState?.beats ?? 0
       const delta = this.lastOrbitBeat == null ? 0 : Math.max(0, beat - this.lastOrbitBeat)
       this.lastOrbitBeat = beat
       if (enabled) {
-        if (motionActive) this.orbitAngle = (this.orbitAngle + (motion.orbit.beatsPerRevolution
+        const travel = motionSafety.travelScale * masterAmount * clamp(this.readControl(camera.controls, 'orbitMotionSpeed') ?? 1, 0, 1)
+        if (motionActive) this.orbitAngle = (this.orbitAngle + travel * (motion.orbit.beatsPerRevolution
           ? delta * Math.PI * 2 / motion.orbit.beatsPerRevolution
           : motionDeltaTimeSec * motion.orbit.angularSpeedDegreesPerSecond * Math.PI / 180)) % (Math.PI * 2)
         const center = motion.orbit.center
@@ -286,17 +289,22 @@ export class Cinema2CameraRuntime {
     }
     const safe = clampPose(pose, safety, safetyReference)
     const smoothingMs = resolveSmoothingMs(camera, this.parameters)
-    let smoothed = controlled && motionAmount === 0 ? safe.pose
+    let smoothed = hardMotionOff || (controlled && motionAmount === 0) || (!motionActive && controlsChanged) ? safe.pose
       : !motionActive && this.previousPose && !controlsChanged ? clonePose(this.previousPose)
       : this.previousPose && smoothingMs > 0
         ? smoothPose(this.previousPose, safe.pose, motionDeltaTimeSec, smoothingMs)
         : safe.pose
-    if (motionActive && motion?.fovRateLimitDegreesPerSecond != null && this.previousPose) {
+    if (!hardMotionOff && motionActive && motion?.fovRateLimitDegreesPerSecond != null && this.previousPose) {
       smoothed = { ...smoothed, fovDegrees: limitRate(this.previousPose.fovDegrees, smoothed.fovDegrees, motion.fovRateLimitDegreesPerSecond, motionDeltaTimeSec) }
     }
     const finalSafety = clampPose(smoothed, safety, safetyReference)
     this.previousPose = clonePose(finalSafety.pose)
-    const bank = motion?.bank ? (motionActive ? this.updateBank(motion.bank, basePosition, motionDeltaTimeSec, motionAmount) : this.bankDegrees) : 0
+    if (hardMotionOff) {
+      this.bankDegrees = 0
+      this.previousBasePosition = null
+      this.previousHeadingDegrees = null
+    }
+    const bank = !hardMotionOff && motion?.bank ? (motionActive ? this.updateBank(motion.bank, basePosition, motionDeltaTimeSec, motionAmount) : this.bankDegrees) : 0
     const rollDegrees = clamp(finalSafety.pose.rollDegrees + bank, -MAX_ROLL_DEGREES, MAX_ROLL_DEGREES)
 
     const viewMatrix = createLookAtMatrix(finalSafety.pose.position, finalSafety.pose.target, rollDegrees)
@@ -349,6 +357,7 @@ export class Cinema2CameraRuntime {
     camera: Readonly<Cinema2CameraManifest>,
     tempo: Readonly<Cinema2CameraTempoManifest>,
     frame: Readonly<Cinema2ModuleFrameReadContext>,
+    hardMotionOff: boolean,
   ): { beats: number; locked: boolean } {
     const frameDt = Number.isFinite(frame.deltaTimeSec) ? clamp(frame.deltaTimeSec, 0, 0.25) : 0
     // Rendering may continue while transport animation is paused. Keep the authored camera clock and impact envelope frozen so resume is seamless.
@@ -359,7 +368,7 @@ export class Cinema2CameraRuntime {
     // Hard-gated motion is opt-in. Legacy cameras keep their independent kick envelope/flight clock
     // even when their general motion amount is zero (Zoom on Kick has its own authority).
     const hardGated = camera.controls?.motionEnabled != null || camera.controls?.masterMotionAmount != null
-    const dt = motionActive && (!hardGated || (enabled && amount > 0 && master > 0)) ? frameDt : 0
+    const dt = !hardMotionOff && motionActive && (!hardGated || (enabled && amount > 0 && master > 0)) ? frameDt : 0
     const referenceBpm = clamp(finite(tempo.referenceBpm, 120), 40, 240)
     const syncControl = readToggleControl(camera.controls, 'tempoSync', this.parameters)
     const bpm = resolveCinema2EffectiveBpm(frame)
@@ -381,18 +390,18 @@ export class Cinema2CameraRuntime {
       this.flightTimeSec += dt * this.flightRate * clamp(this.readControl(camera.controls, 'motionSpeed') ?? 1, 0, 4)
     }
 
-    this.punchEnvelope *= Math.exp(-dt / 0.22)
+    this.punchEnvelope = hardMotionOff ? 0 : this.punchEnvelope * Math.exp(-dt / 0.22)
     this.sinceKickSec += dt
     const kick = frame.audio?.rhythm.kick
     if (kick && kick.id !== this.lastKickId) {
       this.lastKickId = kick.id
       this.sinceKickSec = 0
-      this.punchEnvelope = Math.max(this.punchEnvelope, clamp(finite(kick.strength, 0), 0, 1))
+      if (motionActive && !hardMotionOff) this.punchEnvelope = Math.max(this.punchEnvelope, clamp(finite(kick.strength, 0), 0, 1))
     }
     // With a Zoom on Kick toggle bound, the zoom must not depend on catching a one-frame kick flag: when no kick event has arrived for a
     // while but a track with a tempo is playing, punch on each beat of the beat clock instead (a four-on-the-floor kick lands there anyway).
     const wholeBeat = Math.floor(beats)
-    if (camera.controls?.kickZoom && bpm != null && this.sinceKickSec > KICK_FALLBACK_SEC && this.lastPunchBeat !== null && wholeBeat !== this.lastPunchBeat) {
+    if (motionActive && !hardMotionOff && camera.controls?.kickZoom && bpm != null && this.sinceKickSec > KICK_FALLBACK_SEC && this.lastPunchBeat !== null && wholeBeat !== this.lastPunchBeat) {
       this.punchEnvelope = Math.max(this.punchEnvelope, 0.85)
     }
     this.lastPunchBeat = wholeBeat
@@ -493,7 +502,7 @@ export class Cinema2CameraRuntime {
     if (rig.kind === 'orbit') {
       const radius = positive(this.readControl(camera.controls, 'orbitRadius') ?? undefined, positive(rig.radius, distance(authoredPosition, authoredTarget) || 5))
       const azimuth = finite(this.readControl(camera.controls, 'orbitAzimuthDegrees') ?? undefined, finite(rig.azimuthDegrees, 0))
-        + finite(rig.angularVelocityDegreesPerSecond, 0) * Math.max(0, camera.controls?.rigMode ? pathTimeSec : frame.elapsedTimeSec)
+        + finite(rig.angularVelocityDegreesPerSecond, 0) * Math.max(0, camera.controls?.rigMode || camera.controls?.motionEnabled || camera.controls?.motionSafety || camera.controls?.masterMotionAmount ? pathTimeSec : frame.elapsedTimeSec)
       const elevation = clamp(finite(this.readControl(camera.controls, 'orbitElevationDegrees') ?? undefined, finite(rig.elevationDegrees, 15)), -89.9, 89.9)
       const azimuthRad = degreesToRadians(azimuth)
       const elevationRad = degreesToRadians(elevation)

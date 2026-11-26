@@ -458,7 +458,7 @@ export interface Cinema2CameraControlBindingsManifest {
   tempoSync?: Cinema2ParameterRef
   /**
    * Turns the kick zoom (`motion.tempo.punch`) on or off (a toggle or a number above 0.5). When bound, the zoom no longer scales with
-   * `motionAmount`, so it still fires with the rest of the motion switched off. Unbound, the punch scales with `motionAmount` as before.
+   * `motionAmount`, but still respects the hard `motionEnabled` toggle, master gain and motion safety. Unbound, the punch scales with `motionAmount` as before.
    * Requires `motion.tempo`.
    */
   kickZoom?: Cinema2ParameterRef

@@ -55,7 +55,7 @@ export class Cinema2HoneyOrchestration {
     const fresh=event!==null&&event!==this.observedEvents.get(controls.trigger)
     if(event)this.observedEvents.set(controls.trigger,event)
     const silentHold=!reset&&!patternEdited&&authored===this.authored&&auto&&controls.automatic&&!controls.patternChange&&(frame.mood?.silence??0)>=.5
-    const selected=silentHold?null:this.controller.update({authoredPattern:authored,patternChange:controls.patternChange,trigger:controls.trigger,triggerEventId:fresh&&this.wasActive?event:null,absoluteBeat:beat,reset:reset||autoReleased||patternEdited})
+    const selected=silentHold?null:this.controller.update({authoredPattern:authored,patternChange:controls.patternChange,trigger:controls.trigger,triggerEventId:fresh&&this.wasActive?event:null,absoluteBeat:beat,reset,reselect:autoReleased||patternEdited})
     if(selected&&selected.activePattern!==this.activePattern){this.snapshot=this.states.map(s=>s.current);this.transitionBeat=beat;this.transitionLength=[.5,1,2,4].includes(Number(k.transition))?Number(k.transition):1;this.phase=0;this.activePattern=selected.activePattern}
     if(active&&this.lastBeat!=null)this.phase+=Math.max(0,Math.min(1,beat-this.lastBeat))*k.rate
     const raw=parameters.get('audioReactivity'),reactivity=typeof raw==='number'&&Number.isFinite(raw)?Math.max(0,Math.min(1,raw)):HONEY_AUDIO_REACTIVITY

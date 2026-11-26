@@ -179,6 +179,7 @@ export function createCinema2SayItNativeModuleDefinition(options: {
           ? context.randomness.sample('say-it-pattern-cycle', index)
           : ((index + 1) * 0.38196601125) % 1),
       )
+      let patternEditRevision: number | null = null
       let triggerPreviousTimeSec: number | null = null
       let triggerPreviousBeat: number | null = null
       let triggerSourceIdentity: string | null = null
@@ -437,6 +438,9 @@ export function createCinema2SayItNativeModuleDefinition(options: {
             const triggerEventId = triggerReset ? null : resolveSayItTriggerEventIdentity(
               frame, trigger, triggerPreviousTimeSec, triggerPreviousBeat, beatState.beats,
             )
+            const revision = parameters.getEditRevision?.('pattern') ?? 0
+            const reselect = patternEditRevision !== null && revision !== patternEditRevision
+            patternEditRevision = revision
             const patternSelection = patternController.update({
               authoredPattern,
               patternChange,
@@ -444,6 +448,7 @@ export function createCinema2SayItNativeModuleDefinition(options: {
               triggerEventId,
               absoluteBeat: beatState.beats,
               reset: triggerReset,
+              reselect,
             })
             const roughness = readNumber(parameters.get('roughness'), 0.04, 1) ?? 0.16
             const environmentIntensity = readNumber(parameters.get('environmentIntensity'), 0, 4) ?? 1.25

@@ -93,7 +93,7 @@ export class Cinema2WireframePortalController {
     const selected = this.selection.update({
       authoredPattern: authored, patternChange: controls.patternChange, trigger: controls.trigger,
       triggerEventId: controls.trigger === 'drop' ? drop : resolveCinema2MainframeTriggerEventIdentity(frame, controls.trigger, this.previousTime, drop, { previousBeat: this.previousTriggerBeat, current: triggerTiming }),
-      absoluteBeat: this.beats, reset: reset || edited,
+      absoluteBeat: this.beats, reset, reselect: edited,
     })
     const performing = this.performance.update({
       enabled: auto, absoluteBeat: this.beats, buildCharge: frame.mood?.silence && frame.mood.silence > .5 ? 0 : frame.director?.context.build.available ? frame.director.context.build.value ?? 0 : 0,

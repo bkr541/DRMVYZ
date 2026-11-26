@@ -55,7 +55,7 @@ export class ColossusPerformance {
     // Keep the current effective pose through silence or pause, unless a user changes authority or a fresh drop arrives.
     const hold=(silence||frame.transport?.paused===true)&&!manual&&!reset&&!drop
     if(!hold){
-      this.basePattern=this.controller.update({authoredPattern:authored,patternChange:controls.patternChange,trigger:controls.trigger,absoluteBeat:beat,reset:reset||changed,triggerEventId:event}).activePattern
+      this.basePattern=this.controller.update({authoredPattern:authored,patternChange:controls.patternChange,trigger:controls.trigger,absoluteBeat:beat,reset,reselect:changed,triggerEventId:event}).activePattern
       const override=this.auto.update({enabled:automatic,absoluteBeat:beat,buildCharge:silence?0:this.n('build',0),dropEventId:drop,patternEdited:changed,reset,mood:frame.mood,deltaTimeSec:delta,basePattern:this.basePattern,patternChange:controls.patternChange,seed:identity})
       const next=override.pattern??this.basePattern
       if(next!==this.pattern){this.previousPattern=this.pattern;this.pattern=next;this.patternBlend=manual||reset?1:0}

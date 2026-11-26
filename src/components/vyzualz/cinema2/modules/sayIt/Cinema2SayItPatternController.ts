@@ -1,3 +1,4 @@
+import { Cinema2PatternEventLatch } from '../../conductor/Cinema2PatternEventLatch'
 import type { Cinema2AfterhoursTriggerId } from '../Cinema2AfterhoursNativeModule'
 
 export const CINEMA2_SAY_IT_PATTERN_IDS = Object.freeze([
@@ -40,7 +41,7 @@ export class Cinema2SayItPatternController {
   private patternChange: boolean | null = null
   private trigger: Cinema2SayItTriggerId | null = null
   private patternStartBeat = 0
-  private lastTriggerEventId: string | null = null
+  private readonly events = new Cinema2PatternEventLatch<Cinema2SayItTriggerId>()
 
   constructor(
     private readonly cycle: readonly Cinema2SayItPatternId[],
@@ -56,31 +57,31 @@ export class Cinema2SayItPatternController {
     triggerEventId: string | null
     absoluteBeat: number
     reset?: boolean
+    reselect?: boolean
   }>): Readonly<Cinema2SayItPatternSelection> {
     const absoluteBeat = Number.isFinite(input.absoluteBeat) ? Math.max(0, input.absoluteBeat) : 0
     const authoredChanged = this.authoredPattern != null && input.authoredPattern !== this.authoredPattern
     const toggled = this.patternChange != null && input.patternChange !== this.patternChange
     const triggerChanged = this.trigger != null && input.trigger !== this.trigger
+    if (input.reset) this.events.reset()
+    const fresh = this.events.observe(input.trigger, input.triggerEventId)
     let changed = false
 
-    if (input.reset || authoredChanged || toggled || this.authoredPattern == null) {
+    if (input.reset || input.reselect || authoredChanged || toggled || this.authoredPattern == null) {
       changed = this.activePattern !== input.authoredPattern || authoredChanged || toggled
       this.activePattern = input.authoredPattern
       this.patternStartBeat = absoluteBeat
-      this.lastTriggerEventId = input.triggerEventId
     } else if (triggerChanged) {
-      this.lastTriggerEventId = input.triggerEventId
+      // Observe the boundary without advancing the currently visible pattern.
     } else if (!input.patternChange) {
       if (this.activePattern !== input.authoredPattern) {
         this.activePattern = input.authoredPattern
         this.patternStartBeat = absoluteBeat
         changed = true
       }
-      this.lastTriggerEventId = input.triggerEventId
-    } else if (input.triggerEventId && input.triggerEventId !== this.lastTriggerEventId) {
+    } else if (fresh) {
       this.activePattern = nextPattern(this.cycle, this.activePattern)
       this.patternStartBeat = absoluteBeat
-      this.lastTriggerEventId = input.triggerEventId
       changed = true
     }
 
