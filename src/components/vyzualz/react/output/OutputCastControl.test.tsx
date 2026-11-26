@@ -168,9 +168,13 @@ describe('OutputCastControl', () => {
     const session: OutputCastSession = { id: 'preview-session', targetId: 'display:2', targetName: 'Stage Screen',
       windowMode: 'fullscreen', aspectRatio: '16:9', state: 'connecting', error: null }
     expect(container.querySelector('[aria-label="Show cast preview"]')).toBeNull()
+    expect(container.querySelector('.rv-cast-trigger')?.classList.contains('is-active')).toBe(false)
     await act(async () => { sessionChanged?.(session) })
+    expect(container.querySelector('.rv-cast-trigger')?.classList.contains('is-active')).toBe(false)
     expect(container.querySelector('[aria-label="Show cast preview"]')).toBeNull()
     await act(async () => { sessionChanged?.({ ...session, state: 'connected' }) })
+    expect(container.querySelector('.rv-cast-trigger')?.classList.contains('is-active')).toBe(true)
+    expect(container.querySelector('.rv-cast-live-dot')).not.toBeNull()
     const trigger = container.querySelector<HTMLButtonElement>('[aria-label="Show cast preview"]')!
     expect(trigger.previousElementSibling?.getAttribute('aria-label')).toBe('Output casting to Stage Screen')
     expect(trigger.getAttribute('aria-pressed')).toBe('false')
@@ -184,6 +188,7 @@ describe('OutputCastControl', () => {
     await act(async () => { sessionChanged?.(null) })
     expect(document.querySelector('[aria-label="Current cast visual"]')).toBeNull()
     expect(trigger.isConnected).toBe(false)
+    expect(container.querySelector('.rv-cast-trigger')?.classList.contains('is-active')).toBe(false)
     await act(async () => { sessionChanged?.({ ...session, state: 'connected' }) })
     expect(container.querySelector('[aria-label="Show cast preview"]')).not.toBeNull()
     expect(document.querySelector('[aria-label="Current cast visual"]')).toBeNull()
@@ -297,7 +302,10 @@ describe('OutputCastControl', () => {
     bridge.copyWebCastCode = nativeCopy
     const open = vi.spyOn(window, 'open').mockReturnValue(null)
     await act(async () => root.render(<OutputCastControl canvas={canvas} />))
-    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="STAGELESS Cast session active"]')!.click())
+    const pairingTrigger = container.querySelector<HTMLButtonElement>('[aria-label="STAGELESS Cast session active"]')!
+    expect(pairingTrigger.classList.contains('is-active')).toBe(false)
+    expect(pairingTrigger.querySelector('.rv-cast-live-dot')).toBeNull()
+    await act(async () => pairingTrigger.click())
     const action = (label: string) => document.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!
     const revealedLink = () => document.querySelector<HTMLInputElement>('[aria-label="Secure cast link"]')
     expect(document.querySelectorAll('.rv-webcast-session-actions button')).toHaveLength(3)

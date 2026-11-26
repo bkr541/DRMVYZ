@@ -94,6 +94,14 @@ export function filterLaserDmxBeamMatrixPresets(
   })
 }
 
+/** Shared guard for card and Visual Search activation. Read live state at click time. */
+export function requiresBeamMatrixPresetConfirmation(presetId: string): boolean {
+  const state = useReactStore.getState()
+  return state.laserDmxBeamMatrix.beams.length > 0
+    && state.activeLaserDmxBeamMatrixPresetId !== presetId
+    && resolveLaserDmxBeamMatrixPresetProvenance(state.laserDmxBeamMatrix, state.activeLaserDmxBeamMatrixPresetId).status === 'modified'
+}
+
 /**
  * `presetFilter` narrows the library to the presets belonging under the Presets tab's SYSTEM or USER sub-tab.
  * `showFilters={false}` drops the category chips, the tag drawer and the Prev / Next bar, leaving the search and the card grid: the Presets tab
@@ -159,14 +167,7 @@ export function LaserDmxBeamMatrixPresetBrowser({ externalQuery, presetFilter, s
     : -1
 
   function handleApply(presetId: string) {
-    const hasContent = laserDmxBeamMatrix.beams.length > 0
-    const replacesModifiedPreset = hasContent
-      && activePresetProvenance.status === 'modified'
-      && activeLaserDmxBeamMatrixPresetId !== presetId
-    if (replacesModifiedPreset) {
-      setPendingId(presetId)
-      return
-    }
+    if (requiresBeamMatrixPresetConfirmation(presetId)) { setPendingId(presetId); return }
     applyLaserDmxBeamMatrixPreset(presetId)
   }
 

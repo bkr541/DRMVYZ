@@ -12,6 +12,7 @@ import { readReactPresetFavorites } from '../reactPresetLibraryState'
 import { DreamVizTextInput } from '../controls/DreamVizTextInput'
 import { IconChipButton } from '../controls/IconChipButton'
 import { PresetSearchRow } from '../controls/PresetSearchRow'
+import { VisualPresetSearch } from '../controls/VisualPresetSearch'
 import {
   appliedFilters, DEFAULT_FILTERS, getFilterGroups, getStudyMatchingValues, getStudyMatchParts,
   matchesPreset, searchStudyPresets, toggleValue, type Facet, type FilterGroup, type FilterPreset, type Filters,
@@ -212,7 +213,9 @@ function AlternativePreview({ study, records }: { study: Study; records: readonl
       </div>
       <div className="ll-pf-scroll">
         <div className="ll-pf-controls">
-          <div ref={anchor} className="ll-pf-smart-anchor" onKeyDown={event => {
+          {study.id === 'visual-search' ? <VisualPresetSearch query={query} scope={scope} records={scoped} selectedId={selected}
+            onQueryChange={changeQuery} onScopeChange={changeScope} ariaLabel="Visual Search presets"
+            onSelect={preset => { selectChoice({ kind: 'preset', key: `preset:${preset.id}`, preset }) }} /> : <div ref={anchor} className="ll-pf-smart-anchor" onKeyDown={event => {
             if (event.key === 'Escape' && showPopup) { event.preventDefault(); event.stopPropagation(); isFilter ? closeFilter() : close() }
           }}>
             {isFilter ? <PresetSearchRow query={query} onQueryChange={changeQuery} trailing={
@@ -244,13 +247,13 @@ function AlternativePreview({ study, records }: { study: Study; records: readonl
                 <div className="ll-pf-smart-summary">{searched.length} {searched.length === 1 ? 'match' : 'matches'}</div>
                 <div id={popupId} role="listbox" aria-label="Matching presets and filters" className="ll-pf-smart-options">
                   {sections.map(section => <div key={section.label} role="group" aria-label={section.label} className="ll-pfp-result-group">
-                    {study.id !== 'visual-search' && <div className="ll-pfp-section-label">{section.label}</div>}
+                    <div className="ll-pfp-section-label">{section.label}</div>
                     {section.choices.map(renderChoice)}
                   </div>)}
                 </div>
                 {!choices.length && <p className="ll-pf-smart-no-results">No matching presets.</p>}
               </div>)}
-          </div>
+          </div>}
         </div>
         <div className="ll-pf-results-bar"><span role="status">{visible.length} {visible.length === 1 ? 'preset' : 'presets'}</span></div>
         {visible.length ? <div className="rv-preset-group-cards rv-preset-group-cards--poster" data-preset-grid data-preset-columns="2">

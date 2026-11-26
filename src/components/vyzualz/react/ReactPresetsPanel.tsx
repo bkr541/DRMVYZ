@@ -20,8 +20,8 @@ import {
 import { ReactPresetThumbnail } from './ReactPresetThumbnail'
 import { Badge } from './controls/Badge'
 import { TagPill } from './controls/TagPill'
-import { PresetSearchRow } from './controls/PresetSearchRow'
-import { PanelSubtabs } from './PanelSubtabs'
+import { VisualPresetSearch } from './controls/VisualPresetSearch'
+import { useVisualPresetSearch } from './controls/useVisualPresetSearch'
 import {
   ReactPresetCard,
   type ReactPresetCardChip,
@@ -40,7 +40,8 @@ import {
   readLaserDmxShowDirectorPerformanceFavorites,
   writeLaserDmxShowDirectorPerformanceFavorites,
 } from './LaserDmxShowDirectorPerformancePresets'
-import { LaserDmxBeamMatrixPresetBrowser } from './LaserDmxBeamMatrixPresetBrowser'
+import { LaserDmxBeamMatrixPresetBrowser, requiresBeamMatrixPresetConfirmation } from './LaserDmxBeamMatrixPresetBrowser'
+import { ConfirmDialog } from './controls/ConfirmDialog'
 import { LASER_DMX_BEAM_MATRIX_PRESETS } from './laserDmxBeamMatrixPresets'
 import { useBrandKitStore } from '../../../features/personalization/brandKitStore'
 import { resolveBrandedReactPreset } from '../../../features/personalization/resolveBrandedReactPreset'
@@ -59,7 +60,7 @@ import {
 } from './reactPresetLibraryState'
 import { usePresetScopeFilter } from '../../../features/presetCatalog/presetCatalogStore'
 import type { PresetScopeTab } from '../../../features/presetCatalog/presetScope'
-import { presetMatchesDiscoveryQuery, resolvePresetDiscoveryMetadata } from './presetDiscovery'
+import { resolvePresetDiscoveryMetadata } from './presetDiscovery'
 
 // Clean Playback is the implicit base look CANVAS always starts on (see
 // selectReactEngine), not a preset the user picks — so it is never carded in
@@ -352,12 +353,7 @@ function CanvasPresetCollection({ thumbnailGenerationKey, query, scope, inScope 
     () => `${thumbnailGenerationKey}:canvas:${CANVAS_TAB_PRESETS.map(item => item.id).join('|')}`,
     [thumbnailGenerationKey],
   )
-  const visibleCanvasPresets = CANVAS_TAB_PRESETS.filter(canvasPreset =>
-    inScope(canvasPreset.id) && presetMatchesDiscoveryQuery(query, {
-      ...canvasPreset,
-      ...resolvePresetDiscoveryMetadata(canvasPreset, canvasPreset.rendererKind),
-    }),
-  )
+  const visibleCanvasPresets = CANVAS_TAB_PRESETS.filter(canvasPreset => inScope(canvasPreset.id))
 
   return (
     <div className="rv-preset-group-cards rv-preset-group-cards--current rv-preset-group-cards--poster" data-preset-grid data-preset-columns="2">
@@ -413,19 +409,12 @@ function getShowDirectorTemplateChips(template: LaserDmxShowDirectorTemplate): R
 }
 
 /** The Performance Show and Rig Layout cards that match the search and the SYSTEM / USER sub-tab. */
-function getVisibleShowDirectorPerformanceShows(query: string, inScope: (presetKey: string) => boolean) {
-  return LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.filter(preset => inScope(preset.id) && presetMatchesDiscoveryQuery(query, {
-    ...preset,
-    ...resolvePresetDiscoveryMetadata(
-      {},
-      'performance-show',
-      [...preset.genreTags, ...preset.behaviorTags, ...preset.musicIntelligenceCapabilities],
-    ),
-  }))
+function getVisibleShowDirectorPerformanceShows(inScope: (presetKey: string) => boolean) {
+  return LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.filter(preset => inScope(preset.id))
 }
 
-function getVisibleShowDirectorRigLayouts(query: string, inScope: (presetKey: string) => boolean) {
-  return LASER_DMX_SHOW_DIRECTOR_TEMPLATES.filter(template => inScope(template.id) && presetMatchesDiscoveryQuery(query, template))
+function getVisibleShowDirectorRigLayouts(inScope: (presetKey: string) => boolean) {
+  return LASER_DMX_SHOW_DIRECTOR_TEMPLATES.filter(template => inScope(template.id))
 }
 
 function ShowDirectorPerformanceCards({ presets }: { presets: readonly (typeof LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS)[number][] }) {
@@ -539,8 +528,8 @@ function ShowDirectorRigLayoutCards({ templates }: { templates: readonly LaserDm
 
 /** Show Director mode: Performance Shows, then Rig Layouts, in one flat grid with no headings. */
 function ShowDirectorPresetGrid({ query, scope, inScope }: { query: string; scope: PresetScopeTab; inScope: (presetKey: string) => boolean }) {
-  const performanceShows = getVisibleShowDirectorPerformanceShows(query, inScope)
-  const rigLayouts = getVisibleShowDirectorRigLayouts(query, inScope)
+  const performanceShows = getVisibleShowDirectorPerformanceShows(inScope)
+  const rigLayouts = getVisibleShowDirectorRigLayouts(inScope)
   return (
     <div className="rv-preset-group-cards rv-preset-group-cards--current rv-preset-group-cards--poster" data-preset-grid data-preset-columns="2">
       <ShowDirectorPerformanceCards presets={performanceShows} />
@@ -550,8 +539,8 @@ function ShowDirectorPresetGrid({ query, scope, inScope }: { query: string; scop
   )
 }
 
-function BeamMatrixRuntimePresets({ query, inScope }: { query: string; inScope: (presetKey: string) => boolean }) {
-  return <LaserDmxBeamMatrixPresetBrowser externalQuery={query} presetFilter={inScope} showFilters={false} />
+function BeamMatrixRuntimePresets({ inScope }: { inScope: (presetKey: string) => boolean }) {
+  return <LaserDmxBeamMatrixPresetBrowser externalQuery="" presetFilter={inScope} showFilters={false} />
 }
 
 export function ReactPresetsPanel() {
@@ -588,8 +577,8 @@ export function ReactPresetsPanel() {
     selectReactPreset: state.selectReactPreset,
   })))
   const [favoritePresetIds, setFavoritePresetIds] = useState<string[]>(readReactPresetFavorites)
-  const [presetQuery, setPresetQuery] = useState('')
   const [presetScope, setPresetScope] = useState<PresetScopeTab>('system')
+  const [pendingBeamPresetId, setPendingBeamPresetId] = useState<string | null>(null)
   const inScope = usePresetScopeFilter(activeReactEngineId, presetScope)
 
   const displayPresets = useMemo(
@@ -619,13 +608,44 @@ export function ReactPresetsPanel() {
     () => filterReactPresetLibrary(displayPresets, activeReactEngineId, 'current', favoriteIds),
     [displayPresets, activeReactEngineId, favoriteIds],
   )
-  const filteredPresets = useMemo(
-    () => visiblePresets.filter(preset => inScope(preset.id) && presetMatchesDiscoveryQuery(presetQuery, {
-      ...preset,
-      ...reactPresetDiscoveryMetadata(preset),
-    })),
-    [visiblePresets, presetQuery, inScope],
-  )
+  const isShowDirectorLibrary = laserDmxBeamMatrixAuthoringMode === 'showDirector'
+  const searchSources = activeReactEngineId === 'canvas'
+    ? CANVAS_TAB_PRESETS.map(preset => ({ ...preset, ...resolvePresetDiscoveryMetadata(preset, preset.rendererKind) }))
+    : activeReactEngineId === 'laserDmx'
+      ? isShowDirectorLibrary
+        ? [...LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.map(preset => ({ ...preset,
+          ...resolvePresetDiscoveryMetadata(preset, 'performance-show', [...preset.genreTags, ...preset.behaviorTags, ...preset.musicIntelligenceCapabilities]) })),
+          ...LASER_DMX_SHOW_DIRECTOR_TEMPLATES]
+        : LASER_DMX_BEAM_MATRIX_PRESETS
+      : visiblePresets.map(preset => ({ ...preset, ...reactPresetDiscoveryMetadata(preset) }))
+  const searchContext = `${activeReactEngineId}:${activeReactEngineId === 'laserDmx' ? laserDmxBeamMatrixAuthoringMode : ''}`
+  const search = useVisualPresetSearch(activeReactEngineId, searchSources, presetScope, setPresetScope, inScope, searchContext, id => {
+    const state = useReactStore.getState()
+    // Use the same activation and safety rules as the existing preset cards.
+    if (activeReactEngineId === 'canvas') {
+      state.selectCanvasPreset(resolveCanvasPresetClick(id as CanvasPresetId, state.selectedCanvasPresetId))
+    } else if (activeReactEngineId === 'laserDmx') {
+      if (isShowDirectorLibrary) {
+        const show = LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.find(item => item.id === id)
+        if (show) state.applyLaserDmxShowDirectorPerformancePreset(show)
+        else if (state.applyLaserDmxShowDirectorTemplate(id)) state.setLaserDmxBeamMatrixAuthoringMode('showDirector')
+      } else if (requiresBeamMatrixPresetConfirmation(id)) setPendingBeamPresetId(id)
+      else state.applyLaserDmxBeamMatrixPreset(id)
+    } else {
+      const preset = visiblePresets.find(item => item.id === id)
+      if (!preset) return
+      if (preset.pixGridDeck) {
+        const deck = state.pixGridDecks.find(item => item.id === preset.pixGridDeck?.deckId)
+        const compiler = usePixGridDeckCompilerStore.getState()
+        if (!deck || !resolvePixGridDeckPresetReadiness(deck, compiler.statuses[deck.id], compiler.transitionStatuses[deck.id]).ready) return
+      }
+      state.selectReactPreset(id)
+    }
+  })
+  useEffect(() => { setPendingBeamPresetId(null) }, [searchContext])
+  const presetQuery = search.query
+  const matchesSearch = (id: string) => search.matchingIds.has(id)
+  const filteredPresets = visiblePresets.filter(preset => matchesSearch(preset.id))
   const activePresetProvenance = useMemo(() => resolveReactPresetProvenance({
     presets: reactPresets,
     activePresetId: activeReactPresetId,
@@ -700,18 +720,17 @@ export function ReactPresetsPanel() {
   }
 
   // LaserDMX draws from three libraries (Beam Matrix presets, Performance Shows, Rig Layouts), shown one at a time by mode, each as a flat grid.
-  const isShowDirectorLibrary = laserDmxBeamMatrixAuthoringMode === 'showDirector'
   const laserScopeIsEmpty = presetScope === 'user' && !isShowDirectorLibrary
     && !LASER_DMX_BEAM_MATRIX_PRESETS.some(preset => inScope(preset.id))
 
   const presetLibraryContent = isCanvasCurrentLibrary ? (
-    <CanvasPresetCollection thumbnailGenerationKey={thumbnailGenerationKey} query={presetQuery} scope={presetScope} inScope={inScope} />
+    <CanvasPresetCollection thumbnailGenerationKey={thumbnailGenerationKey} query={presetQuery} scope={presetScope} inScope={matchesSearch} />
   ) : isLaserDmxCurrentLibrary ? (
     isShowDirectorLibrary
-      ? <ShowDirectorPresetGrid query={presetQuery} scope={presetScope} inScope={inScope} />
+      ? <ShowDirectorPresetGrid query={presetQuery} scope={presetScope} inScope={matchesSearch} />
       : laserScopeIsEmpty
         ? <div className="rv-ctrl-info">No user presets yet.</div>
-        : <BeamMatrixRuntimePresets query={presetQuery} inScope={inScope} />
+        : <BeamMatrixRuntimePresets inScope={matchesSearch} />
   ) : filteredPresets.length === 0 ? (
     presetScope === 'user' && !presetQuery.trim() ? (
       <div className="rv-ctrl-info">No user presets yet.</div>
@@ -729,17 +748,16 @@ export function ReactPresetsPanel() {
 
   return (
     <div className="rv-presets-panel" data-preset-scope={presetScope}>
-      <PanelSubtabs
-        value={presetScope}
-        options={[{ id: 'system', label: 'SYSTEM' }, { id: 'user', label: 'USER' }]}
-        onChange={setPresetScope}
-        ariaLabel="Preset scope"
-      />
-      <PresetSearchRow
-        query={presetQuery}
-        onQueryChange={setPresetQuery}
-        ariaLabel={`Search ${activeEngine.label} presets`}
-      />
+      {pendingBeamPresetId && activeReactEngineId === 'laserDmx' && !isShowDirectorLibrary && <ConfirmDialog
+        title="Replace modified program?" message="Applying this preset will replace your unsaved Beam Matrix program changes."
+        confirmLabel="Replace" onCancel={() => setPendingBeamPresetId(null)} onConfirm={() => {
+          useReactStore.getState().applyLaserDmxBeamMatrixPreset(pendingBeamPresetId); setPendingBeamPresetId(null)
+        }} />}
+      <VisualPresetSearch key={searchContext} {...search.searchProps} ariaLabel={`Search ${activeEngine.label} presets`}
+        renderArtwork={record => {
+          const preset = activeReactEngineId === 'canvas' || activeReactEngineId === 'laserDmx' ? undefined : visiblePresets.find(item => item.id === record.id)
+          return preset ? <ReactPresetThumbnail preset={preset} generationKey={thumbnailGenerationKey} /> : undefined
+        }} />
       <div className="rv-preset-scroll">
         {activeReactEngineId === 'oscilloscope' ? (
           <div className="rv-sound-drawing-presets-list">

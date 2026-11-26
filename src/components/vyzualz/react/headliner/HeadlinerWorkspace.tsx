@@ -9,8 +9,8 @@ import { Collapsible, CtrlSection, PaletteColorRow, SelectRow, SliderRow, Toggle
 import { ReactAudioPanel } from '../ReactAudioPanel'
 import { ConfirmDialog } from '../controls/ConfirmDialog'
 import { IconChipButton } from '../controls/IconChipButton'
-import { PresetSearchRow } from '../controls/PresetSearchRow'
-import { PanelSubtabs } from '../PanelSubtabs'
+import { VisualPresetSearch } from '../controls/VisualPresetSearch'
+import { useVisualPresetSearch } from '../controls/useVisualPresetSearch'
 import { ReactPresetCard } from '../ReactPresetCard'
 import { DrawerNotice } from '../../shared/DrawerNotice'
 import { usePresetScopeFilter } from '../../../../features/presetCatalog/presetCatalogStore'
@@ -43,7 +43,7 @@ import {
 import { createHeadlinerEffectProcessor, type HeadlinerEffectProcessor } from './HeadlinerEffects'
 import { HeadlinerTimingTracker } from './HeadlinerTiming'
 import { fireHeadlinerTrigger } from './HeadlinerTriggers'
-import { presetMatchesDiscoveryQuery, resolvePresetDiscoveryMetadata } from '../presetDiscovery'
+import { resolvePresetDiscoveryMetadata } from '../presetDiscovery'
 
 function HeadlinerFullscreenIcon() {
   return (
@@ -361,26 +361,20 @@ export function HeadlinerBackdropPanel({ onOpenMediaManager }: { onOpenMediaMana
 export function HeadlinerPresetsPanel() {
   const activePresetId = useReactStore(state => state.headlinerSettings.presetId)
   const setHeadlinerSettings = useReactStore(state => state.setHeadlinerSettings)
-  const [query, setQuery] = useState('')
   const [scope, setScope] = useState<'system' | 'user'>('system')
-  const needle = query.trim().toLowerCase()
   const inScope = usePresetScopeFilter('headliner', scope)
-  const presets = HEADLINER_PRESETS.filter(preset => (
-    inScope(preset.id) && presetMatchesDiscoveryQuery(needle, {
-      ...preset,
-      ...resolvePresetDiscoveryMetadata(preset, 'camera-effect', preset.id.split('-')),
-    })
-  ))
+  const search = useVisualPresetSearch('headliner', HEADLINER_PRESETS.map(preset => ({ ...preset,
+    ...resolvePresetDiscoveryMetadata(preset, 'camera-effect', preset.id.split('-')) })), scope, setScope, inScope, 'headliner', id => {
+    const preset = HEADLINER_PRESETS.find(item => item.id === id)
+    if (preset) setHeadlinerSettings({ presetId: resolveHeadlinerPresetClick(preset.id, activePresetId) })
+  })
+  const query = search.query
+  const needle = query.trim()
+  const presets = HEADLINER_PRESETS.filter(preset => search.matchingIds.has(preset.id))
 
   return (
     <section className="rv-engine-panel-list" aria-label="Headliner presets" data-preset-scope={scope}>
-      <PanelSubtabs
-        value={scope}
-        options={[{ id: 'system', label: 'SYSTEM' }, { id: 'user', label: 'USER' }]}
-        onChange={setScope}
-        ariaLabel="Preset scope"
-      />
-      <PresetSearchRow query={query} onQueryChange={setQuery} ariaLabel="Search Headliner presets" />
+      <VisualPresetSearch {...search.searchProps} ariaLabel="Search Headliner presets" />
       <div className="rv-preset-scroll">
         <div className="rv-preset-group-cards rv-preset-group-cards--poster" data-preset-grid data-preset-columns="2" data-headliner-preset-grid="true">
           {presets.map(preset => (
@@ -388,7 +382,7 @@ export function HeadlinerPresetsPanel() {
               key={preset.id}
               id={preset.id}
               engineId="headliner"
-              title={preset.name}
+              title={search.recordsById.get(preset.id)?.name ?? preset.name}
               description={preset.description}
               palette={[{ color: preset.tone }]}
               isActive={preset.id === activePresetId}

@@ -1,9 +1,10 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { HEALTH_LABELS, HEALTH_SYSTEMS, useHealthStore, type HealthState, type HealthSystem, type SystemHealth } from '../../../stores/healthStore'
+import { AppIcon, type AppIconKind } from '../../shared/icons/AppIcon'
 import { InfoPopover } from '../../shared/InfoPopover'
 import './HeaderReadout.css'
 
-const CHIP_TEXT: Readonly<Record<HealthSystem, string>> = { cast: 'CAST', audio: 'AUDIO', graphics: 'GFX' }
+const SYSTEM_ICON: Readonly<Record<HealthSystem, AppIconKind>> = { cast: 'cast', audio: 'waveform', graphics: 'monitor' }
 const SYSTEM_TEXT: Readonly<Record<HealthSystem, string>> = { cast: 'Output Cast', audio: 'Audio Engine', graphics: 'Graphics Engine' }
 const STATE_TEXT: Readonly<Record<HealthState, string>> = {
   idle: 'Idle', ok: 'Operational', degraded: 'Degraded', healing: 'Recovering', failed: 'Failed',
@@ -54,7 +55,7 @@ export function HealthReadout() {
           return <span key={system} className="vz-health-chip" data-health={health.state} data-health-system={system}
             title={`${SYSTEM_TEXT[system]}: ${STATE_TEXT[health.state]}. ${healthDetail(system, health)}`}>
             <HealthStatusIcon state={health.state} />
-            <span className="vz-health-system-label">{CHIP_TEXT[system]}</span>
+            <AppIcon kind={SYSTEM_ICON[system]} size={13} className="vz-health-system-icon" color="currentColor" />
           </span>
         })}
       </span>

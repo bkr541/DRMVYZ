@@ -5,8 +5,10 @@ import { useReactStore } from '../../../../stores/reactStore'
 import { Collapsible, PaletteColorRow, SelectRow, SliderRow, TextInputRow, ToggleRow, type SelectOption } from '../ReactControlRows'
 import { ReactAudioPanel } from '../ReactAudioPanel'
 import { IconChipButton } from '../controls/IconChipButton'
-import { PresetSearchRow } from '../controls/PresetSearchRow'
+import { VisualPresetSearch } from '../controls/VisualPresetSearch'
+import { useVisualPresetSearch } from '../controls/useVisualPresetSearch'
 import { ReactPresetCard } from '../ReactPresetCard'
+import { usePresetScopeFilter } from '../../../../features/presetCatalog/presetCatalogStore'
 import {
   applyXyScopePreset,
   getXyScopeDefaultParameters,
@@ -280,16 +282,19 @@ export function XyScopePresetsPanel() {
   const parameters = useReactStore(state => state.xyScopeSettings.parameters)
   const beamColor = parameters.beamColor
   const setXyScopeSettings = useReactStore(state => state.setXyScopeSettings)
-  const [query, setQuery] = useState('')
-  const needle = query.trim().toLowerCase()
+  const [scope, setScope] = useState<'system' | 'user'>('system')
   const category = getXyScopeSourceCategory(source)
-  // The standard parameter presets drive lettering and the oscillator figures; WIREFRAME has presets of its own only.
-  const presets = XY_SCOPE_PRESETS.filter(preset => (preset.source ? preset.source === category : category !== 'wire')
-    && (needle === '' || `${preset.name} ${preset.description}`.toLowerCase().includes(needle)))
+  const inScope = usePresetScopeFilter('xyScope', scope)
+  // Standard parameter presets work with text/oscillators; wireframe has its own library.
+  const scoped = XY_SCOPE_PRESETS.filter(preset => preset.source ? preset.source === category : category !== 'wire')
+  const search = useVisualPresetSearch('xyScope', scoped.map(preset => ({ ...preset,
+    category: preset.source ?? 'shared', tags: [preset.source ?? 'parameter', 'sound drawing'] })), scope, setScope, inScope, `xyScope:${category}`, id => setXyScopeSettings(applyXyScopePreset(useReactStore.getState().xyScopeSettings, id)))
+  const query = search.query
+  const presets = scoped.filter(preset => search.matchingIds.has(preset.id))
 
   return (
-    <section className="rv-engine-panel-list" aria-label="Sound Drawing XY presets">
-      <PresetSearchRow query={query} onQueryChange={setQuery} ariaLabel="Search Sound Drawing XY presets" />
+    <section className="rv-engine-panel-list" aria-label="Sound Drawing XY presets" data-preset-scope={scope}>
+      <VisualPresetSearch key={category} {...search.searchProps} ariaLabel="Search Sound Drawing XY presets" />
       <div className="rv-preset-scroll">
         <div className="rv-preset-group-cards rv-preset-group-cards--poster" data-preset-grid data-preset-columns="2" data-xyscope-preset-grid="true">
           {presets.map(preset => (
@@ -297,7 +302,7 @@ export function XyScopePresetsPanel() {
               key={preset.id}
               id={preset.id}
               engineId="xyScope"
-              title={preset.name}
+              title={search.recordsById.get(preset.id)?.name ?? preset.name}
               description={preset.description}
               palette={[{ color: String(beamColor) }]}
               isActive={preset.id === activePresetId}
@@ -307,7 +312,7 @@ export function XyScopePresetsPanel() {
               dataAttributes={{ 'data-xyscope-preset-id': preset.id }}
             />
           ))}
-          {presets.length === 0 && <div className="rv-ctrl-info">No presets match “{query}”.</div>}
+          {presets.length === 0 && <div className="rv-ctrl-info">{query.trim() ? `No presets match “${query}”.` : scope === 'user' ? 'No user presets yet.' : 'No presets.'}</div>}
         </div>
       </div>
     </section>

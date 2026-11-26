@@ -66,7 +66,7 @@ export function useWebCast(capture: (aspect: OutputAspectRatio) => WebCastCaptur
           if(!s.receiverId||!s.approved){closePeer(run);run.capture?.stop();run.capture=null;update({receiverId:s.receiverId,status:s.receiverId?'Receiver requests access':'Waiting for receiver',error:null})}
           else {
             if(run.generation!==s.receiverId){closePeer(run);run.generation=s.receiverId;run.negotiatingAt=Date.now();run.offerSent=false}
-            update({receiverId:s.receiverId,status:'Connecting…',error:null})
+            update({receiverId:s.receiverId,status:run.peer?.connectionState==='connected'?'Now casting':'Connecting…',error:null})
             if(!run.peer&&!s.hasOffer){
               run.capture??=captureRef.current(aspect)
               const peer=new RTCPeerConnection({iceServers:created.iceServers});run.peer=peer

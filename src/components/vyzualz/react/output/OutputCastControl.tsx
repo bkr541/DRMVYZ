@@ -1311,7 +1311,7 @@ export function OutputCastControl({
       <button
         ref={triggerRef}
         type="button"
-        className={`rv-cast-trigger${session?.state === 'connected' || webCast.active ? ' is-active' : ''}`}
+        className={`rv-cast-trigger${castConnected ? ' is-active' : ''}`}
         aria-label={session?.state === 'connected' ? `Output casting to ${session.targetName}` : webCast.active ? 'STAGELESS Cast session active' : 'Cast visual output'}
         aria-haspopup="dialog"
         aria-expanded={open}
@@ -1319,7 +1319,7 @@ export function OutputCastControl({
         onClick={() => setOpen(value => !value)}
       >
         <CastIcon />
-        {(session?.state === 'connected' || webCast.view.status === 'Now casting') && <span className="rv-cast-live-dot" aria-hidden="true" />}
+        {castConnected && <span className="rv-cast-live-dot" aria-hidden="true" />}
       </button>
       {castConnected && (
         <button ref={previewTriggerRef} type="button" className={`rv-cast-trigger${previewOpen ? ' is-active' : ''}`}

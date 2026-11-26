@@ -59,13 +59,14 @@ describe('Option E React header readouts', () => {
     expect(container.querySelector('.vz-header-notifications')).toBeNull()
     expect(container.querySelectorAll('.vz-header-readout')).toHaveLength(4)
   })
-  it('uses distinct health symbols and secondary system labels for all five live states', async () => {
+  it('uses distinct health symbols and icon-only system identifiers for all five live states', async () => {
     await render()
     const health = container.querySelector<HTMLButtonElement>('[data-health-readout]')!
     const chip = (system: string) => health.querySelector(`[data-health-system="${system}"]`)!
     expect(['cast', 'audio', 'graphics'].map(system => chip(system).getAttribute('data-health'))).toEqual(['idle', 'ok', 'ok'])
     expect(health.querySelector('.vz-header-readout-label')?.textContent).toBe('HEALTH')
-    expect([...health.querySelectorAll('.vz-health-system-label')].map(el => el.textContent)).toEqual(['CAST', 'AUDIO', 'GFX'])
+    expect([...health.querySelectorAll('.vz-health-system-icon')].map(el => el.getAttribute('data-app-icon'))).toEqual(['cast', 'waveform', 'monitor'])
+    expect(health.querySelector('.vz-health-system-label')).toBeNull()
     expect(health.querySelectorAll('.vz-health-status-icon')).toHaveLength(3)
     expect(health.querySelector('.vz-header-readout-primary, .vz-header-readout-led')).toBeNull()
     const shapes = new Set<string>()
