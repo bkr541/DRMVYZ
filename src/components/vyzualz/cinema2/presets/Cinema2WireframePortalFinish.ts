@@ -7,7 +7,7 @@ import { CINEMA2_GLARE_EFFECT_TYPE_ID } from '../effects/Cinema2GlareEffect'
 export function finishWireframePortal(manifest:Readonly<Cinema2NativePresetManifest>,pid:(name:string)=>Cinema2ParameterId):Readonly<Cinema2NativePresetManifest>{
  const ref=(name:string)=>cinema2Ref(pid(name)),eid=(name:string)=>cinema2StableId<Cinema2EffectId>(`wireframe-portal-${name}`)
  const effects: Cinema2EffectManifest[]=[
-  {id:eid('focus'),typeId:CINEMA2_DEPTH_OF_FIELD_EFFECT_TYPE_ID,version:1,parameters:{mix:.55,focusDistance:14.5,focusCameraTarget:true,focusRange:5,falloff:6,nearBlur:5,farBlur:9},parameterBindings:{mix:ref('focus')}},
+  {id:eid('focus'),typeId:CINEMA2_DEPTH_OF_FIELD_EFFECT_TYPE_ID,version:1,parameters:{mix:.55,focusDistance:23,focusCameraTarget:true,focusRange:11,falloff:9,nearBlur:3,farBlur:5},parameterBindings:{mix:ref('focus')}},
   {id:eid('bloom'),typeId:CINEMA2_HDR_BLOOM_EFFECT_TYPE_ID,version:1,parameters:{mix:1,intensity:.38,threshold:.8,knee:.5,spread:.55,levels:5},parameterBindings:{intensity:ref('bloom')}},
   {id:eid('flares'),typeId:CINEMA2_GLARE_EFFECT_TYPE_ID,version:1,parameters:{mix:.2,intensity:.55,threshold:1.1,length:.04,streaks:4},parameterBindings:{mix:ref('flares')}},
   {id:eid('grade'),typeId:CINEMA2_CINEMATIC_FINISH_EFFECT_TYPE_ID,version:1,parameters:{mix:1,toneMap:1,exposure:.85,contrast:1.14,saturation:.92,vignette:.45,vignetteSoftness:.55,grain:.12,grainSize:1.4,aberration:.1,tintAmount:.3,shadowTint:[.42,.52,.7],highlightTint:[1,.82,.62]},parameterBindings:{mix:ref('finishMix')}},

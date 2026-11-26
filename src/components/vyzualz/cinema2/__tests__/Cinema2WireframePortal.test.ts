@@ -10,6 +10,7 @@ import { Cinema2WireframePortalController } from '../modules/Cinema2WireframePor
 import type { Cinema2ThreeLibrary } from '../modules/three/Cinema2ThreeLibrary'
 import type { Cinema2ModuleUpdateContext } from '../modules/Cinema2ModuleContracts'
 import { evaluateWireframePortalBay, evaluateWireframePortalBeam, WIREFRAME_PORTAL_PATTERN_IDS } from '../modules/wireframePortal/WireframePortalPatterns'
+import { wireframePortalOrigin } from '../modules/wireframePortal/WireframePortalScene'
 import { moodMusic } from './support/MoodMigrationHarness'
 
 const source = 'public/cinema2/models/crate/lightweight.glb'
@@ -81,30 +82,14 @@ it('keeps the original preset identity and asset, and compiles with the full con
   expect(hash(source)).toBe(hash('3D Cinema 2.0 Crate/lightweight.glb'))
 })
 
-it('flies the camera through the truss corridors, not just around it', () => {
-  const rig = manifest.cameras![0]!.rigVariants!.director as unknown as { kind: 'path'; points: { position: number[]; target: number[] }[] }
-  const inside = rig.points.filter(point => Math.abs(point.position[0]!) < 1 && Math.abs(point.position[1]!) < 1 && point.position[2]! < 3 && point.position[2]! > -10)
-  expect(inside.length).toBeGreaterThan(5)
-  // It looks along its own line while flying, and at the centre while orbiting.
-  const flying = inside[2]!
-  expect(flying.target[2]).toBeLessThan(flying.position[2]!)
-  const outside = rig.points.filter(point => Math.hypot(point.position[0]!, point.position[2]! + 3.7) > 12)
-  expect(outside.length).toBeGreaterThan(20)
-})
-
-it('never looks away from the truss: from every point outside it on both camera paths the truss stays in the view', () => {
-  const centre = [0, 0, -3.7]
+it('uses wide exterior orbits and elevated travel lanes, looking at the structure throughout', () => {
   for (const name of ['director', 'flythrough'] as const) {
     const rig = manifest.cameras![0]!.rigVariants![name] as unknown as { points: { position: number[]; target: number[] }[] }
-    for (const [index, point] of rig.points.entries()) {
-      // Inside the truss the camera is flying through the bays and looks along its line.
-      const [x, y, z] = point.position as [number, number, number]
-      if (Math.abs(x) <= 7 && Math.abs(y) <= 3 && z <= 3 && z >= -11) continue
-      const look = point.target.map((v, i) => v - point.position[i]!)
-      const toCentre = centre.map((v, i) => v - point.position[i]!)
-      const dot = look.reduce((sum, v, i) => sum + v * toCentre[i]!, 0) / (Math.hypot(...look) * Math.hypot(...toCentre))
-      // 44 degrees of vertical view is wider still across; the truss is about 6 units across at the nearest, so 50 degrees keeps it in frame.
-      expect(Math.acos(Math.min(1, dot)) * 180 / Math.PI, `${name} point ${index}`).toBeLessThan(50)
+    const lanes = rig.points.filter(({ position: [x, y, z] }) => y! >= 12 && Math.abs(x!) < 4 && z! < 4 && z! > -14)
+    expect(lanes.length).toBeGreaterThan(4)
+    for (const point of rig.points) {
+      expect(point.target).toEqual([0, 0, -3.7])
+      expect(Math.hypot(point.position[0]!, point.position[1]!, point.position[2]! + 3.7)).toBeGreaterThanOrEqual(12)
     }
   }
 })
@@ -125,7 +110,7 @@ it('has six programs that move the bays and aim the beams differently, and a bla
 it('builds 28 kinetic bays with cores, twelve beams with lenses, rim lights, haze and dust', async () => {
   const s = await setup()
   s.step()
-  expect(s.controller.inspect()).toMatchObject({ bayCount: 28, fixtureCount: 12, visibleBeams: 12, lights: ['truss-cold-rim', 'truss-red-rim', 'truss-under-key'] })
+  expect(s.controller.inspect()).toMatchObject({ bayCount: 28, satelliteCount: 16, satelliteBraceCount: 32, fixtureCount: 12, visibleBeams: 10, lights: ['truss-cold-rim', 'truss-red-rim', 'truss-under-key'] })
   for (const name of ['truss-bay-1-rails', 'truss-bay-28-joints', 'truss-bay-5-core', 'truss-beam-1', 'truss-beam-lens-12', 'truss-cold-rim', 'truss-dust']) expect(s.scene.getObjectByName(name), name).toBeDefined()
   const steel = (s.scene.getObjectByName('truss-bay-1-rails') as THREE.Mesh).material as THREE.MeshStandardMaterial
   expect(steel.metalness).toBeGreaterThan(.5)
@@ -146,7 +131,7 @@ it('moves the bays with the program, holds them still at Kinetics 0 or while pau
   expect(bay.quaternion.toArray()).not.toEqual([0, 0, 0, 1])
   s.values.kinetics = 0
   s.step()
-  expect(bay.position.toArray()).toEqual([-1 * 2.48, 0, 0 * 2.48 - 1.4].map((value, index) => index === 2 ? value : value))
+  wireframePortalOrigin([-1, 0, 0]).forEach((value, axis) => expect(bay.position.getComponent(axis)).toBeCloseTo(value))
   const frozen = bay.position.toArray()
   for (let i = 0; i < 20; i += 1) s.step()
   expect(bay.position.toArray()).toEqual(frozen)
@@ -183,7 +168,7 @@ it('flashes the cores on a kick, blasts and strobes on a drop, and honours light
   s.values.flash = 0; s.values.blast = 1
   s.step()
   const bay = s.scene.getObjectByName('truss-bay-5')!
-  expect(bay.position.distanceTo(new THREE.Vector3(-2 * 2.48, 0, -1.4))).toBeGreaterThan(1.5)
+  expect(bay.position.distanceTo(new THREE.Vector3(...wireframePortalOrigin([-2, 0, 0])))).toBeGreaterThan(1.5)
   expect(beam.material.uniforms.uStrength!.value as number).not.toBe(quietBeam)
   s.values.blast = 0; s.values.beamLighting = 0
   s.step()
@@ -230,9 +215,9 @@ it('does nothing to the Pattern with Auto Performance off, however the music bui
 it('draws fewer beams on lower tiers, and disposes only what it owns', async () => {
   const s = await setup()
   s.step('high')
-  expect(s.controller.inspect().visibleBeams).toBe(12)
-  s.step('medium'); expect(s.controller.inspect().visibleBeams).toBe(8)
-  s.step('low'); expect(s.controller.inspect().visibleBeams).toBe(4)
+  expect(s.controller.inspect()).toMatchObject({ visibleBeams: 10, satelliteCount: 16, satelliteBraceCount: 32 })
+  s.step('medium'); expect(s.controller.inspect()).toMatchObject({ visibleBeams: 6, satelliteCount: 8, satelliteBraceCount: 16 })
+  s.step('low'); expect(s.controller.inspect()).toMatchObject({ visibleBeams: 4, satelliteCount: 4, satelliteBraceCount: 0 })
   expect(s.scene.getObjectByName('truss-dust')).toBeUndefined()
   expect((s.scene.getObjectByName('truss-red-rim') as THREE.SpotLight).visible).toBe(false)
   let sourceDisposed = false
@@ -262,5 +247,61 @@ it('fades the lenses, beams and cores out as the camera flies close to them, so 
   const bay = s.scene.getObjectByName('truss-bay-5')!
   s.step('high', true, bay.position.toArray() as [number, number, number])
   expect(core.color.r).toBeLessThan(farCore * .1)
+  expect(bay.visible).toBe(false)
+  s.step('high', true, [0, 0, 40])
+  expect(bay.visible).toBe(true)
+  s.controller.dispose()
+})
+
+
+it('binds spatial controls to the real bay and satellite transforms without changing saved pattern or tier resources', async () => {
+  const s = await setup()
+  s.set('kinetics', 0)
+  s.step()
+  const primary = s.scene.getObjectByName('truss-bay-5')!
+  const satellite = s.scene.getObjectByName('truss-satellite-rails') as THREE.InstancedMesh
+  const braces = s.scene.getObjectByName('truss-satellite-braces') as THREE.InstancedMesh
+  const matrix = new THREE.Matrix4(), position = new THREE.Vector3()
+  satellite.getMatrixAt(0, matrix)
+  const before = position.setFromMatrixPosition(matrix).clone()
+  const primaryBefore = primary.position.clone()
+  const resourceCount = s.controller.inspect().instancedBatches
+  s.set('spatialSpread', 1.2); s.step()
+  expect(primary.position.x).toBeCloseTo(primaryBefore.x * 1.2)
+  expect(primary.position.z).toBeCloseTo(primaryBefore.z)
+  satellite.getMatrixAt(0, matrix)
+  expect(position.setFromMatrixPosition(matrix).x).toBeCloseTo(before.x * 1.2)
+  s.set('depthDistribution', 1.2); s.step()
+  satellite.getMatrixAt(0, matrix)
+  expect(position.setFromMatrixPosition(matrix).z + 3.7).toBeCloseTo((before.z + 3.7) * 1.2)
+  expect(primary.position.z + 3.7).toBeCloseTo((primaryBefore.z + 3.7) * 1.2)
+  s.set('structuralDensity', .5); s.step()
+  expect(satellite.count).toBe(8)
+  expect(braces.count).toBe(16)
+  s.set('structuralDensity', 0); s.step()
+  expect(satellite.count).toBe(0)
+  expect(braces.count).toBe(0)
+  expect(primary.visible).toBe(true)
+  s.set('structuralDensity', 1); s.step()
+  expect(satellite.count).toBe(16)
+  expect(s.controller.inspect().instancedBatches).toBe(resourceCount)
+  expect(s.values.pattern).toBe('lattice')
+  s.controller.dispose()
+})
+
+it('keeps the new satellite batches on the six shared programs and pauses their transforms', async () => {
+  const s = await setup()
+  const satellite = s.scene.getObjectByName('truss-satellite-rails') as THREE.InstancedMesh
+  const signatures = new Set<string>()
+  for (const pattern of WIREFRAME_PORTAL_PATTERN_IDS) {
+    s.set('pattern', pattern); s.step()
+    signatures.add(satellite.instanceMatrix.array.slice(0, 16).join(','))
+    expect(s.controller.inspect().activePattern).toBe(pattern)
+  }
+  expect(signatures.size).toBe(6)
+  s.step('high', false)
+  const paused = satellite.instanceMatrix.array.slice(0, 16).join(',')
+  s.step('high', false)
+  expect(satellite.instanceMatrix.array.slice(0, 16).join(',')).toBe(paused)
   s.controller.dispose()
 })

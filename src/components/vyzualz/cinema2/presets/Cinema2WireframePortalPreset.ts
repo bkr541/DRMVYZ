@@ -54,6 +54,9 @@ export const WIREFRAME_PORTAL_PARAMETERS: readonly Cinema2ParameterManifest[] = 
   number('edgeLighting', 'Edge Runs', 'design', 1, 0, 1.5, 2, 'Structure', 'The cold light runs along the frame edges and the links between bays.'),
   number('pinLighting', 'Wayfinding Pins', 'design', 1, 0, 1.5, 3, 'Structure', 'The small beacons on the bay faces.'),
   number('steelRoughness', 'Steel Roughness', 'design', .36, .1, .7, 4, 'Structure', 'Low is polished and catches sharp highlights; high is brushed and soft.'),
+  number('spatialSpread', 'Spatial Spread', 'design', 1, .95, 1.2, 5, 'Structure', 'Horizontal and vertical spacing multiplier for the staggered truss formation.'),
+  number('structuralDensity', 'Structural Density', 'design', 1, 0, 1, 6, 'Structure', 'Fraction of the quality-tier satellite trusses. Zero retains only the 28 primary bays.'),
+  number('depthDistribution', 'Depth Distribution', 'design', 1, .95, 1.2, 7, 'Structure', 'Front-to-back spacing multiplier around the formation centre.'),
   number('beamLighting', 'Beam Lighting', 'design', 1, 0, 2, 0, 'Lighting', 'The beams that sweep out of the bays through the haze.'),
   number('strobe', 'Strobe', 'design', .5, 0, 1, 4, 'Lighting', 'How hard the kick flashes the rig and a drop chops the beams.'),
   number('rimLighting', 'Rim Lighting', 'design', 1, 0, 2, 1, 'Lighting', 'The hard cold and red lights from behind that catch the chamfers.'),
@@ -62,15 +65,15 @@ export const WIREFRAME_PORTAL_PARAMETERS: readonly Cinema2ParameterManifest[] = 
   {
     ...base, id: wireframePortalParameterId('cameraMode'), label: 'Camera Mode', type: 'enum', defaultValue: 'director', designParentGroup: 'design', group: 'Camera', order: 0,
     options: [{ value: 'director', label: 'Director' }, { value: 'flythrough', label: 'Flythrough' }, { value: 'horizontal', label: 'Horizontal Orbit' }, { value: 'manual', label: 'Manual Orbit' }],
-    description: 'Director edits orbits, swoops and flights through the truss into one loop. Flythrough keeps to the corridors. Horizontal turns around it; Manual lets you place the camera.',
+    description: 'Director combines wide orbits and elevated grazing flights. Flythrough follows the open lanes above the truss. Horizontal turns around it; Manual lets you place the camera.',
   },
   toggle('cameraMotion', 'Camera Motion', 'design', true, 1, 'Camera'),
   toggle('cameraKickZoom', 'Kick Zoom', 'design', true, 2, 'Camera', 'A quick zoom-in on every kick.'),
   number('cameraSpeed', 'Camera Speed', 'design', 1, 0, 2, 3, 'Camera'),
   { ...number('cameraHeading', 'Camera Heading', 'design', 32, -180, 180, 4, 'Camera'), visibleWhen: manual },
   { ...number('cameraElevation', 'Camera Elevation', 'design', 8, -30, 70, 5, 'Camera'), visibleWhen: manual },
-  { ...number('cameraDistance', 'Camera Distance', 'design', 14.5, 11, 26, 6, 'Camera'), visibleWhen: manual },
-  number('cameraFov', 'Camera Field of View', 'design', 44, 30, 65, 7, 'Camera'),
+  { ...number('cameraDistance', 'Camera Distance', 'design', 23, 11, 26, 6, 'Camera'), visibleWhen: manual },
+  number('cameraFov', 'Camera Field of View', 'design', 52, 30, 65, 7, 'Camera'),
   number('haze', 'Haze', 'effects', .35, 0, 1, 0, undefined, 'The cold haze along the horizon behind the truss.'),
   number('dust', 'Dust', 'effects', .5, 0, 1, 1, undefined, 'Specks drifting through the light. Off on the low quality tier.'),
   number('bloom', 'Bloom', 'effects', .38, 0, .8, 2),
@@ -85,11 +88,11 @@ export const WIREFRAME_PORTAL_PARAMETERS: readonly Cinema2ParameterManifest[] = 
 
 /** Every parameter the module reads, by name. */
 export const WIREFRAME_PORTAL_MODULE_PARAMETERS = [
-  'bpmSync', 'intensity', 'reactivity', 'autoPerformance', 'pattern', 'patternChange', 'trigger', 'kinetics', 'beamLighting', 'strobe', 'jointHeat', 'edgeLighting', 'pinLighting', 'steelRoughness', 'rimLighting', 'emberDrift', 'motionRate',
+  'bpmSync', 'intensity', 'reactivity', 'autoPerformance', 'pattern', 'patternChange', 'trigger', 'kinetics', 'spatialSpread', 'structuralDensity', 'depthDistribution', 'beamLighting', 'strobe', 'jointHeat', 'edgeLighting', 'pinLighting', 'steelRoughness', 'rimLighting', 'emberDrift', 'motionRate',
   'haze', 'dust', 'background', ...Object.keys(WIREFRAME_PORTAL_PALETTE),
 ] as const
 
-const DISTANCE = 14.5
+const DISTANCE = 23
 const FOCUS = WIREFRAME_PORTAL_CENTER
 type PathPoint = { position: Cinema2Vector3; target: Cinema2Vector3 }
 const lerp = (from: number, to: number, t: number) => from + (to - from) * t
@@ -99,32 +102,22 @@ const orbit = (az0: number, az1: number, r0: number, r1: number, el0: number, el
   const az = lerp(az0, az1, t) * Math.PI / 180, el = lerp(el0, el1, t) * Math.PI / 180, r = lerp(r0, r1, t)
   return { position: [FOCUS[0] + Math.sin(az) * Math.cos(el) * r, FOCUS[1] + Math.sin(el) * r, FOCUS[2] + Math.cos(az) * Math.cos(el) * r], target: [...FOCUS] }
 })
-/**
- * A straight flight that looks ahead along its own line, so the camera travels through the bays rather than around them. Once it is past the truss
- * (from `lookBackAt`, as a fraction of the flight) the view swings back toward the truss's centre, so the camera never stares into empty space.
+/** A grazing flight across negative space, keeping the truss as the subject.
+ * The old centreline flights intersected occupied cells; the new passes use
+ * elevated lanes and blend into wide orbits instead of crossing steel.
  */
-const fly = (from: Cinema2Vector3, to: Cinema2Vector3, count: number, lookBackAt: number, lookAhead = 9): PathPoint[] => {
-  const length = Math.hypot(to[0] - from[0], to[1] - from[1], to[2] - from[2]) || 1
-  const d = [(to[0] - from[0]) / length, (to[1] - from[1]) / length, (to[2] - from[2]) / length]
-  return Array.from({ length: count }, (_, i) => {
-    const t = i / count
-    const position: Cinema2Vector3 = [lerp(from[0], to[0], t), lerp(from[1], to[1], t), lerp(from[2], to[2], t)]
-    const back = Math.min(1, Math.max(0, (t - lookBackAt) / (1 - lookBackAt)))
-    const swing = back * back * (3 - 2 * back)
-    const ahead: Cinema2Vector3 = [position[0] + d[0]! * lookAhead, position[1] + d[1]! * lookAhead, position[2] + d[2]! * lookAhead]
-    return { position, target: [lerp(ahead[0], FOCUS[0], swing), lerp(ahead[1], FOCUS[1], swing), lerp(ahead[2], FOCUS[2], swing)] }
-  })
-}
-// The corridors: the column down the middle (x 0, y 0) runs through four bays front to back; the row at z -3.88 runs through five bays side to side.
-// Each flight stops a few units past the last bay and the next orbit starts from there, so there is no long empty run.
-const FLY_Z = (count: number) => fly([0, .15, 9.8], [0, .15, -14], count, .55)
-const FLY_X = (count: number) => fly([-15, .1, -3.88], [9, .1, -3.88], count, .6)
+const fly = (from: Cinema2Vector3, to: Cinema2Vector3, count: number): PathPoint[] => Array.from({ length: count }, (_, i) => {
+  const t = i / count
+  return { position: [lerp(from[0], to[0], t), lerp(from[1], to[1], t), lerp(from[2], to[2], t)], target: [...FOCUS] }
+})
+const FLY_Z = (count: number) => fly([2, 12, 14], [2, 12, -22], count)
+const FLY_X = (count: number) => fly([-21, 12, -5], [21, 12, -5], count)
 const directorPath: PathPoint[] = [
-  ...orbit(20, 140, 16, 15, 12, 10, 14), ...orbit(140, 360, 15, 13.5, 10, 3, 16), ...FLY_Z(18),
-  ...orbit(180, 270, 10.3, 15, 1, 8, 10), ...FLY_X(18), ...orbit(90, 20, 9, 16, 1, 12, 14),
+  ...orbit(20, 140, 24, 25, 15, 18, 14), ...orbit(140, 360, 25, 22, 18, 30, 16), ...FLY_Z(18),
+  ...orbit(180, 270, 24, 24, 30, 30, 10), ...FLY_X(18), ...orbit(90, 20, 24, 24, 30, 15, 14),
 ]
 const flythroughPath: PathPoint[] = [
-  ...orbit(300, 360, 15, 13.5, 8, 3, 8), ...FLY_Z(16), ...orbit(180, 270, 10.3, 15, 1, 8, 8), ...FLY_X(16), ...orbit(90, 30, 9, 15, 1, 8, 8),
+  ...orbit(300, 360, 24, 22, 30, 30, 8), ...FLY_Z(16), ...orbit(180, 270, 24, 24, 30, 30, 8), ...FLY_X(16), ...orbit(90, 300, 24, 24, 30, 30, 18),
 ]
 
 const authored: Readonly<Cinema2NativePresetManifest> = {
@@ -132,7 +125,7 @@ const authored: Readonly<Cinema2NativePresetManifest> = {
   id: CINEMA2_WIREFRAME_PORTAL_PRESET_ID, revision: 3,
   metadata: {
     name: 'Wireframe Portal',
-    description: 'Corner Truss as a kinetic light rig: 28 steel bays that push, turn, fold, ripple and blast apart with hot cores, beams sweeping through haze, strobes, hard rim lights, six programs with Pattern Change and Auto Performance, and a camera that orbits and flies through the truss.',
+    description: 'Corner Truss as a kinetic light rig: 28 primary steel bays and layered satellite trusses that push, turn, fold, ripple and blast apart with hot cores, beams sweeping through haze, strobes, hard rim lights, six programs with Pattern Change and Auto Performance, and a camera that orbits and flies through the open space around the truss.',
     tags: ['reference', 'crate', 'truss', 'kinetic', '3d'],
   },
   capabilities: [
@@ -155,7 +148,7 @@ const authored: Readonly<Cinema2NativePresetManifest> = {
   scene: { nodes: [{ id: root, kind: 'group', coordinateSpace: 'world' }, { id: model, kind: 'module', parent: cinema2Ref(root), module: cinema2Ref(WIREFRAME_PORTAL_MODULE_ID) }], roots: [cinema2Ref(root)] },
   choreography: { tempoSyncParameter: bind('bpmSync'), rules: wireframePortalPerformance(WIREFRAME_PORTAL_MODULE_ID, wireframePortalParameterId).rules },
   cameras: [{
-    id: camera, label: 'Truss orbit', projection: 'perspective', fovDegrees: 44, minAspect: 16 / 9, minAspectAnchor: 0, near: .1, far: 130, target: [...FOCUS],
+    id: camera, label: 'Truss orbit', projection: 'perspective', fovDegrees: 52, minAspect: 16 / 9, minAspectAnchor: 0, near: .1, far: 130, target: [...FOCUS],
     rig: { kind: 'path', points: directorPath, durationSeconds: 84, loop: true },
     rigVariants: {
       director: { kind: 'path', points: directorPath, durationSeconds: 84, loop: true },
@@ -163,7 +156,7 @@ const authored: Readonly<Cinema2NativePresetManifest> = {
       horizontal: { kind: 'orbit', radius: DISTANCE, azimuthDegrees: 32, elevationDegrees: 8, angularVelocityDegreesPerSecond: 7 },
       manual: { kind: 'orbit', radius: DISTANCE, azimuthDegrees: 32, elevationDegrees: 8, angularVelocityDegreesPerSecond: 0 },
     },
-    motion: { idleMotion: true, interpolation: 'spline', constantSpeed: true, tempo: { referenceBpm: 120, flightSpeed: true, punch: 1.4 } },
+    motion: { idleMotion: true, interpolation: 'spline', constantSpeed: true, tempo: { referenceBpm: 120, flightSpeed: true, punch: .8 } },
     controls: {
       rigMode: bind('cameraMode'), motionEnabled: bind('cameraMotion'), motionSpeed: bind('cameraSpeed'), tempoSync: bind('bpmSync'), kickZoom: bind('cameraKickZoom'),
       orbitRadius: bind('cameraDistance'), orbitAzimuthDegrees: bind('cameraHeading'), orbitElevationDegrees: bind('cameraElevation'), fovDegrees: bind('cameraFov'),

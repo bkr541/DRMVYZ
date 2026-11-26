@@ -127,7 +127,7 @@ export class Cinema2WireframePortalController {
   }
 
   inspect(): Readonly<Record<string, unknown>> {
-    return { ...this.scene?.inspect(), pattern: this.pattern, beats: this.beats, phase: this.phase, performanceOverride: this.overrideReason, ...this.policy.inspect() }
+    return { ...this.scene?.inspect(), pattern: this.pattern, activePattern: this.pattern, beats: this.beats, phase: this.phase, performanceOverride: this.overrideReason, ...this.policy.inspect() }
   }
 
   dispose(): void {
@@ -144,7 +144,8 @@ export class Cinema2WireframePortalController {
       return Array.isArray(value) && value.length >= 3 ? value.map(Number) : fallback
     }
     return {
-      intensity: n('intensity', 1, 0, 2), kinetics: n('kinetics', 1, 0, 1.5), jointHeat: n('jointHeat', 1, 0, 2), edgeLighting: n('edgeLighting', 1, 0, 1.5), pinLighting: n('pinLighting', 1, 0, 1.5),
+      intensity: n('intensity', 1, 0, 2), kinetics: n('kinetics', 1, 0, 1.5),
+      spatialSpread: n('spatialSpread', 1, .95, 1.2), structuralDensity: n('structuralDensity', 1, 0, 1), depthDistribution: n('depthDistribution', 1, .95, 1.2), jointHeat: n('jointHeat', 1, 0, 2), edgeLighting: n('edgeLighting', 1, 0, 1.5), pinLighting: n('pinLighting', 1, 0, 1.5),
       beamLighting: n('beamLighting', 1, 0, 2), strobe: n('strobe', .5, 0, 1), rimLighting: n('rimLighting', 1, 0, 2), steelRoughness: n('steelRoughness', .36, .1, .7),
       emberDrift: n('emberDrift', .5, 0, 1), haze: n('haze', .35, 0, 1), dust: n('dust', .5, 0, 1),
       steelColor: c('steelColor', WIREFRAME_PORTAL_PALETTE.steelColor), hotColor: c('hotColor', WIREFRAME_PORTAL_PALETTE.hotColor), edgeColor: c('edgeColor', WIREFRAME_PORTAL_PALETTE.edgeColor),

@@ -12,6 +12,9 @@ type Rgb = readonly number[]
 export interface WireframePortalControls {
   intensity: number
   kinetics: number
+  spatialSpread: number
+  structuralDensity: number
+  depthDistribution: number
   jointHeat: number
   edgeLighting: number
   pinLighting: number
@@ -57,15 +60,33 @@ const CELLS: readonly Cinema2Vector3[] = [
   [-1, 1, -2], [-1, 0, -2], [0, 0, -2], [1, 0, -2], [1, -1, -2], [2, 0, -2],
   [-1, 0, -3], [0, 0, -3], [1, 0, -3],
 ]
-const PITCH = 2.48
 const HALF_SPAN = 1.015
 export const WIREFRAME_PORTAL_CENTER: Cinema2Vector3 = [0, 0, -3.7]
 export const WIREFRAME_PORTAL_BAY_COUNT = CELLS.length
-const BEAMS: Record<Cinema2RenderQualityLevel, number> = { high: 12, medium: 8, low: 4 }
+const BEAMS: Record<Cinema2RenderQualityLevel, number> = { high: 10, medium: 6, low: 4 }
 const BEAM_MAX = 12
-const BEAM_LENGTH = 17
+const BEAM_LENGTH = 15
 const DUST_COUNT: Record<Cinema2RenderQualityLevel, number> = { high: 700, medium: 350, low: 0 }
-const world = (cell: Cinema2Vector3): Cinema2Vector3 => [cell[0] * PITCH, cell[1] * PITCH, cell[2] * PITCH - 1.4]
+// Keep the original cell topology for links and choreography, but stagger the
+// physical positions: stepped shoulders, wider lower wings and receding tiers.
+export function wireframePortalOrigin([x, y, z]: Cinema2Vector3): Cinema2Vector3 {
+  return [x * (3.25 + .13 * Math.abs(z)) + y * .22, y * 3.35 + .18 * x * Math.sign(z), z * 3.35 - 1.4 + .16 * Math.abs(x)]
+}
+// Interleave three depth planes and both sides in the prefix, so low quality
+// and partial density still retain foreground, midground and background.
+const SATELLITES: readonly Cinema2Vector3[] = [
+  [-7.8, -3.9, 4.0], [8.2, 3.8, -4.5], [-7.5, 3.9, -13.4], [7.4, -4.1, -12.5],
+  [7.5, -3.8, 4.1], [-8.3, 3.8, -4.2], [3.4, 5.5, -10.8], [-3.6, -5.4, -9.6],
+  [-9.8, -2.5, 1.8], [10.1, 2.4, -6.4], [-9.2, 5.0, -15.5], [9.2, -5.0, -15.0],
+  [9.6, -5.0, 2.1], [-10.0, 5.0, -6.5], [5.6, 6.3, -13.7], [-5.6, -6.3, -12.0],
+]
+const SATELLITE_BUDGET: Record<Cinema2RenderQualityLevel, number> = { high: 16, medium: 8, low: 4 }
+export function wireframePortalSatelliteCount(quality: Cinema2RenderQualityLevel, density: number): number {
+  return Math.round(SATELLITE_BUDGET[quality] * Math.max(0, Math.min(1, density)))
+}
+function layoutPosition(origin: Cinema2Vector3, spread: number, depth: number): Cinema2Vector3 {
+  return [origin[0] * spread, origin[1] * spread, WIREFRAME_PORTAL_CENTER[2] + (origin[2] - WIREFRAME_PORTAL_CENTER[2]) * depth]
+}
 const smoothstep = (edge0: number, edge1: number, value: number) => { const t = Math.min(1, Math.max(0, (value - edge0) / (edge1 - edge0))); return t * t * (3 - 2 * t) }
 const hash = (a: number, b = 0) => { const value = Math.sin(a * 127.1 + b * 311.7 + 17.3) * 43758.5453; return value - Math.floor(value) }
 
@@ -84,8 +105,8 @@ interface Link { from: number; to: number; direction: number; sign: number; side
 interface Fixture { bay: number; outward: Cinema2Vector3; beam: THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial>; lens: THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>; colorRole: number }
 
 /**
- * The Corner Truss as a kinetic light rig: 28 steel bays that push out, turn, fold in, ripple and blast apart and reassemble in six programs, each with
- * a hot core; up to twelve beams that sweep through haze in step with the program; hard rim lights; a hazed dome and dust. The connecting bars follow the
+ * The Corner Truss as a kinetic light rig: 28 primary steel bays and sparse satellite trusses that push out, turn, fold in, ripple and blast apart and reassemble in six programs, each with
+ * a hot core; up to ten active beams that sweep through haze in step with the program; hard rim lights; a hazed dome and dust. The connecting bars follow the
  * bays as they move. Everything except the source geometry is owned here.
  */
 export class WireframePortalScene {
@@ -102,6 +123,14 @@ export class WireframePortalScene {
   private readonly connector: THREE.MeshStandardMaterial
   private readonly beacon: THREE.MeshBasicMaterial
   private readonly link: THREE.MeshBasicMaterial
+  private readonly satelliteRails: THREE.InstancedMesh
+  private readonly satelliteJoints: THREE.InstancedMesh
+  private readonly satelliteBraces: THREE.InstancedMesh
+  private readonly satelliteHeat: THREE.MeshBasicMaterial
+  private readonly satelliteEdges: THREE.MeshBasicMaterial
+  private readonly satelliteInputs: WireframePortalBayInput[] = []
+  private readonly braceMatrices: THREE.Matrix4[] = []
+  private readonly satelliteMatrix: THREE.Matrix4
   private readonly connectors: THREE.InstancedMesh
   private readonly linkLights: THREE.InstancedMesh
   private readonly dome: THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial>
@@ -129,6 +158,7 @@ export class WireframePortalScene {
       a: new T.Vector3(), b: new T.Vector3(), c: new T.Vector3(), q: new T.Quaternion(), e: new T.Euler(), m: new T.Matrix4(),
       down: new T.Vector3(0, -1, 0), up: new T.Vector3(0, 1, 0), s: new T.Vector3(),
     }
+    this.satelliteMatrix = new T.Matrix4()
     this.scene = new T.Group()
     this.scene.name = 'Kinetic Truss'
     this.dome = this.buildDome()
@@ -169,7 +199,7 @@ export class WireframePortalScene {
     }
     const centre = new T.Vector3(...WIREFRAME_PORTAL_CENTER)
     for (const [cellIndex, cell] of CELLS.entries()) {
-      const origin = world(cell)
+      const origin = wireframePortalOrigin(cell)
       const away = new T.Vector3(...origin).sub(centre)
       const axis = Math.abs(away.x) >= Math.abs(away.y) && Math.abs(away.x) >= Math.abs(away.z) ? 0 : Math.abs(away.y) >= Math.abs(away.z) ? 1 : 2
       const outward = away.lengthSq() > 1e-6 ? away.clone().normalize() : new T.Vector3(0, 1, 0)
@@ -224,6 +254,28 @@ export class WireframePortalScene {
     this.connectors = this.dynamicCloud(bar, this.connector, this.links.length)
     this.linkLights = this.dynamicCloud(bar, this.link, this.links.filter(link => link.side > 0).length)
 
+    // Secondary trusses use three shared batches, not additional bay groups,
+    // materials, beams or lights. The braces are authored once in unit space.
+    this.satelliteHeat = this.mat(new T.MeshBasicMaterial({ color: 0xffffff, toneMapped: false, side: T.DoubleSide }))
+    this.satelliteEdges = this.mat(new T.MeshBasicMaterial({ color: 0xffffff, toneMapped: false }))
+    this.satelliteRails = this.dynamicCloud(railGeometry, this.steel, SATELLITES.length)
+    this.satelliteRails.name = 'truss-satellite-rails'
+    this.satelliteJoints = this.dynamicCloud(jointGeometry, this.satelliteHeat, SATELLITES.length)
+    this.satelliteJoints.name = 'truss-satellite-joints'
+    barMatrix(this.braceMatrices, [-.85, -.85, 1], [.85, .85, 1], .022)
+    barMatrix(this.braceMatrices, [-.85, .85, -1], [.85, -.85, -1], .022)
+    this.satelliteBraces = this.dynamicCloud(bar, this.satelliteEdges, SATELLITES.length * this.braceMatrices.length)
+    this.satelliteBraces.name = 'truss-satellite-braces'
+    for (const [index, origin] of SATELLITES.entries()) {
+      const away = new T.Vector3(...origin).sub(centre)
+      const axis = Math.abs(away.x) > Math.abs(away.z) ? 0 : 2
+      const sign = Math.sign(away.getComponent(axis)) || 1
+      const outward = away.normalize()
+      this.satelliteInputs.push({ cell: origin, index: CELLS.length + index, count: CELLS.length + SATELLITES.length,
+        outward: [outward.x, outward.y, outward.z], axis, sign, drift: origin[2] * .3 + origin[0] * .2 })
+    }
+    for (const batch of [this.satelliteRails, this.satelliteJoints, this.satelliteBraces]) batch.count = 0
+
     this.rig = new T.Group()
     this.rig.name = 'truss-rim-rig'
     this.rig.position.set(...WIREFRAME_PORTAL_CENTER)
@@ -266,7 +318,12 @@ export class WireframePortalScene {
       let pose = evaluateWireframePortalBay(s.pattern, s.beats, bay.input, s.blast)
       if (ease < 1) pose = blendWireframePortalBay(evaluateWireframePortalBay(s.previousPattern, s.beats, bay.input, s.blast), pose, ease)
       const { group } = bay
-      group.position.set(bay.origin[0] + pose.offset[0] * kinetics, bay.origin[1] + pose.offset[1] * kinetics, bay.origin[2] + pose.offset[2] * kinetics)
+      const origin = layoutPosition(bay.origin, c.spatialSpread, c.depthDistribution)
+      // Detonate and the shared blast can coincide. Bound the combined travel
+      // rather than multiplying two full excursions into the camera lanes.
+      const travel = Math.hypot(...pose.offset) * kinetics
+      const motion = travel > 4.2 ? kinetics * 4.2 / travel : kinetics
+      group.position.set(origin[0] + pose.offset[0] * motion, origin[1] + pose.offset[1] * motion, origin[2] + pose.offset[2] * motion)
       e.set(pose.rotate[0] * kinetics, pose.rotate[1] * kinetics, pose.rotate[2] * kinetics)
       quaternion.setFromEuler(e)
       group.quaternion.copy(quaternion)
@@ -276,6 +333,7 @@ export class WireframePortalScene {
       const heat = bay.heat * (1 - drift * .55 + drift * 1.1 * wave ** 2) * (bay.deep ? .8 : 1)
       // A core the camera is flying right past fades out instead of filling the frame.
       const near = s.eye ? smoothstep(.6, 3, Math.hypot(group.position.x - s.eye[0], group.position.y - s.eye[1], group.position.z - s.eye[2])) : 1
+      group.visible = !s.eye || Math.hypot(group.position.x - s.eye[0], group.position.y - s.eye[1], group.position.z - s.eye[2]) > group.scale.x * Math.sqrt(3) + .2
       rgb(bay.core.color, c.hotColor, 2.6 * level * c.jointHeat * heat * pose.core * (1 + 1.5 * s.flash) * near)
       rgb(bay.joint.color, c.hotColor, .9 * level * c.jointHeat * heat * (.6 + .4 * pose.core))
       const edge = .5 + .5 * Math.sin(s.phase * .35 - bay.input.drift * .6 + 1.3)
@@ -283,7 +341,10 @@ export class WireframePortalScene {
     }
     rgb(this.beacon.color, c.hotColor, 1.8 * level * c.pinLighting)
     rgb(this.link.color, c.edgeColor, .25 * level * c.edgeLighting)
-    this.updateLinks()
+    rgb(this.satelliteHeat.color, c.hotColor, .46 * level * c.jointHeat * (1 + .6 * s.flash))
+    rgb(this.satelliteEdges.color, c.edgeColor, .32 * level * c.edgeLighting)
+    this.updateSatellites(c, s, ease, kinetics)
+    this.updateLinks(s.eye)
     this.updateBeams(c, s, level)
 
     this.rig.rotation.y = Math.sin(s.phase * .06) * .45
@@ -303,7 +364,7 @@ export class WireframePortalScene {
 
   inspect(): Readonly<Record<string, unknown>> {
     return {
-      presentation: 'wireframe-portal', bayCount: this.bays.length, fixtureCount: this.fixtures.length, visibleBeams: this.fixtures.filter(fixture => fixture.beam.visible).length,
+      presentation: 'wireframe-portal', satelliteCount: this.satelliteRails.count, satelliteBraceCount: this.satelliteBraces.count, bayCount: this.bays.length, fixtureCount: this.fixtures.length, visibleBeams: this.fixtures.filter(fixture => fixture.beam.visible).length,
       ownedGeometryCount: this.geometries.size, ownedMaterialCount: this.materials.size, instancedBatches: this.instances.length,
       lights: ['truss-cold-rim', 'truss-red-rim', 'truss-under-key'], dustPoints: this.dust?.geometry.getAttribute('position').count ?? 0, drawn: this.drawn,
     }
@@ -344,12 +405,43 @@ export class WireframePortalScene {
     return mesh
   }
 
-  /** The connecting bars and their light runs follow the bays: each is rebuilt from where its two bays' faces are now. */
-  private updateLinks(): void {
+  /** Compact the active secondary trusses into the same three reusable batches. */
+  private updateSatellites(c: WireframePortalControls, state: WireframePortalState, ease: number, kinetics: number): void {
+    const { a, e, q, s, m } = this.scratch
+    const count = wireframePortalSatelliteCount(state.quality, c.structuralDensity)
+    let drawn = 0, braces = 0
+    for (let index = 0; index < count; index++) {
+      const input = this.satelliteInputs[index]!
+      let pose = evaluateWireframePortalBay(state.pattern, state.beats, input, state.blast)
+      if (ease < 1) pose = blendWireframePortalBay(evaluateWireframePortalBay(state.previousPattern, state.beats, input, state.blast), pose, ease)
+      const origin = layoutPosition(SATELLITES[index]!, c.spatialSpread, c.depthDistribution)
+      const motion = .22 * kinetics
+      a.set(origin[0] + pose.offset[0] * motion, origin[1] + pose.offset[1] * motion, origin[2] + pose.offset[2] * motion)
+      const size = (.43 + hash(index, 7) * .18) * (1 + (pose.scale - 1) * motion)
+      if (state.eye && Math.hypot(a.x - state.eye[0], a.y - state.eye[1], a.z - state.eye[2]) < size * Math.sqrt(3) + .25) continue
+      e.set(pose.rotate[0] * motion, pose.rotate[1] * motion, pose.rotate[2] * motion)
+      q.setFromEuler(e)
+      this.satelliteMatrix.compose(a, q, s.setScalar(size))
+      this.satelliteRails.setMatrixAt(drawn, this.satelliteMatrix)
+      this.satelliteJoints.setMatrixAt(drawn++, this.satelliteMatrix)
+      // No extra draw calls per truss. High-frequency detail rides the bay
+      // transform and uses the existing shared high-band Edge Runs drive.
+      if (state.quality !== 'low') for (const local of this.braceMatrices) {
+        this.satelliteBraces.setMatrixAt(braces++, m.multiplyMatrices(this.satelliteMatrix, local))
+      }
+    }
+    this.satelliteRails.count = this.satelliteJoints.count = drawn
+    this.satelliteBraces.count = braces
+    for (const batch of [this.satelliteRails, this.satelliteJoints, this.satelliteBraces]) batch.instanceMatrix.needsUpdate = true
+  }
+
+  /** The connecting bars and their light runs follow the bays, excluding near-camera segments. */
+  private updateLinks(eye?: WireframePortalState['eye']): void {
     const { a, b, c, m, up, s, q } = this.scratch
     let bars = 0, lights = 0
     for (const link of this.links) {
       const from = this.bays[link.from]!, to = this.bays[link.to]!
+      if (!from.group.visible || !to.group.visible) continue
       const at = (bay: Bay, along: number, target: THREE.Vector3) => {
         const p = axisPoint(link.direction, along, link.side * .84, link.side * .84)
         return target.set(p[0], p[1], p[2]).applyMatrix4(bay.group.matrix)
@@ -357,6 +449,11 @@ export class WireframePortalScene {
       at(from, link.sign, a)
       at(to, -link.sign, b)
       c.copy(b).sub(a)
+      if (eye) {
+        const lengthSq = c.lengthSq()
+        const t = lengthSq > 1e-8 ? Math.max(0, Math.min(1, ((eye[0] - a.x) * c.x + (eye[1] - a.y) * c.y + (eye[2] - a.z) * c.z) / lengthSq)) : 0
+        if (Math.hypot(a.x + c.x * t - eye[0], a.y + c.y * t - eye[1], a.z + c.z * t - eye[2]) < .5) continue
+      }
       const length = Math.max(1e-4, c.length())
       q.setFromUnitVectors(up, c.normalize())
       m.compose(c.copy(a).lerp(b, .5), q, s.set(.036, length, .036))
@@ -368,6 +465,8 @@ export class WireframePortalScene {
         this.linkLights.setMatrixAt(lights++, m)
       }
     }
+    this.connectors.count = bars
+    this.linkLights.count = lights
     this.connectors.instanceMatrix.needsUpdate = true
     this.linkLights.instanceMatrix.needsUpdate = true
   }
@@ -433,7 +532,7 @@ export class WireframePortalScene {
     const power = level * Math.max(0, c.beamLighting) * (1 + 1.4 * strobe * s.flash) * gate
     const roles: Rgb[] = [c.hotColor, c.coldRimColor, c.redRimColor]
     this.fixtures.forEach((fixture, index) => {
-      const on = index < visibleCount && power > .003
+      const on = Math.ceil((index + 1) * visibleCount / BEAM_MAX) > Math.ceil(index * visibleCount / BEAM_MAX) && power > .003
       fixture.beam.visible = on
       fixture.lens.visible = on
       if (!on) return
@@ -447,7 +546,7 @@ export class WireframePortalScene {
       fixture.lens.position.copy(a)
       q.setFromUnitVectors(down, b.set(pose.direction[0], pose.direction[1], pose.direction[2]))
       fixture.beam.quaternion.copy(q)
-      const open = 1.2 * Math.max(.3, pose.width)
+      const open = .9 * Math.max(.3, Math.min(2.4, pose.width))
       fixture.beam.scale.set(open, BEAM_LENGTH, open)
       // The lens and the beam fade as the camera flies close to the fixture, so they never fill the screen.
       const near = s.eye ? Math.hypot(a.x - s.eye[0], a.y - s.eye[1], a.z - s.eye[2]) : Infinity
@@ -456,7 +555,7 @@ export class WireframePortalScene {
       fixture.lens.visible = lensFade > .01
       const color = roles[fixture.colorRole]!
       ;(fixture.beam.material.uniforms.uColor!.value as THREE.Color).setRGB(color[0] ?? 1, color[1] ?? 1, color[2] ?? 1, T.SRGBColorSpace)
-      fixture.beam.material.uniforms.uStrength!.value = .55 * power * Math.max(0, pose.power) * (.2 + .8 * beamFade)
+      fixture.beam.material.uniforms.uStrength!.value = .55 * power * Math.max(0, pose.power) * beamFade
       fixture.lens.material.color.setRGB(color[0] ?? 1, color[1] ?? 1, color[2] ?? 1, T.SRGBColorSpace).multiplyScalar(2.2 * power * Math.max(.3, pose.power) * lensFade)
     })
   }

@@ -71,7 +71,10 @@ try {
         check('palette-inventory',palette.length>=4?[]:['Fewer than four palette controls'])
         const slider=meta.controls.find(p=>p.type==='float'&&p.designParentGroup==='design'&&p.exposure==='primary'&&p.min!==undefined&&p.max!==undefined&&!p.visibleWhen&&!p.enabledWhen&&!/camera|media|motion|speed|rate|transition/i.test(p.label))
         if(!slider)notRun('representative-slider','No unconditional Design slider selected')
-        for(const p of [...palette,...(slider?[slider]:[])])await scenario(`control-${p.id}`,async()=>{
+        const spatial=key==='crate-wireframe-portal'?['Spatial Spread','Structural Density','Depth Distribution'].map(find).filter(Boolean):[]
+        if(key==='crate-wireframe-portal')check('wireframe-spatial-controls',spatial.length===3?[]:['Missing Wireframe Portal structure controls'])
+        const sliders=[...new Set([...(slider?[slider]:[]),...spatial])]
+        for(const p of [...palette,...sliders])await scenario(`control-${p.id}`,async()=>{
           const value=authored[p.id];if(value===undefined)throw Error('No authored value')
           // Color schema uses normalized RGB(A); preserve alpha if present.
           const variants=p.type==='color'?[Array.isArray(value)?value.map((v,i)=>i===3?v:1-v):[1,0,1,1]]:[p.min,p.max].filter(v=>v!==value)
