@@ -6,6 +6,7 @@ import {
   type Cinema2RenderTargetId, type Cinema2SceneNodeId,
 } from '../contracts/Cinema2NativePresetManifest'
 import { CINEMA2_CHAMBER_MODULE_TYPE_ID } from '../modules/Cinema2ChamberNativeModule'
+import { createCinema2ModelPresentationParameter } from '../model/Cinema2ModelPresentation'
 import { createCinema2UserModelParameter } from '../model/Cinema2UserModelBaseEnvironment'
 import { CHAMBER_PALETTE_DEFAULTS, CHAMBER_PALETTE_NAMES } from '../modules/chamber/Cinema2ChamberPalette'
 import { CINEMA2_CHAMBER_DEFAULT_PATTERN, CINEMA2_CHAMBER_PATTERNS } from '../modules/chamber/Cinema2ChamberPatterns'
@@ -35,6 +36,7 @@ const DRIFT_POINTS = Array.from({ length: 24 }, (_, i) => {
 })
 
 const PARAMETERS: readonly Cinema2ParameterManifest[] = [
+  createCinema2ModelPresentationParameter(chamberParameterId('userModelPresentation')),
   toggle('bpmSync', 'BPM Sync', 'master-controls', true, 0, 'Locks the camera drift and the light programs to the track tempo. Off, they run at a steady 120 BPM.'),
   number('intensity', 'Intensity', 'master-controls', 1, 0, 2, 1, undefined, 'Scales every glowing element: the platform ring, floor ticks, corner beacons, arm lamps, the lamp under the device, and the blades, scan rings, light shaft and stage wash.'),
   number('reactivity', 'Audio Reactivity', 'master-controls', .65, 0, 1, 2, undefined, 'How strongly the glow and the lights follow the music. At 0 the music moves nothing.'),
@@ -83,7 +85,7 @@ const PARAMETERS: readonly Cinema2ParameterManifest[] = [
   { ...createCinema2UserModelParameter(chamberParameterId('model')), exposure: 'hidden' },
   { ...base, id: chamberParameterId('spillColor'), label: 'Window Spill', type: 'color', defaultValue: SPILL_COLOR, designParentGroup: 'palette', order: CHAMBER_PALETTE_NAMES.length },
 ]
-const MODULE_BINDINGS = ['bpmSync', 'intensity', 'reactivity', 'autoPerformance', 'pattern', 'patternChange', 'trigger', 'ringLight', 'tickLight', 'beaconLight', 'lampLight', 'coreLight', 'bladeLight', 'scanLight', 'shaftLight', 'washLight', 'armMotion', 'scoreAmount', 'modelSize', 'modelTilt', 'modelDrift', 'modelLight', ...CHAMBER_PALETTE_NAMES] as const
+const MODULE_BINDINGS = ['userModelPresentation', 'bpmSync', 'intensity', 'reactivity', 'autoPerformance', 'pattern', 'patternChange', 'trigger', 'ringLight', 'tickLight', 'beaconLight', 'lampLight', 'coreLight', 'bladeLight', 'scanLight', 'shaftLight', 'washLight', 'armMotion', 'scoreAmount', 'modelSize', 'modelTilt', 'modelDrift', 'modelLight', ...CHAMBER_PALETTE_NAMES] as const
 /** Score channels the choreography sets (kick ripple); they are module inputs, not controls. */
 const SCORE_CHANNELS = ['cueModel', 'cueCore', 'cueLamps', 'cueRing', 'cueTicks', 'cueBeacons'] as const
 

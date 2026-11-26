@@ -1,3 +1,4 @@
+import { createCinema2ModelPresentationParameter } from '../model/Cinema2ModelPresentation'
 import { createCinema2UserModelParameter } from '../model/Cinema2UserModelBaseEnvironment'
 import { finishBassSigil } from './Cinema2BassSigilFinish'
 import { bassSigilPerformance, BASS_SIGIL_SCORE_CHANNELS } from './Cinema2BassSigilPerformance'
@@ -27,8 +28,9 @@ export const bassSigilParameterId = (name: string) => cinema2StableId<Cinema2Par
 const base = { section: 'Design', exposure: 'primary', persistence: 'preset', reset: 'authored-default' } as const
 const number = (name: string, label: string, group: Cinema2ParameterManifest['designParentGroup'], value: number, min: number, max: number, order: number): Cinema2ParameterManifest => ({ ...base, id: bassSigilParameterId(name), label, type: 'float', defaultValue: value, min, max, step: .01, designParentGroup: group, order })
 const bind = (name: string) => cinema2Ref(bassSigilParameterId(name))
-const bindings = Object.fromEntries([ ['userModel', bind('model')] as const, ...['autoPerformance','reactivity','scoreAmount','bpmSync','intensity','pattern','patternChange','trigger','motionRate','geometryExtent','coreTravel','membraneScale','particleDensity','tunnelDepth','heroScale','logoSpinRate','logoSway','logoHeading','logoPitch','logoRoll','membraneOpacity','glow',...Object.keys(BASS_SIGIL_PALETTE).map(role=>`${role}Color`)].map(name=>[name,bind(name)] as const)])
+const bindings = Object.fromEntries([ ['userModel', bind('model')] as const, ...['userModelPresentation','autoPerformance','reactivity','scoreAmount','bpmSync','intensity','pattern','patternChange','trigger','motionRate','geometryExtent','coreTravel','membraneScale','particleDensity','tunnelDepth','heroScale','logoSpinRate','logoSway','logoHeading','logoPitch','logoRoll','membraneOpacity','glow',...Object.keys(BASS_SIGIL_PALETTE).map(role=>`${role}Color`)].map(name=>[name,bind(name)] as const)])
 const parameters: readonly Cinema2ParameterManifest[] = [
+    createCinema2ModelPresentationParameter(bassSigilParameterId('userModelPresentation')),
     { ...base, id: bassSigilParameterId('bpmSync'), label: 'BPM Sync', type: 'boolean', defaultValue: true, designParentGroup: 'master-controls', order: 0, description: 'Locks native motion to shared tempo. Off runs at the 120 BPM reference; the host toggle does not override this choice.' },
     number('intensity','Intensity','master-controls',1,0,2,1),
     { ...base,id:bassSigilParameterId('autoPerformance'),label:'Auto Performance',type:'boolean',defaultValue:false,designParentGroup:'master-controls',order:3,description:'The shared Mood Conductor directs bounded motion and effects, pattern timing and temporary build/drop programs. Turn off to edit Design and Effects; saved values and palette are preserved.' },

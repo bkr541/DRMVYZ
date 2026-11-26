@@ -190,6 +190,8 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
       let userSlot: Cinema2UserModelSlot | null = null
       let userBinding = context.parameters.get('userModel') ?? DEFAULT_MODEL_BINDING
       let userPalette = context.parameters.get('userModelPalette') === true
+      const isModelPreview = isCinema2UserModelPreview(context.module.config?.userModelPreview)
+      let userPresentation = context.parameters.get('userModelPresentation')
       const ownedTemplates: Cinema2ThreeLoadedAsset[] = []
       const requested = parseInstances(context.module)
       const panels = parsePanels(context.module)
@@ -319,6 +321,7 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
           if (state === 'building' && !bridge && !bridgeCreateFailed && library) buildBridge()
           if (!bridge || state === 'failed' || state === 'loading') return
           bridge.setUserModelPalette(userPalette)
+          bridge.setUserModelPresentation(isModelPreview ? 'integrated' : userPresentation)
           bridge.draw(execution, overrides, spinRadians, glowDraw, segmentDraw, null, null, atlHoeDraw)
           if (bridge.ready && state !== 'ready') state = 'ready'
           const bytes = bridge.estimateGpuBytes()
@@ -331,7 +334,7 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
           update: (updateContext: Cinema2ModuleUpdateContext) => {
             const { frame, parameters } = updateContext
             latestControllerUpdate = updateContext
-            if (userConfig) { userBinding = parameters.get('userModel') ?? DEFAULT_MODEL_BINDING; userPalette = parameters.get('userModelPalette') === true; userSlot?.select(userBinding) }
+            if (userConfig) { userBinding = parameters.get('userModel') ?? DEFAULT_MODEL_BINDING; userPalette = parameters.get('userModelPalette') === true; userPresentation = parameters.get('userModelPresentation'); userSlot?.select(userBinding) }
             modelController?.update?.(updateContext)
             overrides = readOverrides(parameters, overrides, partNames)
             const turnSeconds = readNumber(parameters.get('spinTurnSeconds'), 0, 3600) ?? 0

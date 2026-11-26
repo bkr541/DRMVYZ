@@ -40,7 +40,7 @@ const parameters:readonly Cinema2ParameterManifest[]=[
   slider('model-yaw','Model Yaw','design','Hero',6,0,-180,180,'Authored yaw in degrees.',true,1),
   slider('model-pitch','Model Pitch','design','Hero',7,0,-25,25,'Authored pitch in degrees.',true,1),
   slider('model-roll','Model Roll','design','Hero',8,0,-20,20,'Authored roll in degrees.',true,1),
-  choice('material-mode','Material Mode','design','Hero',9,'original',[{value:'original',label:'Original'},{value:'brushed',label:'Brushed Metal'},{value:'edge',label:'Emissive Edge'}],'Preserve textures or apply instance-local metal/emission treatment.'),
+  choice('material-mode','Model Presentation','design','Hero',9,'original',[{value:'original',label:'Original'},{value:'integrated',label:'Scene Integrated'},{value:'brushed',label:'Brushed Metal'},{value:'edge',label:'Emissive Edge'}],'Original adds neutral fill to imported models; Scene Integrated uses scene lighting. Brushed Metal and Emissive Edge are explicit instance-local stylizations.'),
   slider('hero-motion','Hero Motion','design','Hero',10,.2,0,1,'Small bounded float and lean.'),
   slider('hero-emission','Hero Emission','design','Hero',11,.2,0,1,'Hero-local rim lighting and emission.'),
   slider('arm-reach','Arm Reach','design','Machinery',1,.5,0,1,'Inward travel outside the exclusion volume.'),

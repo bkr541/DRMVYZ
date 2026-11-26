@@ -697,3 +697,88 @@ describe('empty private model slots', () => {
     bridge.dispose()
   })
 })
+
+// Procedural, license-free material fixtures exercise the actual bridge with a mocked renderer.
+describe('private model presentation', () => {
+  it('retains distinct authored colors, alpha, maps and physical properties through quality and presentation changes', async () => {
+    const scene = new THREE.Group()
+    const texture = new THREE.DataTexture(new Uint8Array([255, 40, 20, 180]), 1, 1)
+    texture.colorSpace = THREE.SRGBColorSpace
+    const normal = new THREE.Texture(), authoredEnv = new THREE.Texture()
+    const red = new THREE.MeshStandardMaterial({ color: 0xf03020, map: texture, normalMap: normal, metalness: .2, roughness: .7 })
+    const glass = new THREE.MeshPhysicalMaterial({ color: 0x2060ed, transparent: true, opacity: .45, depthWrite: false, transmission: .4, clearcoat: .7, emissive: 0x002050, emissiveIntensity: .3, envMap: authoredEnv, envMapIntensity: .6 })
+    const unlit = new THREE.MeshBasicMaterial({ color: 0x00ee55, opacity: .8, transparent: true, map: texture })
+    const hero = new THREE.Mesh(new THREE.BoxGeometry(1, 3, .7), [red, glass, red, glass, red, glass]); hero.name = 'hero'
+    const hidden = new THREE.Mesh(new THREE.BoxGeometry(3, .6, .7), red); hidden.visible = false; hidden.name = 'hidden'
+    const flat = new THREE.Mesh(new THREE.BoxGeometry(3, .5, .3), unlit); flat.name = 'unlit'
+    scene.add(hero, hidden, flat)
+    const attach = vi.fn(), bridge = new Cinema2ThreeSceneBridge(glGuardStub(), library, [], { modelController: { attach } })
+    bridge.replaceUserModel({ asset: { id: 'fixture', scene, animations: [], triangleCount: 36, gpuBytes: 100 } as never, node: null, preserveMaterials: true })
+    const model = attach.mock.calls[0]![0] as THREE.Object3D
+    const clone = model.getObjectByName('hero') as THREE.Mesh
+    const [r, g] = clone.material as [THREE.MeshStandardMaterial, THREE.MeshPhysicalMaterial]
+    const basic = (model.getObjectByName('unlit') as THREE.Mesh).material as THREE.MeshBasicMaterial
+    const nativeOverrides = overrides({ color: [0, 1, 0], emissive: [1, 1, 1], clearcoat: .5, metalness: 1, environmentIntensity: .015 })
+    const draw = (quality: 'low' | 'medium' | 'high', exposure = 1) => bridge.draw(execution(quality, exposure), nativeOverrides)
+    for (let i = 0; i < 16 && !bridge.ready; i++) { draw('low'); await Promise.resolve(); await Promise.resolve() }
+    draw('low')
+    expect(bridge.ready).toBe(true)
+    expect(r).not.toBe(red); expect(g).not.toBe(glass)
+    expect(r.color.equals(red.color)).toBe(true); expect(g.color.equals(glass.color)).toBe(true)
+    expect(r.map).toBe(texture); expect(r.normalMap).toBe(normal); expect(texture.colorSpace).toBe(THREE.SRGBColorSpace)
+    expect(g).toBeInstanceOf(THREE.MeshPhysicalMaterial)
+    expect(g).toMatchObject({ opacity: .45, transparent: true, depthWrite: false, transmission: .4, clearcoat: .7, emissiveIntensity: .3, envMap: authoredEnv, envMapIntensity: .6 })
+    expect(g.emissive.equals(glass.emissive)).toBe(true)
+    expect(r.envMap).toBe(host.getEnvironment()); expect(r.envMapIntensity).toBeCloseTo(.85)
+    expect(model.getObjectByName('hidden')!.visible).toBe(false)
+    expect(basic.color.equals(unlit.color)).toBe(true); expect(basic.map).toBe(texture)
+    bridge.setUserModelPresentation('integrated'); draw('high')
+    expect(r.envMap).toBeNull(); expect(r.envMapIntensity).toBe(red.envMapIntensity)
+    expect(g.envMap).toBe(authoredEnv)
+    bridge.setUserModelPresentation('brushed'); draw('medium')
+    expect(r.envMap).toBeNull() // native controller owns the actual brushed treatment
+    bridge.setUserModelPresentation('original'); draw('high', 10)
+    expect(r.envMapIntensity).toBeCloseTo(.85 * 1.5)
+    expect(r.color.equals(red.color)).toBe(true); expect(g.transmission).toBe(.4)
+    const disposeBasic = vi.spyOn(basic, 'dispose'), disposeRed = vi.spyOn(r, 'dispose'), disposeTexture = vi.spyOn(texture, 'dispose')
+    bridge.replaceUserModel(null)
+    expect(disposeBasic).toHaveBeenCalledOnce(); expect(disposeRed).toHaveBeenCalledOnce(); expect(disposeTexture).not.toHaveBeenCalled()
+    expect(red.envMap).toBeNull(); expect(glass.envMap).toBe(authoredEnv)
+    bridge.replaceUserModel({ asset: { id: 'fixture', scene, animations: [], triangleCount: 36, gpuBytes: 100 } as never, node: null })
+    bridge.dispose()
+    expect(disposeTexture).not.toHaveBeenCalled()
+  })
+
+  it('retains the explicit legacy palette tint and restores original appearance on release', async () => {
+    const asset = loadedAsset(), attach = vi.fn()
+    const bridge = new Cinema2ThreeSceneBridge(glGuardStub(), library, [{ asset: asset as never, node: null, userModel: true }], { modelController: { attach } })
+    const material = ((attach.mock.calls[0]![0] as THREE.Group).children[0] as THREE.Mesh).material as THREE.MeshStandardMaterial
+    const source = (asset.scene.children[0] as THREE.Mesh).material as THREE.MeshStandardMaterial
+    bridge.setUserModelPalette(true)
+    bridge.draw(execution('high'), overrides({ color: [1, 0, 0] }))
+    expect(material.color.g).toBe(0); expect(source.color.g).toBe(1)
+    bridge.setUserModelPalette(false)
+    bridge.draw(execution('high'), overrides({ color: [1, 0, 0] }))
+    expect(material.color.equals(source.color)).toBe(true)
+    bridge.dispose()
+  })
+})
+
+it('does not let a private-model name collide with native part visibility or material lighting', async () => {
+  const native = loadedAsset(), imported = loadedAsset()
+  const source = imported.scene.children[0] as THREE.Mesh
+  source.name = (native.scene.children[0] as THREE.Mesh).name = 'hero'
+  const bridge = new Cinema2ThreeSceneBridge(glGuardStub(), library, [{ asset: native as never, node: null }])
+  bridge.replaceUserModel({ asset: imported as never, node: null })
+  const scene = (bridge as unknown as { scene: THREE.Scene }).scene
+  const materialOverrides = overrides({ color: [0, 0, 1], environmentIntensity: .015 })
+  for (let i = 0; i < 10 && !bridge.ready; i++) { bridge.draw(execution('high'), materialOverrides); await Promise.resolve(); await Promise.resolve() }
+  bridge.draw(execution('high'), materialOverrides, 0, null, null, { parts: { hero: false } })
+  const meshes: THREE.Mesh[] = []; scene.traverse(object => { if ((object as THREE.Mesh).isMesh) meshes.push(object as THREE.Mesh) })
+  expect(meshes).toHaveLength(2)
+  expect(meshes[0]!.visible).toBe(false); expect(meshes[1]!.visible).toBe(true)
+  expect((meshes[0]!.material as THREE.MeshStandardMaterial).color.r).toBe(0)
+  expect((meshes[1]!.material as THREE.MeshStandardMaterial).color.r).toBe(1)
+  expect(scene.environmentIntensity).toBe(.015)
+  bridge.dispose()
+})

@@ -1,3 +1,4 @@
+import { resolveCinema2ModelPresentation, type Cinema2ModelPresentation } from '../../model/Cinema2ModelPresentation'
 import type * as ThreeNamespace from 'three'
 import type { Cinema2RenderQualityLevel } from '../../contracts/Cinema2NativePresetManifest'
 import { Cinema2UserModelTextureTier } from './Cinema2UserModelTextureTier'
@@ -229,12 +230,14 @@ interface PlacedInstance {
   spin: boolean
   root: ThreeNamespace.Group
   materials: OwnedMaterial[]
+  otherMaterials: ThreeNamespace.Material[]
 }
 
 interface OwnedMaterial {
   /** The part this material belongs to, for per-part overrides: the mesh's name, or its material's name when the mesh's is not a listed part
    * (a model can name many meshes `roots-3`, `leaf-12` ... that share one `roots` / `leaves` material). */
   part: string
+  authoredVisible: boolean
   materialName: string
   /** This part's share of the environment (null = the scene's level, no override). */
   environmentShare?: number | null
@@ -256,6 +259,8 @@ interface OwnedMaterial {
     emissiveIntensity: number
     roughness: number
     metalness: number
+    envMap: ThreeNamespace.Texture | null
+    envMapIntensity: number
     normalMap: ThreeNamespace.Texture | null
     aoMap: ThreeNamespace.Texture | null
   }
@@ -305,6 +310,8 @@ export class Cinema2ThreeSceneBridge {
   private quality: Cinema2RenderQualityLevel | null = null
   private appliedOverrides: Readonly<Cinema2ThreeMaterialOverrides> | null = null
   private userModelPalette = false
+  private userModelPresentation: Cinema2ModelPresentation = 'original'
+  private preparationGeneration = 0
   /** Smaller copies of a user model's large textures on the lower quality tiers. */
   private readonly userTextures: Cinema2UserModelTextureTier
   private disposed = false
@@ -463,6 +470,7 @@ export class Cinema2ThreeSceneBridge {
     root.matrixAutoUpdate = false
     const model = instance.asset.scene.clone(true)
     const materials: OwnedMaterial[] = []
+    const otherMaterials: ThreeNamespace.Material[] = []
     model.traverse(object => {
       const mesh = object as ThreeNamespace.Mesh
       if (!mesh.isMesh) return
@@ -473,6 +481,7 @@ export class Cinema2ThreeSceneBridge {
           const physical = standard as Partial<ThreeNamespace.MeshPhysicalMaterial>
           materials.push({
             part: mesh.name || standard.name,
+            authoredVisible: mesh.visible,
             materialName: standard.name,
             material: standard,
             slot: { mesh, index: Array.isArray(mesh.material) ? index : null },
@@ -482,17 +491,19 @@ export class Cinema2ThreeSceneBridge {
               iridescenceThicknessRange: [physical.iridescenceThicknessRange?.[0] ?? 100, physical.iridescenceThicknessRange?.[1] ?? 400],
               transmission: physical.transmission ?? 0, ior: physical.ior ?? 1.5, thickness: physical.thickness ?? 0, dispersion: physical.dispersion ?? 0,
               color: standard.color.clone(), emissive: standard.emissive.clone(), emissiveIntensity: standard.emissiveIntensity,
+              envMap: standard.envMap, envMapIntensity: standard.envMapIntensity,
               roughness: standard.roughness, metalness: standard.metalness, normalMap: standard.normalMap, aoMap: standard.aoMap,
             },
           })
-        }
+        } else otherMaterials.push(standard)
         return standard
       })
       mesh.material = Array.isArray(mesh.material) ? cloned : cloned[0]!
     })
-    for (const owned of materials) this.decorate(owned)
+    // Preset part names and shader hooks belong to shipped assets, never to a private model.
+    if (!instance.userModel) for (const owned of materials) this.decorate(owned)
     const shadows = this.options.shadows
-    if (shadows) {
+    if (shadows && !instance.userModel) {
       for (const owned of materials) {
         const inList = (list: readonly string[]) => list.includes(owned.part) || list.includes(owned.materialName)
         owned.slot.mesh.castShadow ||= inList(shadows.cast)
@@ -502,7 +513,7 @@ export class Cinema2ThreeSceneBridge {
     this.options.modelController?.attach(model, instance.userModel, instance.asset.animations, instance.asset.id)
     root.add(model)
     this.scene.add(root)
-    this.placed.push({ preserveMaterials: instance.preserveMaterials === true, userModel: instance.userModel === true, node: instance.node, spin: instance.spin === true, root, materials })
+    this.placed.push({ preserveMaterials: instance.preserveMaterials === true, userModel: instance.userModel === true, node: instance.node, spin: instance.spin === true, root, materials, otherMaterials })
   }
 
   /** Replace only the private-model subtree; renderer, camera, environment and static instances survive. */
@@ -514,14 +525,23 @@ export class Cinema2ThreeSceneBridge {
       for (const model of placed.root.children) this.options.modelController?.detach?.(model)
       this.scene.remove(placed.root)
       for (const owned of placed.materials) owned.material.dispose()
+      for (const material of placed.otherMaterials) material.dispose()
       this.placed.splice(index, 1)
     }
     this.userTextures.release()
-    this.upgraded = false
     if (instance) this.addInstance({ ...instance, userModel: true })
     this.appliedOverrides = null; this.quality = null
-    // Private generated models have no textures; warm the new materials without reloading the environment.
-    this.stage = 'textures'
+    // Invalidate the old model’s texture upload and shader preparation; reuse the host environment.
+    this.preparationGeneration++
+    this.pendingTextures.length = 0
+    // A selection during initial environment warm-up must not bypass environment creation.
+    this.stage = 'environment'
+  }
+
+  setUserModelPresentation(value: unknown): void {
+    const mode = resolveCinema2ModelPresentation(value)
+    if (mode === this.userModelPresentation) return
+    this.userModelPresentation = mode; this.appliedOverrides = null
   }
 
   setUserModelPalette(enabled: boolean): void {
@@ -608,9 +628,10 @@ export class Cinema2ThreeSceneBridge {
   dispose(): void {
     if (this.disposed) return
     this.disposed = true
-    for (const { root, materials } of this.placed) {
+    for (const { root, materials, otherMaterials } of this.placed) {
       this.scene.remove(root)
       for (const { material } of materials) material.dispose()
+      for (const material of otherMaterials) material.dispose()
     }
     this.userTextures.release()
     for (const { light } of this.panels) this.scene.remove(light)
@@ -655,10 +676,10 @@ export class Cinema2ThreeSceneBridge {
   }
 
   private applyPartVisibility(parts: Readonly<Record<string, boolean>> | null): void {
-    for (const { materials } of this.placed) {
+    for (const { materials, userModel } of this.placed) {
       for (const owned of materials) {
         const requested = parts?.[owned.part] ?? parts?.[owned.materialName]
-        owned.slot.mesh.visible = requested ?? true
+        owned.slot.mesh.visible = userModel ? owned.authoredVisible : requested ?? true
       }
     }
   }
@@ -672,7 +693,8 @@ export class Cinema2ThreeSceneBridge {
     if (quality === this.quality) return
     this.quality = quality
     const detailed = quality !== 'low'
-    for (const { materials } of this.placed) {
+    for (const { materials, userModel } of this.placed) {
+      if (userModel) continue // Retain authored surface detail; the texture budget below still applies.
       for (const { material, base } of materials) {
         material.normalMap = detailed ? base.normalMap : null
         material.aoMap = detailed ? base.aoMap : null
@@ -680,7 +702,7 @@ export class Cinema2ThreeSceneBridge {
       }
     }
     // A user model's textures are stepped down until they fit the tier's allowance (up to 1024 px on low, 2048 px on medium, 4096 px on high).
-    for (const { materials, userModel } of this.placed) if (userModel) this.userTextures.apply(materials.map(owned => owned.material), quality)
+    for (const { materials, otherMaterials, userModel } of this.placed) if (userModel) this.userTextures.apply([...materials.map(owned => owned.material), ...otherMaterials], quality)
     this.appliedOverrides = null // clearcoat and panel visibility depend on the tier: reapply them
     const limit = CINEMA2_THREE_PANEL_LIMITS[quality]
     this.panels.forEach(({ light }, index) => { light.visible = index < limit })
@@ -697,7 +719,8 @@ export class Cinema2ThreeSceneBridge {
     if (this.upgraded) return
     this.upgraded = true
     const { THREE } = this.library
-    for (const { materials } of this.placed) {
+    for (const { materials, userModel } of this.placed) {
+      if (userModel) continue // Replacing a GLTF physical material with a standard copy loses extension maps and controller references.
       for (const owned of materials) {
         const physical = new THREE.MeshPhysicalMaterial()
         THREE.MeshStandardMaterial.prototype.copy.call(physical, owned.material)
@@ -1003,10 +1026,21 @@ export class Cinema2ThreeSceneBridge {
     // Three uses the scene-wide intensity for anything lit only by scene.environment; a part with its own share gets the environment as its
     // own envMap instead, so its envMapIntensity (scene level x share) is honoured.
     const environment = this.scene.environment
-    for (const { materials } of this.placed) {
+    for (const { materials, userModel } of this.placed) {
       for (const owned of materials) {
         const share = owned.environmentShare
         const material = owned.material
+        if (userModel) {
+          // A per-material studio environment supplies neutral diffuse/specular fill without lighting the set.
+          // Preserve explicitly authored environment maps in every presentation mode.
+          const original = this.userModelPresentation === 'original' && !this.userModelPalette
+          const wanted = owned.base.envMap ?? (original && environment ? this.getEnvironment() : null)
+          if (material.envMap !== wanted) { material.envMap = wanted; material.needsUpdate = true }
+          material.envMapIntensity = owned.base.envMap ? owned.base.envMapIntensity : original
+            ? .85 * Math.min(1.5, Math.max(0, Number.isFinite(environmentFrame.exposure) ? environmentFrame.exposure : 1))
+            : owned.base.envMapIntensity
+          continue
+        }
         const wanted = share != null && environment ? environment : null
         if (material.envMap !== wanted) { material.envMap = wanted; material.needsUpdate = true }
         if (wanted) material.envMapIntensity = this.scene.environmentIntensity * (share ?? 1)
@@ -1042,7 +1076,7 @@ export class Cinema2ThreeSceneBridge {
         material.metalness = own?.metalness ?? values.metalness ?? base.metalness
         owned.environmentShare = own?.environmentIntensity ?? null
         const physical = material as Partial<ThreeNamespace.MeshPhysicalMaterial>
-        if ('clearcoat' in physical && this.upgraded) {
+        if (!userModel && 'clearcoat' in physical && this.upgraded) {
           const requested = own?.clearcoat ?? values.clearcoat
           const wanted = requested ?? base.clearcoat
           physical.clearcoat = detailed && (requested != null || base.clearcoat > 0) ? Math.max(0.001, wanted) : 0
@@ -1084,10 +1118,10 @@ export class Cinema2ThreeSceneBridge {
         return // nothing draws until the environment is ready (or has failed over)
       }
       if (!this.scene.environment) this.scene.environment = this.getEnvironment()
-      // Upload only textures the current tier actually samples (low drops normal and ambient-occlusion maps).
+      // Upload only textures the current tier actually samples; native low-tier assets omit normal and AO maps.
       const textures = new Set<ThreeNamespace.Texture>()
-      for (const { materials } of this.placed) {
-        for (const { material } of materials) {
+      for (const { materials, otherMaterials } of this.placed) {
+        for (const material of [...materials.map(owned => owned.material), ...otherMaterials]) {
           for (const value of Object.values(material)) if (value && (value as ThreeNamespace.Texture).isTexture) textures.add(value as ThreeNamespace.Texture)
         }
       }
@@ -1102,11 +1136,12 @@ export class Cinema2ThreeSceneBridge {
     }
     if (this.stage === 'compile' && !this.compiling) {
       this.compiling = true
+      const generation = this.preparationGeneration
       renderer.compileAsync(this.scene, this.camera).then(
-        () => { this.compiling = false; if (!this.disposed) this.stage = 'ready' },
+        () => { this.compiling = false; if (!this.disposed && generation === this.preparationGeneration) this.stage = 'ready' },
         error => {
           this.compiling = false
-          if (this.disposed) return
+          if (this.disposed || generation !== this.preparationGeneration) return
           // Do not mask semantic shader failures as a successfully prepared render.
           // Other Three presets keep the pre-existing warm-up behavior.
           if (!this.options.mainframe && !this.options.atlHoe) { this.stage = 'ready'; return }
