@@ -4,6 +4,7 @@
 import { access, mkdir, writeFile } from 'node:fs/promises'
 import { chromium } from '@playwright/test'
 import sharp from 'sharp'
+import { reviewedEntries } from './cinema2-assets/reviewed-release-inventory.mjs'
 
 const baseUrl = process.env.DRMVYZ_ARTWORK_BASE_URL ?? 'http://127.0.0.1:5173'
 const output = new URL('../public/preset-artwork/', import.meta.url)
@@ -44,6 +45,11 @@ try {
   const requested = new Set(process.argv.slice(2).filter(arg => arg !== '--missing' && arg !== '--cinema'))
   const failures = []
   for (const item of catalog.filter(item => (!cinemaOnly || item.kind === 'cinema') && (!requested.size || requested.has(item.id)))) {
+    if (reviewedEntries.some(entry=>entry.id===item.id)) {
+      console.log(`Preserved ${item.id}: VIS-01 approval required`)
+      if(requested.has(item.id)) failures.push(item.id)
+      continue
+    }
     if (missingOnly) {
       try { await access(new URL(`${encodeURIComponent(item.id)}.webp`, output)); continue } catch { /* Generate missing entries. */ }
     }

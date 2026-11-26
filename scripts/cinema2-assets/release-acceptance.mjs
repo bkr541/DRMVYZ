@@ -4,6 +4,7 @@ import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { join, resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import os from 'node:os'
+import { sourceRevision, seal } from './visual-evidence-io.mjs'
 import { inventory, config, pixelEvidence, visibleIssues, controlEvidence, technicalIssues, retiredIssues, p95, regressionIssues, recordCheck, assertion, scenarioDecision, presetStatus, reportStatus, reportExitCode, fullInventoryStatus, motionEvidence, pairwiseEvidence, cameraSequenceEvidence, cameraRenderEvidence, triggerSequenceEvidence, sourceVisibility, fallbackEvidence, triggerEvidence, recoveryEvidence } from './release-acceptance-core.mjs'
 import { decodedMediaEvidence, videoFrameEvidence, projectedMediaEvidence } from './media-fidelity-evidence.mjs'
 import { materialRegions, compareMaterialRegions, authoredMaterialEvidence } from './model-fidelity-evidence.mjs'
@@ -20,7 +21,7 @@ const parent=join(root,'artifacts/cinema2-release');await mkdir(parent,{recursiv
 const output=await mkdtemp(join(parent,'run-'));console.log(`Release evidence: ${output}`)
 const hash=bytes=>createHash('sha256').update(bytes).digest('hex')
 const save=(path,data)=>writeFile(path,JSON.stringify(data,null,2)+'\n')
-const report={schemaVersion:6,technicalStatus:'incomplete',config,inventory:keys,...coverage,fullInventoryStatus:'incomplete',releaseApproval:false,environment:{platform:os.platform(),arch:os.arch(),cpu:os.cpus()[0]?.model, node:process.version},
+const report={schemaVersion:6,sourceRevision:await sourceRevision(root),technicalStatus:'incomplete',config,inventory:keys,...coverage,fullInventoryStatus:'incomplete',releaseApproval:false,environment:{platform:os.platform(),arch:os.arch(),cpu:os.cpus()[0]?.model, node:process.version},
   presets:Object.fromEntries(keys.map(key=>[key,{status:'not-run',reason:'Browser not started'}])),
   gates:{browserTechnical:'not-run',humanVisual:'pending',hardwareTiming:'not-run',electronPreview:'not-run',electronFullscreen:'not-run',casting:'not-run',externalCasting:'not-run',captureComparison:'not-run',performanceComparison:'not-run'},errors:[],blockers:[]}
 let vite,browser
@@ -550,5 +551,5 @@ try {
   // measured technical failure. Both cases still exit nonzero.
   if(Object.values(report.presets).every(p=>p.status==='not-run')){report.blockers.push(String(e));for(const p of Object.values(report.presets))p.reason=String(e)}else report.errors.push(String(e))
 }
-finally{await browser?.close();await vite?.close();report.technicalStatus=reportStatus(report);report.gates.browserTechnical=report.technicalStatus;report.fullInventoryStatus=fullInventoryStatus(report);await save(join(output,'manifest.json'),report)}
+finally{await browser?.close();await vite?.close();report.technicalStatus=reportStatus(report);report.gates.browserTechnical=report.technicalStatus;if(await sourceRevision(root)!==report.sourceRevision){report.errors.push('Source changed during capture');report.technicalStatus='fail';report.gates.browserTechnical='fail'}report.fullInventoryStatus=fullInventoryStatus(report);await save(join(output,'manifest.json'),seal(report))}
 process.exitCode=reportExitCode(report)

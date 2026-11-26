@@ -12,6 +12,8 @@ const option = (name, fallback) => { const index = rest.indexOf(`--${name}`); re
 const tolerance = option('tolerance', 0)
 const allowedFraction = option('max-different-fraction', 0)
 
+if(!Number.isFinite(tolerance)||tolerance<0||tolerance>255||!Number.isFinite(allowedFraction)||allowedFraction<0||allowedFraction>1)throw Error('Invalid comparison thresholds')
+
 async function raw(path) {
   const { data, info } = await sharp(await readFile(path)).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
   return { data, width: info.width, height: info.height }
@@ -21,7 +23,9 @@ const baseline = resolve(baselineArg)
 const candidate = resolve(candidateArg)
 const names = (await readdir(baseline)).filter(name => name.endsWith('.png')).sort()
 if (names.length === 0) { console.error(`No PNG captures in ${baseline}.`); process.exit(2) }
-let failures = 0
+const extra=(await readdir(candidate)).filter(name=>name.endsWith('.png')&&!names.includes(name))
+for(const name of extra)console.log(`EXTRA    ${name}`)
+let failures = extra.length
 for (const name of names) {
   let other
   try { other = await raw(join(candidate, name)) } catch { console.log(`MISSING  ${name}`); failures += 1; continue }

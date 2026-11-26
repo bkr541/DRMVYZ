@@ -1,53 +1,69 @@
-# Cinema 2.0 SYS-04: visual quality review
+# Cinema 2.0 SYS-04 / VIS-01: visual acceptance and thumbnail publication
 
-Scope: the seven native presets explicitly identified by the supplied SYS-04 source anchors (COLOSSUS, EXOSKELETON, SERAPH, PARADOX, RELIC, MONOLITH and HONEY). The original review DOCX and recording were not supplied with the implementation archive. This is a source-derived inventory, not a finding that any particular scene fails visually. SYS-03 is present in the baseline (`docs/cinema2-shared-camera-pattern-authority.md`); this workflow does not change its authority. No production manifest, preset, Inspector, palette, camera, or renderer default is changed.
+## Scope and provenance
 
-## Running the review
+QA-02's exact 21 compiled IDs are the review inventory; `quality-review-core.mjs` asserts that its scene-specific rubrics cover that inventory, including `crate-wireframe-portal`, Chamber and Monument (distinct from Monolith). The original Review 01 recording and original pre-redesign snapshot are unavailable in this archive. Rubrics derive from the prompt, current manifests and existing authoring notes, not an invented visual comparison. No preset, renderer, Inspector, source ownership, camera, choreography or authored default changes are made. A verified older comparable source can be reviewed; otherwise use a prospective baseline captured with this workflow on the current unchanged visual implementation. Prospective approval is not proof of improvement against the original recording.
 
-Install the repository's existing dependencies and Playwright Chromium (`npm ci`, `npm run playwright:install`), or set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to a compatible Chrome executable. From the repository root:
+## Capture production evidence
+
+Install the locked dependencies (`npm ci`, `npm run playwright:install`); alternatively set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to a compatible executable. Run in the actual repository on the same machine, browser and renderer for both sides:
 
 ```sh
-npm run visual:cinema2:quality-review -- capture --presets colossus,honey --modes authored,manual,auto
-# Entire anchor inventory, optionally including portrait output:
-npm run visual:cinema2:quality-review -- capture --aspects landscape,portrait
-node --test scripts/cinema2-assets/quality-review-core.test.mjs
+npm run test:cinema2:release-policy
+npm run visual:cinema2:quality-review
+npm run test:e2e:cinema2-release -- --media-masks /absolute/path/to/independently-calibrated-masks.json
 ```
 
-The isolated browser uses the real `Cinema2Runtime`, registry, shared Audio Intelligence bridge, Director, Mood and Choreography; no alternative detector, fake scene or illustration. It never opens a user's project or media library. Each preset/mode/aspect has a fresh page/runtime. Authored mode leaves reset defaults untouched, manual and auto modes only edit the isolated runtime's Auto Performance toggle. The serialized state is compared before/after each capture. The no-track reference and idle frames precede a deterministic 120 BPM test publication: 2 seconds of build, 2 of drop, 2 of breakdown, with onset and intermediate captures, 30 Hz fixture progression. This is a short representative sequence, not a recorded song or evidence of all musical transitions. Pattern vocabulary and camera definitions are extracted directly from the compiled manifest; active module inspections and Director snapshots accompany each capture. Alternate aspect is an explicit review of the output viewport, not an assumption that a camera changes its authored minimum aspect. Review each crop against scene intent.
+See `cinema2-qa05-media-fidelity.md` for mask calibration; do not invent masks to obtain a pass. The default quality command captures all 21 presets, authored/manual/auto, landscape/portrait, high quality. Optional `capture --presets honey --modes authored --aspects landscape` is a diagnostic subset and cannot authorize publication. The actual native runtime consumes a deterministic upstream 120 BPM fixture through the production shared bridge. No user media, duplicate audio analysis, mocked scenes or overlays. Every case starts with a fresh runtime; the only intentional persistent change is the Auto Performance control in manual/auto cases. The reference, idle and two-second build/drop/breakdown sequences are sampled at onset and roughly six frames per second, with actual canvas PNGs and chronological contact sheets. Individual full-resolution images remain alongside each sheet. Review the complete sequence; a contact sheet is not a video or continuous-playback proof.
 
-Reports and numbered PNGs are saved under `artifacts/cinema2-quality-review/run-*/<preset>/<mode>/<aspect>/` (ignored by Git). Each report contains configuration, native metadata, scene-specific subject notes, capture hashes, per-frame diagnostics and CPU callback durations (not GPU benchmarks), and pending criteria. Uniform output, renderer/GL errors, failed passes/modules, known unready modules and parameter mutation are flagged. Low mean luminance alone is never a failure. Uniform intentional blackout requires investigation with adjacent frames; it is not eligible for thumbnails. Spatial variation alone does not prove a meaningful image. Read diagnostic flags and inspect actual captures. Asset readiness is bounded and diagnostics-dependent; if asset loading is slow or incomplete, rerun on a suitable machine. A nonzero capture exit indicates a technical failure or incomplete record, not a subjective design score.
+The QA-01/04/05/06 full technical matrix supplies separate native pattern sequences, camera permission/safety, trigger/Auto Performance states, and deterministic image/video/SVG/model cases based on actual compiled capabilities. Inspect those sequences as well as the default phase sheets. Each run records manifest IDs, revision, saved parameter IDs/values, fixture, source slot IDs, settings, viewport, browser and GL renderer, CPU timings, diagnostics, frame and contact sheet SHA-256. Low luminance alone is not a failure. A uniform default is failed; transitional uniformity is a diagnostic requiring review and rationale; a uniform thumbnail is prohibited. No single numerical aesthetic score is used. The source digest covers runtime, native/electron, public assets except catalog thumbnails, relevant tooling/config and lockfile bytes (including local uncommitted changes). Keep both ignored run directories intact. Do not edit captures or reports. Intermediate technical manifests are not final sealed evidence.
 
-## Scene-specific rubric
+## Review and compare
 
-`quality-review-core.mjs` stores the signature subject, foreground, midground, background, silhouette, selective lighting and scene-specific caution in that order. Camera and pattern vocabulary are recorded from the production manifest rather than hardcoded. Use these notes against every criterion below; never impose the same coverage or brightness target on different scenes.
+Keep the printed roots of the two quality runs, and the two technical `manifest.json` files. Set these paths from actual runs:
 
-| Criterion | Evidence required |
+```sh
+BASE=/absolute/path/to/baseline-quality-run
+CAND=/absolute/path/to/candidate-quality-run
+BASE_MATRIX=/absolute/path/to/baseline-release-run/manifest.json
+CAND_MATRIX=/absolute/path/to/candidate-release-run/manifest.json
+REVIEWS=/absolute/path/to/review-decisions
+npm run visual:cinema2:quality-review -- compare "$BASE" "$CAND" "$BASE_MATRIX" "$CAND_MATRIX" "$REVIEWS" --prospective --preset=honey
+npm run visual:compare-captures -- "$BASE/honey/authored/landscape" "$CAND/honey/authored/landscape" --tolerance 0 --max-different-fraction 0
+```
+
+Repeat for each required key. Use `--matched-older` instead of `--prospective` only for a verified older source run with identical fixture, settings, camera/source conditions and comparable environment. Document `baselineProvenance` and any reference availability; do not claim the original review was supplied. If no source change is planned, a prospective baseline and candidate can be the same verified run (approval is of current appearance, not a before/after improvement). A differing preset revision is allowed only with matching authored settings and metadata. Incompatible older evidence must be recaptured under the same harness, or use prospective approval. The pixel comparison command reports differences, not artistic pass/fail; a difference is expected for intentional changes. The approval CLI requires complete, sealed, error-free captures on both sides and passing full-inventory technical reports. Missing QA-05 calibration, failed gates or absent capture evidence are blockers, not waivers. Raw artifacts can still be inspected before technical gates pass.
+
+The compare command creates one pending JSON decision per preset with exact baseline/candidate hashes and revision binding, concept notes, capabilities and suggested evidence refs/hashes. It never overwrites an existing review. A human must inspect the referenced images (resolve `baseline/` and `candidate/` against the respective quality roots; `matrix/` against the corresponding technical run's preset directory). Evidence references are prepopulated for review, not evidence of having reviewed them. Keep each required evidence reference and record concrete observations per criterion, including intentional darkness/crop/stylization where applicable. Add focused evidence refs from the indexed captures if needed. Set statuses `pass`, `fail`, `pending`, or `not-applicable` (only media/model fidelity with no compiled source capability, with a reason). Review the seven original criteria and three new ones:
+
+| Criterion | What to inspect |
 | --- | --- |
-| Subject legibility | Can the signature be identified in reference, idle, build and drop? COLOSSUS has four arms, EXOSKELETON a segmented shell, SERAPH six wings, PARADOX interwoven ribbons, RELIC a skull, MONOLITH radial trusses, HONEY beveled hex cavities. |
-| Intentional negative space | Does the space support that silhouette or aperture? A model aperture or HONEY's dark cavity can be a deliberate compositional feature. |
-| Depth/parallax | Separate the inventoried foreground, midground and background. Check camera and local motion across sequential frames, not just brightness differences. |
-| Selective lighting | Highlight meaningful joints, seams, truss paths, sockets or bevels per inventory; retain shadow depth. |
-| Pattern distinction | Compare visible structural action against named pattern and module diagnostics. If the short sequence does not expose the full library, use the existing preset-specific browser tests and cite those captures in the record. Do not pass on color-only changes. |
-| Media fidelity | Confirm supplied assets retain material/aspect/alpha where supported. This fixture has no private media; mark not-applicable only with a reason and review supplied media separately before claiming fidelity. |
-| No clipping | Check each focal silhouette and motion extremum; intentional repetition/cropping of HONEY tiles is not clipping of the focal subject. Check portrait independently if captured. |
+| Subject legibility | Scene signature in idle, build and drop. |
+| Negative space | Deliberate focal hierarchy, aperture and composition. |
+| Depth/parallax | Foreground, middle and far layers and their independent movement. |
+| Selective lighting | Readability through local illumination without destroying darkness. |
+| Pattern distinction | Every authored pattern's ordered production sequence; not just palette variation. |
+| Media fidelity | Supported deterministic media/model cases, color, alpha, UV, geometry, fallback and authored stylization. |
+| No clipping | Focal silhouettes, motion extrema and both orientations. |
+| Meaningful motion | Ordered phase sheets plus selected camera sequences; actual perceived forward flight for Purity. |
+| Consistency | Intent across orientations, Auto Performance, idle and performance states. |
+| Distinct identity | Scene-specific goals; no generic replacement identity. |
 
-## Before/after and catalog publication
+Each criterion must carry a reason and valid capture ref/hash, including all six matched case sheets for composition/motion/identity criteria, every pattern sequence for pattern distinction, supported media and model cases for fidelity, and off/on/auto camera sequences when supported. Reviewer enters their real name, ISO date, explicit `decision: "approved"` only when all criteria pass or are justified capability N/A, and `thumbnailFrame` from the authored landscape candidate. No program supplies human approval. Keep rejected decisions and evidence; after changes create a new review directory. If a visual defect is confirmed, record evidence and the narrow fix or separate authoring task. No blanket redesign authorized.
 
-Capture the baseline before the local preset changes and a candidate after, using identical fixture, preset, mode, viewport, quality and authored parameter values. Keep both run directories. For each preset/mode/aspect pair:
-
-```sh
-npm run visual:cinema2:quality-review -- compare /path/before/report.json /path/after/report.json /path/review.json
-```
-
-The comparison rejects mismatched configurations, metadata or authored values; it records paired frames, hashes and pixel diagnostics without awarding visual approval. For a redesign involving intentional metadata/default changes, document them and capture a matched configuration separately rather than treating unlike runs as an A/B. Review the paired PNGs in order, enter `pass` or `fail` for each criterion with evidence (frame names and observations) and reason. Only media fidelity may be marked `not-applicable`. Enter reviewer, ISO approval date and decision `approved` only after actual review; select `thumbnailFrame` from a nonblank candidate PNG. Failed/pending review is retained as evidence, not published. For deeper numerical pixel comparisons use the existing `visual:compare-captures` script. Compare timing arrays on equivalent hardware and quality; they are CPU submission/callback times, not validated GPU frame rate.
+## Dry run and publication
 
 ```sh
-npm run visual:cinema2:quality-review -- publish-thumbnail /path/before/report.json /path/after/report.json /path/review.json
+npm run visual:cinema2:quality-review -- publish-thumbnail "$BASE" "$CAND" "$BASE_MATRIX" "$CAND_MATRIX" "$REVIEWS" --prospective --preset=honey
+# After inspecting the dry-run path and hashes, explicitly write the approved thumbnail:
+npm run visual:cinema2:quality-review -- publish-thumbnail "$BASE" "$CAND" "$BASE_MATRIX" "$CAND_MATRIX" "$REVIEWS" --prospective --preset=honey --apply
+npm run visual:cinema2:quality-review -- status "$BASE" "$CAND" "$BASE_MATRIX" "$CAND_MATRIX" "$REVIEWS" --prospective
 ```
 
-Publication verifies report and PNG hashes, matching conditions, complete error-free candidate, dated reviewer approval and all seven criteria. It accepts landscape captures only, writes the existing `public/preset-artwork/drmvyz.cinema2.<id>.webp` path consumed by `PresetBlueprintImage`, and does not automatically promote the preset or change registry metadata. Review the resulting card, then stage only the intended verified WebP. Existing runtime fallback remains unchanged. This tooling does not claim to have updated a thumbnail until publication actually occurs.
+Dry run is the default and writes no catalog asset; `--apply` is required. The publisher re-reads report and frame bytes, checks SHA-256, exact source revision, full technical gates, matched configurations, human approval, required rubric and frame selection. It uses the catalog's actual `PresetBlueprintImage` ID mapping and the existing artwork generator's 480×270 WebP quality 86 convention. It checks the source PNG and resulting WebP dimensions and prints exact relative path, old/new hash and source frame hash before replacing only that one file. Existing missing assets remain missing until approved; existing unapproved thumbnails are preserved. General `generate-preset-artwork.mjs` skips reviewed IDs (including missing artwork and explicit requests); this prevents an alternate ungated generator from rewriting them. No transient captures are staged.
+
+Status lists each reviewed preset as approved, failed, pending or blocked. Per-preset approval is **not overall release approval**. QA-07 hardware GPU, Electron preview/fullscreen and casting/external receiver evidence remain separate mandatory release decisions; VIS-01 does not certify them. Manual reviewer authenticity and the quality of their judgment are human responsibilities, not cryptographic identity verification.
 
 ## Verification on supplied archive
 
-- Dependency-free Node policy tests: 4 passed (dark/flat distinction, local signatures and phase coverage, comparison settings/metadata, approval guard).
-- Offline npm installation failed (`ENOTCACHED`); online installation failed with DNS `EAI_AGAIN`. Typecheck/build attempted and blocked by missing `vite/client`. Vitest and production WebGL review cannot complete without installed dependencies. No verified baseline/candidate render, human visual score, GPU benchmark, private-media fidelity or thumbnail refresh is claimed. Run the above procedure in the actual development checkout before visual acceptance.
+Linux x64, Node 22.16.0. Offline `npm ci --offline --no-audit --no-fund` exited 1 (`ENOTCACHED`, `zustand@5.0.13`). Dependency-free visual policy tests passed, including synthetic publication mapping, stale/rejected/missing capture and tampered bytes cases. The actual quality capture and full technical matrix commands exited 1 (`@playwright/test` missing); the technical manifest records 21 not-run presets and incomplete status. Pixel comparison exited 1 (`sharp` missing); typecheck/build exited 2 (`vite/client` missing). No actual rendered sequence, successful real-image publication dry run, artistic correction, thumbnail refresh, human approval, live hardware timing, Electron or casting acceptance is claimed. Run the commands above on an installed checkout with calibrated evidence. All 21 visual approvals and thumbnail refreshes remain pending.
