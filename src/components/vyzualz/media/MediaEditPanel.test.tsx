@@ -119,9 +119,18 @@ describe('Edit tab', () => {
     // Exactly these three collapsible groups, in this order: TRANSFORM → COLOR → DETAIL.
     expect(headers).toEqual(['Transform', 'Color', 'Detail'])
 
-    for (const label of ['Crop', 'Rotate', 'Flip', 'Mirror']) {
-      expect(container!.textContent, label).toContain(label)
+    const toolbar = q('.mmi-edit-transform-toolbar')!
+    const buttons = [...toolbar.querySelectorAll('button')]
+    const expected = ['Crop', 'Rotate left 90 degrees', 'Rotate right 90 degrees', 'Flip', 'Mirror']
+    if (item.type === 'image') expected.push('Remove Background')
+    expect(buttons.map(control => control.getAttribute('aria-label'))).toEqual(expected)
+    expect(toolbar.textContent?.trim()).toBe('')
+    expect(toolbar.children).toHaveLength(expected.length)
+    for (const control of buttons) {
+      expect(control.querySelector('svg[aria-hidden="true"]')).not.toBeNull()
+      expect(control.title).not.toBe('')
     }
+    expect(toolbar.querySelector('[role="switch"], input')).toBeNull()
     for (const label of ['Brightness', 'Contrast', 'Saturation', 'Hue', 'Opacity', 'Sharpness', 'Blur']) {
       expect(container!.textContent, label).toContain(label)
     }
@@ -138,6 +147,7 @@ describe('Edit tab', () => {
     expect(mocks.removeImageBackground).toHaveBeenCalledTimes(1)
     expect(selectMediaEditDirty(useMediaEditStore.getState())).toBe(true)
     expect(selectMediaEditCanSave(useMediaEditStore.getState())).toBe(true)
+    expect(button('Restore Background')?.classList.contains('dv-icon-chip--primary')).toBe(true)
 
     await click(button('Restore Background'))
     expect(selectMediaEditDirty(useMediaEditStore.getState())).toBe(false)
@@ -147,7 +157,7 @@ describe('Edit tab', () => {
   it('places the groups and buttons in the specified reading order', async () => {
     await renderPanel()
     const text = container!.textContent ?? ''
-    const order = ['Transform', 'Crop', 'Rotate', 'Flip', 'Mirror', 'Color', 'Brightness', 'Contrast', 'Saturation', 'Hue', 'Opacity', 'Detail', 'Sharpness', 'Blur']
+    const order = ['Transform', 'Color', 'Brightness', 'Contrast', 'Saturation', 'Hue', 'Opacity', 'Detail', 'Sharpness', 'Blur']
       .map(label => text.indexOf(label))
     expect(order.every(index => index >= 0)).toBe(true)
     expect([...order].sort((a, b) => a - b)).toEqual(order)
@@ -192,8 +202,14 @@ describe('Edit tab', () => {
   it('rotate, flip and mirror update the same session and compose', async () => {
     await renderPanel()
     await click(button('Rotate right 90 degrees'))
+    expect(button('Flip')?.getAttribute('aria-pressed')).toBe('false')
+    expect(button('Mirror')?.getAttribute('aria-pressed')).toBe('false')
     await click(q('#mmi-edit-flip'))
     await click(q('#mmi-edit-mirror'))
+    for (const label of ['Flip', 'Mirror']) {
+      expect(button(label)?.getAttribute('aria-pressed')).toBe('true')
+      expect(button(label)?.classList.contains('dv-icon-chip--primary')).toBe(true)
+    }
     const edit = useMediaEditStore.getState().edit
     expect(edit.flip).toBe(true)
     expect(edit.mirror).toBe(true)
@@ -201,6 +217,10 @@ describe('Edit tab', () => {
     await click(button('Rotate left 90 degrees'))
     await click(q('#mmi-edit-flip'))
     await click(q('#mmi-edit-mirror'))
+    for (const label of ['Flip', 'Mirror']) {
+      expect(button(label)?.getAttribute('aria-pressed')).toBe('false')
+      expect(button(label)?.classList.contains('dv-icon-chip--primary')).toBe(false)
+    }
     expect(selectMediaEditDirty(useMediaEditStore.getState())).toBe(false)
   })
 
@@ -208,7 +228,11 @@ describe('Edit tab', () => {
     await renderPanel()
     await click(button('Crop'))
     expect(useMediaEditStore.getState().cropMode).toBe(true)
-    expect(button('Rotate right 90 degrees')!.disabled).toBe(true)
+    expect(button('Crop')?.getAttribute('aria-pressed')).toBe('true')
+    for (const label of ['Rotate left 90 degrees', 'Rotate right 90 degrees', 'Flip', 'Mirror', 'Remove Background']) {
+      expect(button(label)?.disabled).toBe(true)
+    }
+    expect(button('Crop')?.disabled).toBe(false)
     // A half-drawn crop cannot be saved.
     expect(selectMediaEditCanSave(useMediaEditStore.getState())).toBe(false)
   })
@@ -218,8 +242,11 @@ describe('Edit tab', () => {
     expect(button('Reset crop to the full frame')).toBeNull()
     act(() => useMediaEditStore.getState().setCrop({ x: 0.1, y: 0.1, width: 0.5, height: 0.5 }))
     await flush()
+    expect(q('.mmi-edit-transform-toolbar')?.children).toHaveLength(7)
+    expect(q('.mmi-edit-transform-toolbar')?.textContent?.trim()).toBe('')
     await click(button('Reset crop to the full frame'))
     expect(useMediaEditStore.getState().edit.crop).toEqual({ x: 0, y: 0, width: 1, height: 1 })
+    expect(button('Reset crop to the full frame')).toBeNull()
   })
 
   it('discarding (the toolbar\'s Revert) returns every value to neutral', async () => {

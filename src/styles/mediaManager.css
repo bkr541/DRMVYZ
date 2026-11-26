@@ -991,18 +991,35 @@
 .mmec-handle--w  { left: -7px; top: calc(50% - 6px); cursor: ew-resize; }
 
 
-.mmi-body .rv-ctrl-row.mmi-edit-action-row {
+/* Keep every transform in one compact row, even when a crop reset is available. */
+.mmi-edit-transform-toolbar {
   display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.mmi-edit-actions {
-  display: inline-flex;
+  flex-flow: row nowrap;
   align-items: center;
   gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.mmi-edit-transform-toolbar > .dv-icon-chip {
+  flex: 0 0 32px;
+  box-sizing: border-box;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  justify-content: center;
+  --app-icon-accent: currentColor;
+}
+
+.mmi-edit-transform-toolbar .dv-icon-chip__icon {
+  width: 16px;
+  height: 16px;
+}
+
+.mmi-edit-transform-toolbar > .dv-icon-chip:focus-visible {
+  outline: 2px solid var(--az-cyan, #4ac7db);
+  outline-offset: -2px;
 }
 
 .mmi-edit-progress {

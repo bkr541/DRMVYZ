@@ -1,7 +1,6 @@
 import { AppIcon } from '../../shared/icons/AppIcon'
-import { useState } from 'react'
 
-import { Collapsible, SliderRow, ToggleRow } from '../react/ReactControlRows'
+import { Collapsible, SliderRow } from '../react/ReactControlRows'
 import { IconChipButton } from '../react/controls/IconChipButton'
 import { DrawerNotice } from '../shared/DrawerNotice'
 import {
@@ -44,7 +43,6 @@ export function MediaEditPanel({ media }: { media: UploadedMedia }) {
   const progress = useMediaEditStore(state => state.progress)
   const error = useMediaEditStore(state => state.error)
 
-  const displayName = media.title ?? media.name
   const unsupported = mediaEditUnsupportedReason(media)
   if (unsupported) {
     return (
@@ -61,6 +59,7 @@ export function MediaEditPanel({ media }: { media: UploadedMedia }) {
   const disabled = working
   // Rotate / flip / mirror change the frame the crop rectangle is drawn on, so they wait for Apply or Cancel.
   const transformDisabled = working || cropMode
+  const backgroundLabel = busy === 'removing-background' ? 'Removing background…' : backgroundRemoval ? 'Restore Background' : 'Remove Background'
   const cropIsFull = mediaEditsEqual({ ...createDefaultMediaEdit(), crop: edit.crop }, createDefaultMediaEdit())
 
   const renderSlider = ({ key, label, format }: SliderSpec) => {
@@ -95,82 +94,73 @@ export function MediaEditPanel({ media }: { media: UploadedMedia }) {
   return (
     <div className="mmi-body">
       <Collapsible label="Transform" defaultOpen>
-        <div className="rv-ctrl-row mmi-edit-action-row">
-          <span className="rv-ctrl-label-cluster"><span className="rv-ctrl-label">Crop</span></span>
-          <span className="mmi-edit-actions">
-            {!cropIsFull && !cropMode && (
-              <IconChipButton disabled={disabled} onClick={() => store.resetCrop()} aria-label="Reset crop to the full frame">
-                Reset
-              </IconChipButton>
-            )}
+        <div className="mmi-edit-transform-toolbar" role="group" aria-label="Transform actions">
+          <IconChipButton
+            tone={cropMode ? 'primary' : 'default'}
+            icon={<AppIcon kind="crop" size={16} />}
+            disabled={disabled}
+            title={cropMode ? 'Exit crop mode' : 'Crop'}
+            aria-label="Crop"
+            aria-pressed={cropMode}
+            onClick={() => store.setCropMode(!cropMode)}
+          />
+          {!cropIsFull && !cropMode && (
             <IconChipButton
-              tone={cropMode ? 'primary' : 'default'}
-              icon={<AppIcon kind="crop" size={13} color="currentColor" />}
+              icon={<AppIcon kind="undo" size={16} />}
               disabled={disabled}
-              aria-pressed={cropMode}
-              onClick={() => store.setCropMode(!cropMode)}
-            >
-              {cropMode ? 'Cropping…' : 'Crop'}
-            </IconChipButton>
-          </span>
-        </div>
-        <div className="rv-ctrl-row mmi-edit-action-row">
-          <span className="rv-ctrl-label-cluster"><span className="rv-ctrl-label">Rotate</span></span>
-          <span className="mmi-edit-actions">
+              title="Reset crop to the full frame"
+              aria-label="Reset crop to the full frame"
+              onClick={() => store.resetCrop()}
+            />
+          )}
+          <IconChipButton
+            icon={<AppIcon kind="rotateLeft" size={16} />}
+            disabled={transformDisabled}
+            onClick={() => store.rotate(-1)}
+            title="Rotate left 90°"
+            aria-label="Rotate left 90 degrees"
+          />
+          <IconChipButton
+            icon={<AppIcon kind="rotateRight" size={16} />}
+            disabled={transformDisabled}
+            onClick={() => store.rotate(1)}
+            title="Rotate right 90°"
+            aria-label="Rotate right 90 degrees"
+          />
+          <IconChipButton
+            id="mmi-edit-flip"
+            tone={edit.flip ? 'primary' : 'default'}
+            icon={<AppIcon kind="flipVertical" size={16} />}
+            title="Flip (top to bottom)"
+            aria-label="Flip"
+            aria-pressed={edit.flip}
+            disabled={transformDisabled}
+            onClick={() => store.toggleFlip()}
+          />
+          <IconChipButton
+            id="mmi-edit-mirror"
+            tone={edit.mirror ? 'primary' : 'default'}
+            icon={<AppIcon kind="flipHorizontal" size={16} />}
+            title="Mirror (left to right)"
+            aria-label="Mirror"
+            aria-pressed={edit.mirror}
+            disabled={transformDisabled}
+            onClick={() => store.toggleMirror()}
+          />
+          {media.type === 'image' && (
             <IconChipButton
+              icon={<AppIcon kind={busy === 'removing-background' ? 'loading' : backgroundRemoval ? 'image' : 'wand'} size={16} className={busy === 'removing-background' ? 'app-icon--spinning' : undefined} />}
               disabled={transformDisabled}
-              onClick={() => store.rotate(-1)}
-              title="Rotate left 90°"
-              aria-label="Rotate left 90 degrees"
-            >
-              <span aria-hidden="true"><AppIcon kind="rotateLeft" size={14} /> 90°</span>
-            </IconChipButton>
-            <IconChipButton
-              disabled={transformDisabled}
-              onClick={() => store.rotate(1)}
-              title="Rotate right 90°"
-              aria-label="Rotate right 90 degrees"
-            >
-              <span aria-hidden="true"><AppIcon kind="rotateRight" size={14} /> 90°</span>
-            </IconChipButton>
-          </span>
+              tone={backgroundRemoval ? 'primary' : 'default'}
+              title={backgroundLabel}
+              aria-label={backgroundLabel}
+              onClick={() => {
+                if (backgroundRemoval) store.restoreBackground()
+                else void store.removeBackground()
+              }}
+            />
+          )}
         </div>
-        <ToggleRow
-          id="mmi-edit-flip"
-          label="Flip"
-          description="Flips top to bottom."
-          value={edit.flip}
-          disabled={transformDisabled}
-          onChange={() => store.toggleFlip()}
-        />
-        <ToggleRow
-          id="mmi-edit-mirror"
-          label="Mirror"
-          description="Reflects left to right."
-          value={edit.mirror}
-          disabled={transformDisabled}
-          onChange={() => store.toggleMirror()}
-        />
-        {media.type === 'image' && (
-          <div className="rv-ctrl-row mmi-edit-action-row">
-            <span className="rv-ctrl-label-cluster">
-              <span className="rv-ctrl-label">Background</span>
-              <span className="rv-ctrl-description">Creates a transparent PNG locally.</span>
-            </span>
-            <span className="mmi-edit-actions">
-              <IconChipButton
-                disabled={transformDisabled}
-                tone={backgroundRemoval ? 'primary' : 'default'}
-                onClick={() => {
-                  if (backgroundRemoval) store.restoreBackground()
-                  else void store.removeBackground()
-                }}
-              >
-                {busy === 'removing-background' ? 'Removing…' : backgroundRemoval ? 'Restore Background' : 'Remove Background'}
-              </IconChipButton>
-            </span>
-          </div>
-        )}
       </Collapsible>
 
       <Collapsible label="Color" defaultOpen>

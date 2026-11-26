@@ -62,7 +62,8 @@ export const APP_ICON_INVENTORY: readonly AppIconEntry[] = [
     ['Load [track]', 'download'], ['Reload [track]', 'download'],
     ['AI extract lyrics from this track', 'wand'], ['Lyrics', 'lyrics'], ['More actions', 'more'],
     ['Delete track and linked lyric data', 'delete'], ['Edit text', 'edit'], ['Delete text', 'delete'],
-    ['Crop', 'crop'], ['Rotate left 90°', 'rotateLeft'], ['Rotate right 90°', 'rotateRight'],
+    ['Crop', 'crop'], ['Reset crop to the full frame', 'undo'], ['Rotate left 90°', 'rotateLeft'], ['Rotate right 90°', 'rotateRight'],
+    ['Flip', 'flipVertical'], ['Mirror', 'flipHorizontal'], ['Remove Background', 'wand'], ['Restore Background', 'image'],
     ['LOCAL', 'warning'], ['DERIVATIVE', 'warning'],
   ]),
   ...inventory('Media dialogs', [
