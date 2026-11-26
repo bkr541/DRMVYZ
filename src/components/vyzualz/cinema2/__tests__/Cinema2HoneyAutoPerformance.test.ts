@@ -100,3 +100,29 @@ describe('HONEY P05 Director and full standard Auto Performance',()=>{
     const restored=new Cinema2ParameterState(h.plan.parameters);expect(restored.restore(h.state.serialize()).ok).toBe(true);expect(restored.getValue(honeyParameterId('trigger'))).toBe('snare')
   },30000)
 })
+
+
+describe('HON-03 shared camera shots',()=>{
+  it('approaches on build and drop, pulls back on breakdown, holds pause/seek and respects saved camera permissions',()=>{
+    const h=honeyRuntimeFixture(true),home=manifest.cameras![0]!.transform!.position!
+    h.set('auto-performance',true);h.set('camera-sway',1);h.set('motion',1)
+    const saved=h.state.serialize(),d=DEFAULT_MI_FRAME
+    const section=(type:'build'|'drop'|'breakdown')=>({...d.section,type,label:type,startSec:0,endSec:120,confidence:1})
+    const build={energy:{...d.energy,instant:.65,rms:.65,buildProgress:.95},semantics:{...d.semantics,buildConfidence:.95},section:section('build')}
+    let shot=h.tick(build);for(let i=0;i<64;i++)shot=h.tick(build)
+    expect(shot.camera.position[2]).toBeLessThan(home[2]-1)
+    const buildZ=shot.camera.position[2]
+    h.tick({semanticMoments:[{id:'hon03-drop',timeSec:h.getSource().timeSec+1/30,type:'drop',confidence:1}],section:section('drop')})
+    for(let i=0;i<30;i++)shot=h.tick({energy:{...d.energy,instant:1,rms:1},semantics:{...d.semantics,buildConfidence:0},semanticMoments:[],section:section('drop')})
+    expect(shot.camera.position[2]).toBeLessThan(buildZ-.5)
+    for(let i=0;i<120;i++)shot=h.tick({energy:{...d.energy,instant:.3,rms:.3},section:section('breakdown')})
+    expect(shot.camera.position[2]).toBeGreaterThan(home[2]+1)
+    const before=shot.camera.position;shot=h.tick({timeSec:50});expect(Math.hypot(...shot.camera.position.map((v,i)=>v-before[i]!))).toBeLessThan(.3)
+    const beforeSwap=shot.camera.position;shot=h.tick({trackId:'hon03-next-track',timeSec:1});expect(Math.hypot(...shot.camera.position.map((v,i)=>v-beforeSwap[i]!))).toBeLessThan(.35)
+    h.pause(true);const paused=h.tick().camera.position;expect(h.tick({timeSec:2}).camera.position).toEqual(paused)
+    expect(h.state.serialize()).toBe(saved)
+    h.set('camera-motion',false);expect(h.tick().camera.position).toEqual(home)
+    h.set('camera-motion',true);h.set('camera-sway',0);expect(h.tick().camera.position).toEqual(home)
+    h.set('camera-sway',1);h.pause(false);h.present(false);expect(h.tick().camera.position).toEqual(home)
+  },30000)
+})

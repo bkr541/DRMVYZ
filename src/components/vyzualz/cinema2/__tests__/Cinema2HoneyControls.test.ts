@@ -1,3 +1,4 @@
+import { HONEY_CAMERA,HONEY_MAX_ELEVATION,HONEY_CAP_RADIUS,HONEY_MAX_TILT } from '../modules/honey/Cinema2HoneyDomain'
 import { describe,expect,it } from 'vitest'
 import { CINEMA2_HONEY_PRESET_MANIFEST as manifest,honeyParameterId } from '../presets/Cinema2HoneyPreset'
 import { CINEMA2_AFTERHOURS_TRIGGER_OPTIONS } from '../presets/Cinema2AfterhoursPreset'
@@ -57,12 +58,14 @@ describe('HONEY shared inspector and camera controls',()=>{
     state.setPersistentValue(honeyParameterId('auto-performance'),false)
     expect(controls(state).map(c=>[c.definition.id,c.value,c.enabled])).toEqual(unlocked.map(c=>[c.definition.id,c.value,c.enabled]))
   })
-  it('uses the real shared camera with slight lateral sway, constant lens and hard-off permissions',()=>{
+  it('uses the real shared camera with angled parallax, reduced motion and hard-off permissions',()=>{
     const state=new Cinema2ParameterState(plan.parameters),resolver=new Cinema2FinalValueResolver(plan.targets,{resolveBaseValue:t=>t.parameterId==null?t.authoredBaseValue:state.getValue(t.parameterId)}),spatial=new Cinema2SpatialRuntime(plan.scene,plan.targets.targets,resolver),camera=new Cinema2CameraRuntime(plan,state,resolver,spatial)
     const frame=(i:number):Cinema2ModuleFrameReadContext=>({frameId:i,timestampMs:i*1000/60,deltaTimeSec:1/60,elapsedTimeSec:i/60,viewport:{width:960,height:540,dpr:1},contextGeneration:1,audio:null,director:null,transport:{sourcePresent:true,playing:true,analysisActive:true,animationActive:true,paused:false,trackId:'track',timeSec:i/60,bpm:120,bpmSync:true}})
     const initial=camera.update(frame(0));let last=initial
     for(let i=1;i<61;i++)last=camera.update(frame(i))
-    expect(Math.abs(last.position[0]-initial.position[0])).toBeGreaterThan(.03);expect(Math.abs(last.position[0]-initial.position[0])).toBeLessThan(.35);expect(last.position[2]).toBe(initial.position[2]);expect(last.fovDegrees).toBe(initial.fovDegrees)
+    expect(Math.abs(last.position[0]-initial.position[0])).toBeGreaterThan(.25);expect(Math.abs(last.position[0]-initial.position[0])).toBeLessThan(1);expect(last.position[2]).toBe(initial.position[2]);expect(last.fovDegrees).toBe(initial.fovDegrees)
+    const full=Math.abs(last.position[0]-HONEY_CAMERA.position[0]);state.setPersistentValue(honeyParameterId('camera-safety'),'reduced');camera.reset();for(let i=0;i<61;i++)last=camera.update(frame(i));expect(Math.abs(last.position[0]-HONEY_CAMERA.position[0])).toBeLessThan(full*.5)
+    expect(last.position[2]-last.near).toBeGreaterThan(HONEY_MAX_ELEVATION+2*HONEY_CAP_RADIUS*Math.sin(HONEY_MAX_TILT))
     state.setPersistentValue(honeyParameterId('camera-motion'),false);last=camera.update(frame(61));expect(last.position).toEqual(initial.position)
     state.setPersistentValue(honeyParameterId('camera-motion'),true);state.setPersistentValue(honeyParameterId('camera-sway'),0);last=camera.update(frame(62));expect(last.position).toEqual(initial.position)
   })

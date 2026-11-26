@@ -888,6 +888,7 @@ function validateCameraMotion(
     return
   }
   if (motion.interpolation != null && motion.interpolation !== 'linear' && motion.interpolation !== 'spline') invalid('Motion interpolation must be linear or spline.', '.interpolation')
+  if (motion.preservePoseOnDiscontinuity != null && typeof motion.preservePoseOnDiscontinuity !== 'boolean') invalid('preservePoseOnDiscontinuity must be boolean.', '.preservePoseOnDiscontinuity')
   if (motion.idleMotion != null && typeof motion.idleMotion !== 'boolean') invalid('idleMotion must be boolean.', '.idleMotion')
   if (motion.constantSpeed != null && typeof motion.constantSpeed !== 'boolean') invalid('Motion constantSpeed must be boolean.', '.constantSpeed')
   const isPath = camera.rig?.kind === 'path' || camera.rig?.kind === 'fly'

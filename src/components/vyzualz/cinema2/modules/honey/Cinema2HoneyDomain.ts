@@ -46,7 +46,15 @@ export const HONEY_PALETTE = {
 export type HoneyPalette = { -readonly [K in keyof typeof HONEY_PALETTE]: Cinema2Color }
 export const HONEY_PALETTE_KEYS = ['face', 'edge', 'cavity', 'substrate', 'outer', 'inner', 'under'] as const
 export const HONEY_NEIGHBORS = [[1,0], [0,1], [-1,1], [-1,0], [0,-1], [1,-1]] as const
-export const HONEY_CAMERA = { position: [.32, .85, 13] as const, target: [0, 0, .25] as const, fov: 40 } as const
+// Off-axis home exposes the sides of the raised caps without revealing the finite wall edges.
+// The front clearance includes the maximum cap height, cap radius and both tilt axes.
+export const HONEY_CAMERA = {
+  position: [3.1, 1.65, 13.6] as const, target: [0, 0, .85] as const, fov: 40,
+  near: .25, far: 85,
+  safety: { minPosition: [.65, -.1, 9.5] as const, maxPosition: [5.6, 3.4, 16.4] as const,
+    maxPositionOffset: [2.5, 1.75, 4.1] as const, maxTargetOffset: [.85, .45, .4] as const,
+    minFovDegrees: 39, maxFovDegrees: 41, minNear: .25, maxFar: 85 },
+} as const
 export interface HoneyPose { elevation: number; rotation: number; tiltX: number; tiltY: number; x: number; y: number }
 
 /** Stable integer hash, independent of iteration order, frame time and viewport. */

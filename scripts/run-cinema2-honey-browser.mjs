@@ -4,8 +4,8 @@ import { mkdir,writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { chromium } from '@playwright/test'
 import sharp from 'sharp'
-const phase06=process.argv.includes('--p06')
-const port=48500+process.pid%1000,url=`http://127.0.0.1:${port}/src/test/browser/cinema2-honey-production.html${phase06?'?phase=06':''}`,output=path.resolve('artifacts/cinema2-honey',phase06?'p06':'p05')
+const hon03=process.argv.includes('--hon03'),phase06=hon03||process.argv.includes('--p06')
+const port=48500+process.pid%1000,url=`http://127.0.0.1:${port}/src/test/browser/cinema2-honey-production.html${phase06?'?phase=06':''}`,output=path.resolve('artifacts/cinema2-honey',hon03?'hon03':phase06?'p06':'p05')
 const server=spawn(process.execPath,['node_modules/vite/bin/vite.js','--host','127.0.0.1','--port',String(port),'--strictPort'],{stdio:['ignore','pipe','pipe']})
 let log='',browser;server.stdout.on('data',v=>log+=v);server.stderr.on('data',v=>log+=v)
 try{
@@ -16,7 +16,25 @@ try{
   const api=(method,...args)=>page.evaluate(({method,args})=>window.__honeyProduction[method](...args),{method,args})
   await api('showRail',true);await page.locator('[data-cinema2-preset-id="drmvyz.cinema2.honey"]').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(output,'selector.png')});await page.getByRole('button',{name:'Load HONEY',exact:true}).click();await api('showRail',false)
   const capture=async(name)=>{const b=Buffer.from((await api('capture')).split(',')[1],'base64');if(name)await writeFile(path.join(output,`${name}.png`),b);return sharp(b).removeAlpha().raw().toBuffer()}
-  if(phase06){
+  if(hon03){
+    const shots=[]
+    const sample=async name=>{const camera=await api('camera'),pixels=await capture(name);assert(pixels.some(v=>v>40),`${name}: visible output`);assert(camera.position[2]>=9.5&&camera.position[2]<=16.4);assert.equal(camera.rollDegrees,0);shots.push({name,position:camera.position,target:camera.target,aspect:camera.aspect});return camera.position}
+    for(const [width,height] of [[960,540],[540,960],[640,640]]){
+      await page.setViewportSize({width,height})
+      for(const quality of ['performance','balanced','quality']){
+        const tag=`${width}x${height}-${quality}`
+        await api('reset');await api('quality',quality);await api('set','elevation',1);await api('set','motion',1);await api('set','camera-sway',1);await api('set','auto-performance',true)
+        const saved=await api('saved'),home=await sample(`${tag}-home`)
+        await api('play');await api('audioFixture',{energy:.65,build:.95,section:'build'});await page.waitForTimeout(1800);const build=await sample(`${tag}-build`);assert(build[2]<home[2]-.5)
+        await api('audioFixture',{energy:1,cue:'drop',section:'drop'});await page.waitForTimeout(650);const drop=await sample(`${tag}-drop`);assert(drop[2]<home[2]-1)
+        await api('audioFixture',{energy:.3,section:'breakdown'});await page.waitForTimeout(4000);const wide=await sample(`${tag}-breakdown`);assert(wide[2]>home[2]+.5)
+        await api('pause');const paused=await sample(`${tag}-pause`);await api('audioSeek',20);assert.deepEqual(await sample(`${tag}-paused-seek`),paused);assert.equal(await api('saved'),saved)
+        await api('set','camera-motion',false);assert.deepEqual(await sample(`${tag}-off`),home)
+        await api('stop');await api('set','camera-motion',true);await api('set','auto-performance',false);await api('set','camera-safety','reduced');await api('play');await page.waitForTimeout(1000);await sample(`${tag}-reduced`);await api('stop');await api('prepare')
+      }
+    }
+    await writeFile(path.join(output,'camera-shots.json'),JSON.stringify(shots,null,2));assert.deepEqual(errors,[]);await api('dispose');console.log(`HON-03 production captures: ${output}`)
+  }else if(phase06){
     await api('quality','quality');await api('prepare');const baseline=await capture('default')
     const changed=async(name,edits)=>{await api('reset');await api('quality','quality');for(const [key,value] of Object.entries(edits))await api('set',key,value);await api('prepare');const pixels=await capture(name);assert(pixels.some((v,i)=>v!==baseline[i]),`${name} must affect pixels`)}
     await changed('particles-off',{particles:false});await changed('particles-low',{'particle-amount':.1});await changed('particles-high',{'particle-amount':1});const warm=await capture();await api('set','particle-color',[.1,1,.2,1]);const green=await capture('particles-color');assert(green.some((v,i)=>v!==warm[i]),'Particle color must independently affect pixels')

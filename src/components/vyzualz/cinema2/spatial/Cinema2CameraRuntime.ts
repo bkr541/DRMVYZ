@@ -192,6 +192,7 @@ export class Cinema2CameraRuntime {
   update(frame: Readonly<Cinema2ModuleFrameReadContext>): Readonly<Cinema2CameraFrame> {
     if (this.disposed) return this.currentFrame
     const previousFramedPose = this.readFraming ? this.previousPose : null
+    const previousContinuousPose = this.authoredCamera?.motion?.preservePoseOnDiscontinuity ? this.previousPose : null
     if (frame.audio?.discontinuity.occurred && frame.audio.discontinuity.reason !== 'activation') {
       this.resetMotionState()
       this.resetCount += 1
@@ -240,6 +241,7 @@ export class Cinema2CameraRuntime {
     // A content-framed camera can ease into the new shot on an in-track seek.
     // Reset the shared clock and event state, but not the last presented pose.
     if (previousFramedPose && sameTrack && (timeJump || (frame.audio?.discontinuity.occurred && frame.audio.discontinuity.reason === 'seek'))) this.previousPose = previousFramedPose
+    if (previousContinuousPose && frame.transport?.sourcePresent && frame.contextGeneration === this.lastControlledGeneration && (!sameTrack || timeJump || frame.audio?.discontinuity.occurred)) this.previousPose = previousContinuousPose
     this.lastControlledTrack = track; this.lastControlledTime = time; this.lastControlledGeneration = frame.contextGeneration
     const framing = this.readFraming?.()
     const cameraControls = Object.values(camera.controls ?? {}).map(ref => this.parameters.getValue(ref.$ref as Cinema2ParameterId))
@@ -253,7 +255,7 @@ export class Cinema2CameraRuntime {
     const safety = resolveSafety(camera)
     const motionSafety = resolveMotionSafety(camera.controls, this.parameters)
     const motionPermission = (motionEnabled ? 1 : 0) * masterAmount * motionSafety.motionScale
-    const hardMotionOff = motionPermission === 0
+    const hardMotionOff = motionPermission === 0 || (motion?.idleMotion === false && frame.transport?.sourcePresent === false)
     const tempoState = motion?.tempo ? this.advanceTempo(camera, motion.tempo, frame, hardMotionOff) : null
     const authoredTimeSec = tempoState ? this.flightTimeSec : frame.elapsedTimeSec
     const motionTimeSec = hardMotionOff ? 0 : authoredTimeSec * motionSafety.travelScale
@@ -262,9 +264,9 @@ export class Cinema2CameraRuntime {
     const safetyReference = clonePose(pose)
     pose = this.applyUserControls(camera, pose, safety)
     const userPose = pose
-    pose = blendPose(userPose, this.applyTargetContributions(userPose), motionPermission)
+    pose = blendPose(userPose, this.applyTargetContributions(userPose), hardMotionOff ? 0 : motionPermission)
     const basePosition = pose.position
-    const motionAmount = clamp(finite(this.readControl(camera.controls, 'motionAmount') ?? undefined, 1), 0, 2) * motionPermission
+    const motionAmount = hardMotionOff ? 0 : clamp(finite(this.readControl(camera.controls, 'motionAmount') ?? undefined, 1), 0, 2) * motionPermission
     if (motion?.drift) pose = applyDrift(pose, motion.drift, motionTimeSec, motionAmount)
     // A bound Zoom on Kick toggle is independent of the sway amount, not the hard motion permission.
     const kickZoom = camera.controls?.kickZoom

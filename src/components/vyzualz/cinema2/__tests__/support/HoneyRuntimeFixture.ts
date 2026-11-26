@@ -45,8 +45,9 @@ export function honeyRuntimeFixture(useMood=false){
     const mood=useMood?conductor.capture(audio,directorFrame,paused?0:dt):null
     const frame:Cinema2ModuleFrameReadContext={frameId,timestampMs:frameId*dt*1000,elapsedTimeSec:frameId*dt,deltaTimeSec:paused?0:dt,viewport:{width:960,height:540,dpr:1},contextGeneration:generation,audio,director:directorFrame,mood,transport:{sourcePresent:present,playing:present&&!paused,animationActive:present&&!paused,analysisActive:present,paused,trackId:present?source.trackId:null,timeSec:source.timeSec,bpm:120,bpmSync:sync}}
     choreography.update(frame);instance.lifecycle.update({frame,parameters,targets:context.targets})
-    instance.render!.providers[0]!.execute({frame,target:null,width:960,height:540,depthAvailable:true,camera:camera.update(frame)})
-    return {cells,frame,inspection:instance.inspect(),choreography:choreography.getSnapshot()}
+    const cameraFrame=camera.update(frame)
+    instance.render!.providers[0]!.execute({frame,target:null,width:960,height:540,depthAvailable:true,camera:cameraFrame})
+    return {cells,frame,camera:cameraFrame,inspection:instance.inspect(),choreography:choreography.getSnapshot()}
   }
   const set=(key:string,v:unknown)=>{if(!state.setPersistentValue(honeyParameterId(key),v).ok)throw Error(`Invalid fixture parameter ${key}`)}
   return {tick,set,state,parameters,plan,resolver,getSource:()=>source,pause:(v:boolean)=>{paused=v},sync:(v:boolean)=>{sync=v},present:(v:boolean)=>{present=v},reenter:()=>{instance.lifecycle.dispose();instance=native.create(context) as Cinema2HoneyModuleInstance;generation++}}

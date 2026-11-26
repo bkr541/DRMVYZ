@@ -397,8 +397,10 @@ export interface Cinema2CameraTempoManifest {
 }
 
 export interface Cinema2CameraMotionManifest {
-  /** Opt-in ambient movement with no source loaded; explicit pause/stop still holds. */
+  /** Opt-in ambient movement with no source loaded; explicit false returns to the authored home without a source. Omitted preserves legacy behavior. */
   idleMotion?: boolean
+  /** Ease from the last safe pose across playback seeks/track swaps, while resetting musical clocks. */
+  preservePoseOnDiscontinuity?: boolean
   /** Path/fly rigs only. `spline` is a Catmull-Rom curve through the points, with no corners. Default `linear`. */
   interpolation?: Cinema2CameraPathInterpolation
   /** Path/fly rigs only. Travel at constant speed along the curve. Default: true with `spline`, false with `linear`. */
