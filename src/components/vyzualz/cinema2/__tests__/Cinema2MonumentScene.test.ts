@@ -47,6 +47,24 @@ describe('Monument native scene (CPU geometry, not WebGL)',()=>{
       values['content-type']='text';draw();expect(text.visible).toBe(true);assertFramed(text)
     }finally{scene.dispose()}
   })
+  it('keeps the authored text and font geometry through model loading, replacement and removal',()=>{
+    const {root,scene,values,draw}=fixture()
+    const first=new THREE.Mesh(new THREE.BoxGeometry(2,3,1),new THREE.MeshStandardMaterial({color:0x123456,transparent:true,opacity:.5}))
+    const second=new THREE.Mesh(new THREE.BoxGeometry(3,1,2),new THREE.MeshStandardMaterial({color:0xaabbcc}))
+    try{
+      values.text='LIVE';values.font='stageless';values['line-2']='NOW';draw()
+      const text=root.getObjectByName('monument-hero-text')!
+      const glyphs=[...text.children];expect(glyphs).toHaveLength(7)
+      values['content-type']='model';draw();expect(text.visible).toBe(true);expect(text.children).toEqual(glyphs)
+      root.add(first);scene.attachModel(first);draw();expect(text.visible).toBe(false);expect(first.visible).toBe(true)
+      expect(first.material.color.getHex()).toBe(0x123456);expect(first.material.opacity).toBe(.5)
+      scene.detachModel(first);root.remove(first);draw();expect(text.visible).toBe(true);expect(text.children).toEqual(glyphs)
+      root.add(second);scene.attachModel(second);draw();expect(text.visible).toBe(false);expect(second.visible).toBe(true)
+      scene.detachModel(second);root.remove(second);values['content-type']='text';draw()
+      expect(text.visible).toBe(true);expect(text.children).toEqual(glyphs)
+      expect(values.font).toBe('stageless');expect(values.text).toBe('LIVE')
+    }finally{scene.dispose();for(const mesh of [first,second]){mesh.geometry.dispose();mesh.material.dispose()}}
+  })
   it('applies architectural pattern travel to real scene groups and retains crown lights at low quality',()=>{
     const {root,scene,values,draw}=fixture()
     try{

@@ -43,7 +43,8 @@ const parameters:readonly Cinema2ParameterManifest[]=[
   choice('material-mode','Model Presentation','design','Hero',9,'original',[{value:'original',label:'Original'},{value:'integrated',label:'Scene Integrated'},{value:'brushed',label:'Brushed Metal'},{value:'edge',label:'Emissive Edge'}],'Original adds neutral fill to imported models; Scene Integrated uses scene lighting. Brushed Metal and Emissive Edge are explicit instance-local stylizations.'),
   slider('hero-motion','Hero Motion','design','Hero',10,.2,0,1,'Small bounded lean with floor-safe grounding.'),
   slider('hero-emission','Hero Emission','design','Hero',11,.2,0,1,'Hero-local rim lighting and emission.'),
-  choice('content-type','Content Type','design','Hero Source',1,'text',[{value:'model',label:'Imported Model'},{value:'text',label:'Typed Text'}],'Switch hero sources without changing either saved input.'),
+  // Retain the saved enum and bindings; source switching is now owned by Active Source.
+  {...choice('content-type','Content Type','design','Hero Source',1,'text',[{value:'model',label:'Imported Model'},{value:'text',label:'Typed Text'}],'Switch hero sources without changing either saved input.'),exposure:'hidden',automatable:false},
   ...['text','line-2','line-3'].map((key,i):Cinema2ParameterManifest=>({...base(key,i===0?'Text':`Line ${i+1}`,'design','Typography',i+1,'Editable extruded typography; 80 characters total, up to three lines.'),type:'string',defaultValue:i===0?'STAGELESS':'',modulatable:false,choreographable:false,visibleWhen:[{kind:'parameter-equals',parameterId:id('content-type'),value:'text'}]})),
   {...choice('font','Font','design','Typography',4,'anton',[{value:'anton',label:'Anton'},{value:'stageless',label:'STAGELESS Sans Bold'}],'Select local glyph outlines.'),visibleWhen:[{kind:'parameter-equals',parameterId:id('content-type'),value:'text'}]},
   ...[

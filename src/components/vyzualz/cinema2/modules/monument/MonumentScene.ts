@@ -125,8 +125,8 @@ export class MonumentScene {
       if(c.depth%2===0){const shape=new THREE.Shape();shape.curves=c.sub.curves.slice();shape.autoClose=true;byIndex.set(i,shape);shapes.push(shape)}else byIndex.get(c.parent)?.holes.push(c.sub)
     });return shapes
   }
-  private rebuildText(p:MonumentPerformance,fallback:boolean){
-    const lines=fallback?['STAGELESS']:monumentLines(p.text('text','STAGELESS'),p.text('line-2',''),p.text('line-3',''))
+  private rebuildText(p:MonumentPerformance){
+    const lines=monumentLines(p.text('text','STAGELESS'),p.text('line-2',''),p.text('line-3',''))
     const fontName=p.text('font','anton'),depth=p.n('text-depth',.12,.02,.3),bevel=p.n('bevel',.015,0,.05),spacing=p.n('letter-spacing',.025,-.05,.2),lineSpacing=p.n('line-spacing',1.1,.8,1.5),alignment=p.text('alignment','center')
     const key=JSON.stringify([lines,fontName,depth,bevel,spacing,lineSpacing,alignment]);if(key===this.textKey)return;this.textKey=key
     this.textRoot.clear();for(const g of this.textGeometry)g.dispose();this.textGeometry=[];this.textHero=null;this.textRoot.matrix.identity();this.textRoot.matrixWorldNeedsUpdate=true
@@ -153,7 +153,7 @@ export class MonumentScene {
   }
   apply(p:MonumentPerformance,quality:string){
     const modelMode=p.text('content-type','text')==='model',imported=modelMode?this.imported:null
-    if(!imported)this.rebuildText(p,modelMode)
+    if(!imported)this.rebuildText(p)
     this.textRoot.visible=!imported&&p.on('model-visible');if(this.imported)this.imported.root.visible=!!imported&&p.on('model-visible')
     const height=p.n('pedestal-height',.12,.05,.3),stepScale=Math.max(.35,.65+height*3.5+Math.min(0,p.n('model-y',0,-.2,.2))*2.0);this.podium.position.y=MONUMENT_FLOOR_Y;this.podium.scale.y=stepScale;const top=MONUMENT_FLOOR_Y+.54*stepScale
     this.hall.scale.z=p.n('hall-depth',1,.75,1.75)

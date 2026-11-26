@@ -13,6 +13,8 @@ import { Cinema2ActiveSource, Cinema2SourceThumbnail } from './Cinema2ActiveSour
 import { LibrarySearchRow } from './controls/LibrarySearchRow'
 import { LibraryViewToggle, type LibraryView } from './controls/LibraryViewToggle'
 import { Collapsible } from './ReactControlRows'
+import { monumentLines } from '../cinema2/modules/monument/MonumentGeometry'
+import type { Cinema2UserModelSlotSnapshot } from '../cinema2/model/Cinema2UserModelSlot'
 import { Cinema2ModelSelector } from '../cinema2/model/Cinema2ModelSelector'
 
 
@@ -36,11 +38,23 @@ interface PinnedModel { asset: ModelAsset; version: number; lookupKey: string }
  */
 export function Cinema2ModelSourcePanel({ runtime, parameterId }: { runtime: Cinema2Runtime; parameterId: Cinema2ParameterId; onOpenMediaManager?: () => void }) {
   const presetId = runtime.getCompiledPresetPlan().presetId, previewPrefix = 'drmvyz.cinema2.user-model-'
+  const monument = presetId === 'drmvyz.cinema2.monument'
   const showSelectionControls = !PRESETS_WITH_A_FIXED_MODEL_SLOT.has(presetId) && !(presetId.startsWith(previewPrefix) && isCinema2UserModelPreview(presetId.slice(previewPrefix.length)))
   const libraryRevision = useModelEditorStore(s => s.libraryRevision)
   const accountId = useMediaStore(s => s.accountId)
   const state = runtime.getParameterState()
   const value = useSyncExternalStore(state.subscribe, () => state.getValue(parameterId), () => DEFAULT_MODEL_BINDING)
+  // Monument retains the existing authored source mode for older saved presets.
+  // Subscribe to primitive values so external edits/restores refresh the same card.
+  const readMonument = (key: string, fallback: string) => {
+    const candidate = monument ? state.getValue(`monument-${key}` as Cinema2ParameterId) : undefined
+    return typeof candidate === 'string' ? candidate : fallback
+  }
+  const mode = useSyncExternalStore(state.subscribe, () => readMonument('content-type', 'text'))
+  const firstLine = useSyncExternalStore(state.subscribe, () => readMonument('text', 'STAGELESS'))
+  const secondLine = useSyncExternalStore(state.subscribe, () => readMonument('line-2', ''))
+  const thirdLine = useSyncExternalStore(state.subscribe, () => readMonument('line-3', ''))
+  const font = useSyncExternalStore(state.subscribe, () => readMonument('font', 'anton'))
   const [search, setSearch] = useState(''), [view, setView] = useState<LibraryView>('grid')
   const [thumbnail, setThumbnail] = useState<string | null>(null)
   const [pinned, setPinned] = useState<PinnedModel | null>(null), [problem, setProblem] = useState<{ lookupKey: string; message: string } | null>(null)
@@ -48,6 +62,28 @@ export function Cinema2ModelSourcePanel({ runtime, parameterId }: { runtime: Cin
   let binding: ReturnType<typeof parseUserModelBinding> | null = null
   try { binding = parseUserModelBinding(value) } catch { binding = null }
   const pinnedId = binding?.kind === 'user-model' ? binding.modelAssetId : null, pinnedVersion = binding?.kind === 'user-model' ? binding.version : 0
+
+  const typographyActive = monument && (mode !== 'model' || !pinnedId)
+  const activePinnedId = typographyActive ? null : pinnedId
+  const lines = monumentLines(firstLine, secondLine, thirdLine)
+  const typographyName = lines.filter(line => line.trim()).join(' / ') || 'Empty typography'
+  const typographyType = `${firstLine === 'STAGELESS' && !secondLine && !thirdLine && font === 'anton' ? 'Built-in' : 'Custom'} typography · ${font === 'stageless' ? 'STAGELESS Sans Bold' : 'Anton'}`
+  // Use the runtime's existing slot inspection (not a second loading pipeline).
+  const [renderStatus, setRenderStatus] = useState<{ key: string; snapshot: Cinema2UserModelSlotSnapshot } | null>(null)
+  useEffect(() => {
+    if (!monument || !activePinnedId) return
+    const update = () => {
+      const inspection = runtime.getModuleRuntimeSnapshot().modules.find(module => module.moduleId === 'monument-hall')?.inspection as { userModel?: Cinema2UserModelSlotSnapshot } | undefined
+      const snapshot = inspection?.userModel
+      if (!snapshot || snapshot.binding !== value) return
+      const key = JSON.stringify([accountId, value])
+      setRenderStatus(previous => previous?.key === key && previous.snapshot.status === snapshot.status && previous.snapshot.message === snapshot.message ? previous : { key, snapshot })
+    }
+    setRenderStatus(null); update()
+    const timer = setInterval(update, 500)
+    return () => clearInterval(timer)
+  }, [runtime, monument, activePinnedId, value, accountId])
+  const liveStatus = renderStatus?.key === JSON.stringify([accountId, value]) ? renderStatus.snapshot : null
 
   const lookupKey = JSON.stringify([accountId, libraryRevision, parameterId, pinnedId, pinnedVersion])
   const pinnedProblem = problem?.lookupKey === lookupKey ? problem.message : null
@@ -70,35 +106,51 @@ export function Cinema2ModelSourcePanel({ runtime, parameterId }: { runtime: Cin
     return () => { active = false }
   }, [runtime, pinnedId, pinnedVersion, lookupKey])
 
+  const writeBinding = (next: string, nextMode: 'model' | 'text') => {
+    if (monument) state.setPersistentValues({ [parameterId]: next, 'monument-content-type': nextMode })
+    else state.setPersistentValue(parameterId, next)
+  }
   const pin = (asset: ModelAsset) => {
     if (asset.status !== 'ready' || asset.currentVersion < 1) { notify('react', { tone: 'error', title: 'Model unavailable', message: `${asset.name} has no saved version to use.` }); return }
-    state.setPersistentValue(parameterId, serializeUserModelBinding({ kind: 'user-model', modelAssetId: asset.id, version: asset.currentVersion }))
+    writeBinding(serializeUserModelBinding({ kind: 'user-model', modelAssetId: asset.id, version: asset.currentVersion }), 'model')
   }
   const currentPinned = pinned?.lookupKey === lookupKey && pinned.asset.id === pinnedId && pinned.version === pinnedVersion ? pinned : null
   const newer = currentPinned && currentPinned.asset.currentVersion > currentPinned.version ? currentPinned.asset : null
   const library = useRef<HTMLDivElement>(null)
   const replace = () => queueMicrotask(() => (library.current?.querySelector<HTMLElement>('input') ?? library.current?.querySelector<HTMLElement>('button'))?.focus())
 
+  const runtimeProblem = monument && activePinnedId && liveStatus && liveStatus.status !== 'ready' && liveStatus.status !== 'loading' ? liveStatus.message ?? 'The selected model could not be shown.' : null
+  const modelFallback = monument && activePinnedId && liveStatus?.status !== 'ready'
+  const status = typographyActive
+    ? pinnedId ? 'Typography is active. Your saved model is retained.' : 'Choose a 3D model to replace the typography.'
+    : monument && activePinnedId && (pinnedProblem || runtimeProblem) ? `Your typography is the fallback when the pinned model cannot load: ${typographyName}.`
+    : monument && activePinnedId && (!liveStatus || liveStatus.status === 'loading') ? `Loading model… Typography fallback: ${typographyName}.`
+    : pinnedProblem && presetId === 'drmvyz.cinema2.colossus' && pinnedId ? 'The built-in content is used when the pinned model cannot load.'
+    : pinnedId && !currentPinned && !pinnedProblem ? 'Loading model…' : !pinnedId ? 'Pick one of your 3D models to replace the built-in content.' : newer ? 'A newer version is available' : undefined
+
   return (
     <div className="rv-canvas-engine-panel" data-cinema2-model-source="slot">
-      <Cinema2ActiveSource name={currentPinned ? `${currentPinned.asset.name} · v${pinnedVersion}` : pinnedId ? `Pinned model · v${pinnedVersion}` : 'Built-in model'}
-        type={pinnedId ? '3D model' : 'Built-in content'} preview={<Cinema2SourceThumbnail url={currentPinned ? thumbnail : null} />}
-        status={pinnedProblem && presetId === 'drmvyz.cinema2.colossus' && pinnedId ? 'The built-in content is used when the pinned model cannot load.' : pinnedId && !currentPinned && !pinnedProblem ? 'Loading model…' : !pinnedId ? 'Pick one of your 3D models to replace the built-in content.' : newer ? 'A newer version is available' : undefined}
-        error={pinnedProblem} actions={[
-          { id: 'replace', label: pinnedId ? 'Replace model' : 'Choose model', onSelect: replace },
-          ...(newer ? [{ id: 'update', label: `Use v${newer.currentVersion}`, onSelect: () => pin(newer) }] : []),
-          ...(showSelectionControls && pinnedId ? [{ id: 'remove', label: 'Remove model / Restore built-in', onSelect: () => state.setPersistentValue(parameterId, DEFAULT_MODEL_BINDING) }] : []),
+      <Cinema2ActiveSource name={typographyActive ? typographyName : currentPinned ? `${currentPinned.asset.name} · v${pinnedVersion}` : pinnedId ? `Pinned model · v${pinnedVersion}` : 'Built-in model'}
+        type={typographyActive ? typographyType : modelFallback ? '3D model · Typography fallback' : pinnedId ? '3D model' : 'Built-in content'} preview={<Cinema2SourceThumbnail url={activePinnedId && currentPinned ? thumbnail : null} />}
+        status={status}
+        error={typographyActive ? null : pinnedProblem ?? runtimeProblem} actions={[
+          { id: 'replace', label: activePinnedId ? 'Replace model' : 'Choose model', onSelect: replace },
+          ...(newer && !typographyActive ? [{ id: 'update', label: `Use v${newer.currentVersion}`, onSelect: () => pin(newer) }] : []),
+          ...(monument && activePinnedId ? [{ id: 'typography', label: 'Use typography (keep model)', onSelect: () => writeBinding(String(value), 'text') }] : []),
+          ...(typographyActive && pinnedId ? [{ id: 'resume-model', label: 'Use saved model', onSelect: () => writeBinding(String(value), 'model') }] : []),
+          ...(showSelectionControls && pinnedId ? [{ id: 'remove', label: monument ? 'Remove model / Restore typography' : 'Remove model / Restore built-in', onSelect: () => writeBinding(DEFAULT_MODEL_BINDING, 'text') }] : []),
+          ...(typographyActive && mode === 'model' && !pinnedId ? [{ id: 'restore-text', label: 'Restore typography controls', onSelect: () => writeBinding(DEFAULT_MODEL_BINDING, 'text') }] : []),
         ]} />
-      {pinnedId && <Collapsible label="Model versions and details" defaultOpen={false}>
+      {activePinnedId && <Collapsible label="Model versions and details" defaultOpen={false}>
         <Cinema2ModelSelector key={`${accountId}:${pinnedId}:${libraryRevision}`} id={`cinema2-source-${parameterId}`} label="Saved model version" value={value} disabled={false} versionsOnly
           onChange={next => {
             if (state.getValue(parameterId) !== value) return
-            state.setPersistentValue(parameterId, next)
+            writeBinding(next, 'model')
           }} />
       </Collapsible>}
       <div className="rv-canvas-library-shell" ref={library}>
         <ModelLibraryCards
-          search={search} favorites={false} viewMode={view} activeId={pinnedId}
+          search={search} favorites={false} viewMode={view} activeId={activePinnedId}
           onSelect={pin}
           sectioned
           searchControl={<LibrarySearchRow value={search} onChange={setSearch} placeholder="Search your 3D models" label="Search 3D models" clearable><LibraryViewToggle view={view} onChange={setView} /></LibrarySearchRow>}
