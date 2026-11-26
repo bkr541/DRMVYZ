@@ -1,10 +1,10 @@
 import { describe,expect,it } from 'vitest'
 import { buildHoneyGeometry } from '../modules/honey/Cinema2HoneyGeometry'
-import { HONEY_CAP_RADIUS,HONEY_CAP_THICKNESS,HONEY_FLOOR,HONEY_PITCH,HONEY_SLEEVE_OUTER } from '../modules/honey/Cinema2HoneyDomain'
+import { HONEY_CAP_RADIUS,HONEY_CAP_THICKNESS,HONEY_FLOOR,HONEY_PITCH,HONEY_SLEEVE_OUTER,HONEY_SLEEVE_INNER,HONEY_SLEEVE_LIP,HONEY_STEM_BASE,HONEY_STEM_RADIUS,HONEY_MAX_ELEVATION,HONEY_FLOAT_FULL,honeyStemTop } from '../modules/honey/Cinema2HoneyDomain'
 
 describe('HONEY physical assemblies',()=>{
   it('uses separate stationary and moving surfaces with finite unit normals and nondegenerate winding',()=>{
-    const parts=buildHoneyGeometry();expect(parts).toHaveLength(11)
+    const parts=buildHoneyGeometry();expect(parts).toHaveLength(12)
     expect(parts.filter(p=>p.moving).map(p=>p.name)).toEqual(['body','outer-channel-seat','plate-bevel','plate-face','inner-channel-seat'])
     expect(parts.filter(p=>!p.moving).map(p=>p.name)).toContain('cavity-floor')
     for(const mesh of parts){
@@ -19,5 +19,22 @@ describe('HONEY physical assemblies',()=>{
     }
     expect(HONEY_PITCH-Math.sqrt(3)*HONEY_SLEEVE_OUTER).toBeGreaterThan(.02)
     expect(Math.min(...parts.find(p=>p.name==='cavity-floor')!.vertices.filter((_,i)=>i%6===2))).toBeCloseTo(HONEY_FLOOR)
+  })
+  it('uses a physical anchored piston inside the sleeve, attached until release and recessed at full float',()=>{
+    const stem=buildHoneyGeometry().find(p=>p.telescoping)!
+    expect(stem.name).toBe('telescoping-body');expect(stem.moving).toBe(false)
+    expect(HONEY_STEM_RADIUS).toBeLessThan(HONEY_SLEEVE_INNER)
+    for(let i=0;i<stem.vertices.length;i+=6){
+      expect(Math.hypot(stem.vertices[i]!,stem.vertices[i+1]!)).toBeLessThanOrEqual(HONEY_STEM_RADIUS+1e-6)
+      expect([0,1]).toContain(stem.vertices[i+2])
+    }
+    for(const elevation of [.12,HONEY_SLEEVE_LIP,.98,1.5]){
+      const top=honeyStemTop(elevation)
+      expect(top).toBeGreaterThan(HONEY_STEM_BASE)
+      expect(top).toBeGreaterThan(elevation-HONEY_CAP_THICKNESS)
+      expect(top).toBeLessThan(elevation)
+    }
+    expect(honeyStemTop(HONEY_FLOAT_FULL)).toBeLessThan(HONEY_SLEEVE_LIP)
+    expect(HONEY_MAX_ELEVATION-HONEY_CAP_THICKNESS-honeyStemTop(HONEY_MAX_ELEVATION)).toBeGreaterThan(2)
   })
 })

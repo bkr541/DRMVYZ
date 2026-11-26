@@ -1,4 +1,4 @@
-import { HONEY_MAX_ELEVATION,HONEY_MIN_ELEVATION,HONEY_MAX_ROTATION,HONEY_MAX_TILT,HONEY_MAX_SEPARATION,honeySeed,type HoneyPose } from './Cinema2HoneyDomain'
+import { HONEY_MAX_ELEVATION,HONEY_MIN_ELEVATION,HONEY_MAX_ROTATION,HONEY_MAX_TILT,HONEY_MAX_SEPARATION,HONEY_FLOAT_START,honeyFloatingAuthority,honeySeed,type HoneyPose } from './Cinema2HoneyDomain'
 import { constrainHoneyPose,type HoneyCell } from './Cinema2HoneyLayout'
 import type { HoneyPatternSample } from './Cinema2HoneyPatterns'
 
@@ -18,7 +18,7 @@ export function targetHoneyCell(c:HoneyCell,s:HoneyPatternSample,k:HoneyMotionCo
   const m=k.motion*k.elevation, seed=honeySeed(c.q,c.r,107), angle=honeySeed(c.q,c.r,109)*Math.PI*2
   const height=c.elevation+s.elevation*m*(s.elevation>=0?HONEY_MAX_ELEVATION-c.elevation:c.elevation-HONEY_MIN_ELEVATION)
   // Angles and offsets only develop on caps clear of the sleeve. Retracted caps remain seated.
-  const raised=clamp((height-.68)/.23)*k.motion
+  const raised=honeyFloatingAuthority(height)*k.motion
   const pose=constrainHoneyPose({elevation:height,rotation:s.rotation*raised*k.rotation*HONEY_MAX_ROTATION,tiltX:s.tiltX*raised*k.tilt*HONEY_MAX_TILT,tiltY:s.tiltY*raised*k.tilt*HONEY_MAX_TILT,x:Math.cos(angle)*s.separation*raised*k.separation*HONEY_MAX_SEPARATION,y:Math.sin(angle)*s.separation*raised*k.separation*HONEY_MAX_SEPARATION})
   const gate=clamp((k.coverage-seed)*8+.3), channels=[s.outer,s.inner,s.under].map((v,i)=>clamp(c.channels[i]!*.48+v*gate*.85)) as [number,number,number]
   return {...c,pose,elevation:pose.elevation,channels}
@@ -30,10 +30,10 @@ export function advanceHoneyCell(state:HoneyCellState,target:HoneyVisualCell,dt:
   if(dt<=0)return
   const prior=state.current, rising=target.pose.elevation>=prior.pose.elevation,alpha=1-Math.exp(-dt*3/Math.max(.025,rising?k.attack:k.release))
   const next=blendHoneyCell(prior,target,alpha)
-  if(!rising&&target.pose.elevation<.68){
+  if(!rising&&target.pose.elevation<HONEY_FLOAT_START){
     const align=1-Math.exp(-dt*3/Math.max(.025,k.attack))
     for(const key of ['rotation','tiltX','tiltY','x','y'] as const)next.pose[key]=lerp(prior.pose[key],0,align)
-    if(Math.max(Math.abs(next.pose.rotation),Math.abs(next.pose.tiltX),Math.abs(next.pose.tiltY),Math.abs(next.pose.x),Math.abs(next.pose.y))>.001)next.pose.elevation=Math.max(next.pose.elevation,Math.min(prior.pose.elevation,.68))
+    if(Math.max(Math.abs(next.pose.rotation),Math.abs(next.pose.tiltX),Math.abs(next.pose.tiltY),Math.abs(next.pose.x),Math.abs(next.pose.y))>.001)next.pose.elevation=Math.max(next.pose.elevation,Math.min(prior.pose.elevation,HONEY_FLOAT_START+.02))
     next.pose=constrainHoneyPose(next.pose);next.elevation=next.pose.elevation
   }
   if(k.motion===0){next.pose=prior.pose;next.elevation=prior.elevation}
@@ -45,6 +45,6 @@ export function advanceHoneyCell(state:HoneyCellState,target:HoneyVisualCell,dt:
 export function honeyAudioPose(base:HoneyVisualCell,k:HoneyMotionControls,kinetic:number,z:number,tilt:number,lateral:number):HoneyPose{
   if(k.motion===0||kinetic===0||(!z&&!tilt&&!lateral))return base.pose
   const elevation=Math.max(HONEY_MIN_ELEVATION,Math.min(HONEY_MAX_ELEVATION,base.pose.elevation+Math.max(-.35,Math.min(.38,z))*kinetic*k.elevation))
-  const raised=clamp((elevation-.68)/.23)
+  const raised=honeyFloatingAuthority(elevation)
   return constrainHoneyPose({...base.pose,elevation,tiltX:base.pose.tiltX+Math.max(-.5,Math.min(.5,tilt))*kinetic*k.tilt*HONEY_MAX_TILT*raised,x:base.pose.x+lateral*kinetic*k.separation*raised})
 }

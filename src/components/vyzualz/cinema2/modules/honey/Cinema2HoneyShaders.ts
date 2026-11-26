@@ -1,4 +1,4 @@
-import { HONEY_GRID_RADIUS,HONEY_PITCH } from './Cinema2HoneyDomain'
+import { HONEY_GRID_RADIUS,HONEY_PITCH,HONEY_STEM_BASE,HONEY_STEM_MAX_TOP,HONEY_STEM_OVERLAP,HONEY_CAP_THICKNESS,HONEY_STEM_RELEASE,HONEY_FLOAT_FULL,HONEY_SLEEVE_LIP } from './Cinema2HoneyDomain'
 import { HONEY_MATERIAL_GLSL } from './Cinema2HoneyMaterials'
 import { HONEY_CHANNEL_POWER,HONEY_LIGHT_OFFSET_GLSL,HONEY_SPILL_LIMIT,HONEY_SPILL_RADIUS } from './Cinema2HoneyLighting'
 
@@ -6,6 +6,19 @@ const HONEY_POSE_GLSL=`
 mat3 honeyRotation(vec3 a){
   float sx=sin(a.y),cx=cos(a.y),sy=sin(a.z),cy=cos(a.z),sz=sin(a.x),cz=cos(a.x);
   return mat3(cz,sz,0.0,-sz,cz,0.0,0.0,0.0,1.0)*mat3(cy,0.0,-sy,0.0,1.0,0.0,sy,0.0,cy)*mat3(1.0,0.0,0.0,0.0,cx,sx,0.0,-sx,cx);
+}
+// a_part.y: 0 fixed sleeve, 1 rigid cap, 2 anchored telescoping body.
+// Keep this function identical in the color and shadow paths.
+vec3 honeyPosition(vec3 p, float part, vec4 cell, vec3 angles, vec2 offset){
+  if(part>1.5){
+    float attached=min(cell.z-${HONEY_CAP_THICKNESS}+${HONEY_STEM_OVERLAP},${HONEY_STEM_MAX_TOP});
+    float release=smoothstep(${HONEY_STEM_RELEASE},${HONEY_FLOAT_FULL},cell.z);
+    float top=mix(attached,${HONEY_SLEEVE_LIP-.025},release);
+    p.z=mix(${HONEY_STEM_BASE},top,p.z);
+  }else if(part>.5){
+    p=honeyRotation(angles)*p+vec3(offset,cell.z);
+  }
+  return p+vec3(cell.xy,0.0);
 }
 `
 export const HONEY_VERTEX=`#version 300 es
@@ -37,9 +50,10 @@ flat out vec4 v_lights[7];
 void main(){
   v_local=a_position;
   mat3 rotation=honeyRotation(i_angles);
-  v_world=mix(a_position,rotation*a_position+vec3(i_offset,i_cell.z),a_part.y)+vec3(i_cell.xy,0.0);
+  v_world=honeyPosition(a_position,a_part.y,i_cell,i_angles,i_offset);
   gl_Position=u_viewProjection*vec4(v_world,1.0);
-  v_normal=mix(a_normal,rotation*a_normal,a_part.y);v_role=int(a_part.x+0.5);v_moving=a_part.y;
+  v_moving=float(a_part.y>.5&&a_part.y<1.5);
+  v_normal=mix(a_normal,rotation*a_normal,v_moving);v_role=int(a_part.x+0.5);
   v_cell=i_cell;v_finish=i_finish;
   v_lights[0]=i_light0;
   v_lights[1]=i_light1;
@@ -58,7 +72,7 @@ layout(location=12) in vec3 i_angles;
 layout(location=13) in vec2 i_offset;
 uniform mat4 u_viewProjection;
 ${HONEY_POSE_GLSL}
-void main(){gl_Position=u_viewProjection*vec4(mix(a_position,honeyRotation(i_angles)*a_position+vec3(i_offset,i_cell.z),a_part.y)+vec3(i_cell.xy,0.0),1.0);}`
+void main(){gl_Position=u_viewProjection*vec4(honeyPosition(a_position,a_part.y,i_cell,i_angles,i_offset),1.0);}`
 export const HONEY_SHADOW_FRAGMENT=`#version 300 es
 precision highp float;
 void main(){}`

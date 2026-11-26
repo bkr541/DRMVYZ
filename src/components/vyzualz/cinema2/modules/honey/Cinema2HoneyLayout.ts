@@ -1,4 +1,4 @@
-import { HONEY_CAP_RADIUS, HONEY_CAP_THICKNESS, HONEY_GRID_RADIUS, HONEY_PITCH, HONEY_NEIGHBORS, HONEY_FLOOR, HONEY_SLEEVE_INNER, HONEY_SLEEVE_LIP, HONEY_MIN_ELEVATION, HONEY_MAX_ELEVATION, HONEY_MAX_ROTATION, HONEY_MAX_TILT, HONEY_MAX_SEPARATION, HONEY_FINISHES, type HoneyPose, honeySeed } from './Cinema2HoneyDomain'
+import { HONEY_CAP_RADIUS, HONEY_CAP_THICKNESS, HONEY_GRID_RADIUS, HONEY_PITCH, HONEY_NEIGHBORS, HONEY_FLOOR, HONEY_SLEEVE_INNER, HONEY_SLEEVE_LIP, HONEY_MIN_ELEVATION, HONEY_MAX_ELEVATION, HONEY_MAX_ROTATION, HONEY_MAX_TILT, HONEY_MAX_SEPARATION, HONEY_FINISHES, HONEY_FLOAT_START, honeyStemTop, type HoneyPose, honeySeed } from './Cinema2HoneyDomain'
 
 import { honeyFinish } from './Cinema2HoneyMaterials'
 import { honeyStaticChannels } from './Cinema2HoneyLighting'
@@ -42,6 +42,11 @@ export function isHoneyPoseSafe(pose: HoneyPose): boolean {
   const points = honeyPoseCorners(pose)
   const lowest = Math.min(...points.map(p => p[2]))
   if (lowest < HONEY_FLOOR + .006) return false
+  // A moving cap may not scrape or shear its anchored piston. The aligned
+  // underside intentionally overlaps the piston slightly while attached.
+  if (pose.rotation !== 0 || pose.tiltX !== 0 || pose.tiltY !== 0 || pose.x !== 0 || pose.y !== 0) {
+    if (pose.elevation <= HONEY_FLOAT_START || lowest < honeyStemTop(pose.elevation) + .015) return false
+  }
   const limit = lowest < HONEY_SLEEVE_LIP + .015 ? HONEY_SLEEVE_INNER*Math.sqrt(3)/2-.003 : HONEY_PITCH/2-.006
   return points.every(([x,y]) => HONEY_CLEARANCE_NORMALS.every(([nx,ny]) => x*nx+y*ny <= limit + 1e-9))
 }
@@ -49,6 +54,7 @@ export function isHoneyPoseSafe(pose: HoneyPose): boolean {
 export function constrainHoneyPose(request: HoneyPose): HoneyPose {
   const elevation = Number.isFinite(request.elevation) ? Math.max(HONEY_MIN_ELEVATION, Math.min(HONEY_MAX_ELEVATION,request.elevation)) : HONEY_MIN_ELEVATION
   const clamp = (v:number, max:number) => Number.isFinite(v) ? Math.max(-max,Math.min(max,v)) : 0
+  if (elevation <= HONEY_FLOAT_START) return { elevation, rotation:0, tiltX:0, tiltY:0, x:0, y:0 }
   const x=clamp(request.x,HONEY_MAX_SEPARATION), y=clamp(request.y,HONEY_MAX_SEPARATION), lateral=Math.max(1,Math.hypot(x,y)/HONEY_MAX_SEPARATION)
   const base = { elevation, rotation:clamp(request.rotation,HONEY_MAX_ROTATION), tiltX:clamp(request.tiltX,HONEY_MAX_TILT), tiltY:clamp(request.tiltY,HONEY_MAX_TILT), x:x/lateral, y:y/lateral }
   const scaled = (t:number):HoneyPose => ({ elevation, rotation:base.rotation*t, tiltX:base.tiltX*t, tiltY:base.tiltY*t, x:base.x*t, y:base.y*t })

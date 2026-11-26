@@ -1,7 +1,7 @@
-import { HONEY_BEVEL, HONEY_CAP_RADIUS, HONEY_CAP_THICKNESS, HONEY_FLOOR, HONEY_PITCH, HONEY_SLEEVE_INNER, HONEY_SLEEVE_LIP, HONEY_SLEEVE_OUTER } from './Cinema2HoneyDomain'
+import { HONEY_BEVEL, HONEY_CAP_RADIUS, HONEY_CAP_THICKNESS, HONEY_FLOOR, HONEY_PITCH, HONEY_SLEEVE_INNER, HONEY_SLEEVE_LIP, HONEY_SLEEVE_OUTER, HONEY_STEM_RADIUS } from './Cinema2HoneyDomain'
 
 export type HoneyMeshRole = 'face' | 'edge' | 'cavity' | 'substrate' | 'outer' | 'inner' | 'under'
-export interface HoneyMesh { name: string; role: HoneyMeshRole; moving: boolean; vertices: Float32Array }
+export interface HoneyMesh { name: string; role: HoneyMeshRole; moving: boolean; telescoping?: boolean; vertices: Float32Array }
 type Point = readonly [number, number, number]
 const ringPoint = (r:number,z:number,i:number):Point => [r*Math.cos(i*Math.PI/3),r*Math.sin(i*Math.PI/3),z]
 function triangle(out:number[], a:Point,b:Point,c:Point) {
@@ -29,6 +29,9 @@ export function buildHoneyGeometry():readonly HoneyMesh[]{
     mesh('sleeve-exterior','edge',false,o=>band(o,outer,HONEY_FLOOR-.065,outer,lip)),
     mesh('sleeve-rim','edge',false,o=>{band(o,outer,lip,outer-.012,lip);band(o,inner+.009,lip,inner,lip)}),
     mesh('lower-channel-seat','under',false,o=>{band(o,outer-.012,lip,outer-.012,lip-.007);band(o,outer-.012,lip-.007,inner+.009,lip-.007);band(o,inner+.009,lip-.007,inner+.009,lip)}),
+    // Normalized Z is expanded by the shared world/shadow vertex transform.
+    // The base remains fixed inside the sleeve; the top follows the cap.
+    {...mesh('telescoping-body','edge',false,o=>{band(o,HONEY_STEM_RADIUS,0,HONEY_STEM_RADIUS,1);disk(o,HONEY_STEM_RADIUS,1)}),telescoping:true},
     mesh('body','cavity',true,o=>{band(o,r,bottom,r,-.065);disk(o,r,bottom,true)}),
     mesh('outer-channel-seat','outer',true,o=>{band(o,r,-.065,r-.008,-.059);band(o,r-.008,-.059,r-.034,-.034);band(o,r-.034,-.034,r-.040,-.028)}),
     mesh('plate-bevel','edge',true,o=>band(o,r-.040,-.028,top,0)),

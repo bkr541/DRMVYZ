@@ -11,7 +11,29 @@ export const HONEY_SLEEVE_OUTER = 1.027
 export const HONEY_SLEEVE_LIP = .42
 export const HONEY_FLOOR = -.10
 export const HONEY_MIN_ELEVATION = .12
-export const HONEY_MAX_ELEVATION = 1.05
+// Keep the authored home heights and stationary sleeves. The travel slider
+// now spans 3.08 world units instead of .93; +Z is toward the camera.
+export const HONEY_MAX_ELEVATION = 3.2
+export const HONEY_STEM_RADIUS = .91
+export const HONEY_STEM_BASE = HONEY_FLOOR - .005
+export const HONEY_STEM_OVERLAP = .018
+export const HONEY_STEM_MAX_TOP = 1.47
+export const HONEY_FLOAT_START = 1.8
+export const HONEY_FLOAT_FULL = 2.35
+export const HONEY_STEM_RELEASE = HONEY_STEM_MAX_TOP + HONEY_CAP_THICKNESS - HONEY_STEM_OVERLAP
+
+/** Anchored piston: follows the cap underside, then retracts into the sleeve
+ * as the cap floats. The world and shadow shaders use the same constants. */
+export function honeyStemTop(elevation: number): number {
+  const t = Math.max(0, Math.min(1, (elevation - HONEY_STEM_RELEASE) / (HONEY_FLOAT_FULL - HONEY_STEM_RELEASE)))
+  const attached = Math.min(elevation - HONEY_CAP_THICKNESS + HONEY_STEM_OVERLAP, HONEY_STEM_MAX_TOP)
+  return attached + (HONEY_SLEEVE_LIP - .025 - attached) * t * t * (3 - 2 * t)
+}
+/** Rotation/lateral travel is reserved for fully released caps. */
+export function honeyFloatingAuthority(elevation: number): number {
+  const t = Math.max(0, Math.min(1, (elevation - HONEY_FLOAT_START) / (HONEY_FLOAT_FULL - HONEY_FLOAT_START)))
+  return t * t * (3 - 2 * t)
+}
 export const HONEY_MAX_ROTATION = 6 * Math.PI / 180
 export const HONEY_MAX_TILT = 6 * Math.PI / 180
 export const HONEY_MAX_SEPARATION = .025

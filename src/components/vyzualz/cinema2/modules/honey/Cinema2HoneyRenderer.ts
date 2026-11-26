@@ -69,7 +69,7 @@ export class Cinema2HoneyRenderer {
       }finally{gl.bindTexture(gl.TEXTURE_2D,previous)}
       const vertices:number[]=[]
       for(const part of buildHoneyGeometry()){
-        for(let i=0;i<part.vertices.length;i+=6)vertices.push(...part.vertices.subarray(i,i+6),HONEY_PALETTE_KEYS.indexOf(part.role),part.moving?1:0)
+        for(let i=0;i<part.vertices.length;i+=6)vertices.push(...part.vertices.subarray(i,i+6),HONEY_PALETTE_KEYS.indexOf(part.role),part.telescoping?2:part.moving?1:0)
       }
       this.vertexCount=vertices.length/8
       this.vao=gl.createVertexArray()
