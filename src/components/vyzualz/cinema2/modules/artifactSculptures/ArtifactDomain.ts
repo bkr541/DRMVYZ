@@ -11,7 +11,7 @@ export interface Control {key:string; label:string; description:string; value:nu
 export interface ArtifactSpec {
   id:string; description:string; patterns:readonly string[]; build:string; drop:string;
   controls:readonly Control[]; extra?:{key:string;label:string;description:string}; palette:Palette; paletteLabels:readonly string[];
-  room:{floor:number}; camera:{wide:Point;path:Point[];macro:Point[];fov:number};
+  room:{floor:number}; camera:{wide:Point;path:Point[];macro:Point[];fov:number;orbitRadius?:number};
   mood:readonly ({source:'mood.build'|'mood.calm'|'mood.peak'|'mood.complexity'|'mood.momentum';operation:'add'|'multiply';value:number;key:string})[];
   geometry:(s:ArtifactState,emit:Emit,quality:string)=>void
 }
