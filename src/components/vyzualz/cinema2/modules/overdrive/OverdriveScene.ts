@@ -40,6 +40,10 @@ export const DEFAULT_OVERDRIVE_LOOK: OverdriveLook = {
   brightness:1.1,roughness:.32,reflection:.65,spill:.65,key:.7,detail:1,mode:'auto',style:'led',text:'OVERDRIVE',mediaScale:1,mediaRotation:0,
   colors:OVERDRIVE_COLORS,energy:0,bass:0,mid:0,high:0,vocal:0,kick:0,snare:0,beat:0,build:0,drop:0,phrase:0,
 }
+/** Source exposure follows the existing LED Intensity, not the reactive machine gain. */
+export function overdriveFullColorGain(look: Pick<OverdriveLook,'brightness'|'pattern'|'pose'>) {
+  return look.brightness * (look.pattern === 'blackout' ? look.pose[7] : 1)
+}
 export function overdriveBandRadius(y:number) { return Math.sqrt(Math.max(0,1.46**2-y*y)) }
 export function overdriveAssemblyPose(index:number,look:OverdriveLook) {
   const a=index*Math.PI/5, p=look.pose, phase=look.phase, m=look.motion;
@@ -51,11 +55,22 @@ export function overdriveAssemblyPose(index:number,look:OverdriveLook) {
 }
 type Merge = typeof import('three/examples/jsm/utils/BufferGeometryUtils.js')['mergeGeometries']
 const vertex=`varying vec3 vLocal; void main(){vLocal=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`
-const fragment=`varying vec3 vLocal; uniform sampler2D uMedia,uText; uniform vec3 uColor; uniform float uMode,uStyle,uGain,uPhase,uAspect,uScale,uAngle,uBass;
+const fragment=`varying vec3 vLocal; uniform sampler2D uMedia,uText; uniform vec3 uColor; uniform float uMode,uStyle,uGain,uMediaGain,uPhase,uAspect,uScale,uAngle,uBass;
 void main(){vec2 uv=vLocal.xy/2.72+.5; vec2 grid=vec2(128.,64.);vec2 pix=(floor(uv*grid)+.5)/grid; vec2 q=(uStyle<.5?pix:uv)-.5;
 float c=cos(uAngle),s=sin(uAngle);q=mat2(c,-s,s,c)*q/max(.1,uScale);q.x/=min(1.,uAspect);q.y*=max(1.,uAspect);q+=.5;
 float inside=step(0.,q.x)*step(q.x,1.)*step(0.,q.y)*step(q.y,1.);vec3 rgb=uColor;float a=0.;
-if(uMode>2.5){vec4 t=texture2D(uMedia,q);a=max(max(t.r,t.g),t.b)*t.a*inside;if(uStyle>1.5)rgb=t.rgb;}
+if(uMode>2.5){
+  // Managed media is top-down; the generated text texture is bottom-up.
+  vec4 t=texture2D(uMedia,vec2(q.x,1.-q.y));
+  if(uStyle>1.5){
+    // Full Color is a display-referred source, not a luminance mask. The
+    // existing LED Intensity controls exposure, independently of the machine.
+    float coverage=t.a*inside*smoothstep(-.1,.25,vLocal.z);
+    gl_FragColor=vec4(mix(vec3(.009,.01,.017),t.rgb*uMediaGain,coverage),1.);
+    return;
+  }
+  a=max(max(t.r,t.g),t.b)*t.a*inside;
+}
 else if(uMode>1.5){a=texture2D(uText,q).r*inside;}
 else if(uMode>.5){float y=.5+sin(pix.x*22.+uPhase*2.)*(.06+uBass*.22)+sin(pix.x*44.-uPhase)*.04;a=1.-smoothstep(.012,.035,abs(pix.y-y));}
 else {float y=.49+sin((pix.x-.5)*9.)*.22; a=1.-smoothstep(.04,.065,abs(pix.y-y));a*=step(.12,pix.x)*step(pix.x,.88);}
@@ -102,7 +117,7 @@ export class OverdriveScene {
     const combine=(parts:Three.BufferGeometry[])=>{const g=merge(parts);parts.forEach(p=>p.dispose());if(!g)throw new Error('OVERDRIVE geometry merge failed');return g};
     this.core=new T.Group();this.group.add(this.core);
     this.mediaTexture=new T.Texture();this.textTexture=new T.DataTexture(new Uint8Array(512*128*4),512,128);this.textTexture.needsUpdate=true;
-    this.screen=new T.ShaderMaterial({vertexShader:vertex,fragmentShader:fragment,toneMapped:false,uniforms:{uMedia:{value:this.mediaTexture},uText:{value:this.textTexture},uColor:{value:new T.Color()},uMode:{value:0},uStyle:{value:0},uGain:{value:2},uPhase:{value:0},uAspect:{value:1},uScale:{value:1},uAngle:{value:0},uBass:{value:0}}});this.materials.add(this.screen);
+    this.screen=new T.ShaderMaterial({vertexShader:vertex,fragmentShader:fragment,toneMapped:false,uniforms:{uMedia:{value:this.mediaTexture},uText:{value:this.textTexture},uColor:{value:new T.Color()},uMode:{value:0},uStyle:{value:0},uGain:{value:2},uMediaGain:{value:1},uPhase:{value:0},uAspect:{value:1},uScale:{value:1},uAngle:{value:0},uBass:{value:0}}});this.materials.add(this.screen);
     const display=add(this.core,new T.SphereGeometry(1.395,64,40),this.screen);
     display.onBeforeRender=renderer=>{this.renderer=renderer;const p=renderer.properties.get(this.mediaTexture) as {__webglTexture?:WebGLTexture;__version?:number};if(this.media){p.__webglTexture=this.media.texture;p.__version=this.mediaTexture.version}else{delete p.__webglTexture;delete p.__version}};
     for(let i=0;i<56;i++){const y=-1.425+i*2.85/55,r=overdriveBandRadius(y);const rib=add(this.core,combine([new T.TorusGeometry(r,.021,6,96).rotateX(Math.PI/2),box(.055,.052,.075,r,0,0)]),i%5===0?this.titanium:this.metal,0,y,0);this.rings.push(rib)}
@@ -143,7 +158,7 @@ export class OverdriveScene {
     this.assemblies.forEach((a,i)=>{const v=overdriveAssemblyPose(i,l);a.root.position.y=v.radial;a.rod.position.y=v.stroke;a.cone.position.z=v.cone;a.shutter.rotation.z=v.shutter*(i%2?1:-1);color(a.light.emissive,l.colors.conduit);a.light.emissiveIntensity=v.relay*l.intensity*p[7]*2;});
     color(this.metal.color,l.colors.metal);color(this.titanium.color,l.colors.titanium);color(this.carbon.color,l.colors.carbon);color(this.dark.color,l.colors.background);this.metal.roughness=l.roughness;this.titanium.roughness=Math.max(.12,l.roughness*.78);this.metal.envMapIntensity=this.titanium.envMapIntensity=l.reflection;const detail=quality==='low'?0:l.detail;if(Math.abs(detail-this.lastDetail)>.015){const pixels=this.weave.image.data as Uint8Array;for(let y=0;y<32;y++)for(let x=0;x<32;x++){const i=(y*32+x)*4,v=Math.round(255-(255-(((x>>2)+(y>>2))%2?78:155))*detail);pixels.set([v,v,v,255],i)}this.weave.needsUpdate=true;this.lastDetail=detail;}
     const gain=l.intensity*p[7];this.key.intensity=3.6*l.key*gain;this.rim.intensity=2.7*l.key*gain;color(this.rim.color,l.colors.rim);color(this.spill.color,l.colors.core);this.spill.intensity=14*l.spill*gain*(.65+l.bass*.4+l.drop*.5);color(this.accent.color,l.colors.accent);this.accent.intensity=5*l.snare*gain;
-    this.media=media;const u=this.screen.uniforms;u.uMode.value=l.mode==='text'?2:l.mode==='waveform'?1:(l.mode==='media'||l.mode==='pool')&&media?3:0;u.uStyle.value=l.style==='raster'?1:l.style==='color'?2:0;u.uGain.value=l.brightness*gain*(1.7+l.beat*.4+l.energy*.3+l.vocal*.1);color(u.uColor.value,l.colors.core);u.uPhase.value=l.phase;u.uBass.value=l.bass;u.uAspect.value=media?media.width/Math.max(1,media.height):l.mode==='text'?4:1;u.uScale.value=l.mediaScale;u.uAngle.value=l.mediaRotation*Math.PI/180;if(l.mode==='text')this.updateText(l.text);
+    this.media=media;const u=this.screen.uniforms;u.uMode.value=l.mode==='text'?2:l.mode==='waveform'?1:(l.mode==='media'||l.mode==='pool')&&media?3:0;u.uStyle.value=l.style==='raster'?1:l.style==='color'?2:0;u.uGain.value=l.brightness*gain*(1.7+l.beat*.4+l.energy*.3+l.vocal*.1);u.uMediaGain.value=overdriveFullColorGain(l);color(u.uColor.value,l.colors.core);u.uPhase.value=l.phase;u.uBass.value=l.bass;u.uAspect.value=media?media.width/Math.max(1,media.height):l.mode==='text'?4:1;u.uScale.value=l.mediaScale;u.uAngle.value=l.mediaRotation*Math.PI/180;if(l.mode==='text')this.updateText(l.text);
   }
   dispose(){this.renderer?.properties.remove(this.mediaTexture);this.mediaTexture.dispose();this.textTexture.dispose();this.weave.dispose();this.geometries.forEach(g=>g.dispose());this.materials.forEach(m=>m.dispose());this.group.removeFromParent();}
 }

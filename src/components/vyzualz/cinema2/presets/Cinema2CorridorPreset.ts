@@ -84,7 +84,7 @@ const parameters: readonly Cinema2ParameterManifest[] = [
     slider('transit','Transit Rate','design','Structure',2,1,0.2,1.8,'Rate of forward travel during playback.'),
     slider('roll','Camera Roll','design','Structure',3,0.54,0,1,'Amount of gentle roll around the centered vanishing point.'),
     slider('density','Panel Density','design','Panels',1,0.38,0.05,0.85,'Fraction of tiles recruited by the active pattern.'),
-    slider('intensity','Panel Intensity','design','Panels',2,0.86,0,1.45,'Brightness of the panel diffusers, recessed perimeter LEDs, markings and local spill.'),
+    slider('intensity','Panel Intensity','design','Panels',2,0.86,0,1.45,'Brightness of the panel diffusers, recessed perimeter LEDs, markings and local spill. User pictures retain independent source exposure.'),
     { ...base('pattern','Pattern','design','Pattern',1,'Choose the arrangement of light across the cassette banks.'), type: 'enum', defaultValue: 'night-transit', options: CORRIDOR_PATTERNS },
     { ...base('pattern-change','Pattern Change','design','Pattern',2,'Advance the active pattern on a fresh event from the selected Trigger.'), type: 'boolean', defaultValue: false },
     { ...base('trigger','Trigger','design','Pattern',3,'Musical event that advances the active pattern.'), type: 'enum',

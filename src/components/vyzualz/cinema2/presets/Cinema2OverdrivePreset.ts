@@ -72,7 +72,7 @@ const parameters: readonly Cinema2ParameterManifest[] = [
   slider('camera-motion','Camera Motion','design','Camera',1,.25,0,1,'Subtle bounded camera drift.'),
   slider('camera-orbit','Orbit Angle','design','Camera',2,0,-8,8,'Rotate the viewpoint around the front of the core.'),
   slider('camera-distance','Camera Distance','design','Camera',3,10.1,9.4,10.9,'Dolly within the enclosed chamber.'),
-  slider('brightness','LED Intensity','effects','Lighting',1,1.1,0,2,'Emission from the pixel matrix.'),
+  slider('brightness','LED Intensity','effects','Lighting',1,1.1,0,2,'Emission from the pixel matrix. In Full Color media mode this is source exposure (1 = original RGB), independent of reactive machine illumination except Blackout.'),
   slider('key','Key Lighting','effects','Lighting',2,.7,0,2,'Cool key and rim illumination.'),
   slider('spill','Core Light Spill','effects','Lighting',3,.65,0,1.5,'Local point lighting from the core.'),
   slider('roughness','Metal Roughness','effects','Materials',1,.32,.12,.9,'Changes the metallic specular lobe.'),

@@ -5,7 +5,7 @@ import { compileCinema2NativePreset } from '../presets/Cinema2PresetCompiler'
 import { validateCinema2PresetAuthoringConventions } from '../presets/Cinema2PresetAuthoring'
 import { withCinema2AutoCoverage } from '../presets/Cinema2AutoCoverage'
 import { Cinema2OverdrivePerformance, OverdrivePool } from '../modules/Cinema2OverdriveNativeModule'
-import { DEFAULT_OVERDRIVE_LOOK, OVERDRIVE_PATTERNS, OVERDRIVE_POSES, overdriveAssemblyPose, overdriveBandRadius } from '../modules/overdrive/OverdriveScene'
+import { DEFAULT_OVERDRIVE_LOOK, OVERDRIVE_PATTERNS, OVERDRIVE_POSES, overdriveAssemblyPose, overdriveBandRadius, overdriveFullColorGain } from '../modules/overdrive/OverdriveScene'
 import type { Cinema2ModuleUpdateContext } from '../modules/Cinema2ModuleContracts'
 import type { Cinema2MediaSlotRuntime, Cinema2MediaSource } from '../media/Cinema2MediaSlotRuntime'
 
@@ -21,6 +21,14 @@ describe('OVERDRIVE',()=>{
     expect(parameter('pattern-change')).toMatchObject({defaultValue:false,metadata:{moodPolicy:'patternChange'}})
     expect(parameter('trigger').options).toEqual(CINEMA2_AFTERHOURS_TRIGGER_OPTIONS)
     expect(parameter('auto-performance').metadata?.moodPolicy).toBe('autoPerformance')
+  })
+  it('keeps Full Color source exposure independent of reactive pose gain except authored Blackout',()=>{
+    for(const {value} of OVERDRIVE_PATTERNS){
+      const look={...DEFAULT_OVERDRIVE_LOOK,brightness:1,pattern:value,pose:OVERDRIVE_POSES[value]}
+      expect(overdriveFullColorGain(look)).toBe(value==='blackout'?look.pose[7]:1)
+      expect(overdriveFullColorGain({...look,brightness:0})).toBe(0)
+    }
+    expect(overdriveFullColorGain({...DEFAULT_OVERDRIVE_LOOK,brightness:.5})).toBe(.5)
   })
   it('has twelve distinct finite mechanical poses, a spherical profile and bounded kick displacement',()=>{
     expect(new Set(OVERDRIVE_PATTERNS.map(p=>JSON.stringify(OVERDRIVE_POSES[p.value]))).size).toBe(12)

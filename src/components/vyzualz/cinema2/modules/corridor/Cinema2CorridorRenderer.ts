@@ -214,7 +214,9 @@ vec4 mediaPicture(float bank, float random, float detail, int channel) {
   if (channel == 0) picture = texture(uFeed0,uv);
   else if (channel == 1) picture = texture(uFeed1,uv);
   else picture = texture(uFeed2,uv);
-  return vec4(pow(max(picture.rgb,vec3(0.0)),vec3(2.2)),picture.a);
+  // The slot runtime uploads straight-alpha sRGB bytes, not an sRGB texture.
+  vec3 linear = mix(picture.rgb/12.92,pow((picture.rgb+.055)/1.055,vec3(2.4)),step(vec3(.04045),picture.rgb));
+  return vec4(linear,picture.a);
 }
 
 float motif(vec2 p, float kind) {
@@ -286,6 +288,7 @@ void main() {
   vec3 metal;
   vec3 emission = vec3(0.0);
   vec3 marking = vec3(0.0);
+  vec4 mediaOverlay = vec4(0.0);
   if (vPart.x < .5) {
     // Continuous graphite backing stays behind the independently moving modules.
     metal = uWall * (.18 + .10*brushed) * gasket;
@@ -314,10 +317,11 @@ void main() {
     if (uFeedCount > 0 && lane == mediaLane(row,bank) && fixture > .001 && diffuser > .001) {
       int channel = int(mod(row + bank*2.0 + uPoolStep,float(uFeedCount)));
       vec4 picture = mediaPicture(bank,random,detail,channel);
-      // Retain the LED rim and the other three lanes. Limit picture exposure
-      // independently of the hot diffuser so content survives HDR bloom.
-      vec3 imageEmission = picture.rgb * diffuser * fixture * min(2.0,(.45+1.1*level)*uLook.w);
-      emission = mix(emission,imageEmission,picture.a*(1.0-.35*clamp(ring,0.0,1.0)));
+      // The choreography still recruits the panel; its coverage is not an
+      // exposure multiplier. Keep source white at linear 1 (below the bloom
+      // threshold), and never bleed the drop ring through an opaque picture.
+      // Straight alpha reveals the original fixture only where the art permits.
+      mediaOverlay = vec4(picture.rgb,picture.a*diffuser*fixture);
     }
     float mark = motif(local,hash(id + 67.0));
     float annotation = step(.60,detail) * (1.0-fixture) * (0.62 + .30 * uAccents.y);
@@ -326,7 +330,8 @@ void main() {
   float vignette = exp(-pow(distanceIn * (.034 + uHaze *.13),1.34));
   float apertureFade = 1.0-smoothstep(24.0,33.0,distanceIn);
   float depthFade = mix(.67,1.0,smoothstep(.75,4.6,distanceIn));
-  outColor = vec4(mix(uVoid,metal+emission+marking,vignette*apertureFade*depthFade),1.0);
+  vec3 surface = mix(metal+emission+marking,mediaOverlay.rgb,mediaOverlay.a);
+  outColor = vec4(mix(uVoid,surface,vignette*apertureFade*depthFade),1.0);
 }`
 
 // Static mesh: wall backing, telescoping housing, beveled lip, recessed LED channel,
