@@ -13,6 +13,7 @@ let container: HTMLDivElement
 let root: ReturnType<typeof createRoot>
 beforeEach(() => {
   useReactPersistenceStatusStore.getState().reset()
+  useHealthStore.getState().reset()
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
@@ -58,22 +59,52 @@ describe('Option E React header readouts', () => {
     expect(container.querySelector('.vz-header-notifications')).toBeNull()
     expect(container.querySelectorAll('.vz-header-readout')).toHaveLength(4)
   })
-  it('shows a HEALTH chip per system that follows the health store', async () => {
+  it('uses distinct health symbols and secondary system labels for all five live states', async () => {
     await render()
-    const chip = (system: string) => container.querySelector(`[data-health-system="${system}"]`)?.getAttribute('data-health')
-    expect(['cast', 'audio', 'graphics'].map(chip)).toEqual(['idle', 'ok', 'ok'])
-    const health = container.querySelector('[data-health-readout]')!
-    expect(health.closest('.vz-header-readout')?.querySelector('.vz-header-readout-label')?.textContent).toBe('HEALTH')
-    expect([...health.querySelectorAll('.vz-header-readout-primary')].map(el => el.textContent)).toEqual(['Cast', 'Audio', 'Gfx'])
-    expect(health.querySelectorAll('.vz-header-readout-led')).toHaveLength(3)
-    const quality = container.querySelector('[data-performance-metric="quality"]')!
-    expect([...health.querySelectorAll('.vz-header-readout-primary')].every(el =>
-      el.tagName === quality.tagName && el.className === quality.className && !el.querySelector('.vz-header-readout-led'))).toBe(true)
-    expect(health.querySelector('em')).toBeNull()
-    await act(async () => { useHealthStore.getState().setHealth('audio', 'healing', 'Audio output stopped') })
-    expect(chip('audio')).toBe('healing')
-    expect(container.querySelector('[data-health-readout]')?.getAttribute('aria-label')).toContain('Audio: failed; repairing itself')
-    await act(async () => { useHealthStore.getState().reset() })
+    const health = container.querySelector<HTMLButtonElement>('[data-health-readout]')!
+    const chip = (system: string) => health.querySelector(`[data-health-system="${system}"]`)!
+    expect(['cast', 'audio', 'graphics'].map(system => chip(system).getAttribute('data-health'))).toEqual(['idle', 'ok', 'ok'])
+    expect(health.querySelector('.vz-header-readout-label')?.textContent).toBe('HEALTH')
+    expect([...health.querySelectorAll('.vz-health-system-label')].map(el => el.textContent)).toEqual(['CAST', 'AUDIO', 'GFX'])
+    expect(health.querySelectorAll('.vz-health-status-icon')).toHaveLength(3)
+    expect(health.querySelector('.vz-header-readout-primary, .vz-header-readout-led')).toBeNull()
+    const shapes = new Set<string>()
+    for (const state of ['idle', 'ok', 'degraded', 'healing', 'failed'] as const) {
+      await act(async () => useHealthStore.getState().setHealth('audio', state, `Audio ${state}`))
+      expect(chip('audio').getAttribute('data-health')).toBe(state)
+      const icon = chip('audio').querySelector('svg')!
+      expect(icon.getAttribute('data-health')).toBe(state)
+      shapes.add(icon.innerHTML)
+      expect(chip('audio').getAttribute('title')).toContain(`Audio ${state}`)
+      expect(health.getAttribute('aria-label')).toContain(`Audio ${state}`)
+    }
+    expect(shapes.size).toBe(5)
+  })
+  it('opens non-blocking live health diagnostics and closes by Escape or outside press', async () => {
+    await render()
+    const health = container.querySelector<HTMLButtonElement>('[data-health-readout]')!
+    await act(async () => health.click())
+    expect(health.getAttribute('aria-expanded')).toBe('true')
+    const dialog = document.getElementById(health.getAttribute('aria-controls')!)!
+    expect(dialog.getAttribute('role')).toBe('dialog')
+    expect(dialog.textContent).toContain('No active casting session')
+    expect(dialog.querySelectorAll('[data-health-diagnostic]')).toHaveLength(3)
+    expect(document.querySelector('.drm-info-popover-backdrop')).toBeNull()
+    await act(async () => useHealthStore.getState().setHealth('graphics', 'healing', 'Graphics context lost'))
+    const graphics = dialog.querySelector('[data-health-diagnostic="graphics"]')!
+    expect(graphics.textContent).toContain('Recovering')
+    expect(graphics.textContent).toContain('Graphics context lost')
+    expect(graphics.querySelector('time')?.getAttribute('datetime')).toBe(new Date(useHealthStore.getState().systems.graphics.since).toISOString())
+    expect(dialog.textContent).toContain('Automatic system recovery')
+    await act(async () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))
+    expect(health.getAttribute('aria-expanded')).toBe('false')
+    expect(dialog.isConnected).toBe(false)
+    await act(async () => health.click())
+    await act(async () => document.body.dispatchEvent(new Event('pointerdown', { bubbles: true, composed: true })))
+    expect(health.getAttribute('aria-expanded')).toBe('false')
+    await act(async () => health.click())
+    await act(async () => document.querySelector<HTMLButtonElement>('.vz-health-popover .drm-info-popover__close')!.click())
+    expect(health.getAttribute('aria-expanded')).toBe('false')
   })
   it('keeps the load/save group present through idle, loading and dirty states', async () => {
     await render()

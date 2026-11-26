@@ -41,11 +41,11 @@
    by the -8px margin. Its three readouts use tighter side padding than a standalone readout. */
 .rv-header-status {
   display: grid;
-  grid-template-columns: 1.4fr 1fr 1fr 134px;
+  grid-template-columns: 1.4fr 1fr 1fr 160px;
   flex: 0 0 auto;
   align-items: center;
   box-sizing: border-box;
-  width: clamp(414px, 25vw, 442px);
+  width: calc(clamp(414px, 25vw, 442px) + 26px);
   margin-right: -8px;
 }
 .rv-header-status > .vz-header-readout { width: auto; padding-inline: 8px; }
@@ -67,22 +67,68 @@
 .rv-header-search .dv-library-search-row .dv-library-search-input.dv-text-input.has-clear { padding-right: 18px !important; }
 .rv-header-search .dv-library-search-clear { right: 0; top: 50%; }
 @media (max-width: 1100px) {
-  .rv-header-status { width: clamp(340px, 37vw, 390px); }
+  .rv-header-status { width: calc(clamp(340px, 37vw, 390px) + 26px); }
 }
 
-/* HEALTH uses the same primary value role and spacing as the other readouts.
-   The status LEDs retain their individual state colours. */
-.vz-health-chips { display: flex; align-items: center; gap: 4px; min-width: 0; }
-.vz-health-chip { display: inline-flex; align-items: center; gap: 2px; flex: none; color: inherit; }
-.vz-health-chip[data-health='idle'] { color: #90909c; }
-.vz-health-chip[data-health='idle'] .vz-header-readout-led { background: #4a4b55; }
-.vz-health-chip[data-health='ok'] .vz-header-readout-led { background: #a0cbb7; }
-.vz-health-chip[data-health='degraded'] { color: #e4b66a; }
-.vz-health-chip[data-health='degraded'] .vz-header-readout-led { background: #e4b66a; }
-.vz-health-chip[data-health='healing'] { color: #e4b66a; }
-.vz-health-chip[data-health='healing'] .vz-header-readout-led { background: #e4b66a; animation: vz-header-activity-pulse 1s ease-in-out infinite; }
-.vz-health-chip[data-health='failed'] { color: #f98b7d; }
-.vz-health-chip[data-health='failed'] .vz-header-readout-led { background: #f98b7d; }
-@media (prefers-reduced-motion: reduce) {
-  .vz-health-chip[data-health='healing'] .vz-header-readout-led { animation: none; }
+/* HEALTH keeps the neighboring readouts' caption, divider and 37px rhythm. Its
+   system names are secondary labels; the larger, semantic symbols are the values. */
+.vz-header-readout.vz-health-trigger {
+  appearance: none;
+  border: 0;
+  border-left: 1px solid #ffffff13;
+  background: transparent;
+  border-radius: 0;
+  text-align: left;
+  align-items: stretch;
+  color: inherit;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
 }
+.vz-health-trigger:hover .vz-header-readout-label,
+.vz-health-trigger[aria-expanded='true'] .vz-header-readout-label { color: #90909c; }
+.vz-health-trigger:focus-visible { outline: 1px solid var(--az-cyan, #66c2c6); outline-offset: -2px; }
+.vz-header-readout-values.vz-health-chips { display: flex; align-items: center; gap: 5px; min-width: 0; min-height: 1.25em; }
+.vz-health-chip { display: inline-flex; align-items: center; gap: 3px; flex: none; }
+:root body .vz-health-system-label { font: var(--type-header-readout-secondary); letter-spacing: normal; color: #fcfbff; }
+.vz-health-chip[data-health='idle'] .vz-health-system-label { color: #90909c; }
+.vz-health-status-icon { display: block; width: 12px; height: 12px; flex: 0 0 12px; }
+.vz-health-status-icon[data-health='idle'], .vz-health-diagnostic[data-health='idle'] .vz-health-state-text { color: #777984; }
+.vz-health-status-icon[data-health='ok'], .vz-health-diagnostic[data-health='ok'] .vz-health-state-text { color: #a0cbb7; }
+.vz-health-status-icon[data-health='degraded'], .vz-health-diagnostic[data-health='degraded'] .vz-health-state-text,
+.vz-health-status-icon[data-health='healing'], .vz-health-diagnostic[data-health='healing'] .vz-health-state-text { color: #e4b66a; }
+.vz-health-status-icon[data-health='failed'], .vz-health-diagnostic[data-health='failed'] .vz-health-state-text { color: #f98b7d; }
+.vz-health-status-icon[data-health='healing'] { animation: vz-health-recover 2s linear infinite; transform-origin: center; }
+@keyframes vz-health-recover { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .vz-health-status-icon[data-health='healing'] { animation: none; }
+}
+
+/* A compact, non-blocking variant of the shared information popover. */
+.drm-info-popover.vz-health-popover {
+  --drm-info-border: var(--az-border, #314550);
+  --drm-info-divider: #ffffff13;
+  --drm-info-surface-deep: var(--color-panel-alt, #111b25);
+  --drm-info-text: #fcfbff;
+  --drm-info-muted: #90909c;
+  min-width: 0;
+  box-sizing: border-box;
+  font: var(--type-header-readout-secondary);
+  -webkit-app-region: no-drag;
+}
+.vz-health-popover .drm-info-popover__header { padding: 12px 14px 10px; text-align: left; border-bottom: 1px solid var(--drm-info-divider); }
+.vz-health-popover .drm-info-popover__header-row { flex-direction: row; gap: 8px; padding-right: 24px; }
+.vz-health-popover .drm-info-popover__header-icon { order: 1; width: 16px; height: 16px; flex: 0 0 16px; background: none; border-radius: 0; color: #90909c; }
+.vz-health-popover .drm-info-popover__header-icon svg { width: 16px; height: 16px; }
+.vz-health-popover .drm-info-popover__close { top: 7px; right: 8px; width: 24px; height: 24px; color: #90909c; }
+.vz-health-popover .drm-info-popover__body { padding: 0 14px; }
+.vz-health-diagnostic { display: flex; align-items: flex-start; gap: 9px; padding: 10px 0; }
+.vz-health-diagnostic + .vz-health-diagnostic { border-top: 1px solid var(--drm-info-divider); }
+.vz-health-diagnostic .vz-health-status-icon { width: 16px; height: 16px; flex-basis: 16px; }
+.vz-health-diagnostic-copy { min-width: 0; flex: 1; }
+.vz-health-diagnostic-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.vz-health-diagnostic-heading strong { font: var(--type-header-readout-primary); }
+.vz-health-state-text { font: var(--type-header-readout-secondary); white-space: nowrap; }
+.vz-health-diagnostic-copy p { margin: 4px 0 0; color: var(--drm-info-muted); overflow-wrap: anywhere; line-height: 1.4; }
+.vz-health-diagnostic-copy time { display: block; margin-top: 4px; color: var(--drm-info-muted); }
+.vz-health-popover .drm-info-popover__footer { justify-content: space-between; padding: 10px 14px; border-top: 1px solid var(--drm-info-divider); color: var(--drm-info-muted); font: var(--type-header-readout-secondary); }
+.vz-health-recovery-enabled { color: #a0cbb7; }

@@ -51,6 +51,8 @@ export interface InfoPopoverProps {
   viewportPadding?: number
   closeLabel?: string
   dismissOnOutsidePress?: boolean
+  /** Opt out for live, non-blocking diagnostic panels. Default preserves existing information cards. */
+  showBackdrop?: boolean
   restoreFocusOnClose?: boolean
   className?: string
   onOpenChange?: (open: boolean) => void
@@ -140,6 +142,7 @@ export function InfoPopover({
   viewportPadding = DEFAULT_VIEWPORT_PADDING,
   closeLabel = 'Close information',
   dismissOnOutsidePress = true,
+  showBackdrop = true,
   restoreFocusOnClose = true,
   className = '',
   onOpenChange,
@@ -324,7 +327,7 @@ export function InfoPopover({
 
   return createPortal((
     <>
-      <div className="drm-info-popover-backdrop" aria-hidden="true" />
+      {showBackdrop && <div className="drm-info-popover-backdrop" aria-hidden="true" />}
     <div
       ref={popoverRef}
       id={baseId}
