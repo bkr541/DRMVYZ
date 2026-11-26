@@ -350,6 +350,31 @@ describe('OutputCastControl', () => {
     expect(onAspect).toHaveBeenLastCalledWith(null)
   })
 
+  it('renders local and receiver icons even while their output tabs are hidden', async () => {
+    const trigger = container.querySelector<HTMLButtonElement>('[aria-label="Cast visual output"]')!
+    await act(async () => trigger.click())
+    const dialog = document.querySelector<HTMLElement>('.rv-cast-popover')!
+    const local = dialog.querySelector<HTMLElement>('[aria-label="Local displays"]')!
+    const receivers = dialog.querySelector<HTMLElement>('[aria-label="STAGELESS receivers"]')!
+    expect(local.hidden).toBe(true)
+    expect(receivers.hidden).toBe(true)
+    expect(buttonWithText('Stage Screen').querySelector('.rv-cast-tile-icon [data-app-icon="monitor"]')).not.toBeNull()
+    for (const name of ['Booth Mac · STAGELESS — Stage LED', 'Booth Mac · STAGELESS — Preview']) {
+      expect(buttonWithText(name).querySelector('.rv-cast-tile-icon [data-app-icon="cast"]')).not.toBeNull()
+    }
+    await act(async () => buttonWithText('Local').click())
+    expect(local.hidden).toBe(false)
+    await act(async () => buttonWithText('Receivers').click())
+    expect(receivers.hidden).toBe(false)
+    expect(local.hidden).toBe(true)
+    expect(startCast).not.toHaveBeenCalled()
+    await act(async () => trigger.click())
+    expect(document.querySelector('.rv-cast-popover')).toBeNull()
+    await act(async () => trigger.click())
+    expect(document.querySelector('.rv-cast-popover')).not.toBeNull()
+    expect(document.querySelector('[aria-label="Output categories"] button[aria-pressed="true"]')?.textContent).toBe('Browser')
+  })
+
   it('shows discovered network receivers in the same chooser', async () => {
     const trigger = container.querySelector<HTMLButtonElement>('[aria-label="Cast visual output"]')
     await act(async () => trigger?.click())

@@ -765,7 +765,7 @@ function OutputCastPopover({
               title={target.detail}
               onClick={() => start(target)}
             >
-              <span className="rv-cast-tile-icon"><DisplayIcon network={target.kind === 'network'} /></span>
+              <span className="rv-cast-tile-icon"><AppIcon kind={target.kind === 'network' ? 'cast' : 'monitor'} /></span>
               <span className="rv-cast-device-copy"><strong>{target.name}</strong></span>
               <span className={`rv-cast-tile-pill${isLive ? ' is-live' : ''}`}>{stateLabel}</span>
             </button>
