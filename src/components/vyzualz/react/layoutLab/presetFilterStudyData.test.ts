@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { appliedFilters, getFilterGroups, matchesPreset, toggleValue, type FilterPreset } from './presetFilterStudyData'
+import { appliedFilters, getFilterGroups, matchesPreset, searchStudyPresets, toggleValue, type FilterPreset } from './presetFilterStudyData'
 
 const presets: FilterPreset[] = [
   { id: 'a', artworkId: 'a', name: 'Afterhours', description: 'Laser scene', category: 'Lighting', tags: ['Laser', 'Night'], favorite: true, collections: [{ id: 'c1', name: 'Club' }] },
@@ -26,5 +26,24 @@ describe('inline preset filter data', () => {
       { id: 'name', value: 'a', label: 'Afterhours' }, { id: 'collection', value: 'c1', label: 'Club' },
     ])
     expect(toggleValue(['a', 'b'], 'a')).toEqual(['b'])
+  })
+})
+
+
+describe('smart preset search', () => {
+  it('matches partial names, category, tags and collection names case-insensitively', () => {
+    for (const query of ['AFTER', 'light', 'las', 'CLU']) {
+      expect(searchStudyPresets(presets, query)).toEqual([presets[0]])
+    }
+    expect(searchStudyPresets(presets, 'night')).toEqual(presets)
+    expect(searchStudyPresets(presets, ' arch NIGHT ')).toEqual([presets[1]])
+    expect(searchStudyPresets(presets, 'night club')).toEqual([presets[0]])
+    expect(searchStudyPresets(presets, 'night missing')).toEqual([])
+    expect(searchStudyPresets(presets, 'c1')).toEqual([])
+    expect(searchStudyPresets(presets, '  ')).toEqual(presets)
+  })
+  it('ranks name matches above metadata matches, preserving input order otherwise', () => {
+    const metadataMatch = { ...presets[1], tags: ['Afterhours'] }
+    expect(searchStudyPresets([metadataMatch, presets[0]], 'after')).toEqual([presets[0], metadataMatch])
   })
 })

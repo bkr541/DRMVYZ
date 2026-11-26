@@ -5,8 +5,8 @@
   --pf-panel: #151a1d;
   --pf-accent: #8ef4ff;
   display: grid;
-  grid-template-columns: minmax(0, 360px);
-  max-width: 360px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 360px));
+  max-width: 742px;
   gap: 28px 22px;
   padding: 12px 0 22px;
   color: var(--pf-ink);
@@ -187,3 +187,56 @@
   outline: 1px solid var(--pf-accent);
   outline-offset: 2px;
 }
+
+/* Smart-search study only; keep the original Inspector frame and card sizing. */
+[data-preset-filter-study="smart-search"] .ll-pf-scroll { flex: 1; }
+.ll-pf-smart-anchor { position: relative; min-width: 0; }
+.ll-pf-smart-anchor .ll-pf-scope-toggle.rv-right-subtabs {
+  flex: none;
+  width: auto;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+.ll-pf-smart-anchor .ll-pf-scope-toggle button {
+  flex: none;
+  min-width: 0;
+  padding-inline: 9px;
+  white-space: nowrap;
+}
+.ll-pf-smart-popover {
+  position: absolute;
+  z-index: 5;
+  inset: calc(100% + 5px) 0 auto;
+  background: #151c20;
+  border: 1px solid var(--pf-line);
+  border-radius: 5px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, .48);
+  overflow: hidden;
+}
+.ll-pf-smart-summary {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--pf-line);
+  color: var(--pf-muted);
+  font: var(--type-field-value);
+}
+.ll-pf-smart-options { max-height: 250px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.ll-pf-smart-option {
+  padding: 9px 10px;
+  border-inline-start: 2px solid transparent;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.ll-pf-smart-option + .ll-pf-smart-option { border-top: 1px solid var(--pf-line); }
+.ll-pf-smart-option:hover, .ll-pf-smart-option[aria-selected='true'] { background: rgba(74, 199, 219, .09); border-inline-start-color: var(--pf-accent); }
+.ll-pf-smart-option strong { color: var(--pf-ink); font: var(--type-nested-group-heading); }
+.ll-pf-smart-option dl {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 3px 6px;
+  margin: 5px 0 0;
+  font: var(--type-field-value);
+}
+.ll-pf-smart-option dt { color: var(--pf-muted); }
+.ll-pf-smart-option dd { margin: 0; color: var(--pf-ink); }
+.ll-pf-smart-no-results { margin: 0; padding: 10px; color: var(--pf-muted); font: var(--type-field-value); }

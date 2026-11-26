@@ -53,3 +53,19 @@ export function appliedFilters(groups: readonly FilterGroup[], filters: Filters)
   return groups.flatMap(group => group.options.filter(option => filters[group.id]?.includes(option.value))
     .map(option => ({ ...option, id: group.id })))
 }
+
+/** Smart study only: every typed token must match at least one searchable field.
+ * Rank title matches first; preserve the catalog's order within each rank. */
+export function searchStudyPresets(presets: readonly FilterPreset[], query: string): FilterPreset[] {
+  const needle = query.trim().toLowerCase()
+  if (!needle) return [...presets]
+  const tokens = needle.split(/\s+/)
+  return presets.flatMap(preset => {
+    const name = preset.name.toLowerCase()
+    const fields = [name, preset.category, ...preset.tags, ...preset.collections.map(collection => collection.name)]
+      .map(value => value.toLowerCase())
+    if (!tokens.every(token => fields.some(field => field.includes(token)))) return []
+    const rank = name === needle ? 0 : name.startsWith(needle) ? 1 : name.includes(needle) ? 2 : 3
+    return [{ preset, rank }]
+  }).sort((a, b) => a.rank - b.rank).map(result => result.preset)
+}

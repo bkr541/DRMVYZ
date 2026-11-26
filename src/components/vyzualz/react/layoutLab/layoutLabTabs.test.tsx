@@ -5,6 +5,9 @@ import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { LayoutLabMockup } from '../LayoutLabMockup'
+import { usePresetCatalogStore } from '../../../../features/presetCatalog/presetCatalogStore'
+import { usePresetOrganizationStore } from '../../../../features/presetOrganization/presetOrganizationStore'
+import { useMediaStore } from '../../../../stores/mediaStore'
 import { LAYOUT_LAB_STORAGE_KEY } from './layoutLabTabs'
 
 const resizeObserverDescriptor = Object.getOwnPropertyDescriptor(window, 'ResizeObserver')
@@ -161,14 +164,14 @@ describe('persistent Layout Lab tabs', () => {
       .not.toContainEqual(expect.objectContaining({ id: retiredId }))
   })
 
-  it('opens only the inline Preset Filter and applies actual preset names', async () => {
+  it('preserves the inline Preset Filter and applies actual preset names', async () => {
     await render()
     expect(tab(16).textContent).toBe('Preset Filter')
     await act(async () => tab(16).click())
     const panel = host.querySelector<HTMLElement>('#layout-lab-tab-16-panel')!
     expect(panel.hidden).toBe(false)
     const studies = [...panel.querySelectorAll('[data-preset-filter-study]')]
-    expect(studies.map(study => study.getAttribute('data-preset-filter-study'))).toEqual(['dropdowns'])
+    expect(studies.map(study => study.getAttribute('data-preset-filter-study'))).toEqual(['dropdowns', 'smart-search'])
     const study = studies[0]!
     const trigger = study.querySelector<HTMLButtonElement>('button.ll-pf-filter-trigger')!
     expect(trigger.textContent).toBe('')
@@ -194,6 +197,59 @@ describe('persistent Layout Lab tabs', () => {
     await act(async () => study.querySelector<HTMLButtonElement>(`[aria-label="Remove ${presetName}"]`)!.click())
     expect(result()).toBe(initial)
     expect(trigger.dataset.hasFilters).toBe('false')
+  })
+
+  it('searches real preset metadata in the smart study and respects catalog ownership', async () => {
+    const catalog = usePresetCatalogStore.getState()
+    const organization = usePresetOrganizationStore.getState()
+    const media = useMediaStore.getState()
+    try {
+      // Use the actual registry ID from the original study's preset card.
+      await render()
+      await act(async () => tab(16).click())
+      const study = host.querySelector<HTMLElement>('[data-preset-filter-study="smart-search"]')!
+      const original = host.querySelector<HTMLElement>('[data-preset-filter-study="dropdowns"]')!
+      const afterhours = original.querySelector<HTMLElement>('[aria-label="Select Afterhours"]')!
+      expect(afterhours).not.toBeNull()
+      const presetKey = 'drmvyz.cinema2.afterhours'
+      await act(async () => {
+        usePresetCatalogStore.setState({ status: 'ready', entries: [{ id: 'owned', engine_id: 'cinema2', preset_key: presetKey, scope: 'user' }], heldPresetIds: ['owned'] })
+        usePresetOrganizationStore.setState({ status: 'ready', records: { [`cinema2:${presetKey}`]: { tags: ['TestTagUnique'], collectionIds: ['test-collection'] } } })
+        useMediaStore.setState({ collections: [{ id: 'test-collection', name: 'TestCollectionUnique' }] })
+      })
+      const search = study.querySelector<HTMLInputElement>('[role="combobox"]')!
+      const enterQuery = async (value: string) => {
+        await act(async () => {
+          Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(search, value)
+          search.dispatchEvent(new Event('input', { bubbles: true }))
+        })
+      }
+      await enterQuery('TestCollection')
+      expect(study.querySelectorAll('[role="option"]')).toHaveLength(0)
+      expect(study.querySelector('[role="status"]')?.textContent).toBe('0 presets')
+      await act(async () => study.querySelector<HTMLButtonElement>('button[aria-pressed="false"]')!.click())
+      await enterQuery('testtag testcollection')
+      const option = study.querySelector('[role="option"]')!
+      expect(option.textContent).toContain('Afterhours')
+      expect(option.textContent).toContain('Category')
+      expect(option.textContent).toContain('TestTagUnique')
+      expect(option.textContent).toContain('TestCollectionUnique')
+      await act(async () => search.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })))
+      expect(search.getAttribute('aria-activedescendant')).toBe(option.id)
+      await act(async () => search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })))
+      expect(search.value).toBe('Afterhours')
+      expect(search.getAttribute('aria-expanded')).toBe('false')
+      expect(study.querySelector('[aria-label="Select Afterhours"]')).not.toBeNull()
+      await act(async () => usePresetCatalogStore.setState({ heldPresetIds: [] }))
+      expect(study.querySelector('[aria-label="Select Afterhours"]')).toBeNull()
+      expect(original.querySelector('[aria-label="Select Afterhours"]')).not.toBeNull()
+    } finally {
+      await act(async () => {
+        usePresetCatalogStore.setState(catalog)
+        usePresetOrganizationStore.setState(organization)
+        useMediaStore.setState(media)
+      })
+    }
   })
 
   it('shows four static Live Input mockups, including both spectrum disclosure states', async () => {

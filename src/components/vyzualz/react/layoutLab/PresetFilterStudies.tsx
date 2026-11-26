@@ -4,17 +4,20 @@ import { InfoPopover } from '../../../shared/InfoPopover'
 import { RailWindowHeader } from '../../layout/RailWindowHeader'
 import { cinema2NativePresetRegistry } from '../../cinema2'
 import { applyPresetMetadata } from '../../../../features/presetCatalog/presetMetadata'
+import { usePresetScopeFilter } from '../../../../features/presetCatalog/presetCatalogStore'
+import type { PresetScopeTab } from '../../../../features/presetCatalog/presetScope'
 import { usePresetMetadata } from '../../../../features/presetCatalog/presetMetadataStore'
 import { usePresetOrganizationStore } from '../../../../features/presetOrganization/presetOrganizationStore'
 import { useMediaStore } from '../../../../stores/mediaStore'
 import { ReactPresetCard } from '../ReactPresetCard'
 import { resolvePresetDiscoveryMetadata } from '../presetDiscovery'
 import { readReactPresetFavorites } from '../reactPresetLibraryState'
+import { DreamVizTextInput } from '../controls/DreamVizTextInput'
 import { IconChipButton } from '../controls/IconChipButton'
 import { PresetSearchRow } from '../controls/PresetSearchRow'
 import { TagPill } from '../controls/TagPill'
 import {
-  DEFAULT_FILTERS, appliedFilters, getFilterGroups, matchesPreset, toggleValue,
+  DEFAULT_FILTERS, appliedFilters, getFilterGroups, matchesPreset, searchStudyPresets, toggleValue,
   type Facet, type FilterGroup, type FilterPreset, type Filters,
 } from './presetFilterStudyData'
 import railStyles from '../../layout/RailWindowHeader.css?inline'
@@ -24,7 +27,7 @@ import mediaStyles from '../../../../styles/vyzualz.css?inline'
 import styles from './presetFilterStudies.css?inline'
 
 // The Inspector study represents one engine, not a cross-engine library.
-function useStudyPresets(favoriteIds: readonly string[]): FilterPreset[] {
+function useStudyPresets(): FilterPreset[] {
   const metadata = usePresetMetadata()
   const organizations = usePresetOrganizationStore(state => state.records)
   const loadOrganizations = usePresetOrganizationStore(state => state.load)
@@ -47,14 +50,14 @@ function useStudyPresets(favoriteIds: readonly string[]): FilterPreset[] {
       return {
         ...preset,
         tags: [...new Set([...preset.tags, ...(organization?.tags ?? [])])],
-        favorite: favoriteIds.includes(preset.artworkId),
+        favorite: false,
         collections: (organization?.collectionIds ?? []).flatMap(id => {
           const collection = collectionById.get(id)
           return collection ? [{ id, name: collection.name }] : []
         }),
       }
     })
-  }, [metadata, organizations, collections, favoriteIds])
+  }, [metadata, organizations, collections])
 }
 
 function FilterPopover({ groups, presets, query, value, onChange }: {
@@ -117,14 +120,14 @@ function FilterPopover({ groups, presets, query, value, onChange }: {
   </>
 }
 
-function PresetFilterPreview() {
+function PresetFilterPreview({ records }: { records: readonly FilterPreset[] }) {
   const titleId = useId()
   const [query, setQuery] = useState('')
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS)
   const [selected, setSelected] = useState('')
   // Preview-only favorite toggles; never mutate the user's saved library from Layout Lab.
   const [favoriteIds, setFavoriteIds] = useState(readReactPresetFavorites)
-  const presets = useStudyPresets(favoriteIds)
+  const presets = useMemo(() => records.map(preset => ({ ...preset, favorite: favoriteIds.includes(preset.artworkId) })), [records, favoriteIds])
   const groups = useMemo(() => getFilterGroups(presets), [presets])
   const applied = appliedFilters(groups, filters)
   // Metadata can change while the study is open. Ignore selections that no longer exist.
@@ -163,9 +166,121 @@ function PresetFilterPreview() {
   </section>
 }
 
+// Non-modal autocomplete: keep focus in the input while the results overlay is open.
+// Selection and favorites are local to Layout Lab, just like the original study.
+function SmartPresetFilterPreview({ records }: { records: readonly FilterPreset[] }) {
+  const titleId = useId()
+  const listId = useId()
+  const input = useRef<HTMLInputElement>(null)
+  const [query, setQuery] = useState('')
+  const [scope, setScope] = useState<PresetScopeTab>('system')
+  const [selected, setSelected] = useState('')
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [highlighted, setHighlighted] = useState<string | null>(null)
+  const [favoriteIds, setFavoriteIds] = useState(readReactPresetFavorites)
+  const inScope = usePresetScopeFilter('cinema2', scope)
+  const scoped = useMemo(() => records.filter(preset => inScope(preset.artworkId)), [records, inScope])
+  const results = useMemo(() => searchStudyPresets(scoped, query), [scoped, query])
+  const open = searchOpen && Boolean(query.trim())
+  const activeIndex = results.findIndex(preset => preset.id === highlighted)
+  const optionId = (index: number) => `${listId}-option-${index}`
+
+  useEffect(() => {
+    if (open && activeIndex >= 0) input.current?.ownerDocument.getElementById(`${listId}-option-${activeIndex}`)?.scrollIntoView?.({ block: 'nearest' })
+  }, [open, activeIndex, listId])
+
+  const changeQuery = (value: string) => {
+    setQuery(value)
+    setHighlighted(null)
+    setSearchOpen(true)
+  }
+  const closeSearch = () => { setSearchOpen(false); setHighlighted(null) }
+  const selectResult = (preset: FilterPreset) => {
+    setSelected(preset.id)
+    setQuery(preset.name)
+    closeSearch()
+  }
+
+  return <section className="ll-pf-study" data-preset-filter-study="smart-search" aria-labelledby={titleId}>
+    <h2 id={titleId}><AppIcon kind="search" size={14} />Smart Search</h2>
+    <p className="ll-pf-description">Cinema 2.0 · Search preset metadata within System or User.</p>
+    <div className="ll-pf-inspector">
+      <RailWindowHeader side="right" icon={<AppIcon kind="settings" size={15} />} label="Inspector" />
+      <div className="dv-underline-tabs ll-pf-workspace-tabs">
+        <span className="dv-underline-tab is-active" aria-current="page">Presets</span>
+        <span className="dv-underline-tab">Design</span><span className="dv-underline-tab">React</span><span className="dv-underline-tab">Output</span>
+      </div>
+      <div className="ll-pf-scroll">
+        <div className="ll-pf-controls">
+          <div className="ll-pf-smart-anchor">
+            <div className="vz-md-search-row rv-preset-search-row">
+              <div className="vz-md-search-wrap">
+                <AppIcon kind="search" className="vz-md-search-icon" size="12" />
+                <DreamVizTextInput ref={input} className="vz-md-search-input" value={query}
+                  placeholder="Search presets…" aria-label="Smart search presets" role="combobox"
+                  aria-autocomplete="list" aria-expanded={open} aria-controls={open ? listId : undefined}
+                  aria-activedescendant={open && activeIndex >= 0 ? optionId(activeIndex) : undefined}
+                  title="Search name, category, tags and collections"
+                  onChange={event => changeQuery(event.target.value)} onFocus={() => setSearchOpen(true)}
+                  onClick={() => setSearchOpen(true)} onBlur={closeSearch}
+                  onKeyDown={event => {
+                    if (event.key === 'Escape' && open) { event.preventDefault(); event.stopPropagation(); closeSearch(); return }
+                    if (!query.trim() || !results.length) return
+                    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                      event.preventDefault()
+                      setSearchOpen(true)
+                      const next = activeIndex < 0 ? (event.key === 'ArrowDown' ? 0 : results.length - 1)
+                        : (activeIndex + (event.key === 'ArrowDown' ? 1 : -1) + results.length) % results.length
+                      setHighlighted(results[next].id)
+                    } else if (event.key === 'Enter' && open && activeIndex >= 0) {
+                      event.preventDefault(); selectResult(results[activeIndex])
+                    }
+                  }} />
+                {query && <button type="button" className="vz-md-search-clear" aria-label="Clear smart search" title="Clear search"
+                  onClick={() => { changeQuery(''); input.current?.focus() }}><AppIcon kind="close" size={14} /></button>}
+              </div>
+              <div className="rv-right-subtabs ll-pf-scope-toggle" role="group" aria-label="Preset scope">
+                {(['system', 'user'] as const).map(value => <button key={value} type="button"
+                  className={scope === value ? 'is-active' : ''} aria-pressed={scope === value}
+                  onClick={() => { setScope(value); setSelected(''); closeSearch() }}>{value === 'system' ? 'System' : 'User'}</button>)}
+              </div>
+            </div>
+            {open && <div className="ll-pf-smart-popover">
+              <div className="ll-pf-smart-summary">{results.length} {results.length === 1 ? 'match' : 'matches'}</div>
+              <div id={listId} role="listbox" aria-label="Matching presets" className="ll-pf-smart-options">
+                {results.map((preset, index) => <div key={preset.id} id={optionId(index)} role="option"
+                  aria-selected={activeIndex === index} className="ll-pf-smart-option"
+                  onMouseDown={event => event.preventDefault()}
+                  onClick={() => selectResult(preset)}>
+                  <strong>{preset.name}</strong>
+                  <dl>
+                    <dt>Category</dt><dd>{preset.category || 'None'}</dd>
+                    <dt>Tags</dt><dd>{preset.tags.length ? preset.tags.join(' · ') : 'None'}</dd>
+                    <dt>Collections</dt><dd>{preset.collections.length ? preset.collections.map(collection => collection.name).join(' · ') : 'None'}</dd>
+                  </dl>
+                </div>)}
+              </div>
+              {!results.length && <p className="ll-pf-smart-no-results">No matching presets.</p>}
+            </div>}
+          </div>
+        </div>
+        <div className="ll-pf-results-bar"><span role="status">{results.length} {results.length === 1 ? 'preset' : 'presets'}</span></div>
+        {results.length ? <div className="rv-preset-group-cards rv-preset-group-cards--poster" data-preset-grid data-preset-columns="2">
+          {results.map(preset => <ReactPresetCard key={preset.id} id={preset.artworkId} engineId="cinema2"
+            title={preset.name} description={preset.description} activateLabel={`Select ${preset.name}`}
+            isFavorite={favoriteIds.includes(preset.artworkId)} onToggleFavorite={() => setFavoriteIds(current => toggleValue(current, preset.artworkId))}
+            isActive={selected === preset.id} onActivate={() => setSelected(preset.id)} />)}
+        </div> : <p className="ll-pf-empty">{query.trim() ? 'No presets match.' : scope === 'user' ? 'No user presets yet.' : 'No system presets.'}</p>}
+      </div>
+    </div>
+  </section>
+}
+
 export function PresetFilterStudies() {
+  const records = useStudyPresets()
   return <div className="ll-pf-studies" aria-label="Preset Filter studies">
     <style>{`@scope (.ll-pf-studies) { ${railStyles}\n${mediaStyles}\n${reactStyles} }\n${popoverStyles}\n${styles}`}</style>
-    <PresetFilterPreview />
+    <PresetFilterPreview records={records} />
+    <SmartPresetFilterPreview records={records} />
   </div>
 }
