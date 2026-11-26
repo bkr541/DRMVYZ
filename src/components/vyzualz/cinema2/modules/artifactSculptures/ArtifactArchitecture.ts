@@ -63,7 +63,14 @@ export function containmentVault(a:Architecture,f:number){
     a.box([x,2,-15.4],[2.6,17,2.7],'rib');a.box([x,1,-13.95],[.16,10,.18],'trim')
   }
   for(const z of [-12,-3,6,15]){a.box([0,11,z],[34,1.25,1.8],'rib');a.box([0,10.3,z],[19,.12,.25],'trim')}
-  a.disk([0,f+.12,0],6.2,.24,'rib',48);a.disk([0,f+.31,0],4.9,.18,'floor',48)
+  // Stepped containment foundation with a raised armored crown and recessed status rail.
+  a.disk([0,f+.12,0],5.2,.24,'rib',48);a.disk([0,f+.40,0],4.25,.48,'floor',48)
+  a.disk([0,f+.76,0],3.45,.36,'rib',48);a.disk([0,f+1.01,0],2.80,.16,'floor',48)
+  a.ring([0,f+.65,0],3.86,.065,'rib',48)
+  for(let i=0;i<12;i++){
+    const t=i*TAU/12;a.box([3.96*Math.sin(t),f+.40,3.96*Math.cos(t)],[.75,.25,.55],'rib',[0,t,0])
+    if(i%2===0)a.box([4.23*Math.sin(t),f+.48,4.23*Math.cos(t)],[.30,.07,.08],'trim',[0,t,0])
+  }
   for(let i=0;i<12;i++){
     const t=i*TAU/12; a.box([5.55*Math.sin(t),f+.32,5.55*Math.cos(t)],[1.6,.15,.35],'trim',[0,t,0])
   }

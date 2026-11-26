@@ -1,74 +1,72 @@
-import {add,cage,movement,mul,pose,pulse,rotate,sample,steps,truss,TAU,type ArtifactState,type Emit,type Point} from './ArtifactDomain'
+import {add,clamp,movement,mul,pose,pulse,rotate,sample,steps,TAU,type ArtifactState,type Emit,type Point} from './ArtifactDomain'
 
-/** Deliberate skeletal landmarks in a front-positive-Z coordinate system. The jaw uses a rear hinge. */
-export function relicGeometry(s:ArtifactState,emit:Emit,quality:string){
-  const v=s.values,m=movement(s),p=s.phase*v.reconstructionSpeed,n=steps(quality,4,6,7)
-  const [fracture,open,ring]=pose(s,pattern=>{
+export type RelicPart = 'crown'|'face'|'jaw'
+/** Single pose authority for the solid sculpture and its inset channels. Front is +Z. */
+export function relicPose(s:ArtifactState){
+  const v=s.values,m=movement(s),p=s.phase*v.reconstructionSpeed
+  const [fracture,open,ring,charge]=pose(s,pattern=>{
     switch(pattern){
-      case 'awaken':return [.04,.38+.14*pulse(p),.25]
-      case 'roar':return [.02,.88,.10]
-      case 'fracture':return [.95,.45,.8]
-      case 'reconstruct':return [1-pulse(p*.65),.20,.5]
-      case 'possession':return [.27,.35+.2*Math.sin(p),.45]
-      case 'siege':return [.12,.62,.95]
-      case 'cataclysm':return [pulse(p*.75),.65,.95]
-      default:return [0,.27,.10]
+      case 'awaken':return [.04,.23+.14*pulse(p),.24,.65]
+      case 'roar':return [.02,.88,.10,.82]
+      case 'fracture':return [.95,.32,.8,.54]
+      case 'reconstruct':return [.12+.76*(1-pulse(p*.65)),.20,.5,.48]
+      case 'possession':return [.26,.35+.2*Math.sin(p),.45,.92]
+      case 'siege':return [.12,.62,.95,.72]
+      case 'cataclysm':return [.30+.55*pulse(p*.75),.65,.95,1]
+      default:return [0,.06,.08,.18]
     }
   })
-  const scale=v.skullScale, separation=fracture*v.fragmentSeparation*(.7+.55*m*v.buildAmount+.3*m*v.dropAccent)
-  const yaw=m*v.headRotation*.18*Math.sin(p*.6)+m*.035*v.bassPressure
+  const separation=clamp(fracture*v.fragmentSeparation*(.7+.55*m*v.buildAmount+.3*m*v.dropAccent),0,1.25)
+  // A single safety fit keeps the solid plates and their channels registered at extremes.
+  const scale=Math.min(v.skullScale,1.16/(1+.16*separation))
+  const yaw=m*v.headRotation*(.13+.13*charge)*Math.sin(p*.6)+m*.035*v.bassPressure
+  const jawAngle=clamp(.06+v.jawOpening*.29+open*.42+m*v.jawReactivity*(.18*v.kickAccent+.09*v.bassPressure+.08*v.dropAccent)+m*v.jawMotionSpeed*.10*Math.sin(s.phase*(.4+1.2*v.jawMotionSpeed)),.02,.91)
   const world=(a:Point)=>mul(rotate(a,0,yaw,0),scale)
-  const part=(side:number,level:number,jaw=false)=>{
-    const pivot:Point=[0,-.60,-.64]
-    return (a:Point):Point=>{
-      let q=a
-      if(jaw){const a0=.13+v.jawOpening*.33+open*.45+m*v.jawReactivity*(.25*v.kickAccent+.11*v.bassPressure+.12*v.dropAccent)+m*v.jawMotionSpeed*.13*Math.sin(s.phase);q=add(pivot,rotate([q[0]-pivot[0],q[1]-pivot[1],q[2]-pivot[2]],a0,0,0))}
-      const tilt=separation*v.fragmentRotation*side*.18+m*v.cranialArticulation*.055*Math.sin(p+level+side)*v.snareAccent
-      return world(add(rotate(q,0,tilt,tilt*.55),[side*separation*(.6+level*.15),separation*level*.35+m*v.cranialArticulation*.06*level*Math.sin(p+side),side===0?-separation*.35:separation*.24]))
+  const part=(side:number,region:RelicPart)=>(a:Point):Point=>{
+    const level=region==='crown'?1:region==='jaw'?-1:0
+    let q=a
+    if(region==='jaw'){
+      const pivot:Point=[0,-.60,-.64]
+      q=add(pivot,rotate(add(q,mul(pivot,-1)),jawAngle,0,0))
     }
+    const tilt=separation*v.fragmentRotation*side*.15+m*v.cranialArticulation*.045*Math.sin(p+level+side)*(.25+v.snareAccent)
+    return world(add(rotate(q,0,tilt,tilt*.55),[side*separation*(.48+Math.max(0,level)*.17),separation*level*.30+m*v.cranialArticulation*.045*level*Math.sin(p+side),separation*(level===1?-.30:.17)]))
   }
-  const tube=(points:Point[],width:number,depth:number,seed:number,transform:(p:Point)=>Point,light=1)=>truss(s,emit,points.map(transform),width*scale,depth*scale,seed,0,light)
-  // Back cranium and temple hoops: a volumetric skull rather than an overlaid frontal mask.
-  for(let j=0;j<6;j++){
-    const y=-.75+j*.64,r=2.25*Math.sqrt(Math.max(.13,1-((y-1.0)/2.65)**2)),centerZ=-.25
-    const transform=part(0,1+j*.15)
-    tube(sample(n*2,t=>{const a=Math.PI+t*Math.PI;return [r*Math.cos(a),y,centerZ+r*.88*Math.sin(a)]}),.27,.29,j,transform,.7)
+  const energy=clamp(charge*(.60+.25*v.overallEnergy+.15*v.midAmount+.12*s.flash*v.kickAccent+.12*v.dropAccent),0,1)
+  return {part,scale,ring,p,m,energy,jawAngle,separation}
+}
+
+/** Opaque containment rails and sparse inset light strips; the skull itself is rendered by RelicVolumes. */
+export function relicGeometry(s:ArtifactState,emit:Emit,quality:string){
+  const v=s.values,{part,scale,ring,p,m,energy}=relicPose(s),n=steps(quality,5,7,9)
+  const thickness=clamp(v.strandThickness,.012,.12)*scale
+  const channel=(points:Point[],side:number,region:RelicPart,light:number)=>{
+    const transform=part(side,region)
+    for(let i=1;i<points.length;i++)emit(transform(points[i-1]!),transform(points[i]!),thickness*.54,2,light)
   }
   for(const side of [-1,1]){
-    const face=part(side,0),plate=part(side,1),jaw=part(side,-1,true)
-    // Forehead, crown and occipital arches link from the brow to the rear skull.
-    for(let j=0;j<4;j++){
-      const x=side*(.42+j*.48),r=Math.sqrt(Math.max(.15,1-(x/2.5)**2))
-      tube(sample(n,t=>[x*(1-.16*Math.sin(t*Math.PI)),.6+2.65*r*Math.sin(Math.PI*t),1.60*r*Math.cos(Math.PI*t)-.05]),.25,.32,j+10,plate,.82)
-    }
-    // Aggressive eye socket with slanted brow, deep sidewall and rear opening.
-    const socket=(t:number,z:number):Point=>{const a=t*TAU;return [side*(1.05+.88*Math.cos(a)),.30+.59*Math.sin(a)-.15*Math.cos(a),z-.18*Math.cos(a)]}
-    for(let j=0;j<2;j++)tube(sample(n*2,t=>socket(t,1.85-j*.55)),.23,.26,j+20,face,.55+v.eyeIntensity*.70)
-    for(let j=0;j<8;j++){const a=face(socket(j/8,1.85)),b=face(socket(j/8,1.30));emit(a,b,v.strandThickness*1.7,0)}
-    tube(sample(n,t=>[side*(.25+1.9*t),1.10+.28*Math.sin(t*Math.PI)-.20*t,1.77-.5*t]),.32,.35,31,plate,1.2)
-    tube(sample(n,t=>[side*(.40+1.74*Math.sin(t*Math.PI*.66)), -.62+.40*Math.sin(t*Math.PI)-.12*t,1.9-1.12*t]),.36,.29,32,face,.92)
-    // Nasal arch, zygomatic strut and upper dental arch.
-    tube(sample(n,t=>[side*(.10+.48*t),.15-1.02*t,1.95-.18*t]),.13,.22,33,face,.8)
-    tube(sample(n,t=>[side*(1.97-.60*t),-.18-1.1*t,1.1+.46*t]),.26,.29,34,face,.85)
-    const upper=(t:number):Point=>[side*1.38*t,-1.12-.12*t,1.91-.58*t*t]
-    tube(sample(n,upper),.23,.28,35,face,.85)
-    const lower=(t:number):Point=>[side*(.02+1.85*t),-2.42+1.45*t*t,1.47-2.10*t*t]
-    tube(sample(n,lower),.29,.33,36,jaw,1.05)
-    tube(sample(n,t=>[side*(1.85-.22*t),-.97+.43*t,-.63+.05*t]),.29,.31,37,jaw,.65)
-    for(let j=0;j<6;j++){
-      const t=(j+.45)/6,up=upper(t),down=lower(t*.78)
-      // Angular tooth cages with a solid wide base and a tapered tip; lower teeth share the jaw pivot.
-      for(const [base,sign,transform] of [[up,-1,face],[down,1,jaw]] as const){
-        const tip=add(base,[0,sign*(.34+.12*(1-t)),.03])
-        const corners:Point[]=[add(base,[-.10,0,-.11]),add(base,[.10,0,-.11]),add(base,[.09,0,.13]),add(base,[-.09,0,.13])]
-        for(let k=0;k<4;k++){emit(transform(corners[k]!),transform(corners[(k+1)%4]!),v.strandThickness*1.35,0);emit(transform(corners[k]!),transform(tip),v.strandThickness*1.25,k===1?2:0,.9)}
+    // The upper orbital rim is recessed behind the front plate, not a full glowing outline.
+    channel(sample(n,t=>[side*(.36+1.27*t),.71+.13*Math.sin(t*Math.PI)-.22*t,1.48]),side,'face',energy*clamp(v.eyeIntensity,0,1.5))
+    channel(sample(n,t=>[side*(.32+.92*t),2.41+.10*Math.sin(t*Math.PI)-.08*t,1.34]),side,'crown',energy*.50)
+    if(v.density>.25)channel(sample(n,t=>[side*(.48+1.12*t),-.60+.15*Math.sin(t*Math.PI),1.68]),side,'face',energy*.35)
+    channel(sample(n,t=>[side*(.18+.95*t),-2.18+.24*t,1.63-.36*t]),side,'jaw',energy*.32)
+  }
+  if(!s.extraEnabled)return
+  for(let layer=0;layer<2;layer++)for(let segment=0;segment<8;segment++){
+    const r=(3.04+layer*.25+ring*.42*v.ringSeparation)*scale
+    const angle=segment*TAU/8+Math.sin(p*v.ringSpeed*.22)*(layer?1:-1)*m*.18
+    const y=(-3.0+layer*5.62)*scale
+    // Fixed front clearance keeps the face readable even as the ring panels rotate.
+    if(Math.sin(segment*TAU/8+.31)>.68)continue
+    const point=(t:number,offset=0,height=0):Point=>rotate([(r+offset)*Math.cos(angle+t*.60),y+height,(r+offset)*Math.sin(angle+t*.60)],m*ring*.09*Math.sin(p+layer),0,m*ring*.10*Math.cos(p+layer))
+    const panels=sample(n,t=>point(t))
+    for(let i=1;i<panels.length;i++){
+      emit(panels[i-1]!,panels[i]!,.17*scale,0)
+      emit(point((i-1)/n,.20*scale,.03*scale),point(i/n,.20*scale,.03*scale),.067*scale,1)
+      if((i+segment)%3===0&&((i*7+segment*3)%11)/11<v.density){
+        emit(point((i-.82)/n,.20*scale,.10*scale),point((i-.18)/n,.20*scale,.10*scale),thickness*.68,2,energy*.62)
       }
     }
-  }
-  cage(s,emit,world([0,.8,-.38]),[.75*v.coreScale,.95*v.coreScale,.71*v.coreScale],10,4,p*.12*m)
-  if(s.extraEnabled)for(let layer=0;layer<2;layer++)for(let segment=0;segment<6;segment++){
-    const r=(3.35+layer*.42+ring*.42*v.ringSeparation)*scale,a=segment*TAU/6+p*v.ringSpeed*.14*(layer?1:-1)*m
-    const path=sample(n,t=>rotate([r*Math.cos(a+t*.82),-2.8+layer*5.7,r*Math.sin(a+t*.82)],m*ring*.21*Math.sin(p+segment),0,m*ring*.13*Math.cos(p+segment)))
-    truss(s,emit,path,.27,.30,segment+layer,0,1.05)
+    for(const t of [.04,.96])emit(point(t,-.14*scale),point(t,.25*scale),.095*scale,1)
   }
 }

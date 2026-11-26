@@ -5,6 +5,8 @@ import { applyCinema2CameraFrame } from '../three/Cinema2ThreeCameraLightMapping
 import { getCinema2ThreeRenderer } from '../three/Cinema2ThreeRendererHost'
 import type { Cinema2ThreeLibrary } from '../three/Cinema2ThreeLibrary'
 import { clamp, lightPosition, type ArtifactSpec, type ArtifactState, type Point } from './ArtifactDomain'
+import { RelicVolumes } from './RelicVolumes'
+import { relicPose } from './Relic'
 import { cathedral, mathematicalChamber, containmentVault, alienSanctuary, type Architecture } from './ArtifactArchitecture'
 
 const CAPACITY=4600
@@ -24,6 +26,7 @@ export class ArtifactRenderer {
   private readonly trim:Three.MeshStandardMaterial
   private readonly coreMaterial:Three.MeshStandardMaterial
   private readonly core:Three.Mesh
+  private readonly relic:RelicVolumes|null
   private readonly batches:Three.InstancedMesh[]=[]
   private readonly lamps:Three.SpotLight[]=[]
   private readonly architectureBatches:Three.InstancedMesh[]=[]
@@ -67,6 +70,13 @@ export class ArtifactRenderer {
       const mesh=new T.InstancedMesh(rod,material,CAPACITY);mesh.count=0;mesh.instanceMatrix.setUsage(T.DynamicDrawUsage);mesh.frustumCulled=false;mesh.castShadow=true;mesh.receiveShadow=material!==lit;this.batches.push(mesh);this.scene.add(mesh)
     }
     this.core=new T.Mesh(this.geo(new T.IcosahedronGeometry(.52,2)),this.coreMaterial);this.core.castShadow=true;this.scene.add(this.core)
+    this.relic=spec.id==='relic'?new RelicVolumes(T,g=>this.geo(g),this.metal,this.secondary,this.coreMaterial):null
+    if(this.relic){
+      this.core.visible=false
+      this.metal.roughness=.56;this.metal.metalness=.42
+      this.secondary.roughness=.72;this.secondary.metalness=.22
+      this.scene.add(this.relic.root)
+    }
     this.buildArchitecture()
     this.ambient=new T.AmbientLight(0xffffff,.25);this.scene.add(this.ambient)
     this.overhead=new T.PointLight(0xffffff,90,45,2);this.overhead.position.set(0,10,4);this.scene.add(this.overhead)
@@ -118,10 +128,16 @@ export class ArtifactRenderer {
       if(index>=CAPACITY){this.overflow++;return}
       if(!this.rodMatrix(p,q,r))return
       batch.setMatrixAt(index,this.matrix)
-      if(i===2){this.tint.copy(this.glowTint).multiplyScalar(Math.max(.018,energy*gain*2.4));batch.setColorAt(index,this.tint)}
+      if(i===2){this.tint.copy(this.glowTint).multiplyScalar(this.relic?clamp(energy*gain*.84,0,.85):Math.max(.018,energy*gain*2.4));batch.setColorAt(index,this.tint)}
       this.counts[i]=index+1
     },quality)
     for(let i=0;i<this.batches.length;i++){const batch=this.batches[i]!;batch.count=this.counts[i]!;batch.instanceMatrix.needsUpdate=true;if(batch.instanceColor)batch.instanceColor.needsUpdate=true}
+    if(this.relic){
+      this.relic.update(s)
+      // Internal lenses stay subordinate to the dark, light-receiving armor even at a drop.
+      this.coreMaterial.emissiveIntensity=clamp(v.coreIntensity*gain*relicPose(s).energy*.72*clamp(v.eyeIntensity,0,1.5),0,.85)
+      return
+    }
     this.core.scale.setScalar(v.coreScale*(1+s.motion*.08*v.subAmount));this.core.position.set(0,this.spec.id==='relic'?.75:0,this.spec.id==='relic'?-.38:0)
     this.core.rotation.set(s.phase*.07*s.motion,s.phase*.13*s.motion,0)
     this.coreMaterial.emissiveIntensity=v.coreIntensity*gain*(1.5+.55*v.overallEnergy+.25*v.directorIntensity+.24*s.flash*v.kickAccent+.24*v.dropAccent)
@@ -138,16 +154,22 @@ export class ArtifactRenderer {
       color(this.metal.color,'metal');color(this.secondary.color,'secondary');color(this.walls.color,'background');color(this.floor.color,'background');this.floor.color.multiplyScalar(.65)
       this.ribs.color.copy(this.walls.color).multiplyScalar(.65);color(this.trim.color,'strand');color(this.trim.emissive,'strand');this.trim.emissiveIntensity=.22*clamp(v.intensity,0,1.6)
       color(this.coreMaterial.color,'core');this.coreMaterial.emissive.copy(this.coreMaterial.color)
+      if(this.relic){
+        // Material treatment, not a palette migration: all six saved colors remain independently editable.
+        this.metal.color.multiplyScalar(.42);this.secondary.color.multiplyScalar(.31)
+        this.coreMaterial.color.multiplyScalar(.24);this.coreMaterial.emissive.multiplyScalar(.72)
+        this.trim.color.multiplyScalar(.32);this.trim.emissiveIntensity*=.42
+      }
       const shared=exec.lightingEnvironment.lights,ambient=shared.find(l=>l.type==='ambient'),overhead=shared.find(l=>l.type==='point')
-      this.ambient.intensity=(ambient?.intensity??.045)*Math.PI*2.4*(1-.55*s.silence)
+      this.ambient.intensity=(ambient?.intensity??.045)*Math.PI*2.4*(1-.55*s.silence)*(this.relic?1.3:1)
       if(ambient)this.ambient.color.setRGB(ambient.color[0],ambient.color[1],ambient.color[2],T.SRGBColorSpace)
-      this.overhead.intensity=(overhead?.intensity??.15)*Math.PI*105*(1-.7*s.silence)
+      this.overhead.intensity=(overhead?.intensity??.15)*Math.PI*105*(1-.7*s.silence)*(this.relic?.55:1)
       if(overhead){this.overhead.position.set(overhead.position[0],overhead.position[1],4);this.overhead.color.setRGB(overhead.color[0],overhead.color[1],overhead.color[2],T.SRGBColorSpace)}
       const size=quality==='low'?512:quality==='medium'?1024:2048,gain=clamp(v.projectionIntensity,0,1.6)*clamp(v.intensity,0,1.6)*(1-.88*s.silence)
       for(const [i,light] of this.lamps.entries()){
         const authored=shared.filter(l=>l.type==='spot')[i];light.position.set(...lightPosition(this.spec,s,i))
         if(authored)light.color.setRGB(authored.color[0],authored.color[1],authored.color[2],T.SRGBColorSpace)
-        light.intensity=gain*(authored?.intensity??1)*1900*(1+.12*v.downbeatAccent+.14*s.flash*v.directorImpact)
+        light.intensity=gain*(authored?.intensity??1)*1900*(1+.12*v.downbeatAccent+.14*s.flash*v.directorImpact)*(this.relic?.23:1)
         light.shadow.radius=clamp(v.shadowSoftness,0,3)
         if(size!==this.shadowSize){light.shadow.map?.dispose();light.shadow.map=null;light.shadow.mapSize.set(size,size)}
       }
@@ -158,7 +180,7 @@ export class ArtifactRenderer {
       this.renderer.setRenderTarget(this.target);this.renderer.render(this.scene,this.camera)
     }finally{this.renderer.shadowMap.enabled=shadowEnabled;this.renderer.shadowMap.type=shadowType;this.renderer.setRenderTarget(null);this.renderer.resetState();this.guard.restore()}
   }
-  inspect(){return {structuralInstances:this.counts[0],secondaryInstances:this.counts[1],emissiveInstances:this.counts[2],overflow:this.overflow,architecture:this.spec.id,roomMeshes:this.roomMeshes,roomDrawCalls:this.roomDrawCalls,shadowMapSize:this.shadowSize,shadowLights:this.lamps.length}}
-  estimateGpuBytes(){return CAPACITY*(64*3+12)+2*this.shadowSize*this.shadowSize*8+this.roomMeshes*2048+1024*1024}
+  inspect(){return {structuralInstances:this.counts[0],secondaryInstances:this.counts[1],emissiveInstances:this.counts[2],overflow:this.overflow,architecture:this.spec.id,roomMeshes:this.roomMeshes,roomDrawCalls:this.roomDrawCalls,shadowMapSize:this.shadowSize,shadowLights:this.lamps.length,...this.relic?.inspect()}}
+  estimateGpuBytes(){return CAPACITY*(64*3+12)+2*this.shadowSize*this.shadowSize*8+this.roomMeshes*2048+1024*1024+(this.relic?.estimateGpuBytes()??0)}
   dispose(){if(this.disposed)return;this.disposed=true;for(const light of this.lamps)light.shadow.dispose();for(const mesh of [...this.batches,...this.architectureBatches])mesh.dispose();for(const m of this.materials)m.dispose();for(const g of this.geometries)g.dispose();this.scene.clear();this.target.dispose()}
 }

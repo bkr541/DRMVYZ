@@ -16,7 +16,10 @@ const delta=(a,b)=>{assert.equal(a.length,b.length);let sum=0;for(let i=0;i<a.le
 try{
  let ready=false;for(let i=0;i<150;i++){if(server.exitCode!==null)throw Error(log);try{if((await fetch(url)).ok){ready=true;break}}catch{}await new Promise(r=>setTimeout(r,100))}assert(ready,log)
  browser=await chromium.launch({headless:true,args:['--enable-webgl','--ignore-gpu-blocklist'],...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH?{executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH}:{})})
+ const requested=process.env.CINEMA2_ARTIFACT_PRESET
+ if(requested)assert(Object.hasOwn(patterns,requested),`Unknown artifact preset: ${requested}`)
  for(const [id,library] of Object.entries(patterns)){
+  if(requested&&id!==requested)continue
   const output=path.resolve('artifacts/cinema2-artifacts',id),page=await browser.newPage({viewport:{width:960,height:540},deviceScaleFactor:1}),errors=[];await mkdir(output,{recursive:true})
   page.on('pageerror',e=>errors.push(e.message));await page.goto(`${url}?preset=${id}`);await page.waitForFunction(()=>!!window.__artifactProduction)
   const api=(method,...args)=>page.evaluate(({method,args})=>window.__artifactProduction[method](...args),{method,args})
@@ -27,6 +30,11 @@ try{
   for(let i=0;i<captures.length;i++)for(let j=0;j<i;j++)assert(delta(captures[i],captures[j])>.03,`${id}: ${library[i]} and ${library[j]} must differ`)
   assert.equal(inspect(await api('status')).shadowLights,2)
   assert.equal(inspect(await api('status')).overflow,0)
+  if(id==='relic'){
+   const solid=inspect(await api('status'));assert.equal(solid.relicSolidParts,6);assert(solid.relicSolidMeshes>20)
+   await api('set',{pattern:'dormant','ring-enable':false});await capture('solid-skull-no-rings')
+   await api('set',{'ring-enable':true})
+  }
   await api('set',{'bloom':0,'atmosphere-mix':0,'finish-mix':0});await capture('effects-disabled')
   await api('set',{'motion-safety':'full','camera-motion':false});
   for(const pattern of library){await api('set',{pattern});await api('advance',.35);const a=await capture(`${pattern}-motion-a`);await api('advance',.75);const b=await capture(`${pattern}-motion-b`);report.push({pattern,motionDelta:delta(a,b)});assert(delta(a,b)>.001,`${id}/${pattern}: fixed-camera motion absent`)}
