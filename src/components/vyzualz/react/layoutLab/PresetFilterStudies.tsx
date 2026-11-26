@@ -29,6 +29,7 @@ import mediaStyles from '../../../../styles/vyzualz.css?inline'
 import headerStyles from '../../layout/HeaderControlGroup.css?inline'
 import viewToggleStyles from '../controls/LibraryViewToggle.css?inline'
 import styles from './presetFilterStudies.css?inline'
+import { PresetFilterAlternatives } from './PresetFilterAlternatives'
 
 // The Inspector study represents one engine, not a cross-engine library.
 function useStudyPresets(): FilterPreset[] {
@@ -300,5 +301,6 @@ export function PresetFilterStudies() {
     <style>{`@scope (.ll-pf-studies) { ${railStyles}\n${mediaStyles}\n${reactStyles}\n${headerStyles.replaceAll(':root', ':scope')}\n${viewToggleStyles} }\n${popoverStyles}\n${styles}`}</style>
     <PresetFilterPreview records={records} />
     <SmartPresetFilterPreview records={records} />
+    <PresetFilterAlternatives records={records} />
   </div>
 }

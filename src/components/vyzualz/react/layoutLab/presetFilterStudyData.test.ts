@@ -74,3 +74,16 @@ describe('smart preset search', () => {
     expect(getStudyMatchParts('Afterhours', ' ')).toEqual([{ text: 'Afterhours', matched: false }])
   })
 })
+
+
+describe('field-targeted alternative search', () => {
+  it('restricts matching to the chosen metadata field', () => {
+    expect(searchStudyPresets(presets, 'night', 'name')).toEqual([])
+    expect(searchStudyPresets(presets, 'night', 'tag')).toEqual(presets)
+    expect(searchStudyPresets(presets, 'light', 'category')).toEqual([presets[0]])
+    expect(searchStudyPresets(presets, 'club', 'collection')).toEqual([presets[0]])
+    expect(searchStudyPresets(presets, 'after', 'name')).toEqual([presets[0]])
+    expect(searchStudyPresets(presets, 'night club', 'tag')).toEqual([])
+    expect(searchStudyPresets(presets, '', 'collection')).toEqual(presets)
+  })
+})

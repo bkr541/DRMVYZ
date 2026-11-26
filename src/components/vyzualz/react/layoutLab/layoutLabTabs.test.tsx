@@ -171,7 +171,7 @@ describe('persistent Layout Lab tabs', () => {
     const panel = host.querySelector<HTMLElement>('#layout-lab-tab-16-panel')!
     expect(panel.hidden).toBe(false)
     const studies = [...panel.querySelectorAll('[data-preset-filter-study]')]
-    expect(studies.map(study => study.getAttribute('data-preset-filter-study'))).toEqual(['dropdowns', 'smart-search'])
+    expect(studies.map(study => study.getAttribute('data-preset-filter-study'))).toEqual(['dropdowns', 'smart-search', 'facet-ribbon', 'field-search', 'facet-navigator', 'rule-builder', 'match-index'])
     const study = studies[0]!
     const trigger = study.querySelector<HTMLButtonElement>('button.ll-pf-filter-trigger')!
     expect(trigger.textContent).toBe('')
@@ -264,8 +264,61 @@ describe('persistent Layout Lab tabs', () => {
       expect(study.querySelector('[aria-label="Select Afterhours"]')).toBeNull()
       await act(async () => scopeKey.click())
       expect(study.querySelector('[aria-label="Select Afterhours"]')).not.toBeNull()
+      // All five alternatives must honor the same ownership and operate independently.
+      const alternative = (id: string) => host.querySelector<HTMLElement>(`[data-preset-filter-study="${id}"]`)!
+      const clickButton = async (element: HTMLElement, label: string) => {
+        const button = [...element.querySelectorAll('button')].find(item => item.textContent === label || item.getAttribute('aria-label') === label)!
+        expect(button).toBeDefined()
+        await act(async () => button.click())
+      }
+      const enter = async (element: HTMLInputElement, text: string) => {
+        await act(async () => {
+          Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(element, text)
+          element.dispatchEvent(new Event('input', { bubbles: true }))
+        })
+      }
+      const ids = ['facet-ribbon', 'field-search', 'facet-navigator', 'rule-builder', 'match-index']
+      for (const id of ids) {
+        const preview = alternative(id)
+        expect(preview.querySelector('[aria-label="Select Afterhours"]')).toBeNull()
+        await clickButton(preview, 'User presets')
+        expect(preview.querySelector('[role="status"]')?.textContent).toBe('1 preset')
+      }
+      const ribbon = alternative('facet-ribbon')
+      await clickButton(ribbon, 'Add Afterhours to favorites')
+      await clickButton(ribbon, 'Favorites')
+      expect(ribbon.querySelector('[role="status"]')?.textContent).toBe('1 preset')
+      const fieldSearch = alternative('field-search')
+      await enter(fieldSearch.querySelector<HTMLInputElement>('[aria-label="Field Search search"]')!, 'TestCollection')
+      await clickButton(fieldSearch, 'Name')
+      expect(fieldSearch.querySelector('[role="status"]')?.textContent).toBe('0 presets')
+      await clickButton(fieldSearch, 'Collections')
+      expect(fieldSearch.querySelector('[role="status"]')?.textContent).toBe('1 preset')
+      const navigator = alternative('facet-navigator')
+      await clickButton(navigator, 'Tags')
+      await enter(navigator.querySelector<HTMLInputElement>('[aria-label="Find filter values"]')!, 'TestTagUnique')
+      const tag = navigator.querySelector<HTMLInputElement>('.ll-pfa-value-list input')!
+      await act(async () => tag.click())
+      expect(navigator.querySelector('[aria-label="Remove TestTagUnique"]')).not.toBeNull()
+      const builder = alternative('rule-builder')
+      const setSelect = async (label: string, value: string) => {
+        const control = builder.querySelector<HTMLSelectElement>(`[aria-label="${label}"]`)!
+        await act(async () => { control.value = value; control.dispatchEvent(new Event('change', { bubbles: true })) })
+      }
+      await setSelect('Rule field', 'collection')
+      await setSelect('Rule value', 'test-collection')
+      await clickButton(builder, 'Add filter rule')
+      expect(builder.querySelector('[aria-label="Remove TestCollectionUnique"]')).not.toBeNull()
+      const index = alternative('match-index')
+      await clickButton(index, 'Collections')
+      await enter(index.querySelector<HTMLInputElement>('[aria-label="Match Index search"]')!, 'TestCollection')
+      expect(index.querySelector('.ll-pfa-index-values mark')?.textContent).toBe('TestCollection')
+      await act(async () => index.querySelector<HTMLButtonElement>('.ll-pfa-index-values button')!.click())
+      expect(index.querySelector('[aria-label="Remove TestCollectionUnique"]')).not.toBeNull()
+      expect(fieldSearch.querySelector('[aria-label="Remove TestCollectionUnique"]')).toBeNull()
       await act(async () => usePresetCatalogStore.setState({ heldPresetIds: [] }))
       expect(study.querySelector('[aria-label="Select Afterhours"]')).toBeNull()
+      for (const id of ids) expect(alternative(id).querySelector('[aria-label="Select Afterhours"]')).toBeNull()
       expect(original.querySelector('[aria-label="Select Afterhours"]')).not.toBeNull()
     } finally {
       await act(async () => {

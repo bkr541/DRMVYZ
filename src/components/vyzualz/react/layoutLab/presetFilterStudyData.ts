@@ -96,15 +96,19 @@ export function getStudyMatchParts(value: string, query: string): { text: string
 
 /** Smart study only: every typed token must match at least one searchable field.
  * Rank title matches first; preserve the catalog's order within each rank. */
-export function searchStudyPresets(presets: readonly FilterPreset[], query: string): FilterPreset[] {
+export type StudySearchField = 'all' | 'name' | 'category' | 'tag' | 'collection'
+
+export function searchStudyPresets(presets: readonly FilterPreset[], query: string, field: StudySearchField = 'all'): FilterPreset[] {
   const needle = query.trim().toLowerCase()
   if (!needle) return [...presets]
   const patterns = searchTokens(query).map(token => new RegExp(token, 'iu'))
   return presets.flatMap(preset => {
     const name = preset.name.toLowerCase()
-    const fields = [preset.name, ...metadataValues(preset)]
+    const fields = field === 'all' ? [preset.name, ...metadataValues(preset)]
+      : field === 'name' ? [preset.name] : field === 'category' ? [preset.category]
+        : field === 'tag' ? preset.tags : preset.collections.map(collection => collection.name)
     if (!patterns.every(pattern => fields.some(field => pattern.test(field)))) return []
-    const rank = name === needle ? 0 : name.startsWith(needle) ? 1 : name.includes(needle) ? 2 : 3
+    const rank = field !== 'all' && field !== 'name' ? 3 : name === needle ? 0 : name.startsWith(needle) ? 1 : name.includes(needle) ? 2 : 3
     return [{ preset, rank }]
   }).sort((a, b) => a.rank - b.rank).map(result => result.preset)
 }
