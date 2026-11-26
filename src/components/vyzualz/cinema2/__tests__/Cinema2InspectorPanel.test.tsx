@@ -1,3 +1,7 @@
+import { CINEMA2_CORRIDOR_PRESET_MANIFEST } from '../presets/Cinema2CorridorPreset'
+import { CINEMA2_CHAMBER_PRESET_MANIFEST } from '../presets/Cinema2ChamberPreset'
+import { CINEMA2_EVERYWHERE_PRESET_MANIFEST, CINEMA2_EVERYWHERE_MEDIA_SLOT } from '../presets/Cinema2EverywherePreset'
+import { isCinema2InspectorControlRelevant } from '../parameters/Cinema2InspectorModel'
 import { CINEMA2_SAY_IT_PRESET_MANIFEST, CINEMA2_SAY_IT_LINE_MODE_ID } from '../presets/Cinema2SayItPreset'
 import { CINEMA2_MARQUEE_PRESET_MANIFEST, CINEMA2_MARQUEE_PARAMETER_IDS } from '../presets/Cinema2MarqueePreset'
 import { CINEMA2_NIGHTSHIFT_PRESET_MANIFEST, CINEMA2_NIGHTSHIFT_PARAMETER_IDS } from '../presets/Cinema2NightshiftPreset'
@@ -192,6 +196,60 @@ afterEach(async () => {
 })
 
 describe('Cinema 2.0 schema-driven Inspector', () => {
+  it('keeps media selection in Source and authored presentation controls in Design without changing saved values', () => {
+    const result = compileCinema2NativePreset(CINEMA2_EVERYWHERE_PRESET_MANIFEST)
+    if (!result.ok) throw new Error(result.diagnostics.map(item => item.message).join('; '))
+    const state = new Cinema2ParameterState(result.plan.parameters)
+    const parents = () => createCinema2DesignParentGroupModel(result.plan, state.getSnapshot())
+    const screen = () => parents().find(parent => parent.id === 'design')!.groups.find(group => group.label === 'Screen Media')!.controls
+    const visible = (mode: 'native' | 'single' | 'pool') => screen().filter(control =>
+      isCinema2InspectorControlRelevant(control, new Map([[CINEMA2_EVERYWHERE_MEDIA_SLOT, mode]]))).map(control => control.definition.id)
+    expect(parents().map(parent => parent.label)).toEqual(['Master Controls', 'Design', 'Effects', 'Palette'])
+    expect(screen().map(control => control.definition.id)).not.toContain(CINEMA2_EVERYWHERE_MEDIA_SLOT)
+    expect(visible('native')).toEqual([])
+    expect(visible('single')).toContain('everywhere-media-fit')
+    expect(visible('single')).not.toContain('everywhere-pool-trigger')
+    expect(visible('pool')).toContain('everywhere-pool-trigger')
+    expect(state.setPersistentValue(parameterId('everywhere-media-fit'), 'cover').ok).toBe(true)
+    expect(state.setPersistentValue(parameterId('everywhere-auto-performance'), true).ok).toBe(true)
+    expect(screen().find(control => control.definition.id === 'everywhere-media-fit')).toMatchObject({ value: 'cover', locked: true, enabled: false })
+    expect(state.setPersistentValue(parameterId('everywhere-auto-performance'), false).ok).toBe(true)
+    expect(screen().find(control => control.definition.id === 'everywhere-media-fit')).toMatchObject({ value: 'cover', enabled: true })
+  })
+
+  it.each([
+    { manifest: CINEMA2_CORRIDOR_PRESET_MANIFEST, sourceId: 'corridor-panel-media' },
+    { manifest: CINEMA2_CHAMBER_PRESET_MANIFEST, sourceId: 'chamber-model' },
+  ])('projects $manifest.metadata.name without the duplicate Source selector', ({ manifest, sourceId }) => {
+    const compiled = compileCinema2NativePreset(manifest)
+    if (!compiled.ok) throw new Error(compiled.diagnostics.map(item => item.message).join('; '))
+    const state = new Cinema2ParameterState(compiled.plan.parameters)
+    const parents = createCinema2DesignParentGroupModel(compiled.plan, state.getSnapshot())
+    const controls = parents.flatMap(parent => [...parent.controls, ...parent.groups.flatMap(group => group.controls)])
+    expect(parents.map(parent => parent.id)).toEqual(['master-controls', 'design', 'effects', 'palette'])
+    expect(controls.map(control => control.definition.id)).not.toContain(sourceId)
+    expect(state.getDefinition(parameterId(sourceId))).toBeDefined()
+    expect(controls.length).toBeGreaterThan(0)
+  })
+
+  it('retains nested disclosure state and the scroll container when a canonical parent is collapsed and reopened', async () => {
+    const runtime = createRuntimeForManifest(CINEMA2_EVERYWHERE_PRESET_MANIFEST)
+    try {
+      await act(async () => root?.render(<Cinema2InspectorPanel runtime={runtime} surface="design" />))
+      const design = host!.querySelector('[data-cinema2-parent-group="design"]')!
+      const parentHeader = design.closest('.drc-group')!.querySelector<HTMLButtonElement>(':scope > .drc-header')!
+      const screenHeader = [...design.querySelectorAll<HTMLButtonElement>('.drc-header')].find(header => header.textContent === 'Screen Media')!
+      const scroll = host!.querySelector<HTMLElement>('.rv-inspector-scroll')!
+      await act(async () => { screenHeader.focus(); screenHeader.click() })
+      expect(screenHeader.getAttribute('aria-expanded')).toBe('false')
+      await act(async () => parentHeader.click())
+      await act(async () => parentHeader.click())
+      expect(screenHeader.isConnected).toBe(true)
+      expect(screenHeader.getAttribute('aria-expanded')).toBe('false')
+      expect(host!.querySelector('.rv-inspector-scroll')).toBe(scroll)
+    } finally { runtime.dispose() }
+  })
+
   it('renders SAY IT text between Line Mode and Alignment, and hides only Line 2 in one-line mode', async () => {
     const runtime = createRuntimeForManifest(CINEMA2_SAY_IT_PRESET_MANIFEST)
     const render = () => root?.render(<Cinema2InspectorPanel runtime={runtime} surface="design" />)

@@ -291,6 +291,28 @@ export function createCinema2InspectorModel(
   return deepFreeze(result)
 }
 
+/** Source descriptors are managed by the common Source surface, not editable text rows. */
+function isSourceSelection(plan: Readonly<Cinema2CompiledPresetPlan>, definition: Readonly<Cinema2CompiledParameterDefinition>): boolean {
+  if (definition.type === 'media' && definition.mediaSlot && plan.manifest.mediaSlots?.some(slot => slot.id === definition.mediaSlot?.$ref)) return true
+  return definition.metadata?.editor === 'user-model-selector' && (plan.manifest.modules ?? []).some(module =>
+    !!module.config?.userModel && module.parameterBindings?.userModel?.$ref === definition.id)
+}
+
+export type Cinema2InspectorSourceMode = 'native' | 'single' | 'pool'
+
+/** Authored UI-only relevance, never a parameter mutation or automation decision. */
+export function isCinema2InspectorControlRelevant(
+  control: Readonly<Cinema2InspectorControlModel>,
+  sources: ReadonlyMap<string, Cinema2InspectorSourceMode>,
+): boolean {
+  const rule = control.definition.metadata?.inspectorSource
+  if (!rule || typeof rule !== 'object' || Array.isArray(rule)) return true
+  const { slot, requires } = rule as Record<string, Cinema2JsonValue>
+  if (typeof slot !== 'string') return true
+  const mode = sources.get(slot) ?? 'native'
+  return requires === 'pool' ? mode === 'pool' : requires === 'media' ? mode !== 'native' : true
+}
+
 /**
  * Projects explicitly classified Design controls into the four canonical
  * parent containers. Runtime instance ownership still determines whether a
@@ -310,7 +332,7 @@ export function createCinema2DesignParentGroupModel(
 
   for (const [authoredIndex, definition] of plan.parameters.definitions.entries()) {
     const parentId = definition.designParentGroup
-    if (parentId == null) continue
+    if (parentId == null || isSourceSelection(plan, definition)) continue
     if (definition.exposure === 'hidden' || definition.exposure === 'diagnostic') continue
     if (inactiveCameraParameters.has(definition.id) && !instanceOwners.has(definition.id)) continue
 

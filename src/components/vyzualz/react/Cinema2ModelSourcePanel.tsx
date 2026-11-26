@@ -10,6 +10,8 @@ import { ModelLibraryCards } from '../media/ModelLibraryCards'
 import { Cinema2ActiveSource, Cinema2SourceThumbnail } from './Cinema2ActiveSource'
 import { LibrarySearchRow } from './controls/LibrarySearchRow'
 import { LibraryViewToggle, type LibraryView } from './controls/LibraryViewToggle'
+import { Collapsible } from './ReactControlRows'
+import { Cinema2ModelSelector } from '../cinema2/model/Cinema2ModelSelector'
 
 
 /** The preset parameter that holds the pinned model, when the preset has a model slot (its scene module declares `config.userModel`). */
@@ -78,6 +80,13 @@ export function Cinema2ModelSourcePanel({ runtime, parameterId }: { runtime: Cin
           ...(newer ? [{ id: 'update', label: `Use v${newer.currentVersion}`, onSelect: () => pin(newer) }] : []),
           ...(showSelectionControls && pinnedId ? [{ id: 'remove', label: 'Remove model / Restore built-in', onSelect: () => state.setPersistentValue(parameterId, DEFAULT_MODEL_BINDING) }] : []),
         ]} />
+      {pinnedId && <Collapsible label="Model versions and details" defaultOpen={false}>
+        <Cinema2ModelSelector key={pinnedId} id={`cinema2-source-${parameterId}`} label="Saved model version" value={value} disabled={false} versionsOnly
+          onChange={next => {
+            if (state.getValue(parameterId) !== value) return
+            state.setPersistentValue(parameterId, next)
+          }} />
+      </Collapsible>}
       <div className="rv-canvas-library-shell" ref={library}>
         <ModelLibraryCards
           search={search} favorites={false} viewMode={view} activeId={pinnedId}

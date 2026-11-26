@@ -5,6 +5,8 @@ import {
   CINEMA2_AUTO_PERFORMANCE_LOCK_REASON,
   createCinema2DesignParentGroupModel,
   createCinema2InspectorModel,
+  isCinema2InspectorControlRelevant,
+  type Cinema2InspectorSourceMode,
   type Cinema2DesignParentGroupModel,
   type Cinema2InspectorControlModel,
   type Cinema2InspectorEntryModel,
@@ -24,7 +26,8 @@ import { PanelSubtabs } from './PanelSubtabs'
 import { ReactAudioPanel } from './ReactAudioPanel'
 import { useReactStore } from '../../../stores/reactStore'
 import { getCinema2PresetPoolId } from './Cinema2EverywhereMediaSourceController'
-import { CINEMA2_EVERYWHERE_MEDIA_SLOT } from '../cinema2/presets/Cinema2EverywherePreset'
+import { cinema2SlotSupportsPool } from '../cinema2/media/Cinema2SourceCapabilities'
+import { DualRailCollapsible } from './DualRailCollapsible'
 
 export interface Cinema2InspectorPanelProps {
   runtime: Cinema2Runtime | null
@@ -47,6 +50,7 @@ export interface Cinema2InspectorPanelProps {
 // to this), so it stays permanently disabled until that feature exists.
 const noopSubscribe = () => () => {}
 const zeroRevision = () => 0
+const noMediaSnapshot = () => null
 
 type Cinema2DesignSurface = 'engine' | 'selection'
 type Cinema2ReactSurface = 'performance' | 'analysis'
@@ -59,6 +63,12 @@ export function Cinema2InspectorPanel({ runtime, surface, sharedAudioAnalysis = 
   const plan = runtime?.getCompiledPresetPlan() ?? null
   useSyncExternalStore(runtime?.getParameterState().subscribe ?? noopSubscribe, runtime?.getParameterState().getPersistentRevision ?? zeroRevision)
   const snapshot = runtime?.getParameterState().getSnapshot() ?? null
+  const mediaRuntime = runtime?.getMediaSlotRuntime()
+  const mediaSnapshot = useSyncExternalStore(mediaRuntime?.subscribe ?? noopSubscribe, mediaRuntime?.getSnapshot ?? noMediaSnapshot, noMediaSnapshot)
+  const activePool = useReactStore(state => state.canvasOrchestrationSettings.mediaPools.find(pool => pool.id === getCinema2PresetPoolId(state, plan?.presetId)) ?? null)
+  const sources = useMemo(() => new Map<string, Cinema2InspectorSourceMode>(
+    (mediaSnapshot?.slots ?? []).map(slot => [slot.id, activePool && cinema2SlotSupportsPool(slot.id) ? 'pool' : slot.source ? 'single' : 'native']),
+  ), [mediaSnapshot, activePool])
   const sections = useMemo(() => (
     plan && snapshot ? createCinema2InspectorModel(plan, snapshot, surface) : []
   ), [plan, snapshot, surface])
@@ -117,7 +127,9 @@ export function Cinema2InspectorPanel({ runtime, surface, sharedAudioAnalysis = 
   const parameterState = runtime.getParameterState()
   const commit = (control: Readonly<Cinema2InspectorControlModel>, candidate: unknown) => {
     // Auto Performance owns a locked control; a stray edit (a keyboard event, a stale handler) must not change it either.
-    if (control.locked) return
+    if (!control.enabled || control.locked) return
+    const currentLock = resolveCinema2AutoPerformanceLock(plan, parameterState.getSnapshot().persistentValues)
+    if (currentLock.active && control.definition.designParentGroup && control.definition.designParentGroup !== 'palette' && !currentLock.exempt.has(control.definition.id)) return
     const result = parameterState.setPersistentValue(control.definition.id, candidate)
     if (result.ok) {
       if (control.definition.type === 'string' || control.definition.type === 'text') onTextChange?.()
@@ -132,6 +144,9 @@ export function Cinema2InspectorPanel({ runtime, surface, sharedAudioAnalysis = 
     }
   }
   const dispatch = (control: Readonly<Cinema2InspectorControlModel>) => {
+    if (!control.enabled || control.locked) return
+    const currentLock = resolveCinema2AutoPerformanceLock(plan, parameterState.getSnapshot().persistentValues)
+    if (currentLock.active && control.definition.designParentGroup && control.definition.designParentGroup !== 'palette' && !currentLock.exempt.has(control.definition.id)) return
     const target = plan.targets.targets.find(candidate => (
       candidate.parameterId === control.definition.id && candidate.channel === 'action'
     ))
@@ -232,7 +247,7 @@ export function Cinema2InspectorPanel({ runtime, surface, sharedAudioAnalysis = 
                     <Cinema2DesignParentGroup
                       key={parent.id}
                       parent={parent}
-                      runtime={runtime}
+                      sources={sources}
                       onChange={commit}
                       onTrigger={dispatch}
                     />
@@ -288,31 +303,31 @@ const PARENT_GROUP_ICONS: Readonly<Record<Cinema2DesignParentGroupModel['id'], A
 
 function Cinema2DesignParentGroup({
   parent,
-  runtime,
+  sources,
   onChange,
   onTrigger,
 }: {
   parent: Readonly<Cinema2DesignParentGroupModel>
-  runtime: Cinema2Runtime
+  sources: ReadonlyMap<string, Cinema2InspectorSourceMode>
   onChange: (control: Readonly<Cinema2InspectorControlModel>, value: Cinema2JsonValue) => void
   onTrigger: (control: Readonly<Cinema2InspectorControlModel>) => void
 }) {
   const empty = parent.controls.length === 0 && parent.groups.length === 0
   const body = empty ? (
     <div className="rv-ctrl-info">No controls yet.</div>
-  ) : parent.id === 'palette' ? (
-    <Cinema2PaletteControls controls={parent.controls} onChange={onChange} onTrigger={onTrigger} />
   ) : (
     <>
       {parent.controls.length > 0 && (
-        <Cinema2InspectorControls controls={parent.controls} onChange={onChange} onTrigger={onTrigger} />
+        parent.id === 'palette'
+          ? <Cinema2PaletteControls controls={parent.controls} onChange={onChange} onTrigger={onTrigger} />
+          : <Cinema2InspectorControls controls={parent.controls.filter(control => isCinema2InspectorControlRelevant(control, sources))} onChange={onChange} onTrigger={onTrigger} />
       )}
-      {parent.groups.map((group, groupIndex) => group.controls.some(control=>control.definition.id==='everywhere-screen-media') ? (
-        <EverywhereScreenMediaGroup key="everywhere-screen-media" runtime={runtime} group={group} onChange={onChange} onTrigger={onTrigger}/>
-      ) : (
+      {parent.groups.map((group, groupIndex) => (
         <Cinema2InspectorGroup
           key={group.label ?? `ungrouped-${groupIndex}`}
           group={group}
+          sources={sources}
+          palette={parent.id === 'palette'}
           onChange={onChange}
           onTrigger={onTrigger}
         />
@@ -321,7 +336,8 @@ function Cinema2DesignParentGroup({
   )
 
   return (
-    <Collapsible
+    <DualRailCollapsible
+      keepMounted
       label={parent.label}
       icon={<AppIcon kind={PARENT_GROUP_ICONS[parent.id]} size={15} color="currentColor" />}
       bodyClassName={parent.id === 'palette' ? 'rv-cinema2-palette-body' : undefined}
@@ -329,7 +345,7 @@ function Cinema2DesignParentGroup({
       <div data-cinema2-parent-group={parent.id} style={{ display: 'contents' }}>
         {body}
       </div>
-    </Collapsible>
+    </DualRailCollapsible>
   )
 }
 
@@ -397,38 +413,23 @@ function Cinema2InspectorInstance({
   )
 }
 
-/** The media descriptor is runtime-owned, never a free-form parameter. */
-function EverywhereScreenMediaGroup({runtime,group,onChange,onTrigger}: {
-  runtime: Cinema2Runtime
-  group: Readonly<Cinema2InspectorGroupModel>
-  onChange: (control: Readonly<Cinema2InspectorControlModel>, value: Cinema2JsonValue)=>void
-  onTrigger: (control: Readonly<Cinema2InspectorControlModel>)=>void
-}) {
-  const slots=runtime.getMediaSlotRuntime()
-  const snapshot=useSyncExternalStore(slots.subscribe,slots.getSnapshot)
-  const slot=snapshot.slots.find(item=>item.id===CINEMA2_EVERYWHERE_MEDIA_SLOT)
-  const pool=useReactStore(state=>state.canvasOrchestrationSettings.mediaPools.find(item=>item.id===getCinema2PresetPoolId(state, runtime.getCompiledPresetPlan().presetId))??null)
-  const custom=!!pool||!!slot?.source
-  const controls=group.controls.filter(control=>control.definition.id!=='everywhere-screen-media' && custom && (control.definition.id!=='everywhere-pool-trigger'||!!pool))
-  return <Collapsible label="Screen Media">
-    <div className="rv-canvas-panel-status"><span>Content Source</span><strong>{pool ? 'Media Pool' : slot?.source ? 'Individual Media' : 'Default Eyes'}</strong></div>
-    <div className="rv-ctrl-info">{pool ? `${pool.name} · ${pool.mediaIds.length} items` : slot?.source ? `${slot.source.label}${slot.status==='loading'?' · Loading…':''}` : 'Built-in animated eyes. Choose an image, SVG, video or pool in the Source tab.'}</div>
-    {!pool && slot?.error && <div className="rv-ctrl-info" role="status">{slot.error}</div>}
-    <Cinema2InspectorControls controls={controls} onChange={onChange} onTrigger={onTrigger}/>
-  </Collapsible>
-}
-
 function Cinema2InspectorGroup({
   group,
+  sources,
+  palette = false,
   onChange,
   onTrigger,
 }: {
   group: Readonly<Cinema2InspectorGroupModel>
+  sources?: ReadonlyMap<string, Cinema2InspectorSourceMode>
+  palette?: boolean
   onChange: (control: Readonly<Cinema2InspectorControlModel>, value: Cinema2JsonValue) => void
   onTrigger: (control: Readonly<Cinema2InspectorControlModel>) => void
 }) {
+  const controls = sources ? group.controls.filter(control => isCinema2InspectorControlRelevant(control, sources)) : group.controls
+  const Rows = palette ? Cinema2PaletteControls : Cinema2InspectorControls
   if (!group.label) {
-    return <Cinema2InspectorControls controls={group.controls} onChange={onChange} onTrigger={onTrigger} />
+    return <Rows controls={controls} onChange={onChange} onTrigger={onTrigger} />
   }
   const mapping = group.controls.find(control => control.definition.metadata?.inspectorMappingSummary === true)
   const optionLabel = (label: string) => {
@@ -438,8 +439,8 @@ function Cinema2InspectorGroup({
   const strength = group.controls.find(control => control.definition.label === 'Mapping Intensity')?.value
   const summary = mapping ? (mapping.value === true ? `${optionLabel('Audio Source')} → ${optionLabel('Visual Target')} · ${typeof strength === 'number' ? Math.round(strength * 100) : 0}%` : 'Disabled') : undefined
   return (
-    <Collapsible label={group.label} headerAccessory={summary ? <span className="rv-cinema2-mapping-summary" title={summary}>{summary}</span> : undefined} defaultOpen={!group.controls.some(control => control.definition.metadata?.inspectorSubgroup === true)}>
-      <Cinema2InspectorControls controls={group.controls} onChange={onChange} onTrigger={onTrigger} />
+    <Collapsible label={group.label} headerAccessory={summary ? <span className="rv-cinema2-mapping-summary" title={summary}>{summary}</span> : undefined} defaultOpen={!group.advanced && !group.controls.some(control => control.definition.metadata?.inspectorSubgroup === true)}>
+      {controls.length ? <Rows controls={controls} onChange={onChange} onTrigger={onTrigger} /> : <div className="rv-ctrl-info">Choose applicable content in Source to enable these settings.</div>}
     </Collapsible>
   )
 }
@@ -525,9 +526,7 @@ export function Cinema2SchemaControl(props: {
 }) {
   const body = <Cinema2SchemaControlBody {...props} />
   // A control locked by Auto Performance keeps its place and size: the wrapper adds only a tooltip (it is `display: contents`).
-  return props.control.locked
-    ? <div className="rv-ctrl-lock" data-auto-performance-locked="true" title={props.control.lockReason}>{body}</div>
-    : body
+  return <div style={{ display: 'contents' }} className={props.control.locked ? 'rv-ctrl-lock' : undefined} data-auto-performance-locked={props.control.locked ? 'true' : undefined} title={props.control.lockReason}>{body}</div>
 }
 
 function Cinema2SchemaControlBody({
@@ -670,9 +669,18 @@ function Cinema2SchemaControlBody({
       )
     case 'vec2':
     case 'vec3': {
-      if(definition.id==='everywhere-camera-distance') {
-        const z=isNumericArray(value,3) ? value[2]! : 0
-        return <SliderRow id={controlId} label={definition.label} value={14+z} min={11} max={17} step={.1} resetValue={14} disabled={disabled} onChange={next=>onChange([0,0,next-14])}/>
+      const axis = definition.metadata?.inspectorVectorAxis
+      const offset = definition.metadata?.inspectorVectorOffset
+      if (typeof axis === 'number' && Number.isInteger(axis) && axis >= 0 && axis < (definition.type === 'vec2' ? 2 : 3)
+        && typeof offset === 'number' && typeof definition.min === 'number' && typeof definition.max === 'number') {
+        const length = definition.type === 'vec2' ? 2 : 3
+        const vector = isNumericArray(value, length) ? value : Array.from({ length }, () => 0)
+        const defaults = isNumericArray(definition.defaultValue, length) ? definition.defaultValue : vector
+        return <div data-cinema2-control-id={definition.id} data-cinema2-control-type={definition.type}>
+          <SliderRow id={controlId} label={definition.label} value={offset + vector[axis]!} min={offset + definition.min} max={offset + definition.max}
+            step={definition.step ?? 0.01} resetValue={offset + defaults[axis]!} disabled={disabled} description={description || undefined}
+            onChange={next => onChange(vector.map((component, index) => index === axis ? next - offset : component))} />
+        </div>
       }
       const length = definition.type === 'vec2' ? 2 : 3
       const vector = isNumericArray(value, length) ? value : Array.from({ length }, () => 0)
