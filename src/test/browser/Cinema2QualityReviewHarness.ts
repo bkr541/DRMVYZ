@@ -2,11 +2,15 @@ import { Cinema2Runtime } from '../../components/vyzualz/cinema2/runtime/Cinema2
 import { Cinema2AudioIntelligenceBridge } from '../../components/vyzualz/cinema2/audio/Cinema2AudioIntelligenceBridge'
 import type { Cinema2ParameterId, Cinema2PresetId, Cinema2RenderQualityLevel } from '../../components/vyzualz/cinema2/contracts/Cinema2NativePresetManifest'
 import { trippyBroMusicFixture } from '../support/TrippyBroMusicFixture'
+import { createCinema2MainframePatternCycle, nextCinema2MainframePattern } from '../../components/vyzualz/cinema2/modules/mainframe/Cinema2MainframePatternController'
 import { DEFAULT_MI_FRAME } from '../../features/musicIntelligence/constants'
 import type { MusicIntelligenceFrame } from '../../features/musicIntelligence/types'
 
 // Test-only controlled upstream publications; production runtime owns all response and timing.
 type Stage = 'reference' | 'idle' | 'build' | 'drop' | 'breakdown'
+type ControlledEvent = 'none' | 'fresh' | 'stale' | 'duplicate'
+let controlled: ControlledEvent | null = null
+let lastDrop: { id: number; time: number } | null = null
 const canvas = document.querySelector<HTMLCanvasElement>('#review')!
 const query = new URLSearchParams(location.search)
 let presetId = query.get('preset') as Cinema2PresetId
@@ -59,12 +63,15 @@ function tick() {
   index++
   if (source && !paused) {
     musicTime += 1 / 30
-    const energy = stage === 'build' ? .35 + Math.min(stageFrame / 60, 1) * .55 : stage === 'drop' ? .95 : .16
-    const hit = stageFrame === 0 && stage === 'drop' ? 'drop' : stageFrame % 30 === 0 ? 'downbeat' : stageFrame % 15 === 0 ? 'kick' : stageFrame % 15 === 7 ? 'snare' : null
+    const energy = controlled !== null ? .75 : stage === 'build' ? .35 + Math.min(stageFrame / 60, 1) * .55 : stage === 'drop' ? .95 : .16
+    const hit = controlled !== null ? (controlled === 'none' ? null : 'drop') : stageFrame === 0 && stage === 'drop' ? 'drop' : stageFrame % 30 === 0 ? 'downbeat' : stageFrame % 15 === 0 ? 'kick' : stageFrame % 15 === 7 ? 'snare' : null
+    if (controlled === 'fresh') lastDrop = { id: index, time: musicTime }
+    const event = controlled === 'stale' ? { id: -1, time: Math.max(0, musicTime - .5) } : controlled === 'duplicate' ? lastDrop : null
+    if (controlled === 'duplicate' && !event) throw Error('No fresh event to repeat')
     const upstream = trippyBroMusicFixture({ timeSec: musicTime, frameId: index, energy, bass: energy, high: energy * .7,
-      build: stage === 'build' ? Math.min(stageFrame / 60, 1) : 0, advanceBeatGrid: true, event: hit, eventId: index })
+      build: controlled === null && stage === 'build' ? Math.min(stageFrame / 60, 1) : 0, advanceBeatGrid: true, event: hit, eventId: event?.id ?? index, eventTime: event?.time ?? musicTime })
     published = { ...upstream, section: { ...upstream.section, type: stage === 'build' ? 'build' : stage === 'drop' ? 'drop' : 'breakdown',
-      startSec: musicTime - stageFrame / 30, endSec: musicTime - stageFrame / 30 + 2, intensity: energy, progress: Math.min(stageFrame / 60, 1) } }
+      startSec: controlled !== null ? 0 : musicTime - stageFrame / 30, endSec: controlled !== null ? 1000 : musicTime - stageFrame / 30 + 2, intensity: energy, progress: controlled !== null ? .5 : Math.min(stageFrame / 60, 1) } }
     publicationSequence++; publicationTime = index * 1000 / 30
     stageFrame++
   }
@@ -96,7 +103,9 @@ const api = {
     for (let i = 0; i < 60; i++) { await new Promise(resolve => setTimeout(resolve, 25)); tick() }
     return diagnostics()
   },
-  async capture(nextStage: Stage, frames: number) {
+  async capture(nextStage: Stage, frames: number, fixture: ControlledEvent | null = null) {
+    if (!Number.isSafeInteger(frames) || frames < 1) throw Error('Invalid capture sample count')
+    controlled = fixture
     if (stage !== nextStage) { stage = nextStage; stageFrame = 0 }
     source = stage !== 'reference' && stage !== 'idle'
     const saved = runtime.serializeParameterState()
@@ -104,7 +113,7 @@ const api = {
     for (let i = 0; i < frames; i++) { timings.push(tick()); if (i === frames - 1) break; await new Promise(resolve => setTimeout(resolve, 0)) }
     // Read before the WebGL drawing buffer is retired.
     const png = canvas.toDataURL('image/png')
-    return { png, timings, frame: index, stageFrame, musicTime, diagnostics: diagnostics(), parametersUnchanged: (query.get('release') ? saved : initial) === runtime.serializeParameterState() }
+    return { png, timings, frame: index, stageFrame, musicTime, stage, quality, fixture, event: fixture === null ? null : { mode: fixture, semanticMoments: published.semanticMoments, publicationSequence, publicationTime }, diagnostics: diagnostics(), parametersUnchanged: (query.get('release') ? saved : initial) === runtime.serializeParameterState() }
   },
   // Release-only controls, using the same runtime, scheduler and native media service.
   set(id: Cinema2ParameterId, value: unknown) {
@@ -112,6 +121,18 @@ const api = {
     if (!result.ok) throw Error(JSON.stringify(result.diagnostics))
     syncTransportSetting()
     return runtime.getParameterState().getValue(id)
+  },
+  expectedNextPattern(current: string) {
+    const patterns = (manifest.parameters ?? []).find(p => p.label === 'Pattern')?.options?.map(p => p.value) ?? []
+    if (!patterns.every(p => typeof p === 'string')) return null
+    const ids = patterns.map(String)
+    const key = String(presetId).split('.').at(-1)
+    if (['honey','hud','purity','allstar','crate-wireframe-portal'].includes(key ?? '')) return nextCinema2MainframePattern(ids, current)
+    const purpose = key === 'corridor' ? 'corridor-pattern-cycle' : ['spectrum','fracture','refraction','mosaic','overdrive','colossus','exoskeleton','monument','everywhere'].includes(key ?? '') ? `${key}-pattern-order` : null
+    const modules = manifest.modules ?? []
+    if (!purpose || modules.length !== 1) return null
+    const moduleId = modules[0]!.id
+    return nextCinema2MainframePattern(createCinema2MainframePatternCycle(i => runtime.getRandomService().sample({ moduleId, purpose }, i), ids), current)
   },
   saved() { return runtime.serializeParameterState() },
   reset() { runtime.getParameterState().resetAll(); syncTransportSetting(); return runtime.serializeParameterState() },
@@ -148,7 +169,7 @@ const api = {
     runtime.dispose()
     const retired = diagnostics()
     presetId = id; quality = nextQuality; callback = null; index = 0; source = false; paused = false
-    stage = 'reference'; stageFrame = 0; musicTime = 0; published = DEFAULT_MI_FRAME; publicationSequence = 0; publicationTime = 0; lastGlError = 0; glErrors = []
+    stage = 'reference'; stageFrame = 0; musicTime = 0; controlled = null; lastDrop = null; published = DEFAULT_MI_FRAME; publicationSequence = 0; publicationTime = 0; lastGlError = 0; glErrors = []
     // A fresh bridge is constructed by createRuntime; restore only the canonical saved state.
     runtime = createRuntime(saved); manifest = runtime.getCompiledPresetPlan().manifest
     if (!saved) applyMode()
@@ -166,8 +187,9 @@ const api = {
       throw Error('Context lifecycle event timed out')
     }
     extension.loseContext(); await wait(() => runtime.getSnapshot().phase === 'context-lost')
+    const lost = diagnostics()
     extension.restoreContext(); await wait(() => runtime.getSnapshot().contextGeneration > generation && runtime.getSnapshot().phase === 'running')
-    return { supported: true, generation, restored: runtime.getSnapshot().contextGeneration }
+    return { supported: true, generation, restored: runtime.getSnapshot().contextGeneration, lost, restoredSnapshot: diagnostics() }
   },
   diagnostics,
   dispose() { runtime.dispose(); return runtime.getSnapshot() },

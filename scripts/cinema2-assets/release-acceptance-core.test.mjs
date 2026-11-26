@@ -27,3 +27,101 @@ test('retired allocations fail even when runtime reports disposed',()=>{
   const d={runtime:{phase:'disposed',resources:{activeAnimationFrameCount:0}},modules:{activeResourceLeaseCount:0,estimatedGpuBytes:0},resources:{activeLeaseCount:0,estimatedGpuMemoryBytes:0},media:{readyResourceCount:0},glErrors:[]}
   assert.deepEqual(retiredIssues(d),[]);d.modules.activeResourceLeaseCount=1;assert.equal(retiredIssues(d).length,1)
 })
+
+import { motionEvidence, pairwiseEvidence, sourceVisibility, fallbackEvidence, triggerEvidence, recoveryEvidence, recordCheck, assertion, scenarioDecision, presetStatus, reportStatus, reportExitCode, pixelDistance, technicalIssues } from './release-acceptance-core.mjs'
+const size=30
+const settings=pattern=>JSON.stringify({values:{pattern,auto:false,change:false}})
+const conditions={stage:'breakdown',fixture:'none',quality:'high',frame:90,stageFrame:30,musicTime:1,visualTime:1,settings:settings('a'),pattern:'a',camera:{position:[0,0,4],target:[0,0,0],fovDegrees:50,rollDegrees:0}}
+const frame=(draw=()=>[10,10,10],overrides={})=>({data:Uint8Array.from(Array.from({length:size*size},(_,i)=>draw(i%size,Math.floor(i/size))).flat()),width:size,height:size,conditions:{...conditions,...overrides},motion:{phase:1}})
+const advance=(f,time=2,phase=time)=>({...f,conditions:{...f.conditions,frame:90+30*(time-1),stageFrame:30*time,musicTime:time,visualTime:time},motion:{phase}})
+const square=(left,top=10)=>frame((x,y)=>x>=left&&x<left+7&&y>=top&&y<top+7?[200,200,200]:[10,10,10])
+const shifted=square(14),original=square(8)
+const noisy={...original,data:Uint8Array.from(original.data,(v,i)=>Math.min(255,v+(i%29===0?1:0)))}
+test('motion requires matched deterministic A/A, spatial movement and time advancement, not exposure or phase alone',()=>{
+  assert.equal(motionEvidence(original,original,advance(original)).status,'fail')
+  assert.equal(motionEvidence(original,noisy,advance(noisy)).status,'fail')
+  assert.equal(motionEvidence(original,noisy,advance(shifted)).status,'pass')
+  const brighter={...original,data:Uint8Array.from(original.data,v=>v+20)}
+  assert.equal(motionEvidence(original,original,advance(brighter)).status,'fail')
+  assert.equal(motionEvidence(original,original,advance(shifted,2,1)).status,'fail')
+  // A temporarily held pose can pass only when the later controlled sample moves.
+  assert.equal(motionEvidence(original,original,advance(original),advance(shifted,3)).status,'pass')
+  assert.equal(motionEvidence(original,original,shifted).status,'incomplete')
+  assert.equal(motionEvidence(original,{...original,width:99},advance(shifted)).status,'incomplete')
+  assert.equal(motionEvidence(original,original,{...advance(shifted),conditions:{...advance(shifted).conditions,visualTime:NaN}}).status,'incomplete')
+  assert.equal(motionEvidence(original,original,{...advance(shifted),conditions:{...advance(shifted).conditions,camera:{...conditions.camera,position:[1,0,4]}}}).status,'incomplete')
+  assert.throws(()=>pixelDistance(new Uint8Array(4),new Uint8Array(4)))
+  assert.throws(()=>pixelEvidence(new Float32Array([NaN,0,0]),1,1))
+})
+test('pairwise pattern comparisons require identical fixture and non-pattern settings',()=>{
+  const next=f=>({...f,conditions:{...f.conditions,pattern:'b',settings:settings('b')}})
+  assert.equal(pairwiseEvidence(original,noisy,next(shifted)).status,'pass')
+  assert.equal(pairwiseEvidence(original,original,next(original)).status,'fail')
+  const changed=next(shifted);changed.conditions.settings=JSON.stringify({values:{pattern:'b',auto:true,change:false}})
+  assert.equal(pairwiseEvidence(original,original,changed).status,'incomplete')
+})
+test('ready but hidden texture fails, known chromatic ROI passes; wrong phase and wrong region cannot pass',()=>{
+  const off=frame(), on=frame((x,y)=>x>=10&&x<20&&y>=10&&y<20?(x<15?[255,34,34]:[24,237,112]):[10,10,10])
+  const opts={ready:true,fixture:true,expectedZones:[4]}
+  assert.equal(sourceVisibility(off,off,off,opts).status,'fail')
+  assert.equal(sourceVisibility(off,off,on,opts).status,'pass')
+  assert.equal(sourceVisibility(off,off,on,{...opts,ready:false}).status,'fail')
+  assert.equal(sourceVisibility(off,off,on,{...opts,expectedZones:[0]}).status,'fail')
+  assert.equal(sourceVisibility(off,off,advance(on),opts).status,'incomplete')
+  assert.equal(sourceVisibility(off,off,on,{}).status,'incomplete')
+  assert.equal(sourceVisibility(off,off,frame(()=>[100,100,100]),opts).status,'fail')
+})
+test('fallback requires correct identity, visible replacement and restored reference',()=>{
+  assert.equal(fallbackEvidence(original,noisy,shifted,original,true).status,'pass')
+  assert.equal(fallbackEvidence(original,noisy,shifted,original,false).status,'fail')
+  assert.equal(fallbackEvidence(original,noisy,shifted,shifted,true).status,'fail')
+  assert.equal(fallbackEvidence(original,noisy,original,original,true).status,'fail')
+  assert.equal(fallbackEvidence(original,noisy,shifted,original,undefined).status,'incomplete')
+})
+const patterns=['a','b','c']
+function triggerSamples(){
+  const row=(active,saved,mode,musicTime,id,eventTime=musicTime)=>({active,saved,enabled:true,trigger:'drop',effectiveChange:true,effectiveTrigger:'drop',musicTime,event:{mode,publicationSequence:Math.round(musicTime*30),semanticMoments:id?[{id,timeSec:eventTime}]:[]}})
+  return {before:row('b','a','fresh',1,'drop1'),takeover:row('c','c','duplicate',1.1,'drop1',1),noEvent:row('c','c','none',2),stale:row('c','c','stale',2.1,'stale',1.6),fresh:row('a','c','fresh',2.2,'drop2'),duplicate:row('a','c','duplicate',2.3,'drop2',2.2),hold:row('a','c','none',3)}
+}
+test('fresh, stale, duplicate and manual takeover assertions inspect effective authority and exact next pattern',()=>{
+  const run=s=>triggerEvidence(s,patterns,'c',true,'a')
+  assert.equal(run(triggerSamples()).status,'pass')
+  for(const [name,value] of [['stale','b'],['fresh','c'],['fresh','b'],['duplicate','b'],['takeover','b'],['hold','b']]){const s=triggerSamples();s[name].active=value;assert.equal(run(s).status,'fail',name)}
+  const lost=triggerSamples();delete lost.stale;assert.equal(run(lost).status,'incomplete')
+  const altered=triggerSamples();altered.duplicate.event.semanticMoments[0].id='wrong';assert.equal(run(altered).status,'fail')
+  const effective=triggerSamples();effective.fresh.effectiveChange=false;assert.equal(run(effective).status,'fail')
+  assert.equal(triggerEvidence(triggerSamples(),patterns,'c',false,'a').status,'fail')
+  assert.equal(triggerEvidence(triggerSamples(),patterns,'c',true,null).status,'incomplete')
+})
+function recoveryFixture(){
+  const snapshot=(phase,generation,frameCount,scheduled=1)=>({phase,contextGeneration:generation,frameCount,resources:{activeAnimationFrameCount:scheduled,activeWebGLContextCount:1}})
+  const d={runtime:snapshot('running',2,20),resources:{contextAvailable:true,reconstructedAllocationCount:3},modules:{failedModuleCount:0,modules:[]},render:{failedPassCount:0},media:{errorCount:0},glErrors:[]}
+  return {recovery:{supported:true,lost:{runtime:snapshot('context-lost',1,10,0),modules:{activeResourceLeaseCount:0},resources:{contextAvailable:false,activeLeaseCount:2,estimatedGpuMemoryBytes:0,pooledAllocationCount:0,reconstructedAllocationCount:1}},restoredSnapshot:{runtime:snapshot('running',2,10)}},before:{d:{runtime:snapshot('running',1,10)}},after:{...original,d,pixels:{uniform:false},capture:{diagnostics:d,parametersUnchanged:true}}}
+}
+test('context loss requires retired resources, reconstructed generation, fresh frames and clean GL',()=>{
+  const run=({recovery,before,after})=>recoveryEvidence(recovery,before,after)
+  assert.equal(run(recoveryFixture()).status,'pass')
+  for(const mutate of [x=>x.after.d.runtime.frameCount=10,x=>x.after.d.runtime.contextGeneration=1,x=>x.after.d.glErrors.push(1282),x=>x.recovery.lost.resources.estimatedGpuMemoryBytes=1,x=>x.after.d.resources.reconstructedAllocationCount=1]){const x=recoveryFixture();mutate(x);assert.equal(run(x).status,'fail')}
+  const x=recoveryFixture();x.recovery.supported=false;assert.equal(run(x).status,'incomplete')
+  assert.ok(technicalIssues({}).length)
+})
+test('runner decision path propagates negative evidence, missing scenarios and invalid skips to report and exit code',()=>{
+  const result={required:['motion','scenario:patterns','fallback'],checks:[],errors:[],frames:[{name:'fixture'}]}
+  const report={inventory:['honey'],presets:{honey:result},errors:[],gates:{humanVisual:'pending',casting:'not-run'}}
+  const refresh=()=>{result.status=presetStatus(result);return [reportStatus(report),reportExitCode(report)]}
+  assert.deepEqual(refresh(),['incomplete',1])
+  assert.throws(()=>recordCheck(result,'motion',undefined))
+  assert.throws(()=>recordCheck(result,'fallback',{status:'not-applicable'}))
+  recordCheck(result,'motion',motionEvidence(original,original,advance(original)))
+  recordCheck(result,'scenario:patterns',scenarioDecision(result.checks))
+  assert.deepEqual(refresh(),['fail',1]);assert.equal(result.checks[1].status,'fail')
+  const positive={...result,checks:[],errors:[]};report.presets.honey=positive
+  recordCheck(positive,'motion',motionEvidence(original,noisy,advance(shifted)))
+  recordCheck(positive,'scenario:patterns',scenarioDecision(positive.checks))
+  positive.status=presetStatus(positive);assert.equal(positive.status,'incomplete');assert.equal(reportExitCode(report),1)
+  recordCheck(positive,'fallback',fallbackEvidence(original,noisy,shifted,original,true))
+  positive.status=presetStatus(positive);assert.equal(reportStatus(report),'pass');assert.equal(reportExitCode(report),0)
+  assert.equal(report.gates.humanVisual,'pending');assert.equal(report.gates.casting,'not-run')
+  assert.equal(scenarioDecision([]).status,'incomplete')
+  assert.throws(()=>assertion(undefined))
+})
