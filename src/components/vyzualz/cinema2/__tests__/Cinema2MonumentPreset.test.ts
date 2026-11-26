@@ -5,7 +5,7 @@ import { compileCinema2NativePreset } from '../presets/Cinema2PresetCompiler'
 import { validateCinema2PresetAuthoringConventions } from '../presets/Cinema2PresetAuthoring'
 import { withCinema2AutoCoverage } from '../presets/Cinema2AutoCoverage'
 import { CINEMA2_AUTO_COVERAGE_EXEMPT } from '../presets/Cinema2AutoCoverageExemptions'
-import { MONUMENT_PATTERNS, monumentFit, monumentLines, monumentPose, type MonumentInput } from '../modules/monument/MonumentGeometry'
+import { MONUMENT_BAYS, MONUMENT_PATTERNS, monumentArchitectureTravel, monumentFit, monumentGroundedFit, monumentLines, monumentPose, type MonumentInput } from '../modules/monument/MonumentGeometry'
 import { MonumentPerformance } from '../modules/monument/MonumentPerformance'
 import type { Cinema2ModuleUpdateContext } from '../modules/Cinema2ModuleContracts'
 import fonts from '../modules/monument/MonumentFonts.generated.json'
@@ -28,8 +28,27 @@ describe('MONUMENT',()=>{
   })
   it('keeps six distinct bounded lighting programs',()=>{
     expect(new Set(MONUMENT_PATTERNS.map(({value})=>JSON.stringify([0,1,2,3].map(i=>monumentPose({...input,pattern:value},i))))).size).toBe(6)
-    for(const {value} of MONUMENT_PATTERNS)for(let phase=0;phase<16;phase+=.25){const pose=monumentPose({...input,pattern:value,phase,kick:1,drop:1,snare:1,bass:1,high:1},4);for(const key of ['key','floor','wall','rim'] as const){expect(pose[key]).toBeGreaterThanOrEqual(0);expect(pose[key]).toBeLessThanOrEqual(1)}}
+    for(const {value} of MONUMENT_PATTERNS)for(let phase=0;phase<16;phase+=.25){const pose=monumentPose({...input,pattern:value,phase,kick:1,drop:1,snare:1,bass:1,high:1},4);for(const key of ['key','floor','wall','rim','aperture','crown','shaft'] as const){expect(pose[key]).toBeGreaterThanOrEqual(0);expect(pose[key]).toBeLessThanOrEqual(1)}}
     expect(monumentPose({...input,drop:1},0).key).toBeGreaterThan(monumentPose(input,0).key)
+  })
+  it('opens architecture on drops, contracts during builds and blends all six structural programs',()=>{
+    const signature=(pattern:MonumentInput['pattern'])=>MONUMENT_BAYS.map((_,i)=>monumentArchitectureTravel(monumentPose({...input,pattern},i),1))
+    expect(new Set(MONUMENT_PATTERNS.map(({value})=>JSON.stringify(signature(value)))).size).toBe(6)
+    const idle=monumentPose(input,3),build=monumentPose({...input,build:1},3),drop=monumentPose({...input,drop:1},3)
+    expect(build.aperture).toBeLessThan(idle.aperture);expect(drop.aperture).toBeGreaterThan(idle.aperture);expect(drop.crown).toBeGreaterThan(build.crown)
+    expect(monumentArchitectureTravel(drop,0)).toEqual({wing:0,crown:0})
+    expect(monumentArchitectureTravel(drop,.45).wing).toBeCloseTo(monumentArchitectureTravel(drop,1).wing*.45)
+    const from=monumentPose(input,2),to=monumentPose({...input,pattern:'exposure'},2)
+    expect(monumentPose({...input,pattern:'exposure',previousPattern:'reveal',blend:0},2)).toEqual(from)
+    expect(monumentPose({...input,pattern:'exposure',previousPattern:'reveal',blend:1},2)).toEqual(to)
+    expect(monumentPose({...input,pattern:'exposure',previousPattern:'reveal',blend:.5},2).crown).toBeCloseTo((from.crown+to.crown)/2)
+    for(const bay of MONUMENT_BAYS)expect(bay.x-bay.width/2).toBeGreaterThan(3.9)
+  })
+  it('retains the grounded hero envelope across wide, tall and deep sources',()=>{
+    for(const [w,h,d] of [[20,1,.2],[1,20,.5],[1,1,20],[2,3,4]])for(const top of [-2.3,-1.6]){
+      const x=.4,y=.3,z=.3,f=monumentGroundedFit(monumentFit(w,h,d)*1.2,w,h,d,top,x,y,z)
+      expect(f).toBeGreaterThan(0);expect(w*f+2*x).toBeLessThanOrEqual(7.80001);expect(top+h*f+y).toBeLessThanOrEqual(2.10001);expect(d*f+2*z).toBeLessThanOrEqual(3.65001)
+    }
   })
   it('preserves uniform fit, limits text and includes actual multi-contour Latin glyphs',()=>{
     for(const [w,h,d] of [[20,1,.2],[1,20,.5],[1,1,20],[2,3,4]]){const f=monumentFit(w,h,d);expect(w*f).toBeLessThanOrEqual(7.60001);expect(h*f).toBeLessThanOrEqual(4.10001);expect(d*f).toBeLessThanOrEqual(2.60001)}
