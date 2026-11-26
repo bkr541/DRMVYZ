@@ -18,8 +18,11 @@ function fixture() {
     updateVideoTextures: (paused: boolean) => pauses.push(paused),
     dispose: () => resources.clear(),
   } as unknown as Cinema2MediaSlotRuntime
-  const pool = new Cinema2EverywherePool({ getSelection: () => selection, resolve: id => resolve(id) },slots)
-  return { pool, replacements, pauses, select: (next: typeof selection) => { selection=next }, resolver: (fn: typeof resolve) => { resolve=fn }, resources }
+  const listeners = new Set<() => void>()
+  const pool = new Cinema2EverywherePool({ getSelection: () => selection, resolve: id => resolve(id),
+    subscribe: listener => { listeners.add(listener); return () => { listeners.delete(listener) } },
+  },slots)
+  return { pool, replacements, pauses, listeners, select: (next: typeof selection) => { selection=next; listeners.forEach(listener => listener()) }, resolver: (fn: typeof resolve) => { resolve=fn }, resources }
 }
 
 describe('EVERYWHERE media pools', () => {
@@ -54,6 +57,24 @@ describe('EVERYWHERE media pools', () => {
     f.select(null); f.pool.update('track',null,false,false,false)
     expect(f.pool.getResources()).toEqual([null,null,null])
     f.pool.dispose()
+  })
+  it('clears feeds synchronously and rejects an obsolete resolve when the same pool is reselected before a frame', async () => {
+    const f = fixture()
+    let release!: (source: Cinema2MediaSource) => void
+    f.resolver(id => id === 'a' ? new Promise(resolve => { release = resolve }) : Promise.resolve(sourceFor(id)))
+    f.pool.update('track', null, false, false, false); await flush()
+    expect(f.resources.size).toBe(2)
+    f.select(null)
+    expect(f.pool.getResources()).toEqual([null, null, null])
+    expect(f.pool.count).toBe(0)
+    f.select({ id: 'p', mediaIds: ['a','b','c','d','e'] })
+    release(sourceFor('a')); await flush()
+    expect(f.resources.size).toBe(0)
+    f.resolver(async id => sourceFor(id))
+    f.pool.update('track', null, false, false, false); await flush()
+    expect(f.resources.size).toBe(3)
+    f.pool.dispose()
+    expect(f.listeners.size).toBe(0)
   })
   it('cycles small pools without duplicate decoders and exposes all six program cadences', async () => {
     const f=fixture(); f.select({id:'small',mediaIds:['a','b','a']})

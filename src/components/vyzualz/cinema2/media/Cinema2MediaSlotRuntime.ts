@@ -174,6 +174,15 @@ export class Cinema2MediaSlotRuntime {
     })
   }
 
+  /** Last successfully decoded source, independent of an in-flight replacement
+   * or temporary WebGL context loss. Does not expose GPU handles. */
+  getCommittedSource(slotId: Cinema2MediaSlotId): Readonly<{ source: Readonly<Cinema2MediaSource>; presentation: Readonly<Cinema2MediaPresentation> }> | null {
+    const record = this.records.get(slotId)
+    return record?.loaded && record.resourceSource
+      ? { source: record.resourceSource, presentation: record.resourcePresentation }
+      : null
+  }
+
   async replace(
     slotId: Cinema2MediaSlotId,
     source: Readonly<Cinema2MediaSource>,

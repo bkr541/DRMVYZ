@@ -31,7 +31,22 @@ export class Cinema2EverywherePool {
   private pending = new Set<number>()
   private disposed = false
   step = 0
-  constructor(private readonly source: Cinema2MediaPoolSource, private readonly slots: Cinema2MediaSlotRuntime) {}
+  private readonly unsubscribe?: () => void
+  constructor(private readonly source: Cinema2MediaPoolSource, private readonly slots: Cinema2MediaSlotRuntime) {
+    // Reset can occur while rendering is suspended, or reset and reselect can
+    // occur between frames. Release decoders immediately, not on the next beat.
+    this.unsubscribe = source.subscribe?.(() => this.invalidate())
+  }
+
+  private invalidate() {
+    if (this.disposed) return
+    this.scope = ''
+    this.ids = []
+    this.generation++
+    this.pending.clear()
+    this.step = 0; this.channel = 0; this.cursor = 0; this.lastEvent = null
+    CHANNELS.forEach(id => this.slots.remove(id))
+  }
 
   update(identity: string, event: string | null, reset: boolean, paused: boolean, patternChanged: boolean) {
     if (this.disposed) return
@@ -72,10 +87,11 @@ export class Cinema2EverywherePool {
 
   private load(channel: number, id: string) {
     const generation = this.generation
+    const selection = JSON.stringify(this.source.getSelection())
     const slot = CHANNELS[channel]!
     this.pending.add(channel)
     void Promise.resolve().then(() => this.source.resolve(id)).then(source => {
-      if (this.disposed || generation !== this.generation || !source || source.id !== id) return
+      if (this.disposed || generation !== this.generation || selection !== JSON.stringify(this.source.getSelection()) || !source || source.id !== id) return
       return this.slots.replace(slot, source, { fit: 'contain' })
     }).catch(() => { /* Keep the last ready feed; a future event can try again. */ }).finally(() => {
       if (generation === this.generation) this.pending.delete(channel)
@@ -86,5 +102,5 @@ export class Cinema2EverywherePool {
     return CHANNELS.map(id => this.slots.getManagedResource(id))
   }
   get count() { return this.ids.length }
-  dispose() { this.disposed = true; this.generation++; this.pending.clear(); this.slots.dispose() }
+  dispose() { this.disposed = true; this.unsubscribe?.(); this.generation++; this.pending.clear(); this.slots.dispose() }
 }

@@ -117,7 +117,11 @@ export const cinema2EverywhereNativeModuleDefinition: Readonly<Cinema2ModuleType
     let wall: Cinema2EverywhereWall | null = null
     let bridge: Cinema2ThreeSceneBridge | null = null
     let starting=false, disposed=false, measured=false, wallGpuBytes=0, reportedBytes=-1
-    const sourceMode=()=>context.mediaPoolSource?.getSelection() ? 'pool' as const : context.media.getSlot('screenMedia')?.source ? 'single' as const : 'eyes' as const
+    const sourceMode=()=> {
+      const selection = context.mediaPoolSource?.getSelection()
+      if (selection) return selection.mediaIds.length ? 'pool' as const : 'eyes' as const
+      return context.media.get('screenMedia') ? 'single' as const : 'eyes' as const
+    }
     let aspectRatio=16/9
     const diagnostics: Cinema2ModuleDiagnostic[]=[]
     const report=(error:unknown)=>diagnostics.push({

@@ -46,7 +46,15 @@ export function Cinema2MediaSourcePanel({ runtime }: Cinema2MediaSourcePanelProp
   const poolCapable = !!selectedSlot && cinema2SlotSupportsPool(selectedSlot.id)
   const presetId = runtime?.getCompiledPresetPlan().presetId
   const activePool = useReactStore(state => poolCapable ? state.canvasOrchestrationSettings.mediaPools.find(pool => pool.id === getCinema2PresetPoolId(state, presetId)) ?? null : null)
-  const previewItem = useMediaStore(state => state.items.find(item => item.id === (activePool?.mediaIds[0] ?? selectedSlot?.source?.id)))
+  const everywhere = selectedSlot?.id === 'everywhere-screen-media'
+  const displayedSource = everywhere && selectedSlot
+    ? mediaRuntime?.getCommittedSource(selectedSlot.id)?.source ?? null
+    : selectedSlot?.source ?? null
+  const compatiblePoolCount = useMediaStore(state => everywhere && activePool && selectedSlot
+    ? new Set(state.items.filter(item => activePool.mediaIds.includes(item.id) && !item.uploading
+      && item.lifecycleStatus !== 'deletion_pending' && selectedSlot.accepts.includes(isUnifiedSvgMediaItem(item) ? 'svg' : item.type)).map(item => item.id)).size
+    : activePool?.mediaIds.length ?? 0)
+  const previewItem = useMediaStore(state => state.items.find(item => item.id === (activePool?.mediaIds[0] ?? displayedSource?.id)))
   const request = useRef(0)
   const library = useRef<HTMLDivElement>(null)
   const [pending, setPending] = useState(false)
@@ -64,7 +72,6 @@ export function Cinema2MediaSourcePanel({ runtime }: Cinema2MediaSourcePanelProp
     return <Cinema2ActiveSource name="Native preset content" type="Built-in content" status="This preset has no replaceable media slots." />
   }
 
-  const everywhere = selectedSlot.id === 'everywhere-screen-media'
   const makeActive = (mediaId: string) => {
     const ticket = ++request.current
     const generation = poolCapable ? beginEverywhereMediaRequest(runtime) : null
@@ -104,17 +111,17 @@ export function Cinema2MediaSourcePanel({ runtime }: Cinema2MediaSourcePanelProp
       {snapshot.slots.length > 1 && <SelectRow id="cinema2-media-slot" label="Slot" value={selectedSlot.id}
         options={snapshot.slots.map(slot => ({ value: slot.id, label: `${slot.label}${slot.required ? ' · Required' : ''}` }))}
         onChange={setSelectedSlotId} />}
-      <Cinema2ActiveSource key={selectedSlot.id} name={activePool?.name ?? selectedSlot.source?.label ?? (selectedSlot.required ? 'Source required' : everywhere ? 'Default Eyes' : 'Native preset content')}
-        type={activePool ? 'Media pool' : selectedSlot.source ? selectedSlot.source.kind.toUpperCase() : selectedSlot.required ? 'Required slot' : 'Built-in content'}
-        preview={<Cinema2SourceThumbnail url={previewItem?.localThumbnailObjectUrl ?? previewItem?.thumbnailUrl ?? (!activePool && selectedSlot.source?.kind !== 'video' ? selectedSlot.source?.url : null)} />}
-        status={pending || selectedSlot.status === 'loading' ? 'Loading media…' : activePool ? `${activePool.mediaIds.length} media items` : selectedSlot.required && !selectedSlot.source ? 'Choose compatible media.' : undefined}
+      <Cinema2ActiveSource key={selectedSlot.id} name={activePool?.name ?? displayedSource?.label ?? (selectedSlot.required ? 'Source required' : everywhere ? 'Default Eyes' : 'Native preset content')}
+        type={activePool ? 'Media pool' : displayedSource ? displayedSource.kind.toUpperCase() : selectedSlot.required ? 'Required slot' : 'Built-in content'}
+        preview={<Cinema2SourceThumbnail url={previewItem?.localThumbnailObjectUrl ?? previewItem?.thumbnailUrl ?? (!activePool && displayedSource?.kind !== 'video' ? displayedSource?.url ?? (everywhere ? '/cinema2/textures/everywhere-eye.webp' : null) : null)} />}
+        status={pending || selectedSlot.status === 'loading' ? everywhere ? 'Loading replacement…' : 'Loading media…' : activePool ? `${compatiblePoolCount} media items${everywhere && !compatiblePoolCount ? ' · Showing default eyes' : ''}` : selectedSlot.required && !selectedSlot.source ? 'Choose compatible media.' : undefined}
         error={selectedSlot.error} actions={[
-          { id: 'replace', label: activePool || selectedSlot.source ? 'Replace source' : 'Choose source', onSelect: () => queueMicrotask(() => (library.current?.querySelector<HTMLElement>('input') ?? library.current?.querySelector<HTMLElement>('button'))?.focus()) },
-          ...(!selectedSlot.required && (activePool || selectedSlot.source || pending) ? [{ id: 'reset', label: everywhere ? 'Reset to Default Eyes' : 'Remove source / Restore built-in', onSelect: () => { request.current++; setPending(false); setActionMenu(null); resetCinema2Media(runtime, selectedSlot.id, poolCapable) } }] : []),
+          { id: 'replace', label: activePool || displayedSource ? 'Replace source' : 'Choose source', onSelect: () => queueMicrotask(() => (library.current?.querySelector<HTMLElement>('input') ?? library.current?.querySelector<HTMLElement>('button'))?.focus()) },
+          ...(!selectedSlot.required && (activePool || selectedSlot.source || pending) ? [{ id: 'reset', label: everywhere ? 'Restore Default Eyes' : 'Remove source / Restore built-in', onSelect: () => { request.current++; setPending(false); setActionMenu(null); resetCinema2Media(runtime, selectedSlot.id, poolCapable) } }] : []),
         ]} />
       <div className="rv-canvas-library-shell" ref={library}>
         <MediaLibraryBrowser
-          activeMediaId={poolCapable && activePool ? null : selectedSlot.source?.id ?? null}
+          activeMediaId={poolCapable && activePool ? null : displayedSource?.id ?? null}
           onSelect={makeActive}
           activePoolId={activePool?.id ?? null}
           onActivatePool={poolCapable ? id=>{request.current++;setPending(false);setActionMenu(null);activateCinema2Pool(runtime,selectedSlot.id,id)} : undefined}

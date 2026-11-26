@@ -4,5 +4,7 @@ import type { Cinema2MediaSource } from './Cinema2MediaSlotRuntime'
  * selections are transient; this interface never mutates the pool or preset. */
 export interface Cinema2MediaPoolSource {
   getSelection(): Readonly<{ id: string; mediaIds: readonly string[] }> | null
+  /** Optional synchronous notification when the selected pool or its membership changes. */
+  subscribe?(listener: () => void): () => void
   resolve(mediaId: string): Promise<Readonly<Cinema2MediaSource> | null>
 }

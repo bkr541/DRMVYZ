@@ -18,7 +18,7 @@ export function createCinema2WorkspaceMediaPoolSource(presetId?: Cinema2PresetId
   let previousPool: unknown
   let previousItems: unknown
   let cached: ReturnType<Cinema2MediaPoolSource['getSelection']> = null
-  return {
+  const source: Cinema2MediaPoolSource = {
     getSelection() {
       const state = useReactStore.getState()
       const pool = state.canvasOrchestrationSettings.mediaPools.find(candidate => candidate.id === getCinema2PresetPoolId(state, presetId))
@@ -34,10 +34,25 @@ export function createCinema2WorkspaceMediaPoolSource(presetId?: Cinema2PresetId
           && accepts.includes(isUnifiedSvgMediaItem(item) ? 'svg' : item.type)
       }) })
     },
+    subscribe(listener) {
+      let previous = source.getSelection()
+      const changed = () => {
+        const next = source.getSelection()
+        if (next === previous) return
+        const changedMembership = next?.id !== previous?.id || next?.mediaIds.length !== previous?.mediaIds.length
+          || next?.mediaIds.some((id, index) => id !== previous?.mediaIds[index])
+        previous = next
+        if (changedMembership) listener()
+      }
+      const unsubscribeWorkspace = useReactStore.subscribe(changed)
+      const unsubscribeMedia = useMediaStore.subscribe(changed)
+      return () => { unsubscribeWorkspace(); unsubscribeMedia() }
+    },
     async resolve(mediaId) {
       await useMediaStore.getState().ensureMediaSigned([mediaId], 'visible')
       const item = useMediaStore.getState().items.find(candidate => candidate.id === mediaId)
       return item && !getCinema2MediaDisabledReason(item, accepts) ? cinema2MediaSourceFromLibraryItem(item) : null
     },
   }
+  return source
 }

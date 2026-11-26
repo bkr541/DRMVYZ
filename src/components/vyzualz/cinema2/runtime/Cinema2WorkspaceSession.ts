@@ -26,12 +26,14 @@ export function captureCinema2WorkspacePresetState(
 ): Readonly<Cinema2WorkspacePresetState> {
   const presetId = runtime.getCompiledPresetPlan().presetId
   const mediaSlots = runtime.getMediaSlotRuntimeSnapshot().slots
-    .filter(slot => slot.source != null)
-    .map(slot => Object.freeze({
-      slotId: slot.id,
-      source: slot.source!,
-      presentation: slot.presentation,
-    }))
+    .flatMap(slot => {
+      // Everywhere may retain the last good image while a new one decodes.
+      // Never serialize an uncommitted candidate (including a failed first load).
+      const committed = slot.id === 'everywhere-screen-media'
+        ? runtime.getMediaSlotRuntime().getCommittedSource(slot.id)
+        : slot.source ? { source: slot.source, presentation: slot.presentation } : null
+      return committed ? [Object.freeze({ slotId: slot.id, ...committed })] : []
+    })
 
   return Object.freeze({
     presetId,

@@ -34,7 +34,7 @@ const bridge = new Cinema2AudioIntelligenceBridge({
   getPublicationMeta: () => ({ sequence: publication, publisherId: `${slug}-production-review`, kind: 'frame', publishedAtMs: timestampMs }),
 })
 const created = Cinema2Runtime.create(canvas, {
-  mediaPoolSource: slug === 'everywhere' ? createCinema2WorkspaceMediaPoolSource() : undefined,
+  mediaPoolSource: slug === 'everywhere' ? createCinema2WorkspaceMediaPoolSource(CINEMA2_EVERYWHERE_PRESET_ID) : undefined,
   presetId: presets[slug], renderQuality: quality, diagnosticsEnabled: true,
   randomness: { mode: 'deterministic', seed: `${slug}-review` }, audioIntelligenceBridge: bridge,
   requestAnimationFrame(callback) {
@@ -148,12 +148,14 @@ if (slug === 'everywhere' && query.has('source')) {
     testImage.width = 160
     testImage.height = 120
     const drawing = testImage.getContext('2d')!
-    drawing.fillStyle = '#eb25d7'
+    drawing.fillStyle = '#050609'
     drawing.fillRect(0, 0, 160, 120)
-    drawing.fillStyle = '#23eb36'
-    drawing.fillRect(0, 0, 80, 60)
+    drawing.fillStyle = '#f4faff'
+    drawing.font = 'bold 22px sans-serif'
+    drawing.textAlign = 'center'
+    drawing.fillText('WORDMARK', 80, 68, 148)
     const url = testImage.toDataURL()
-    drawing.fillStyle = '#25b7eb'
+    drawing.fillStyle = '#eb25d7'
     drawing.fillRect(0, 0, 160, 120)
     drawing.fillStyle = '#ffbd25'
     drawing.fillRect(80, 60, 80, 60)
