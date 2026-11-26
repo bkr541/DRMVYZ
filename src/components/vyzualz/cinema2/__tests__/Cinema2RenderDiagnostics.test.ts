@@ -161,6 +161,14 @@ describe('GPU timer pool', () => {
     pool.collect()
     expect(pool.getDisjointCount()).toBe(1)
     expect(pool.getTimings()[0]!.samples).toBe(1)
+
+    // A not-yet-ready query is equally invalid after a disjoint event.
+    pool.measure('bloom', () => undefined)
+    pool.collect()
+    disjoint = false; ready.add(query!)
+    pool.collect()
+    expect(pool.getDisjointCount()).toBe(2)
+    expect(pool.getTimings()[0]!.samples).toBe(1)
   })
 
   it('does not nest and is a no-op without the extension', () => {

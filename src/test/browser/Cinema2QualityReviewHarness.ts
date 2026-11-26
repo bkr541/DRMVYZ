@@ -1,6 +1,6 @@
 import { CINEMA2_AFTERHOURS_TRIGGER_IDS, resolveCinema2AfterhoursTriggerEventIdentity, type Cinema2AfterhoursTriggerId } from '../../components/vyzualz/cinema2/modules/Cinema2AfterhoursNativeModule'
 import { cinema2UserModelCache } from '../../components/vyzualz/cinema2/model/Cinema2UserModelCache'
-import { Cinema2Runtime } from '../../components/vyzualz/cinema2/runtime/Cinema2Runtime'
+import { Cinema2Runtime, getCinema2RuntimeDiagnostics } from '../../components/vyzualz/cinema2/runtime/Cinema2Runtime'
 import { Cinema2AudioIntelligenceBridge } from '../../components/vyzualz/cinema2/audio/Cinema2AudioIntelligenceBridge'
 import type { Cinema2MediaKind, Cinema2ParameterId, Cinema2PresetId, Cinema2RenderQualityLevel } from '../../components/vyzualz/cinema2/contracts/Cinema2NativePresetManifest'
 import type { Cinema2ModuleFrameReadContext } from '../../components/vyzualz/cinema2/modules/Cinema2ModuleContracts'
@@ -80,13 +80,21 @@ syncTransportSetting()
 let initial = runtime.serializeParameterState()
 runtime.resize({ width: innerWidth, height: innerHeight, dpr: 1 })
 runtime.start()
-function tick() {
+let previousWallTime: number | null = null
+let lastFixtureBeat = -1, lastFixtureHalfBeat = -1
+let wallStageStart = 0
+function tick(wallTime?: number) {
+  const delta = wallTime === undefined || previousWallTime === null ? 1 / 30 : Math.max(0, (wallTime - previousWallTime) / 1000)
+  if (wallTime !== undefined) previousWallTime = wallTime
   index++
   if (source && !paused) {
-    musicTime += 1 / 30
+    musicTime += delta
     const controlledOverride = controlled !== null && controlled !== 'staged'
-    const energy = controlledOverride ? .75 : stage === 'build' ? .35 + Math.min(stageFrame / 60, 1) * .55 : stage === 'drop' ? .95 : .16
-    const hit = controlledOverride ? (controlled === 'none' ? null : 'drop') : stageFrame === 0 && stage === 'drop' ? 'drop' : stageFrame % 30 === 0 ? 'downbeat' : stageFrame % 15 === 0 ? 'kick' : stageFrame % 15 === 7 ? 'snare' : null
+    const energy = controlledOverride ? .75 : stage === 'build' ? .35 + Math.min((wallTime === undefined ? stageFrame / 60 : (musicTime - wallStageStart) / 2), 1) * .55 : stage === 'drop' ? .95 : .16
+    const fixtureBeat = Math.floor(musicTime * 2), fixtureHalfBeat = Math.floor(musicTime * 4)
+    const wallHit = stageFrame === 0 && stage === 'drop' ? 'drop' : fixtureBeat !== lastFixtureBeat ? (fixtureBeat % 4 === 0 ? 'downbeat' : 'kick') : fixtureHalfBeat !== lastFixtureHalfBeat && fixtureHalfBeat % 2 === 1 ? 'snare' : null
+    lastFixtureBeat = fixtureBeat; lastFixtureHalfBeat = fixtureHalfBeat
+    const hit = wallTime !== undefined ? wallHit : controlledOverride ? (controlled === 'none' ? null : 'drop') : stageFrame === 0 && stage === 'drop' ? 'drop' : stageFrame % 30 === 0 ? 'downbeat' : stageFrame % 15 === 0 ? 'kick' : stageFrame % 15 === 7 ? 'snare' : null
     if (controlled === 'fresh') lastDrop = { id: index, time: musicTime }
     const event = controlled === 'stale' ? { id: -1, time: Math.max(0, musicTime - .5) } : controlled === 'duplicate' ? lastDrop : null
     if (controlled === 'duplicate' && !event) throw Error('No fresh event to repeat')
@@ -96,17 +104,18 @@ function tick() {
     const structural = explicit?.kind === 'drop' || explicit?.kind === 'phrase'
     const replay = explicit?.replay ? lastTriggerPublication : null
     const upstream = trippyBroMusicFixture({ timeSec: musicTime, frameId: replay?.frameId ?? index, energy, bass: energy, high: energy * .7,
-      build: !controlledOverride && stage === 'build' ? Math.min(stageFrame / 60, 1) : 0, advanceBeatGrid: true, event: explicit ? explicit.kind : hit, beatIndex: explicit?.beat, eventId: explicit?.id ?? event?.id ?? index, eventTime: structural && replay ? replay.time : event?.time ?? musicTime })
+      build: !controlledOverride && stage === 'build' ? Math.min((wallTime === undefined ? stageFrame / 60 : (musicTime - wallStageStart) / 2), 1) : 0, advanceBeatGrid: true, event: explicit ? explicit.kind : hit, beatIndex: explicit?.beat, eventId: explicit?.id ?? event?.id ?? index, eventTime: structural && replay ? replay.time : event?.time ?? musicTime })
     published = { ...upstream, section: { ...upstream.section, type: stage === 'build' ? 'build' : stage === 'drop' ? 'drop' : 'breakdown',
-      startSec: controlledOverride ? 0 : musicTime - stageFrame / 30, endSec: controlledOverride ? 1000 : musicTime - stageFrame / 30 + 2, intensity: energy, progress: controlledOverride ? .5 : Math.min(stageFrame / 60, 1) } }
-    publicationSequence++; publicationTime = index * 1000 / 30
+      startSec: controlledOverride ? 0 : musicTime - (wallTime === undefined ? stageFrame / 30 : musicTime - wallStageStart), endSec: controlledOverride ? 1000 : musicTime - (wallTime === undefined ? stageFrame / 30 : musicTime - wallStageStart) + 2, intensity: energy, progress: controlledOverride ? .5 : Math.min((wallTime === undefined ? stageFrame / 60 : (musicTime - wallStageStart) / 2), 1) } }
+    publicationSequence++; publicationTime = wallTime ?? index * 1000 / 30
     stageFrame++
   }
   const next = callback as FrameRequestCallback | null
   if (!next) throw new Error('Production frame was not scheduled')
   callback = null
   const start = performance.now()
-  next(index * 1000 / 30)
+  next(wallTime ?? index * 1000 / 30)
+  if (wallTime !== undefined) return performance.now() - start
   const gl = canvas.getContext('webgl2')
   // Drain a bounded queue so a later successful frame cannot hide an earlier error.
   for (let i = 0; i < 16; i++) {
@@ -121,7 +130,80 @@ function diagnostics() {
   return { glError: lastGlError, glErrors: [...glErrors], resources: runtime.getResourceManagerSnapshot(), media: runtime.getMediaSlotRuntimeSnapshot(), visualTime: runtime.getVisualElapsedTimeSec(), choreography: runtime.getChoreographyRuntimeSnapshot(), runtime: runtime.getSnapshot(), modules: runtime.getModuleRuntimeSnapshot(), render: runtime.getRenderGraphExecutorSnapshot(),
     camera: runtime.getCameraRuntimeSnapshot(), director: runtime.getVisualDirectorFrame(), transport: runtime.getTransportFrameState() }
 }
+function resourceEvidence() {
+  const d = diagnostics()
+  return { ...d, owners: getCinema2RuntimeDiagnostics(), modelCache: cinema2UserModelCache.getSnapshot() }
+}
+let measuring = false
 const api = {
+  // Real display-clock pacing. No screenshots, readPixels or getError calls in the sample loop.
+  async playback(warmupMs: number, measureMs: number, stress = false, keepPaused = false) {
+    if (measuring || !Number.isFinite(warmupMs) || warmupMs < 0 || !Number.isFinite(measureMs) || measureMs <= 0 || measureMs > 600_000) throw Error('Invalid or concurrent playback measurement')
+    measuring = true
+    try {
+      source = true; paused = keepPaused; controlled = null; triggerPublication = null
+      stage = 'drop'; stageFrame = 0; wallStageStart = musicTime
+      const initialSettings = runtime.serializeParameterState()
+      const intervals: number[] = [], cpu: number[] = [], gpu: number[] = []
+      const resources: ReturnType<typeof resourceEvidence>[] = []
+      let first: number | null = null, previous: number | null = null, last = 0, measuredFrames = 0, skippedBoundaryQuery = false
+      let gpuCount = runtime.getSnapshot().performance.gpuTimingSampleCount ?? 0
+      let disjointStart = 0, nextResourceTime = 0, startSnapshot = runtime.getSnapshot()
+      let finalSnapshot = startSnapshot
+      let startVisualTime = runtime.getVisualElapsedTimeSec()
+      await new Promise<void>((resolve, reject) => {
+        const sample = (now: number) => {
+          try {
+            if (document.hidden) throw Error('Measurement page became hidden')
+            first ??= now
+            const elapsed = now - first
+            if (stress) {
+              const nextStage: Stage = elapsed % 12000 < 4000 ? 'build' : elapsed % 12000 < 8000 ? 'drop' : 'breakdown'
+              if (nextStage !== stage) { stage = nextStage; stageFrame = 0; wallStageStart = musicTime }
+            }
+            const before = runtime.getSnapshot().frameCount
+            tick(now)
+            const snapshot = runtime.getSnapshot(), timing = snapshot.performance
+            if (snapshot.phase !== 'running') throw Error(`Runtime phase ${snapshot.phase}`)
+            if (elapsed < warmupMs) {
+              gpuCount = timing.gpuTimingSampleCount ?? 0
+              requestAnimationFrame(sample); return
+            }
+            if (previous === null) {
+              startSnapshot = snapshot; startVisualTime = runtime.getVisualElapsedTimeSec(); disjointStart = timing.gpuTimingDisjointCount ?? 0
+              gpuCount = timing.gpuTimingSampleCount ?? 0
+              resources.push(resourceEvidence()); nextResourceTime = now + 10000
+            } else {
+              if (snapshot.frameCount !== before + 1) throw Error('Production callback did not deliver a frame')
+              intervals.push(now - previous); measuredFrames++
+              if (timing.cpuFrameTimeMs !== null) cpu.push(timing.cpuFrameTimeMs)
+              const count = timing.gpuTimingSampleCount ?? 0
+              if (count > gpuCount) {
+                // The first completion may have been issued before the measurement boundary.
+                if (skippedBoundaryQuery && timing.gpuFrameTimeMs !== null) gpu.push(timing.gpuFrameTimeMs)
+                skippedBoundaryQuery = true; gpuCount = count
+              }
+              if (now >= nextResourceTime) { resources.push(resourceEvidence()); nextResourceTime = now + 10000 }
+            }
+            previous = now; last = now; finalSnapshot = snapshot
+            if (elapsed >= warmupMs + measureMs) { resolve(); return }
+            requestAnimationFrame(sample)
+          } catch (error) { reject(error) }
+        }
+        requestAnimationFrame(sample)
+      })
+      resources.push(resourceEvidence())
+      // One GL error observation outside the timed interval; cumulative console errors are collected by the runner.
+      const gl = canvas.getContext('webgl2')
+      const error = gl?.getError() ?? -1
+      return { intervals, cpu, gpu, measuredFrames, elapsedMs: intervals.reduce((a,b)=>a+b,0), last,
+        gpuSupported: finalSnapshot.performance.gpuTimingSupported,
+        disjointCount: (finalSnapshot.performance.gpuTimingDisjointCount ?? 0) - disjointStart,
+        startSnapshot, finalSnapshot, initialSettings, startVisualTime, endVisualTime: runtime.getVisualElapsedTimeSec(), resources, glError: error, settings: runtime.serializeParameterState() }
+    } finally { measuring = false }
+  },
+  playbackResources: resourceEvidence,
+
   inventory() { return { id: manifest.id, revision: manifest.revision, metadata: manifest.metadata,
     sharedTriggers: CINEMA2_AFTERHOURS_TRIGGER_IDS, patterns: (manifest.parameters ?? []).find(p => p.label === 'Pattern')?.options ?? [], cameras: manifest.cameras,
     mediaSlots: manifest.mediaSlots ?? [], poolSlots: (manifest.mediaSlots ?? []).filter(slot=>cinema2SlotSupportsPool(slot.id)).map(slot=>slot.id), modules: manifest.modules ?? [], controls: manifest.parameters ?? [], parameters: initial } },
@@ -232,7 +314,7 @@ const api = {
     presetId = id; quality = nextQuality; callback = null; index = 0; source = false; paused = false
     stage = 'reference'; stageFrame = 0; musicTime = 0; controlled = null; lastDrop = null; triggerPublication = null; lastTriggerPublication = null; published = DEFAULT_MI_FRAME; publicationSequence = 0; publicationTime = 0; lastGlError = 0; glErrors = []
     // A fresh bridge is constructed by createRuntime; restore only the canonical saved state.
-    selectPool(false); poolRequests=[]; mediaProbe = new ReleaseMediaProbe(); runtime = createRuntime(saved); manifest = runtime.getCompiledPresetPlan().manifest
+    selectPool(false); poolRequests=[]; mediaProbe = new ReleaseMediaProbe(); previousWallTime = null; lastFixtureBeat = -1; lastFixtureHalfBeat = -1; runtime = createRuntime(saved); manifest = runtime.getCompiledPresetPlan().manifest
     if (!saved) applyMode()
     syncTransportSetting()
     initial = runtime.serializeParameterState(); runtime.resize({width: innerWidth, height: innerHeight, dpr: 1}); runtime.start()

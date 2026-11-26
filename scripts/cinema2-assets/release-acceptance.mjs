@@ -20,9 +20,9 @@ const parent=join(root,'artifacts/cinema2-release');await mkdir(parent,{recursiv
 const output=await mkdtemp(join(parent,'run-'));console.log(`Release evidence: ${output}`)
 const hash=bytes=>createHash('sha256').update(bytes).digest('hex')
 const save=(path,data)=>writeFile(path,JSON.stringify(data,null,2)+'\n')
-const report={schemaVersion:5,technicalStatus:'incomplete',config,inventory:keys,...coverage,fullInventoryStatus:'incomplete',releaseApproval:false,environment:{platform:os.platform(),arch:os.arch(),cpu:os.cpus()[0]?.model, node:process.version},
+const report={schemaVersion:6,technicalStatus:'incomplete',config,inventory:keys,...coverage,fullInventoryStatus:'incomplete',releaseApproval:false,environment:{platform:os.platform(),arch:os.arch(),cpu:os.cpus()[0]?.model, node:process.version},
   presets:Object.fromEntries(keys.map(key=>[key,{status:'not-run',reason:'Browser not started'}])),
-  gates:{humanVisual:'pending',electronPreview:'not-run',electronFullscreen:'not-run',casting:'not-run',performanceComparison:'not-run'},errors:[],blockers:[]}
+  gates:{browserTechnical:'not-run',humanVisual:'pending',hardwareTiming:'not-run',electronPreview:'not-run',electronFullscreen:'not-run',casting:'not-run',externalCasting:'not-run',captureComparison:'not-run',performanceComparison:'not-run'},errors:[],blockers:[]}
 let vite,browser
 try {
   const [{chromium},{createServer},{default:sharp}]=await Promise.all([import('@playwright/test'),import('vite'),import('sharp')])
@@ -544,11 +544,11 @@ try {
     await save(join(folder,'report.json'),result);await save(join(output,'manifest.json'),report);console.log(`${key}: ${result.status}; ${result.frames.length} captures`)
   }
   const baseline=opt('baseline',null)
-  if(baseline){const previous=JSON.parse(await readFile(resolve(baseline),'utf8'));const issues=regressionIssues(previous,report);report.gates.performanceComparison=issues.length?'fail':'pass';report.errors.push(...issues)}
+  if(baseline){const previous=JSON.parse(await readFile(resolve(baseline),'utf8'));const issues=regressionIssues(previous,report);report.gates.captureComparison=issues.length?'fail':'pass';report.errors.push(...issues)}
 }catch(e){
   // Infrastructure prevented any preset from running; distinguish this from a
   // measured technical failure. Both cases still exit nonzero.
   if(Object.values(report.presets).every(p=>p.status==='not-run')){report.blockers.push(String(e));for(const p of Object.values(report.presets))p.reason=String(e)}else report.errors.push(String(e))
 }
-finally{await browser?.close();await vite?.close();report.technicalStatus=reportStatus(report);report.fullInventoryStatus=fullInventoryStatus(report);await save(join(output,'manifest.json'),report)}
+finally{await browser?.close();await vite?.close();report.technicalStatus=reportStatus(report);report.gates.browserTechnical=report.technicalStatus;report.fullInventoryStatus=fullInventoryStatus(report);await save(join(output,'manifest.json'),report)}
 process.exitCode=reportExitCode(report)

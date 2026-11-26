@@ -165,6 +165,29 @@ describe('Cinema2 performance quality and diagnostics', () => {
     expect(gl.deleteQuery).toHaveBeenCalledTimes(2)
   })
 
+  it('discards an unavailable pending query when the GPU clock becomes disjoint', () => {
+    const gl = createCinemaMockWebGL()
+    let disjoint = false, available = false
+    Object.assign(gl, {
+      QUERY_RESULT_AVAILABLE: 0x8867, QUERY_RESULT: 0x8866,
+      getExtension: vi.fn(() => ({ TIME_ELAPSED_EXT: 0x88bf, GPU_DISJOINT_EXT: 0x8fbb })),
+      getParameter: vi.fn(() => disjoint), createQuery: vi.fn(() => ({})),
+      beginQuery: vi.fn(), endQuery: vi.fn(), deleteQuery: vi.fn(),
+      getQueryParameter: vi.fn((_query, parameter) => parameter === 0x8867 ? available : 8_000_000),
+    })
+    const telemetry = new Cinema2PerformanceDiagnostics(gl, 'quality')
+    telemetry.beginGpuFrame(); telemetry.endGpuFrame()
+    disjoint = true
+    expect(telemetry.getSnapshot()).toMatchObject({ gpuFrameTimeMs: null, gpuTimingSampleCount: 0, gpuTimingDisjointCount: 1 })
+    disjoint = false; available = true
+    expect(telemetry.getSnapshot().gpuFrameTimeMs).toBeNull()
+    expect(gl.deleteQuery).toHaveBeenCalledTimes(1)
+    telemetry.beginGpuFrame(); telemetry.endGpuFrame()
+    expect(telemetry.getSnapshot()).toMatchObject({ gpuFrameTimeMs: 8, gpuTimingSampleCount: 1 })
+    expect(telemetry.getSnapshot().gpuTimingSampleCount).toBe(1)
+    telemetry.dispose()
+  })
+
   it('exposes one shared engine-level quality control across every reference preset', () => {
     const presetIds = [
       CINEMA2_REFERENCE_VISUAL_PRESET_ID,

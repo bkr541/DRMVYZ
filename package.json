@@ -106,7 +106,7 @@
     "test:e2e:cinema2-everywhere": "node scripts/verify-cinema2-everywhere.mjs",
     "test:e2e:cinema2-atl-hoe": "node scripts/run-cinema2-atl-hoe-browser.mjs",
     "visual:render-upgrade": "node scripts/cinema2-assets/accept-render-upgrade.mjs",
-    "test:cinema2:release-policy": "node --test scripts/cinema2-assets/release-acceptance-core.test.mjs scripts/cinema2-assets/model-fidelity-evidence.test.mjs scripts/cinema2-assets/media-fidelity-evidence.test.mjs",
+    "test:cinema2:release-policy": "node --test scripts/cinema2-assets/release-acceptance-core.test.mjs scripts/cinema2-assets/model-fidelity-evidence.test.mjs scripts/cinema2-assets/media-fidelity-evidence.test.mjs scripts/cinema2-assets/performance-evidence.test.mjs",
     "test:e2e:cinema2-release": "node scripts/cinema2-assets/release-acceptance.mjs",
     "visual:cinema2:quality-review": "node scripts/cinema2-assets/quality-review.mjs",
     "visual:compare-captures": "node scripts/cinema2-assets/compare-capture-runs.mjs",
@@ -118,7 +118,9 @@
     "visual:marquee:production": "node scripts/cinema2-assets/accept-marquee-production.mjs",
     "visual:canopy:production": "node scripts/cinema2-assets/accept-canopy-production.mjs",
     "test:e2e:cinema2-neon-forest": "node scripts/cinema2-assets/accept-neon-forest.mjs && node scripts/cinema2-assets/accept-neon-forest-controls.mjs",
-    "assets:neon-forest": "node scripts/cinema2-assets/build-neon-forest-runtime.mjs"
+    "assets:neon-forest": "node scripts/cinema2-assets/build-neon-forest-runtime.mjs",
+    "test:e2e:cinema2-performance": "node scripts/cinema2-assets/performance-acceptance.mjs",
+    "test:e2e:cinema2-electron-output": "node scripts/cinema2-assets/electron-output-acceptance.mjs"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^1.1.0",

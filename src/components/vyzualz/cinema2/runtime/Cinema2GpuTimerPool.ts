@@ -67,13 +67,19 @@ export class Cinema2GpuTimerPool {
     const ext = this.ext
     if (!ext || this.pending.length === 0 || this.gl.isContextLost()) return
     const disjoint = Boolean(this.gl.getParameter(ext.GPU_DISJOINT_EXT))
+    if (disjoint) {
+      // Invalidate all outstanding queries, including results not ready yet.
+      this.disjointCount += this.pending.length
+      for (const entry of this.pending) this.gl.deleteQuery(entry.query)
+      this.pending = []
+      return
+    }
     const remaining: PendingQuery[] = []
     for (const entry of this.pending) {
       if (!this.gl.getQueryParameter(entry.query, this.gl.QUERY_RESULT_AVAILABLE)) { remaining.push(entry); continue }
-      if (disjoint) {
-        this.disjointCount += 1
-      } else {
+      {
         const ms = Number(this.gl.getQueryParameter(entry.query, this.gl.QUERY_RESULT)) / 1e6
+        if (!Number.isFinite(ms) || ms < 0) { this.gl.deleteQuery(entry.query); continue }
         const previous = this.results.get(entry.label)
         this.results.set(entry.label, previous
           ? { lastMs: ms, averageMs: previous.averageMs * 0.9 + ms * 0.1, samples: previous.samples + 1 }

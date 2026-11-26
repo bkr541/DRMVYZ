@@ -17,6 +17,9 @@ export interface Cinema2PerformanceSnapshot {
   cpuFrameTimeMs: number | null
   cpuFrameTimeAverageMs: number | null
   gpuFrameTimeMs: number | null
+  /** Monotonic count of completed valid GPU queries, not rendered frames. */
+  gpuTimingSampleCount?: number
+  gpuTimingDisjointCount?: number
   gpuTimingSupported: boolean
   degraded: boolean
   degradationReason: string | null
@@ -55,6 +58,8 @@ export class Cinema2PerformanceDiagnostics {
   private gpuFrameTimeMs: number | null = null
   private frameIntervalAverageMs: number | null = null
   private gpuSampleAge = 0
+  private gpuTimingSampleCount = 0
+  private gpuTimingDisjointCount = 0
   private resetCpuAverageOnNextFrame = false
   private slowSamples = 0
   private fastSamples = 0
@@ -204,6 +209,8 @@ export class Cinema2PerformanceDiagnostics {
       cpuFrameTimeAverageMs: this.diagnosticsEnabled ? this.cpuFrameTimeAverageMs : null,
       gpuFrameTimeMs: this.diagnosticsEnabled ? this.gpuFrameTimeMs : null,
       gpuTimingSupported: this.ext != null,
+      gpuTimingSampleCount: this.gpuTimingSampleCount,
+      gpuTimingDisjointCount: this.gpuTimingDisjointCount,
       degraded: this.degraded,
       degradationReason: this.degradationReason,
     })
@@ -221,13 +228,21 @@ export class Cinema2PerformanceDiagnostics {
     try {
       const available = this.gl.getQueryParameter(this.pendingGpuQuery, this.gl.QUERY_RESULT_AVAILABLE)
       const disjoint = typeof this.gl.getParameter === 'function' ? Boolean(this.gl.getParameter(this.ext.GPU_DISJOINT_EXT)) : false
-      if (disjoint) this.gpuFrameTimeMs = null
+      if (disjoint) {
+        // A disjoint event invalidates outstanding work even if it is not ready.
+        this.gpuFrameTimeMs = null
+        this.gpuTimingDisjointCount++
+        this.gl.deleteQuery(this.pendingGpuQuery)
+        this.pendingGpuQuery = null
+        return
+      }
       if (!available) return
       if (!disjoint) {
         const nanoseconds = Number(this.gl.getQueryParameter(this.pendingGpuQuery, this.gl.QUERY_RESULT))
         if (Number.isFinite(nanoseconds) && nanoseconds >= 0) {
           this.gpuFrameTimeMs = nanoseconds / 1_000_000
           this.gpuSampleAge = 0
+          this.gpuTimingSampleCount++
         }
       }
       this.gl.deleteQuery(this.pendingGpuQuery)
