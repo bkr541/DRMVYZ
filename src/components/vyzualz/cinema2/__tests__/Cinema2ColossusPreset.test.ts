@@ -1,5 +1,10 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import * as THREE from 'three'
+import { Cinema2UserModelSlot } from '../model/Cinema2UserModelSlot'
+import { Cinema2UserModelError, classifyCinema2UserModelError } from '../model/Cinema2UserModelResolver'
+import { ModelAssetError } from '../../../../features/models/domain/modelAssetTypes'
+import type { Cinema2UserModelCache, Cinema2UserModelLease } from '../model/Cinema2UserModelCache'
+import { describeCinema2LoadedModel } from '../modules/three/Cinema2ThreeAssetMetadata'
 import { ColossusScene } from '../modules/colossus/ColossusScene'
 import type { Cinema2ThreeLibrary } from '../modules/three/Cinema2ThreeLibrary'
 import { CINEMA2_COLOSSUS_PRESET_MANIFEST as manifest } from '../presets/Cinema2ColossusPreset'
@@ -85,6 +90,46 @@ describe('COLOSSUS',()=>{
       scene.detachModel(model);root.remove(model);geometry.dispose();material.dispose()
     }
     scene.apply(p,input,0,0,'low');expect(defaultHero.visible).toBe(true);scene.dispose();scene.dispose()
+  })
+  it('restores the native hero on removal or revoked version, ignores stale loads and preserves the selected material', async () => {
+    const lib={THREE} as Cinema2ThreeLibrary, root=new THREE.Group(), scene=new ColossusScene(lib,root)
+    const native=root.getObjectByName('colossus-default-hero')!, tool=root.getObjectByName('colossus-tool-0')!
+    const p={n:(_key:string,fallback:number)=>fallback,text:(_key:string,fallback:string)=>fallback,on:()=>true,color:(key:keyof typeof COLOSSUS_PALETTE)=>COLOSSUS_PALETTE[key]}
+    const apply=()=>scene.apply(p,input,2,.2,'high')
+    const modelId='c0000000-0000-4000-8000-000000000001', v1=`user-model:${modelId}:1`, v2=`user-model:${modelId}:2`
+    const makeLease=(id:string,color:number)=>{
+      const model=new THREE.Group(), material=new THREE.MeshPhysicalMaterial({color,metalness:.23,roughness:.68,transparent:true,opacity:.65,clearcoat:.4})
+      const texture=new THREE.Texture();material.map=texture
+      const geometry=new THREE.BoxGeometry(2,1,1);model.add(new THREE.Mesh(geometry,material))
+      return {asset:{id,scene:model,animations:[],triangleCount:12,gpuBytes:0,metadata:describeCinema2LoadedModel(model)},material,texture,release:vi.fn(()=>{geometry.dispose();material.dispose();texture.dispose()})}
+    }
+    const old=makeLease(v1,0x123456), next=makeLease(v2,0xabcdef), again=makeLease(v1,0x123456)
+    let resolveOld!:(lease:Cinema2UserModelLease)=>void
+    const authorize=vi.fn().mockResolvedValue({}), acquire=vi.fn().mockImplementationOnce(()=>new Promise(resolve=>{resolveOld=resolve})).mockResolvedValueOnce(next).mockResolvedValueOnce(again)
+    const cache={acquire,resolver:{authorize}} as unknown as Cinema2UserModelCache
+    let attached:THREE.Object3D|null=null
+    const slot=new Cinema2UserModelSlot(lib,asset=>{
+      if(attached){scene.detachModel(attached);root.remove(attached);attached=null}
+      if(asset){attached=asset.scene;root.add(attached);scene.attachModel(attached)}
+    },cache,()=>()=>{})
+    const flush=async()=>{for(let i=0;i<12;i++)await Promise.resolve()}
+    apply();const pose=tool.position.clone();expect(native.visible).toBe(true)
+    slot.select(v1);slot.select(v2);await flush();resolveOld(old);await flush();apply()
+    expect(old.release).toHaveBeenCalledOnce();expect(root.children).not.toContain(old.asset.scene)
+    expect(root.children).toContain(next.asset.scene);expect(native.visible).toBe(false)
+    expect(next.material.color.getHex()).toBe(0xabcdef);expect(next.material.map).toBe(next.texture)
+    expect(next.material.opacity).toBe(.65);expect(next.material.clearcoat).toBe(.4)
+    slot.revalidate();await flush();expect(acquire).toHaveBeenCalledTimes(2)
+    expect(authorize).toHaveBeenCalledWith({kind:'user-model',modelAssetId:modelId,version:2},expect.any(AbortSignal))
+    slot.select('default-model');apply();expect(next.release).toHaveBeenCalledOnce();expect(native.visible).toBe(true)
+    slot.select(v1);await flush();apply();expect(native.visible).toBe(false);expect(root.children).toContain(again.asset.scene)
+    const missing=classifyCinema2UserModelError(new ModelAssetError('authorization','No rows',undefined,{code:'PGRST116'}))
+    expect(missing).toBeInstanceOf(Cinema2UserModelError);expect(missing.status).toBe('missing')
+    authorize.mockRejectedValueOnce(missing)
+    slot.revalidate();await flush();apply()
+    expect(slot.getSnapshot()).toMatchObject({binding:v1,status:'missing'});expect(again.release).toHaveBeenCalledOnce()
+    expect(native.visible).toBe(true);expect(root.children).not.toContain(again.asset.scene);expect(tool.position.distanceTo(pose)).toBeLessThan(1e-6)
+    slot.dispose();scene.dispose()
   })
   it('has six distinct poses, a bounded release and a hard motion lock',()=>{
     const signatures=COLOSSUS_PATTERNS.map(({value})=>JSON.stringify([0,1,2,3].map(i=>colossusArmPose(i,{...input,pattern:value}))))

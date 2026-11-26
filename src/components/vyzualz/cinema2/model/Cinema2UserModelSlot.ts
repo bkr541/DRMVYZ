@@ -18,6 +18,7 @@ export function subscribeCinema2ModelAccount(listener: () => void): () => void {
 /** One scene slot. Attachment is synchronous; release follows bridge removal, never precedes it. */
 export class Cinema2UserModelSlot {
   private controller: AbortController | null = null
+  private validation: AbortController | null = null
   private lease: Cinema2UserModelLease | null = null
   private generation = 0
   private disposed = false
@@ -31,7 +32,7 @@ export class Cinema2UserModelSlot {
   getSnapshot(): Cinema2UserModelSlotSnapshot { return this.snapshot }
   select(value: unknown, force = false): void {
     if (this.disposed || (!force && value === this.snapshot.binding)) return
-    this.controller?.abort(); const token = ++this.generation
+    this.validation?.abort(); this.controller?.abort(); const token = ++this.generation
     const binding = typeof value === 'string' ? value : ''
     this.clear()
     try {
@@ -51,7 +52,30 @@ export class Cinema2UserModelSlot {
       })
     } catch (error) { this.clear(); const problem = classifyCinema2UserModelError(error); this.snapshot = { binding, status: problem.status, message: problem.message } }
   }
+  /** Reauthorize the exact pinned version after a local library mutation, without
+   * reloading a still-valid mesh or advancing to the latest version. */
+  revalidate(): void {
+    if (this.disposed || this.snapshot.binding === DEFAULT_MODEL_BINDING) return
+    let parsed: ReturnType<typeof parseUserModelBinding>
+    try { parsed = parseUserModelBinding(this.snapshot.binding) } catch { return }
+    if (parsed.kind !== 'user-model') return
+    this.validation?.abort()
+    const validation = this.validation = new AbortController(), token = this.generation
+    const current = () => !this.disposed && !validation.signal.aborted && token === this.generation
+    void this.cache.resolver.authorize(parsed, validation.signal).then(() => {
+      if (!current()) return
+      if (this.snapshot.status === 'missing' || this.snapshot.status === 'unauthorized') this.select(this.snapshot.binding, true)
+    }).catch(error => {
+      if (!current()) return
+      const problem = classifyCinema2UserModelError(error)
+      // A transient metadata/network failure is not evidence that an already
+      // authorized model was deleted. Confirmed missing/denied content is removed.
+      if (problem.status !== 'missing' && problem.status !== 'unauthorized') return
+      this.generation++; this.controller?.abort(); this.clear()
+      this.snapshot = { binding: this.snapshot.binding, status: problem.status, message: problem.message }
+    })
+  }
   private clear(): void { this.attach(null); const previous = this.lease; this.lease = null; previous?.release() }
-  stop(): void { if (this.disposed) return; this.disposed = true; this.generation++; this.controller?.abort(); this.unsubscribe() }
+  stop(): void { if (this.disposed) return; this.disposed = true; this.generation++; this.validation?.abort(); this.controller?.abort(); this.unsubscribe() }
   dispose(): void { this.stop(); this.lease?.release(); this.lease = null }
 }

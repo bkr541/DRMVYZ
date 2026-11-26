@@ -1,3 +1,4 @@
+import { useModelEditorStore } from '../../../../features/models/state/modelEditorStore'
 import { Cinema2UserModelSlot } from '../model/Cinema2UserModelSlot'
 import type { Cinema2ModuleCreateContext, Cinema2ModuleDiagnostic, Cinema2ModuleTypeDefinition, Cinema2ModuleUpdateContext } from './Cinema2ModuleContracts'
 import { loadCinema2ThreeLibrary, type Cinema2ThreeLibrary } from './three/Cinema2ThreeLibrary'
@@ -12,9 +13,14 @@ export const cinema2ColossusNativeModuleDefinition:Readonly<Cinema2ModuleTypeDef
   create(context:Cinema2ModuleCreateContext){
     const performance=new ColossusPerformance(i=>context.randomness.sample('colossus-pattern-order',i));let library:Cinema2ThreeLibrary|null=null,scene:ColossusScene|null=null,bridge:Cinema2ThreeSceneBridge|null=null,slot:Cinema2UserModelSlot|null=null
     let starting=false,disposed=false,reported=-1
+    // Library edits/deletions may happen while this preset remains active. Keep
+    // the pinned hero valid without resetting its choreography or scene.
+    const unsubscribeLibrary=useModelEditorStore.subscribe((next,previous)=>{
+      if(next.libraryRevision!==previous.libraryRevision)slot?.revalidate()
+    })
     const diagnostics:Cinema2ModuleDiagnostic[]=[]
     const report=(error:unknown)=>diagnostics.push({code:'CINEMA2_COLOSSUS_FAILED',message:error instanceof Error?error.message:String(error),path:'$.modules'})
-    return {lifecycle:{update(update:Cinema2ModuleUpdateContext){performance.update(update);slot?.select(performance.model)},dispose(){disposed=true;slot?.stop()}},render:{providers:[{id:`${context.module.id}:bay`,moduleId:context.module.id,intent:'world' as const,execute(execution){
+    return {lifecycle:{update(update:Cinema2ModuleUpdateContext){performance.update(update);slot?.select(performance.model)},dispose(){disposed=true;unsubscribeLibrary();slot?.stop()}},render:{providers:[{id:`${context.module.id}:bay`,moduleId:context.module.id,intent:'world' as const,execute(execution){
       if(disposed||diagnostics.length)return
       if(!starting){starting=true;void loadCinema2ThreeLibrary().then(value=>{if(!disposed)library=value}).catch(e=>{if(!disposed)report(e)})}
       if(library&&!bridge){const lib=library,root=new lib.THREE.Group();try{

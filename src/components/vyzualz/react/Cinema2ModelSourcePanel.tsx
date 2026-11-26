@@ -3,6 +3,8 @@ import type { Cinema2ParameterId, Cinema2NativePresetManifest } from '../cinema2
 import { isCinema2UserModelPreview } from '../cinema2/model/Cinema2UserModelPreviewPatterns'
 import { DEFAULT_MODEL_BINDING, parseUserModelBinding, serializeUserModelBinding } from '../cinema2/model/Cinema2ModelBinding'
 import type { Cinema2Runtime } from '../cinema2/runtime/Cinema2Runtime'
+import { useModelEditorStore } from '../../../features/models/state/modelEditorStore'
+import { useMediaStore } from '../../../stores/mediaStore'
 import { modelAssetRepository } from '../../../features/models/data/modelAssetRepository'
 import type { ModelAsset } from '../../../features/models/domain/modelAssetTypes'
 import { notify } from '../../../stores/notificationStore'
@@ -26,7 +28,7 @@ export function findCinema2UserModelParameter(manifest: Readonly<Cinema2NativePr
 /** Presets whose model slot is part of the preset itself: the model is chosen from the library and replaced by choosing another, with no "Remove model" or media shortcuts. */
 const PRESETS_WITH_A_FIXED_MODEL_SLOT: ReadonlySet<string> = new Set(['drmvyz.cinema2.crate-bass-sigil', 'drmvyz.cinema2.chamber'])
 
-interface PinnedModel { asset: ModelAsset; version: number }
+interface PinnedModel { asset: ModelAsset; version: number; lookupKey: string }
 
 /**
  * The Source tab for a preset with a model slot: the user's saved 3D models, picked the way the Canvas Engine picks media. Choosing a model pins its
@@ -35,37 +37,44 @@ interface PinnedModel { asset: ModelAsset; version: number }
 export function Cinema2ModelSourcePanel({ runtime, parameterId }: { runtime: Cinema2Runtime; parameterId: Cinema2ParameterId; onOpenMediaManager?: () => void }) {
   const presetId = runtime.getCompiledPresetPlan().presetId, previewPrefix = 'drmvyz.cinema2.user-model-'
   const showSelectionControls = !PRESETS_WITH_A_FIXED_MODEL_SLOT.has(presetId) && !(presetId.startsWith(previewPrefix) && isCinema2UserModelPreview(presetId.slice(previewPrefix.length)))
+  const libraryRevision = useModelEditorStore(s => s.libraryRevision)
+  const accountId = useMediaStore(s => s.accountId)
   const state = runtime.getParameterState()
   const value = useSyncExternalStore(state.subscribe, () => state.getValue(parameterId), () => DEFAULT_MODEL_BINDING)
   const [search, setSearch] = useState(''), [view, setView] = useState<LibraryView>('grid')
   const [thumbnail, setThumbnail] = useState<string | null>(null)
-  const [pinned, setPinned] = useState<PinnedModel | null>(null), [pinnedProblem, setPinnedProblem] = useState<string | null>(null)
+  const [pinned, setPinned] = useState<PinnedModel | null>(null), [problem, setProblem] = useState<{ lookupKey: string; message: string } | null>(null)
 
   let binding: ReturnType<typeof parseUserModelBinding> | null = null
   try { binding = parseUserModelBinding(value) } catch { binding = null }
   const pinnedId = binding?.kind === 'user-model' ? binding.modelAssetId : null, pinnedVersion = binding?.kind === 'user-model' ? binding.version : 0
 
+  const lookupKey = JSON.stringify([accountId, libraryRevision, parameterId, pinnedId, pinnedVersion])
+  const pinnedProblem = problem?.lookupKey === lookupKey ? problem.message : null
+
   // Which model is pinned, and whether a newer version of it exists.
   useEffect(() => {
-    let active = true; setPinned(null); setPinnedProblem(null); setThumbnail(null)
+    let active = true; setPinned(null); setProblem(null); setThumbnail(null)
     if (!pinnedId) return
-    void modelAssetRepository.get(pinnedId).then(asset => {
+    void modelAssetRepository.get(pinnedId).then(async asset => {
       if (!active) return
-      if (asset.status !== 'ready') setPinnedProblem('This model was deleted or is unavailable.')
+      if (asset.status !== 'ready') setProblem({ lookupKey, message: 'This model was deleted or is unavailable.' })
       else {
-        setPinned({ asset, version: pinnedVersion })
-        void modelAssetRepository.getVersion(pinnedId, pinnedVersion).catch(error => { if (active) setPinnedProblem(error instanceof Error ? error.message : 'Pinned version unavailable.') })
+        // Validate the immutable version before advertising a preview or update action.
+        await modelAssetRepository.getVersion(pinnedId, pinnedVersion)
+        if (!active) return
+        setPinned({ asset, version: pinnedVersion, lookupKey })
         void modelAssetRepository.signedUrl(pinnedId, pinnedVersion, 'thumbnailPath').then(result => { if (active) setThumbnail(result.url) }).catch(() => {})
       }
-    }).catch(error => { if (active) setPinnedProblem(error instanceof Error ? error.message : 'The selected model is unavailable.') })
+    }).catch(error => { if (active) setProblem({ lookupKey, message: `The selected model or pinned version is unavailable.${error instanceof Error ? ` ${error.message}` : ''}` }) })
     return () => { active = false }
-  }, [runtime, parameterId, pinnedId, pinnedVersion])
+  }, [runtime, pinnedId, pinnedVersion, lookupKey])
 
   const pin = (asset: ModelAsset) => {
     if (asset.status !== 'ready' || asset.currentVersion < 1) { notify('react', { tone: 'error', title: 'Model unavailable', message: `${asset.name} has no saved version to use.` }); return }
     state.setPersistentValue(parameterId, serializeUserModelBinding({ kind: 'user-model', modelAssetId: asset.id, version: asset.currentVersion }))
   }
-  const currentPinned = pinned?.asset.id === pinnedId && pinned.version === pinnedVersion ? pinned : null
+  const currentPinned = pinned?.lookupKey === lookupKey && pinned.asset.id === pinnedId && pinned.version === pinnedVersion ? pinned : null
   const newer = currentPinned && currentPinned.asset.currentVersion > currentPinned.version ? currentPinned.asset : null
   const library = useRef<HTMLDivElement>(null)
   const replace = () => queueMicrotask(() => (library.current?.querySelector<HTMLElement>('input') ?? library.current?.querySelector<HTMLElement>('button'))?.focus())
@@ -74,14 +83,14 @@ export function Cinema2ModelSourcePanel({ runtime, parameterId }: { runtime: Cin
     <div className="rv-canvas-engine-panel" data-cinema2-model-source="slot">
       <Cinema2ActiveSource name={currentPinned ? `${currentPinned.asset.name} · v${pinnedVersion}` : pinnedId ? `Pinned model · v${pinnedVersion}` : 'Built-in model'}
         type={pinnedId ? '3D model' : 'Built-in content'} preview={<Cinema2SourceThumbnail url={currentPinned ? thumbnail : null} />}
-        status={pinnedId && !currentPinned && !pinnedProblem ? 'Loading model…' : !pinnedId ? 'Pick one of your 3D models to replace the built-in content.' : newer ? 'A newer version is available' : undefined}
+        status={pinnedProblem && presetId === 'drmvyz.cinema2.colossus' && pinnedId ? 'The built-in content is used when the pinned model cannot load.' : pinnedId && !currentPinned && !pinnedProblem ? 'Loading model…' : !pinnedId ? 'Pick one of your 3D models to replace the built-in content.' : newer ? 'A newer version is available' : undefined}
         error={pinnedProblem} actions={[
           { id: 'replace', label: pinnedId ? 'Replace model' : 'Choose model', onSelect: replace },
           ...(newer ? [{ id: 'update', label: `Use v${newer.currentVersion}`, onSelect: () => pin(newer) }] : []),
           ...(showSelectionControls && pinnedId ? [{ id: 'remove', label: 'Remove model / Restore built-in', onSelect: () => state.setPersistentValue(parameterId, DEFAULT_MODEL_BINDING) }] : []),
         ]} />
       {pinnedId && <Collapsible label="Model versions and details" defaultOpen={false}>
-        <Cinema2ModelSelector key={pinnedId} id={`cinema2-source-${parameterId}`} label="Saved model version" value={value} disabled={false} versionsOnly
+        <Cinema2ModelSelector key={`${accountId}:${pinnedId}:${libraryRevision}`} id={`cinema2-source-${parameterId}`} label="Saved model version" value={value} disabled={false} versionsOnly
           onChange={next => {
             if (state.getValue(parameterId) !== value) return
             state.setPersistentValue(parameterId, next)

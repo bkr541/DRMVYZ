@@ -106,6 +106,11 @@ export class Cinema2UserModelResolver {
 }
 export function classifyCinema2UserModelError(error: unknown): Cinema2UserModelError {
   if (error instanceof Cinema2UserModelError) return error
-  if (error instanceof ModelAssetError) return new Cinema2UserModelError(error.kind === 'authorization' ? 'unauthorized' : 'error', error.message)
+  if (error instanceof ModelAssetError) {
+    // Supabase single-row queries return PGRST116 for a missing (or RLS-hidden) row.
+    const cause = error.cause as { code?: string } | undefined
+    if (cause?.code === 'PGRST116') return new Cinema2UserModelError('missing', 'The selected model or pinned version is unavailable or deleted.')
+    return new Cinema2UserModelError(error.kind === 'authorization' ? 'unauthorized' : 'error', error.message)
+  }
   return new Cinema2UserModelError('error', error instanceof Error ? error.message : 'Model loading failed.')
 }
