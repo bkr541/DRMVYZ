@@ -608,6 +608,8 @@ export interface MediaLibraryBrowserProps {
   onSelect?: (id: string) => void
   /** Opt-in preset-specific source exclusivity; all other consumers retain the default. */
   onActivatePool?: (id: string | null) => void
+  /** Explicit null overrides the Canvas selection for preset-owned pools. */
+  activePoolId?: string | null
   /** Optional card-click interception for anchored action menus. When supplied,
    * it replaces immediate selection without changing the default behavior of
    * other MediaLibraryBrowser consumers. */
@@ -652,6 +654,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
   activeModelId = null, onSelectModel, onSelectBuiltinModel,
   onSelect,
   onActivatePool,
+  activePoolId,
   onCardActionRequest,
   onOpenMediaManager,
   onOpenLyricManager,
@@ -1549,7 +1552,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
 
   const renderPoolActiveToggle = (poolId: string, poolName: string) => {
     if (!isCanvasMode) return undefined
-    const active = poolId === activeMediaPoolId
+    const active = poolId === (activePoolId === undefined ? activeMediaPoolId : activePoolId)
     return (
       <button
         type="button"

@@ -23891,3 +23891,12 @@ button.llhr-chip { cursor: pointer; }
 
 /* Keep authored audio route summaries compact without changing shared header typography. */
 .rv-cinema2-mapping-summary { display: block; max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Cinema 2.0 Source rail: shared active media/model/pool card. */
+.rv-cinema2-active-source { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.rv-cinema2-active-source-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.rv-cinema2-active-source-preview { width: 44px; height: 44px; flex: 0 0 44px; display: grid; place-items: center; overflow: hidden; border: 1px solid rgba(255,255,255,.10); border-radius: 4px; color: rgba(232,244,248,.58); background: rgba(0,0,0,.22); }
+.rv-cinema2-active-source-preview img { width: 100%; height: 100%; object-fit: contain; }
+.rv-cinema2-active-source-copy { display: flex; flex: 1; flex-direction: column; min-width: 0; gap: 3px; }
+.rv-cinema2-active-source-copy strong, .rv-cinema2-active-source-copy span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rv-cinema2-active-source-copy span { color: rgba(232,244,248,.55); }

@@ -41,7 +41,7 @@ beforeEach(() => {
 afterEach(() => { act(() => root.unmount()); container.remove() })
 
 async function pick() {
-  const runtime = { getMediaSlotRuntime: () => mediaRuntime } as never
+  const runtime = { getMediaSlotRuntime: () => mediaRuntime, getCompiledPresetPlan: () => ({ presetId: "test" }), getMediaSlotRuntimeSnapshot: () => snapshot, serializeParameterState: () => "{}" } as never
   await act(async () => { root.render(<Cinema2MediaSourcePanel runtime={runtime} />) })
   await act(async () => { container.querySelector<HTMLButtonElement>('[data-testid="pick"]')!.click(); await Promise.resolve(); await Promise.resolve() })
 }

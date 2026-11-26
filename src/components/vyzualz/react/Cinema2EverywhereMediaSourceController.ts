@@ -1,6 +1,12 @@
 import { useReactStore } from '../../../stores/reactStore'
 import type { Cinema2Runtime } from '../cinema2/runtime/Cinema2Runtime'
+import { captureCinema2WorkspacePresetState } from '../cinema2/runtime/Cinema2WorkspaceSession'
+import type { Cinema2MediaSlotId, Cinema2PresetId } from '../cinema2/contracts/Cinema2NativePresetManifest'
 import { CINEMA2_EVERYWHERE_MEDIA_SLOT } from '../cinema2/presets/Cinema2EverywherePreset'
+
+export function getCinema2PresetPoolId(state: ReturnType<typeof useReactStore.getState>, presetId: Cinema2PresetId | undefined): string | null {
+  return state.cinema2Workspace.presets.find(preset => preset.presetId === presetId)?.poolId ?? null
+}
 
 const generations = new WeakMap<Cinema2Runtime, number>()
 export function beginEverywhereMediaRequest(runtime: Cinema2Runtime) {
@@ -16,21 +22,27 @@ export function clearEverywhereIndividualMedia(runtime: Cinema2Runtime) {
   const slots=runtime.getMediaSlotRuntime()
   if(slots.getSlotSnapshot(CINEMA2_EVERYWHERE_MEDIA_SLOT)?.source) slots.remove(CINEMA2_EVERYWHERE_MEDIA_SLOT)
 }
+/** Persist only the selection, not a second copy of the pool library. */
+export function setCinema2PoolSelection(runtime: Cinema2Runtime, poolId: string | null) {
+  const store = useReactStore.getState()
+  if (poolId !== null && !store.canvasOrchestrationSettings.mediaPools.some(pool => pool.id === poolId)) return
+  store.storeCinema2WorkspacePresetState({ ...captureCinema2WorkspacePresetState(runtime), poolId })
+}
+export function resetCinema2Media(runtime: Cinema2Runtime, slotId: Cinema2MediaSlotId, supportsPool: boolean) {
+  beginEverywhereMediaRequest(runtime)
+  runtime.getMediaSlotRuntime().remove(slotId)
+  if (supportsPool) setCinema2PoolSelection(runtime, null)
+  else useReactStore.getState().storeCinema2WorkspacePresetState(captureCinema2WorkspacePresetState(runtime))
+}
+export function activateCinema2Pool(runtime: Cinema2Runtime, slotId: Cinema2MediaSlotId, poolId: string | null) {
+  if (poolId !== null && !useReactStore.getState().canvasOrchestrationSettings.mediaPools.some(pool => pool.id === poolId)) return
+  beginEverywhereMediaRequest(runtime)
+  runtime.getMediaSlotRuntime().remove(slotId)
+  setCinema2PoolSelection(runtime, poolId)
+}
 export function resetEverywhereMedia(runtime: Cinema2Runtime) {
-  clearEverywhereIndividualMedia(runtime)
-  useReactStore.getState().setActiveCanvasMediaPool(null)
+  resetCinema2Media(runtime, CINEMA2_EVERYWHERE_MEDIA_SLOT, true)
 }
-export function activateEverywherePool(runtime: Cinema2Runtime, poolId: string|null) {
-  if(poolId!==null && !useReactStore.getState().canvasOrchestrationSettings.mediaPools.some(pool=>pool.id===poolId)) return
-  clearEverywhereIndividualMedia(runtime)
-  useReactStore.getState().setActiveCanvasMediaPool(poolId)
-}
-/** Stage lifetime, not Source-tab lifetime. Covers external pool changes too. */
-export function observeEverywherePool(runtime: Cinema2Runtime) {
-  if(useReactStore.getState().canvasOrchestrationSettings.activeMediaPoolId) clearEverywhereIndividualMedia(runtime)
-  const unsubscribe=useReactStore.subscribe((state,previous)=>{
-    const next=state.canvasOrchestrationSettings.activeMediaPoolId
-    if(next && next!==previous.canvasOrchestrationSettings.activeMediaPoolId) clearEverywhereIndividualMedia(runtime)
-  })
-  return ()=>{unsubscribe();beginEverywhereMediaRequest(runtime)}
+export function activateEverywherePool(runtime: Cinema2Runtime, poolId: string | null) {
+  activateCinema2Pool(runtime, CINEMA2_EVERYWHERE_MEDIA_SLOT, poolId)
 }

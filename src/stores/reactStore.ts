@@ -1,3 +1,4 @@
+import { migrateCinema2LegacyPoolSelection } from '../components/vyzualz/cinema2/runtime/Cinema2WorkspacePersistence'
 import { isNativePadDestination, activateNativePadDestination } from '../components/vyzualz/react/performancePadDestinations'
 import { blockTextSceneNavigation, requestTextSceneNavigation } from '../features/cinema2Text/textSceneNavigation'
 import { create } from 'zustand'
@@ -4173,7 +4174,8 @@ function retireLegacyReactEngineState(
   input: Record<string, unknown>,
   originalSelection: Cinema2LegacySelectionMigration | null = null,
 ): Record<string, unknown> {
-  const workspace = normalizeCinema2WorkspaceDocument(input.cinema2Workspace)
+  const workspace = migrateCinema2LegacyPoolSelection(normalizeCinema2WorkspaceDocument(input.cinema2Workspace),
+    normalizeCanvasOrchestrationSettings(input.canvasOrchestrationSettings).activeMediaPoolId)
   const selection = migrateLegacyReactSelectionToCinema2({
     workspace,
     engineId: input.activeReactEngineId,

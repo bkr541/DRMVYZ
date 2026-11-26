@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import { CINEMA2_EVERYWHERE_PRESET_ID } from '../presets/Cinema2EverywherePreset'
+import { CINEMA2_CORRIDOR_PRESET_ID } from '../presets/Cinema2CorridorPreset'
 import {
   CINEMA2_REACTOR_CORE_SIZE_ID,
   CINEMA2_REACTOR_PRESET_ID,
@@ -37,6 +39,21 @@ const MEDIA_ASSIGNMENT = Object.freeze({
 })
 
 describe('Cinema 2.0 durable workspace state', () => {
+  it('keeps pool choice scoped to its preset across switching, retirement and reload', () => {
+    const first = activateCinema2Workspace(createEmptyCinema2WorkspaceDocument(), { presetId: CINEMA2_EVERYWHERE_PRESET_ID })
+    if (!first.ok) throw new Error('Could not activate Everywhere')
+    const saved = storeCinema2WorkspacePresetState(first.document, { ...first.state, poolId: 'pool-one' })
+    const second = activateCinema2Workspace(saved, { presetId: CINEMA2_CORRIDOR_PRESET_ID })
+    if (!second.ok) throw new Error('Could not activate Corridor')
+    expect(second.state.poolId).toBeNull()
+    const retired = storeCinema2WorkspacePresetState(second.document, { presetId: first.state.presetId, serializedParameterState: first.state.serializedParameterState, mediaSlots: [] })
+    const reloaded = parseCinema2WorkspaceDocument(JSON.parse(JSON.stringify(retired)))
+    expect(getCinema2WorkspacePresetState(reloaded.value, CINEMA2_EVERYWHERE_PRESET_ID)?.poolId).toBe('pool-one')
+    expect(getCinema2WorkspacePresetState(reloaded.value, CINEMA2_CORRIDOR_PRESET_ID)?.poolId).toBeNull()
+    const reset = storeCinema2WorkspacePresetState(reloaded.value, { ...first.state, poolId: null })
+    expect(getCinema2WorkspacePresetState(reset, CINEMA2_EVERYWHERE_PRESET_ID)?.poolId).toBeNull()
+  })
+
   it('accepts every mapped Phase 1 migration destination through the activation contract', () => {
     for (const migration of CINEMA2_LEGACY_SOURCE_MIGRATIONS) {
       if (migration.disposition !== 'migrate') continue

@@ -2,19 +2,26 @@ import { useMediaStore } from '../../../stores/mediaStore'
 import { useReactStore } from '../../../stores/reactStore'
 import type { Cinema2MediaPoolSource } from '../cinema2/media/Cinema2MediaPoolSource'
 import { cinema2MediaSourceFromLibraryItem, getCinema2MediaDisabledReason } from './Cinema2MediaSourcePanel'
+import { cinema2NativePresetRegistry } from '../cinema2/presets/Cinema2PresetRegistry'
+import { cinema2SlotSupportsPool } from '../cinema2/media/Cinema2SourceCapabilities'
+import { isUnifiedSvgMediaItem } from './svgSourceLifecycle'
 
-const ACCEPTS = ['image', 'video', 'svg'] as const
+import type { Cinema2PresetId } from '../cinema2/contracts/Cinema2NativePresetManifest'
 
-/** The same named pool and activation state used by CANVAS and Media Manager.
+import { getCinema2PresetPoolId } from './Cinema2EverywhereMediaSourceController'
+
+/** The same named pool library used by CANVAS and Media Manager; selection is preset-owned.
  * Signing occurs only for selected feeds, not for every cabinet or frame. */
-export function createCinema2WorkspaceMediaPoolSource(): Cinema2MediaPoolSource {
+export function createCinema2WorkspaceMediaPoolSource(presetId?: Cinema2PresetId): Cinema2MediaPoolSource {
+  const compiled = presetId ? cinema2NativePresetRegistry.compile(presetId) : null
+  const accepts = compiled?.ok ? compiled.plan.manifest.mediaSlots?.find(slot => cinema2SlotSupportsPool(slot.id))?.accepts ?? [] : []
   let previousPool: unknown
   let previousItems: unknown
   let cached: ReturnType<Cinema2MediaPoolSource['getSelection']> = null
   return {
     getSelection() {
-      const { mediaPools, activeMediaPoolId } = useReactStore.getState().canvasOrchestrationSettings
-      const pool = mediaPools.find(candidate => candidate.id === activeMediaPoolId)
+      const state = useReactStore.getState()
+      const pool = state.canvasOrchestrationSettings.mediaPools.find(candidate => candidate.id === getCinema2PresetPoolId(state, presetId))
       const items = useMediaStore.getState().items
       if (pool === previousPool && items === previousItems) return cached
       previousPool = pool; previousItems = items
@@ -24,13 +31,13 @@ export function createCinema2WorkspaceMediaPoolSource(): Cinema2MediaPoolSource 
         const item = byId.get(id)
         // A stored asset may not have its signed URL yet. Resolve it on demand.
         return !!item && !item.uploading && item.lifecycleStatus !== 'deletion_pending'
-          && (item.type === 'image' || item.type === 'video')
+          && accepts.includes(isUnifiedSvgMediaItem(item) ? 'svg' : item.type)
       }) })
     },
     async resolve(mediaId) {
       await useMediaStore.getState().ensureMediaSigned([mediaId], 'visible')
       const item = useMediaStore.getState().items.find(candidate => candidate.id === mediaId)
-      return item && !getCinema2MediaDisabledReason(item, ACCEPTS) ? cinema2MediaSourceFromLibraryItem(item) : null
+      return item && !getCinema2MediaDisabledReason(item, accepts) ? cinema2MediaSourceFromLibraryItem(item) : null
     },
   }
 }

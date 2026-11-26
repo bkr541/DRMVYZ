@@ -1,3 +1,4 @@
+import { cinema2SlotSupportsPool } from '../media/Cinema2SourceCapabilities'
 import type {
   Cinema2JsonValue,
   Cinema2MediaSlotId,
@@ -211,9 +212,20 @@ export function storeCinema2WorkspacePresetState(
   state: Readonly<Cinema2WorkspacePresetState>,
 ): Readonly<Cinema2WorkspaceDocument> {
   const current = getCinema2WorkspacePresetState(document, state.presetId)
-  const parsed = parsePresetState({ ...state, lookId: current?.lookId ?? null }, cinema2NativePresetRegistry, '$.preset')
+  const parsed = parsePresetState({ ...state, poolId: state.poolId === undefined ? current?.poolId : state.poolId, lookId: current?.lookId ?? null }, cinema2NativePresetRegistry, '$.preset')
   if (!parsed.value) return document
   return replacePreset(document, parsed.value, false)
+}
+
+/** Legacy workspaces had a single Canvas pool pointer. Preserve it for the saved
+ * active Cinema preset only, never inherit it when switching to a new preset. */
+export function migrateCinema2LegacyPoolSelection(document: Readonly<Cinema2WorkspaceDocument>, poolId: string | null): Readonly<Cinema2WorkspaceDocument> {
+  if (!document.activePresetId) return document
+  const current = getCinema2WorkspacePresetState(document, document.activePresetId)
+  if (!current || current.poolId !== undefined) return document
+  const compiled = cinema2NativePresetRegistry.compile(current.presetId)
+  if (!compiled.ok || !compiled.plan.manifest.mediaSlots?.some(slot => cinema2SlotSupportsPool(slot.id))) return document
+  return storeCinema2WorkspacePresetState(document, { ...current, poolId })
 }
 
 /** Stable future-facing entry point for migrations, pads, automation, and sections. */
@@ -253,6 +265,7 @@ export function activateCinema2Workspace(
     lookId: request.look === undefined ? existing?.lookId ?? null : request.look?.id ?? null,
     serializedParameterState: parameterState.serialize(),
     mediaSlots: mediaResult.mediaSlots,
+    ...(compiled.plan.manifest.mediaSlots?.some(slot => cinema2SlotSupportsPool(slot.id)) ? { poolId: existing?.poolId ?? null } : {}),
   })
   const nextDocument = replacePreset(document, nextState, true)
   return { ok: true, document: nextDocument, state: nextState, diagnostics: [] }
@@ -325,6 +338,7 @@ function parsePresetState(
       lookId: typeof input.lookId === 'string' && input.lookId.trim() ? input.lookId : null,
       serializedParameterState: parameterState.serialize(),
       mediaSlots: media.mediaSlots,
+      ...(compiled.plan.manifest.mediaSlots?.some(slot => cinema2SlotSupportsPool(slot.id)) && (input.poolId === null || typeof input.poolId === 'string' && input.poolId.trim()) ? { poolId: input.poolId as string | null } : {}),
     }),
     diagnostics,
   }

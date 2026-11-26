@@ -454,8 +454,8 @@ export function ReactEnginePanel({
         isCinema2TextPreset(cinema2Runtime?.getCompiledPresetPlan().presetId)
           ? <Cinema2TextLibraryPanel runtime={cinema2Runtime} />
           : cinema2Runtime && findCinema2UserModelParameter(cinema2Runtime.getCompiledPresetPlan().manifest)
-            ? <Cinema2ModelSourcePanel key={cinema2Runtime.getCompiledPresetPlan().presetId} runtime={cinema2Runtime} parameterId={findCinema2UserModelParameter(cinema2Runtime.getCompiledPresetPlan().manifest)!} onOpenMediaManager={onOpenMediaManager} />
-            : <Cinema2MediaSourcePanel runtime={cinema2Runtime} onOpenMediaManager={onOpenMediaManager} />
+            ? <Cinema2ModelSourcePanel key={cinema2Runtime.getCompiledPresetPlan().presetId} runtime={cinema2Runtime} parameterId={findCinema2UserModelParameter(cinema2Runtime.getCompiledPresetPlan().manifest)!} />
+            : <Cinema2MediaSourcePanel key={cinema2Runtime?.getCompiledPresetPlan().presetId} runtime={cinema2Runtime} />
       )}
 
       {/* Cinematic Worlds source selection lives in the left rail. */}

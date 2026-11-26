@@ -17,6 +17,8 @@ export interface Cinema2WorkspacePresetState {
   presetId: Cinema2PresetId
   serializedParameterState: string
   mediaSlots: readonly Readonly<Cinema2WorkspaceMediaSlotState>[]
+  /** Optional for older projects; explicit null means built-in or individual media. */
+  poolId?: string | null
 }
 
 export function captureCinema2WorkspacePresetState(
@@ -88,9 +90,9 @@ export async function restoreCinema2WorkspaceMedia(
   const mediaRuntime = runtime.getMediaSlotRuntime()
   const current = mediaRuntime.getSnapshot()
 
-  for (const saved of state.mediaSlots) {
+  await Promise.all(state.mediaSlots.map(async saved => {
     const slot = current.slots.find(candidate => candidate.id === saved.slotId)
-    if (!slot || !slot.accepts.includes(saved.source.kind)) continue
+    if (!slot || !slot.accepts.includes(saved.source.kind)) return
     await mediaRuntime.replace(saved.slotId, saved.source, saved.presentation)
-  }
+  }))
 }

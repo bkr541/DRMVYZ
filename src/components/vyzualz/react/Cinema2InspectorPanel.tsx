@@ -23,7 +23,7 @@ import { findCinema2PolicyControls, Cinema2LivePolicyProvider, Cinema2LiveValues
 import { PanelSubtabs } from './PanelSubtabs'
 import { ReactAudioPanel } from './ReactAudioPanel'
 import { useReactStore } from '../../../stores/reactStore'
-import { resetEverywhereMedia } from './Cinema2EverywhereMediaSourceController'
+import { getCinema2PresetPoolId } from './Cinema2EverywhereMediaSourceController'
 import { CINEMA2_EVERYWHERE_MEDIA_SLOT } from '../cinema2/presets/Cinema2EverywherePreset'
 
 export interface Cinema2InspectorPanelProps {
@@ -407,14 +407,13 @@ function EverywhereScreenMediaGroup({runtime,group,onChange,onTrigger}: {
   const slots=runtime.getMediaSlotRuntime()
   const snapshot=useSyncExternalStore(slots.subscribe,slots.getSnapshot)
   const slot=snapshot.slots.find(item=>item.id===CINEMA2_EVERYWHERE_MEDIA_SLOT)
-  const pool=useReactStore(state=>state.canvasOrchestrationSettings.mediaPools.find(item=>item.id===state.canvasOrchestrationSettings.activeMediaPoolId)??null)
+  const pool=useReactStore(state=>state.canvasOrchestrationSettings.mediaPools.find(item=>item.id===getCinema2PresetPoolId(state, runtime.getCompiledPresetPlan().presetId))??null)
   const custom=!!pool||!!slot?.source
   const controls=group.controls.filter(control=>control.definition.id!=='everywhere-screen-media' && custom && (control.definition.id!=='everywhere-pool-trigger'||!!pool))
   return <Collapsible label="Screen Media">
     <div className="rv-canvas-panel-status"><span>Content Source</span><strong>{pool ? 'Media Pool' : slot?.source ? 'Individual Media' : 'Default Eyes'}</strong></div>
     <div className="rv-ctrl-info">{pool ? `${pool.name} · ${pool.mediaIds.length} items` : slot?.source ? `${slot.source.label}${slot.status==='loading'?' · Loading…':''}` : 'Built-in animated eyes. Choose an image, SVG, video or pool in the Source tab.'}</div>
     {!pool && slot?.error && <div className="rv-ctrl-info" role="status">{slot.error}</div>}
-    {custom && <button type="button" className="vz-coll-active-btn" onClick={()=>resetEverywhereMedia(runtime)}>Reset to Default Eyes</button>}
     <Cinema2InspectorControls controls={controls} onChange={onChange} onTrigger={onTrigger}/>
   </Collapsible>
 }
