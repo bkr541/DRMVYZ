@@ -2,7 +2,7 @@ import {
   cinema2NamespacedId, cinema2Ref, cinema2StableId,
   type Cinema2ChoreographyActionId, type Cinema2ChoreographyContinuousSourcePath, type Cinema2ChoreographyRuleId,
   type Cinema2ChoreographyRuleManifest, type Cinema2Color, type Cinema2EffectId, type Cinema2NativePresetManifest,
-  type Cinema2ParameterId, type Cinema2ParameterManifest, type Cinema2PresetId,
+  type Cinema2ParameterId, type Cinema2ParameterManifest, type Cinema2PresetId, type Cinema2Vector3,
 } from '../contracts/Cinema2NativePresetManifest'
 import { CINEMA2_REFLECTIVE_FLOOR_EFFECT_TYPE_ID } from '../effects/Cinema2ReflectiveFloorEffect'
 import { CINEMA2_WET_CONCRETE_TEXTURE_ASSET_ID } from '../assets/Cinema2TextureAssetManifest'
@@ -36,7 +36,7 @@ const overrides: Record<string, Partial<Cinema2ParameterManifest>> = {
   'line-spacing': { defaultValue: 0.84 },
   'glyph-scale': { label: 'Letter Scale', defaultValue: 0.42 },
   motion: { defaultValue: 0.8, description: 'Scales LED sweep travel and musical accents. At zero the pattern holds a static pose.' },
-  'auto-performance': { defaultValue: false, description: 'Let the music choose LED accents, pattern timing and bloom. Follows the System Settings default.' },
+  'auto-performance': { defaultValue: false, description: 'Let the music choose LED accents, pattern timing, camera shots and bloom. Follows the System Settings default.' },
   'cycle-seconds': { label: 'Sweep Period', group: 'Lighting', defaultValue: 4, max: 12, description: 'How long the LED sweep takes at 120 BPM. BPM Sync follows the track tempo.' },
   roughness: { label: 'Letter Roughness', group: 'Lighting', defaultValue: 0.26 },
   pattern: { designParentGroup: 'design', defaultValue: 'trace', options: LIVEWIRE_PATTERNS, description: 'Select the arrangement and travel of the inset LED bars.' },
@@ -59,6 +59,20 @@ function slider(name: string, label: string, group: 'design' | 'effects', initia
 
 const bindings = Object.fromEntries(Object.entries(sourceModule.parameterBindings ?? {}).filter(([, binding]) => !removed.has(binding.$ref)))
 const active = ref('auto-performance')
+const cameraRef = cinema2Ref(template.cameras![0]!.id)
+const cameraPosition = { kind: 'camera' as const, ref: cameraRef, property: 'transform.position' }
+
+// The shared camera runtime applies the Camera Amount and Motion Safety permission
+// to ALL camera contributions. Do not also use strengthParameter (double scaling).
+function sectionShot(name: string, sections: readonly string[], offset: Cinema2Vector3): Cinema2ChoreographyRuleManifest {
+  return {
+    id: ruleId(name), priority: 110, enabledParameter: active,
+    // A constant weight, only while the shared Director reports this section.
+    source: { signal: 'continuous', path: 'director.intensity', capability: 'visual-director.significance', scale: 0, offset: 1 },
+    conditions: [{ kind: 'capability', capability: 'music.section' }, { kind: 'section-type', values: sections }],
+    actions: [{ id: actionId(name), target: cameraPosition, operation: 'add', value: offset }],
+  }
+}
 const target = (property: string) => ({ kind: 'module' as const, ref: cinema2Ref(sourceModule.id), property })
 const ruleId = (name: string) => cinema2StableId<Cinema2ChoreographyRuleId>(`livewire-${name}`)
 const actionId = (name: string) => cinema2StableId<Cinema2ChoreographyActionId>(`livewire-${name}`)
@@ -104,9 +118,17 @@ const manifest: Cinema2NativePresetManifest = {
     ...template.capabilities!.filter(capability => capability.id !== 'render.history'),
     { id: 'audio.features', requirement: 'optional', purpose: 'Energy spreads the illuminated regions and vocals soften the sweep.' },
     { id: 'audio.bands', requirement: 'optional', purpose: 'Bass expands coverage and highs accent nearby segments.' },
+    { id: 'music.section', requirement: 'optional', purpose: 'Shared section context selects the low reveal and release camera shots.' },
   ],
   parameters: [
     ...template.parameters!.filter(parameter => !removed.has(parameter.id)).map(parameter => ({ ...parameter, ...overrides[parameter.id.replace('livewire-', '')] }) as Cinema2ParameterManifest),
+    { id: id('camera-motion'), label: 'Camera Motion', type: 'boolean', defaultValue: true,
+      section: 'Design', designParentGroup: 'design', group: 'Camera', order: 20, exposure: 'primary', persistence: 'preset', reset: 'authored-default',
+      description: 'Enable the bounded camera drift and musical shots.', modulatable: false, choreographable: false },
+    { ...slider('camera-amount', 'Camera Amount', 'design', 0.85, 0, 1, 21, 'Scales camera travel and musical shots; zero locks the camera.'), group: 'Camera', modulatable: false, choreographable: false },
+    { ...template.parameters!.find(parameter => parameter.id === id('motion-safety'))!,
+      designParentGroup: 'design', group: 'Camera', order: 22,
+      description: 'Full allows bounded camera travel; Reduced limits it; Lock Off holds the framing.' },
     slider('coverage', 'LED Coverage', 'design', 0.45, 0.08, 1, 25, 'How many bars of the selected pattern can light at once.'),
     slider('intensity', 'LED Intensity', 'design', 1, 0, 1.6, 26, 'Emissive output of the inset bars.'),
     slider('floor-reflection', 'Floor Reflection', 'effects', 0.89, 0, 1, 1, 'Strength of the reflected letters on the floor.'),
@@ -131,8 +153,18 @@ const manifest: Cinema2NativePresetManifest = {
   },
   cameras: template.cameras!.map(camera => ({
     ...camera,
-    transform: { position: [0, 0.19, 6.55] },
-    safety: { ...camera.safety, minPosition: [-0.4, -0.1, 6.3], maxPosition: [0.4, 0.6, 7.2] },
+    // The production shared camera receives the exact live text bounds as its
+    // composition constraint. Retain a safe fallback aim for manifest-only use.
+    targetNode: undefined, target: [0, -0.50, 0],
+    transform: { position: [0, 0.19, 6.9] }, fovDegrees: 35.5, minAspect: 1.6,
+    motion: { tempo: { referenceBpm: 120, weave: 0.38, bob: 0, flightSpeed: true },
+      drift: { position: 0.24, target: 0, rollDegrees: 0, fovDegrees: 0, speed: 0.10, seed: 718 },
+      fovRateLimitDegreesPerSecond: 5 },
+    controls: { motionEnabled: ref('camera-motion'), masterMotionAmount: ref('camera-amount'),
+      motionSafety: ref('motion-safety'), tempoSync: ref('bpm-sync') },
+    smoothingMs: 420,
+    safety: { ...camera.safety, minPosition: [-0.82, -0.25, 6.35], maxPosition: [0.82, 0.79, 7.8],
+      maxPositionOffset: [0.82, 0.6, 0.9], maxTargetOffset: [0.24, 2, 0], minFovDegrees: 35.4, maxFovDegrees: 35.6 },
   })),
   lighting: { ...template.lighting, lights: template.lighting!.lights.map(light => {
     if (light.type === 'ambient') return { ...light, intensity: 0.028 }
@@ -156,6 +188,16 @@ const manifest: Cinema2NativePresetManifest = {
       continuous('buildAmount', 'director.build', 'visual-director.significance', 120),
       accent('kick', 'ledKick', 0.035, 0.24), accent('snare', 'ledSnare', 0.04, 0.21),
       accent('transient', 'ledTransient', 0.015, 0.16), accent('drop', 'dropAccent', 0.13, 1.22),
+      sectionShot('camera-intro', ['intro'], [-0.28, -0.46, 0.32]),
+      sectionShot('camera-release', ['breakdown', 'outro'], [0.23, 0.30, 0.72]),
+      { id: ruleId('camera-build'), priority: 120, enabledParameter: active,
+        source: { signal: 'continuous', path: 'director.build', capability: 'visual-director.significance', smoothingMs: 260, clamp: [0, 1] },
+        conditions: [{ kind: 'not-silent' }],
+        actions: [{ id: actionId('camera-build'), target: cameraPosition, operation: 'add', value: [0, 0.12, -0.38] }] },
+      { id: ruleId('camera-drop'), priority: 130, enabledParameter: active,
+        source: { signal: 'drop', capability: 'music.drop' }, conditions: [{ kind: 'once-per-event' }],
+        actions: [{ id: actionId('camera-drop'), target: cameraPosition, operation: 'envelope', composition: 'add',
+          value: [0.22, -0.18, -0.70], envelope: { attack: 0.18, hold: 0.40, release: 1.8, unit: 'seconds' }, retrigger: 'restart' }] },
     ],
   },
   effects: [

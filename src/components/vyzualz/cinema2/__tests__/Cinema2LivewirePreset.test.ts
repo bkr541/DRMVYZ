@@ -1,6 +1,15 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import * as THREE from 'three'
 import { setAutoPerformanceUserDefault } from '../../../../lib/autoPerformanceDefault'
+import { Cinema2AudioIntelligenceBridge } from '../audio/Cinema2AudioIntelligenceBridge'
+import { Cinema2ChoreographyRuntime } from '../choreography/Cinema2ChoreographyRuntime'
+import { Cinema2VisualDirector } from '../director/Cinema2VisualDirector'
+import { Cinema2FinalValueResolver } from '../parameters/Cinema2TargetRuntime'
+import { createLivewireCameraFraming } from '../modules/livewire/Cinema2LivewireCameraFraming'
+import { Cinema2CameraRuntime } from '../spatial/Cinema2CameraRuntime'
+import { Cinema2SpatialRuntime } from '../spatial/Cinema2SpatialRuntime'
+import type { Cinema2ModuleFrameReadContext } from '../modules/Cinema2ModuleContracts'
+import { nightshiftMusicFixture, type NightshiftFixtureOptions } from '../../../../test/support/NightshiftMusicFixture'
 import { Cinema2ParameterState } from '../parameters/Cinema2ParameterState'
 import { CINEMA2_AFTERHOURS_TRIGGER_OPTIONS } from '../presets/Cinema2AfterhoursPreset'
 import { CINEMA2_LIVEWIRE_PRESET_ID, CINEMA2_LIVEWIRE_PRESET_MANIFEST } from '../presets/Cinema2LivewirePreset'
@@ -62,5 +71,105 @@ describe('LIVEWIRE', () => {
     expect(shape[0]!.holes).toHaveLength(1)
     expect(THREE.ShapeUtils.isClockWise(shape[0]!.getPoints())).toBe(true)
     expect(THREE.ShapeUtils.isClockWise(shape[0]!.holes[0]!.getPoints())).toBe(false)
+  })
+})
+
+// Exercise the compiled LIVEWIRE plan, shared audio bridge, director, choreography
+// and final camera resolver. No hand-authored replacement camera in the test.
+function cameraRun(settings: Record<string, unknown>, music: Partial<NightshiftFixtureOptions> = {},
+  viewport = { width: 1280, height: 720, dpr: 1 }, pause = false) {
+  const compiled = cinema2NativePresetRegistry.compile(CINEMA2_LIVEWIRE_PRESET_ID)
+  if (!compiled.ok) throw new Error(JSON.stringify(compiled.diagnostics))
+  const plan = compiled.plan
+  const state = new Cinema2ParameterState(plan.parameters)
+  expect(state.setPersistentValues(Object.fromEntries(Object.entries(settings).map(([key, value]) => [`livewire-${key}`, value]))).ok).toBe(true)
+  const authored = state.serialize()
+  const resolver = new Cinema2FinalValueResolver(plan.targets, {
+    resolveBaseValue: target => target.parameterId == null ? target.authoredBaseValue : state.getValue(target.parameterId),
+  })
+  const spatial = new Cinema2SpatialRuntime(plan.scene, plan.targets.targets, resolver)
+  const camera = new Cinema2CameraRuntime(plan, state, resolver, spatial, createLivewireCameraFraming(state))
+  const choreography = new Cinema2ChoreographyRuntime(plan, state, resolver)
+  const director = new Cinema2VisualDirector()
+  let frameId = 0, time = 0
+  const bridge = new Cinema2AudioIntelligenceBridge({
+    getFrame: () => nightshiftMusicFixture({ ...music, frameId, timeSec: time, advanceBeatGrid: true }),
+    getPublicationMeta: () => ({ sequence: frameId, publisherId: 'livewire-camera-test', kind: 'frame', publishedAtMs: time * 1000 }),
+  })
+  const frames = []
+  for (let step = 0; step <= 120; step++) {
+    frameId++
+    const paused = pause && step > 60
+    time = (paused ? 60 : step) / 60
+    const audio = bridge.capture(frameId)
+    const frame: Cinema2ModuleFrameReadContext = {
+      frameId, timestampMs: step * 1000 / 60, elapsedTimeSec: time, deltaTimeSec: paused ? 0 : 1 / 60,
+      viewport, contextGeneration: 1, audio, director: director.capture(audio),
+      transport: { sourcePresent: true, playing: !paused, paused, analysisActive: true, animationActive: !paused, trackId: 'fixture', timeSec: time },
+    }
+    choreography.update(frame)
+    frames.push(camera.update(frame))
+  }
+  expect(state.serialize()).toBe(authored)
+  return frames
+}
+
+const travel = (frames: ReturnType<typeof cameraRun>) => Math.max(...frames.map(frame => frame.position[0])) - Math.min(...frames.map(frame => frame.position[0]))
+const last = (frames: ReturnType<typeof cameraRun>) => frames[frames.length - 1]!
+
+describe('LIVEWIRE shared camera authority', () => {
+  it('moves in manual playback, respects hard disable and reduced motion, and freezes on pause', () => {
+    const settings = { 'auto-performance': false, 'camera-amount': 1 }
+    const full = cameraRun(settings)
+    expect(travel(full)).toBeGreaterThan(0.25)
+    const off = cameraRun({ ...settings, 'camera-motion': false })
+    const zero = cameraRun({ ...settings, 'camera-amount': 0 })
+    const locked = cameraRun({ ...settings, 'motion-safety': 'lockoff' })
+    for (const frames of [off, zero, locked]) {
+      expect(travel(frames)).toBeCloseTo(0, 8)
+      expect(last(frames).position).toEqual([0, 0.19, 6.9])
+    }
+    const reduced = cameraRun({ ...settings, 'motion-safety': 'reduced' })
+    expect(travel(reduced)).toBeLessThan(travel(full) * 0.6)
+    const paused = cameraRun(settings, {}, undefined, true)
+    expect(last(paused).viewProjectionMatrix).toEqual(paused[60]!.viewProjectionMatrix)
+  })
+
+  it('uses distinct shared section and drop contributions without rewriting saved controls', () => {
+    const settings = { 'auto-performance': true, 'camera-amount': 1 }
+    const verse = last(cameraRun(settings, { sectionType: 'verse' }))
+    const intro = last(cameraRun(settings, { sectionType: 'intro' }))
+    const build = last(cameraRun(settings, { sectionType: 'build', build: 0.95 }))
+    const release = last(cameraRun(settings, { sectionType: 'breakdown' }))
+    expect(intro.position[1]).toBeLessThan(verse.position[1] - 0.25)
+    expect(build.position[2]).toBeLessThan(verse.position[2] - 0.1)
+    expect(release.position[2]).toBeGreaterThan(verse.position[2] + 0.4)
+    const drop = cameraRun(settings, { sectionType: 'verse', event: 'drop', eventId: 22, eventTime: 1 })
+    expect(drop[96]!.position[2]).toBeLessThan(cameraRun(settings)[96]!.position[2] - 0.15)
+    const manual = last(cameraRun({ ...settings, 'auto-performance': false }, { sectionType: 'intro' }))
+    expect(manual.position).toEqual(last(cameraRun({ ...settings, 'auto-performance': false }, { sectionType: 'verse' })).position)
+    const disabled = last(cameraRun({ ...settings, 'camera-motion': false }, { sectionType: 'breakdown' }))
+    expect(disabled.position).toEqual([0, 0.19, 6.9])
+  })
+
+  it('keeps the floor-anchored maximum text envelope inside both landscape and portrait projections', () => {
+    // Use the maximum-size requested two-line layout and the real framing bounds.
+    for (const viewport of [{ width: 1920, height: 1080, dpr: 1 }, { width: 540, height: 960, dpr: 1 }]) {
+      const settings = { 'auto-performance': true, 'camera-amount': 1, text: 'WWWWWWWWWWWW', 'line-2-text': 'WWWWWWWW', 'line-mode': 'two', 'glyph-scale': 1.5 }
+      const frames = cameraRun(settings, { sectionType: 'build', build: 0.95, event: 'drop', eventId: 23, eventTime: 1 }, viewport)
+      const compiled = cinema2NativePresetRegistry.compile(CINEMA2_LIVEWIRE_PRESET_ID)
+      if (!compiled.ok) throw new Error(JSON.stringify(compiled.diagnostics))
+      const state = new Cinema2ParameterState(compiled.plan.parameters)
+      expect(state.setPersistentValues(Object.fromEntries(Object.entries(settings).map(([key, value]) => [`livewire-${key}`, value]))).ok).toBe(true)
+      const bounds = createLivewireCameraFraming(state)()
+      for (const frame of frames) {
+        const matrix = new THREE.Matrix4().fromArray([...frame.viewProjectionMatrix])
+        for (const x of [bounds.min[0], bounds.max[0]]) for (const y of [bounds.min[1], bounds.max[1]]) for (const z of [bounds.min[2], bounds.max[2]]) {
+          const point = new THREE.Vector3(x, y, z).applyMatrix4(matrix)
+          expect(Math.abs(point.x)).toBeLessThan(0.98)
+          expect(Math.abs(point.y)).toBeLessThan(0.98)
+        }
+      }
+    }
   })
 })

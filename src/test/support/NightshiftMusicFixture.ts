@@ -1,11 +1,11 @@
 /** Deterministic test-only upstream publications. No production detector/clock. */
 import { DEFAULT_MI_FRAME } from '../../features/musicIntelligence/constants'
-import type { MusicIntelligenceFrame } from '../../features/musicIntelligence/types'
+import type { MusicIntelligenceFrame, MISection } from '../../features/musicIntelligence/types'
 
 export interface NightshiftFixtureOptions {
   timeSec: number; frameId: number; trackId?: string; energy?: number; bass?: number
   high?: number; vocal?: number; build?: number; beatIndex?: number; eventId?: number; bpm?: number
-  sectionIntensity?: number; sectionBuild?: boolean; sectionProgress?: number; spectralFlux?: number; tension?: number
+  sectionIntensity?: number; sectionType?: MISection['type']; sectionBuild?: boolean; sectionProgress?: number; spectralFlux?: number; tension?: number
   event?: 'beat' | 'kick' | 'snare' | 'downbeat' | 'bar' | 'phrase' | 'drop' | 'impact' | null
   eventTime?: number; featuresAvailable?: boolean
   advanceBeatGrid?: boolean
@@ -36,7 +36,7 @@ export function nightshiftMusicFixture(o: NightshiftFixtureOptions): MusicIntell
     analysisCapabilities: { ...DEFAULT_MI_FRAME.analysisCapabilities!, phraseHierarchy: enabled, semanticMoments: enabled },
     stems: { ...DEFAULT_MI_FRAME.stems, vocalActivity: o.vocal ?? 0 },
     semantics: { ...DEFAULT_MI_FRAME.semantics, buildConfidence: (o.build ?? 0) > 0 ? .95 : 0 },
-    section: { ...DEFAULT_MI_FRAME.section, type: (o.build ?? 0) > 0 || o.sectionBuild ? 'build' : 'verse', label: 'NIGHTSHIFT fixture',
+    section: { ...DEFAULT_MI_FRAME.section, type: o.sectionType ?? ((o.build ?? 0) > 0 || o.sectionBuild ? 'build' : 'verse'), label: 'NIGHTSHIFT fixture',
       startSec: 0, endSec: 1000, progress: o.sectionProgress ?? o.build ?? 0, intensity: o.sectionIntensity ?? DEFAULT_MI_FRAME.section.intensity, confidence: .95, source: 'analysis' },
     phraseMarkers: o.event === 'phrase' ? [{ id: `fixture-phrase-${o.eventId ?? beat}`, timeSec: eventTime,
       phraseLength: 8, confidence: .95, source: 'structural_boundary', structurallyDetected: true }] : [],

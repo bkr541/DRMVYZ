@@ -69,6 +69,14 @@ interface CameraTargetSet {
   roll: Cinema2TargetId | null
 }
 
+/** Optional, read-only native scene composition. The shared camera still owns motion,
+ * safety, smoothing and the final matrices used by every render/effect pass. */
+export interface Cinema2CameraFraming {
+  readonly target: Cinema2Vector3
+  readonly min: Cinema2Vector3
+  readonly max: Cinema2Vector3
+}
+
 interface CameraPose {
   position: Cinema2Vector3
   target: Cinema2Vector3
@@ -162,6 +170,7 @@ export class Cinema2CameraRuntime {
     private readonly parameters: Cinema2ParameterState,
     private readonly resolver: Cinema2FinalValueResolver,
     private readonly spatial: Cinema2SpatialRuntime,
+    private readonly readFraming?: () => Readonly<Cinema2CameraFraming>,
   ) {
     this.authoredCamera = selectAuthoredCamera(plan)
     this.targets = indexCameraTargets(plan.targets.targets, this.authoredCamera?.id ?? null)
@@ -182,6 +191,7 @@ export class Cinema2CameraRuntime {
 
   update(frame: Readonly<Cinema2ModuleFrameReadContext>): Readonly<Cinema2CameraFrame> {
     if (this.disposed) return this.currentFrame
+    const previousFramedPose = this.readFraming ? this.previousPose : null
     if (frame.audio?.discontinuity.occurred && frame.audio.discontinuity.reason !== 'activation') {
       this.resetMotionState()
       this.resetCount += 1
@@ -224,9 +234,16 @@ export class Cinema2CameraRuntime {
     const controlled = camera.controls?.motionEnabled != null || camera.controls?.motionSpeed != null || camera.motion?.orbit?.center != null
     const track = frame.transport?.trackId ?? null
     const time = frame.transport?.timeSec ?? frame.elapsedTimeSec
-    if (controlled && this.lastControlledGeneration !== null && (track !== this.lastControlledTrack || frame.contextGeneration !== this.lastControlledGeneration || (this.lastControlledTime !== null && (time < this.lastControlledTime || time - this.lastControlledTime > Math.max(1, frame.deltaTimeSec * 4))))) this.resetMotionState()
+    const sameTrack = track === this.lastControlledTrack && frame.contextGeneration === this.lastControlledGeneration
+    const timeJump = this.lastControlledTime !== null && (time < this.lastControlledTime || time - this.lastControlledTime > Math.max(1, frame.deltaTimeSec * 4))
+    if (controlled && this.lastControlledGeneration !== null && (!sameTrack || timeJump)) this.resetMotionState()
+    // A content-framed camera can ease into the new shot on an in-track seek.
+    // Reset the shared clock and event state, but not the last presented pose.
+    if (previousFramedPose && sameTrack && (timeJump || (frame.audio?.discontinuity.occurred && frame.audio.discontinuity.reason === 'seek'))) this.previousPose = previousFramedPose
     this.lastControlledTrack = track; this.lastControlledTime = time; this.lastControlledGeneration = frame.contextGeneration
-    const signature = JSON.stringify(Object.values(camera.controls ?? {}).map(ref => this.parameters.getValue(ref.$ref as Cinema2ParameterId)))
+    const framing = this.readFraming?.()
+    const cameraControls = Object.values(camera.controls ?? {}).map(ref => this.parameters.getValue(ref.$ref as Cinema2ParameterId))
+    const signature = JSON.stringify(framing ? [cameraControls, framing.target] : cameraControls)
     const controlsChanged = signature !== this.controlsSignature
     this.controlsSignature = signature
     const motionEnabled = !camera.controls?.motionEnabled || readToggleControl(camera.controls, 'motionEnabled', this.parameters)
@@ -240,7 +257,7 @@ export class Cinema2CameraRuntime {
     const tempoState = motion?.tempo ? this.advanceTempo(camera, motion.tempo, frame, hardMotionOff) : null
     const authoredTimeSec = tempoState ? this.flightTimeSec : frame.elapsedTimeSec
     const motionTimeSec = hardMotionOff ? 0 : authoredTimeSec * motionSafety.travelScale
-    let pose = this.resolveBaseRig(camera, frame, motionTimeSec)
+    let pose = this.resolveBaseRig(camera, frame, motionTimeSec, framing?.target)
     pose = applyAuthoredTransition(camera, pose, hardMotionOff ? 0 : frame.elapsedTimeSec * motionSafety.travelScale)
     const safetyReference = clonePose(pose)
     pose = this.applyUserControls(camera, pose, safety)
@@ -308,7 +325,12 @@ export class Cinema2CameraRuntime {
     const rollDegrees = clamp(finalSafety.pose.rollDegrees + bank, -MAX_ROLL_DEGREES, MAX_ROLL_DEGREES)
 
     const viewMatrix = createLookAtMatrix(finalSafety.pose.position, finalSafety.pose.target, rollDegrees)
-    const fovDegrees = fitCinema2FovToMinAspect(finalSafety.pose.fovDegrees, aspect, camera.minAspect)
+    const composedFov = fitCinema2FovToMinAspect(finalSafety.pose.fovDegrees, aspect, camera.minAspect)
+    // Fit is a projection constraint, not motion: it also applies to lock-off,
+    // pause, resize and text changes. Use the smoothed final view so newly edited
+    // content cannot be clipped while the camera eases toward its new target.
+    const fovDegrees = framing && camera.projection === 'perspective'
+      ? Math.max(composedFov, fitCinema2FramingFov(framing, viewMatrix, aspect)) : composedFov
     const projectionMatrix = camera.projection === 'perspective'
       ? createPerspectiveMatrix(
         fovDegrees,
@@ -489,9 +511,10 @@ export class Cinema2CameraRuntime {
     camera: Readonly<Cinema2CameraManifest>,
     frame: Readonly<Cinema2ModuleFrameReadContext>,
     pathTimeSec: number,
+    framingTarget?: Cinema2Vector3,
   ): CameraPose {
     const authoredPosition = freezeVec3(camera.transform?.position ?? DEFAULT_POSITION)
-    const authoredTarget = resolveAuthoredTarget(camera, authoredPosition, this.spatial)
+    const authoredTarget = framingTarget ?? resolveAuthoredTarget(camera, authoredPosition, this.spatial)
     const rig = camera.rig ?? ({ kind: 'static' } satisfies Cinema2CameraRigManifest)
     const fovDegrees = finite(camera.fovDegrees, DEFAULT_FOV_DEGREES)
     const orthographicHeight = positive(camera.orthographicHeight, DEFAULT_ORTHOGRAPHIC_HEIGHT)
@@ -920,6 +943,21 @@ function createOrthographicMatrix(verticalHeight: number, aspect: number, near: 
     0, 0, -2 / (safeFar - safeNear), 0,
     0, 0, -(safeFar + safeNear) / (safeFar - safeNear), 1,
   ]) as Cinema2Matrix4
+}
+
+/** Conservative rectangular content fit with a 10% screen-edge margin. */
+function fitCinema2FramingFov(framing: Readonly<Cinema2CameraFraming>, view: Cinema2Matrix4, aspect: number): number {
+  let tangent = 0
+  for (let corner = 0; corner < 8; corner++) {
+    const x = (corner & 1 ? framing.max : framing.min)[0]
+    const y = (corner & 2 ? framing.max : framing.min)[1]
+    const z = (corner & 4 ? framing.max : framing.min)[2]
+    const depth = Math.max(EPSILON, -(view[2] * x + view[6] * y + view[10] * z + view[14]))
+    const horizontal = Math.abs(view[0] * x + view[4] * y + view[8] * z + view[12]) / (depth * aspect)
+    const vertical = Math.abs(view[1] * x + view[5] * y + view[9] * z + view[13]) / depth
+    tangent = Math.max(tangent, horizontal, vertical)
+  }
+  return Math.min(150, Math.atan(tangent / 0.9) * 360 / Math.PI)
 }
 
 function createLookAtMatrix(position: Cinema2Vector3, target: Cinema2Vector3, rollDegrees = 0): Cinema2Matrix4 {

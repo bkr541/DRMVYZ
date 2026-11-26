@@ -11,6 +11,8 @@ import {
 import { Cinema2VisualDirector, type Cinema2VisualDirectorFrame } from '../director/Cinema2VisualDirector'
 import { Cinema2MoodConductor, type Cinema2MoodFrame } from '../conductor/Cinema2MoodConductor'
 import { CINEMA2_MAINFRAME_PRESET_ID } from '../presets/Cinema2MainframePreset'
+import { CINEMA2_LIVEWIRE_PRESET_ID } from '../presets/Cinema2LivewirePreset'
+import { createLivewireCameraFraming } from '../modules/livewire/Cinema2LivewireCameraFraming'
 import { selectCinema2MainframeAudio } from '../modules/mainframe/Cinema2MainframeAudioDelivery'
 import {
   Cinema2ChoreographyRuntime,
@@ -500,7 +502,8 @@ export class Cinema2Runtime {
       },
     })
     this.spatialRuntime = new Cinema2SpatialRuntime(compiledPresetPlan.scene, compiledPresetPlan.targets.targets, this.targetResolver)
-    this.cameraRuntime = new Cinema2CameraRuntime(compiledPresetPlan, parameterState, this.targetResolver, this.spatialRuntime)
+    this.cameraRuntime = new Cinema2CameraRuntime(compiledPresetPlan, parameterState, this.targetResolver, this.spatialRuntime,
+      compiledPresetPlan.presetId === CINEMA2_LIVEWIRE_PRESET_ID ? createLivewireCameraFraming(parameterState) : undefined)
     const renderQuality = this.activeRenderQuality
     this.lightingEnvironmentRuntime = new Cinema2LightingEnvironmentRuntime(
       compiledPresetPlan,
