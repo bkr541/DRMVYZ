@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import * as THREE from 'three'
-import { ExoskeletonScene } from '../modules/exoskeleton/ExoskeletonScene'
+import { ExoskeletonScene, exoskeletonOriginalLighting } from '../modules/exoskeleton/ExoskeletonScene'
 import type { Cinema2ThreeLibrary } from '../modules/three/Cinema2ThreeLibrary'
 import { EXOSKELETON_PALETTE } from '../modules/exoskeleton/ExoskeletonGeometry'
 import { CINEMA2_EXOSKELETON_PRESET_MANIFEST as manifest } from '../presets/Cinema2ExoskeletonPreset'
@@ -11,6 +11,8 @@ import { withCinema2AutoCoverage } from '../presets/Cinema2AutoCoverage'
 import { CINEMA2_AUTO_COVERAGE_EXEMPT } from '../presets/Cinema2AutoCoverageExemptions'
 import { EXOSKELETON_PATTERNS, armorBankCounts, armorHalfExtent, armorPose, type ArmorInput } from '../modules/exoskeleton/ExoskeletonGeometry'
 import { ExoskeletonPerformance } from '../modules/exoskeleton/ExoskeletonPerformance'
+import { Cinema2ParameterState } from '../parameters/Cinema2ParameterState'
+import type { Cinema2LightingEnvironmentFrame, Cinema2ResolvedLightFrame } from '../spatial/Cinema2LightingEnvironmentRuntime'
 import type { Cinema2ModuleUpdateContext } from '../modules/Cinema2ModuleContracts'
 const param=(name:string)=>manifest.parameters!.find(p=>p.id===`exoskeleton-${name}`)!
 const input:ArmorInput={pattern:'armor',phase:2.3,routePhase:.2,opening:.55,travel:.45,kick:0,snare:0,bass:0,mid:0,build:0,drop:0,vocal:0,safety:1}
@@ -91,6 +93,65 @@ describe('EXOSKELETON',()=>{
       values['plate-count']='12';scene.apply(read,input,0,0,'low');expect(blade.count).toBe(24);expect(defaultHero.visible).toBe(true);assertClear(defaultHero)
       expect(scene.estimateAdditionalGpuBytes()).toBeGreaterThan(0)
     }finally{scene.dispose()}
+  })
+  it('neutralizes the resolved long-range rig only in the imported Original draw, without mutating the shared frame',()=>{
+    const lights: Cinema2LightingEnvironmentFrame['lights']=manifest.lighting!.lights!.map((light):Cinema2ResolvedLightFrame=>({
+      id:light.id,type:light.type,color:light.color!,intensity:light.intensity!,position:[0,0,0],targetPosition:null,direction:[0,0,-1],spot:null,range:30,threeShadow:light.type==='spot',
+    }))
+    const frame: Cinema2LightingEnvironmentFrame={quality:'high',lights,omittedLightCount:0,environment:{authored:true,backgroundColor:[0,0,0,1],exposure:1,fog:null}}
+    const before=JSON.stringify(frame),original=exoskeletonOriginalLighting(frame)
+    expect(JSON.stringify(frame)).toBe(before);expect(original.environment).toBe(frame.environment)
+    expect(original.lights.map(l=>l.color)).toEqual([[1,1,1,1],[1,1,1,1],[1,1,1,1]])
+    expect(original.lights.map(l=>l.intensity)).toEqual([lights[0]!.intensity*.8,lights[1]!.intensity*.22,lights[2]!.intensity*.16])
+    expect(original.lights[1]).toMatchObject({id:lights[1]!.id,range:30,threeShadow:true})
+  })
+  it('keeps red metallic and blue glass fixtures distinct at idle/drop, neutralizes spill, and restores authored surfaces after stylization',()=>{
+    const root=new THREE.Group(),scene=new ExoskeletonScene({THREE} as Cinema2ThreeLibrary,root)
+    const values:Record<string,number|string|boolean>={'material-mode':'original','spill':1,'intensity':1,'hero-emission':1,'energy':0}
+    let palette:Record<keyof typeof EXOSKELETON_PALETTE,readonly number[]>={...EXOSKELETON_PALETTE,primary:[1,0,0,1],secondary:[0,1,0,1],accent:[0,0,1,1]}
+    const read={n:(key:string,fallback:number)=>typeof values[key]==='number'?values[key] as number:fallback,text:(key:string,fallback:string)=>typeof values[key]==='string'?values[key] as string:fallback,on:(key:string)=>values[key]!==false,color:(key:keyof typeof EXOSKELETON_PALETTE)=>palette[key]}
+    const texture=new THREE.DataTexture(new Uint8Array([255,90,40,255]),1,1)
+    const red=new THREE.MeshStandardMaterial({color:0xef3020,map:texture,metalness:.6,roughness:.7,emissive:0x201000,emissiveIntensity:.12})
+    const blue=new THREE.MeshPhysicalMaterial({color:0x2040f0,transparent:true,opacity:.48,depthWrite:false,transmission:.35,clearcoat:.6,metalness:.1,roughness:.24})
+    const geometry=new THREE.BoxGeometry(1,2,.6),first=new THREE.Mesh(geometry,red.clone()),second=new THREE.Mesh(geometry,blue.clone())
+    const heroLight=root.getObjectByName('exoskeleton-hero-light') as THREE.PointLight
+    const spill=root.getObjectByName('exoskeleton-spill-left') as THREE.PointLight
+    const energyMesh=root.getObjectByName('exoskeleton-energy') as THREE.InstancedMesh
+    const apply=(drop=0)=>scene.apply(read,{...input,drop},drop*5,.3,'high')
+    const assertOriginal=(material:THREE.MeshStandardMaterial,source:THREE.MeshStandardMaterial)=>{
+      expect(material.color.equals(source.color)).toBe(true);expect(material.emissive.equals(source.emissive)).toBe(true)
+      expect(material).toMatchObject({metalness:source.metalness,roughness:source.roughness,emissiveIntensity:source.emissiveIntensity,opacity:source.opacity,transparent:source.transparent,depthWrite:source.depthWrite,map:source.map})
+      expect(heroLight.color.getHex()).toBe(0xffffff);expect(heroLight.intensity).toBe(4);expect(spill.color.getHex()).toBe(0xffffff);expect(spill.intensity).toBeLessThanOrEqual(2.4)
+    }
+    try{
+      expect(scene.usesOriginalImportedLighting('original')).toBe(false)
+      scene.attachModel(first);expect(scene.usesOriginalImportedLighting('original')).toBe(true);expect(first.castShadow).toBe(true)
+      apply();assertOriginal(first.material,red);const armorColors=energyMesh.instanceColor!.array.slice()
+      palette={...palette,primary:[0,0,1,1],secondary:[1,0,0,1],accent:[1,0,1,1]};values.energy=1
+      apply(1);assertOriginal(first.material,red);expect(energyMesh.instanceColor!.array).not.toEqual(armorColors)
+      values['material-mode']='brushed';apply();expect(first.material.metalness).toBe(.8);expect(first.material.roughness).toBe(.32);expect(spill.color.getHex()).toBe(0x0000ff)
+      values['material-mode']='edge';apply();expect(first.material.emissive.getHex()).toBe(0xff00ff);expect(first.material.emissiveIntensity).toBe(.25)
+      values['material-mode']='integrated';apply();expect(first.material.emissive.equals(red.emissive)).toBe(true);expect(heroLight.color.getHex()).toBe(0xff00ff)
+      values['material-mode']='original';apply();assertOriginal(first.material,red)
+      scene.detachModel(first);scene.attachModel(second);expect(second.castShadow).toBe(false)
+      for(const drop of [0,1]){apply(drop);assertOriginal(second.material,blue);expect(second.material).toMatchObject({transmission:.35,clearcoat:.6});expect(second.material.color.equals(red.color)).toBe(false)}
+      values['material-mode']='brushed';apply();values['material-mode']='original';apply();assertOriginal(second.material,blue)
+      values['model-visible']=false;apply();expect(second.visible).toBe(false);expect(heroLight.visible).toBe(false)
+      values['model-visible']=true;scene.detachModel(second);apply();expect(scene.usesOriginalImportedLighting('original')).toBe(false);expect(heroLight.color.getHex()).toBe(0xff00ff)
+      expect(red.metalness).toBe(.6);expect(red.emissive.getHex()).toBe(0x201000);expect(blue.transmission).toBe(.35);expect(blue.roughness).toBe(.24)
+    }finally{scene.dispose();geometry.dispose();first.material.dispose();second.material.dispose();red.dispose();blue.dispose();texture.dispose()}
+  })
+  it('reloads all existing saved presentation modes and the pinned source, and resets to authored defaults',()=>{
+    const compiled=compileCinema2NativePreset(manifest);if(!compiled.ok)throw new Error(JSON.stringify(compiled.diagnostics))
+    const state=new Cinema2ParameterState(compiled.plan.parameters),mode=param('material-mode').id,model=param('model').id
+    const pinned='user-model:00000000-0000-4000-8000-000000000001:2'
+    expect(state.setPersistentValue(model,pinned).ok).toBe(true)
+    for(const value of ['original','integrated','brushed','edge']){
+      expect(state.setPersistentValue(mode,value).ok).toBe(true)
+      const restored=new Cinema2ParameterState(compiled.plan.parameters);expect(restored.restore(state.serialize()).ok).toBe(true)
+      expect(restored.getValue(mode)).toBe(value);expect(restored.getValue(model)).toBe(pinned)
+      restored.reset(mode);restored.reset(model);expect(restored.getValue(mode)).toBe('original');expect(restored.getValue(model)).toBe('default-model')
+    }
   })
   it('applies manual pattern edits, pauses phase and resets on track replacement',()=>{
     const perf=new ExoskeletonPerformance(i=>(i%7)/7),values:Record<string,unknown>={pattern:'armor','bpm-sync':true,'pattern-change':false,'auto-performance':false}

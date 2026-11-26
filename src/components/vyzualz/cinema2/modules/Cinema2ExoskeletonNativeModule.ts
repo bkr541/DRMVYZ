@@ -3,7 +3,7 @@ import type { Cinema2ModuleCreateContext, Cinema2ModuleDiagnostic, Cinema2Module
 import { loadCinema2ThreeLibrary, type Cinema2ThreeLibrary } from './three/Cinema2ThreeLibrary'
 import { Cinema2ThreeSceneBridge, CINEMA2_THREE_DEFAULT_OVERRIDES } from './three/Cinema2ThreeSceneBridge'
 import { describeCinema2LoadedModel } from './three/Cinema2ThreeAssetMetadata'
-import { ExoskeletonScene } from './exoskeleton/ExoskeletonScene'
+import { ExoskeletonScene, exoskeletonOriginalLighting } from './exoskeleton/ExoskeletonScene'
 import { CINEMA2_EXOSKELETON_MODULE_TYPE_ID } from './exoskeleton/ExoskeletonGeometry'
 import { ExoskeletonPerformance } from './exoskeleton/ExoskeletonPerformance'
 
@@ -21,7 +21,10 @@ export const cinema2ExoskeletonNativeModuleDefinition:Readonly<Cinema2ModuleType
         bridge=context.resources.acquire('exoskeleton:scene','ExoskeletonThreeScene',gl=>new Cinema2ThreeSceneBridge(gl,lib,[{asset:{id:'exoskeleton-procedural',scene:root,animations:[],triangleCount:0,gpuBytes:0,metadata:describeCinema2LoadedModel(root)},node:null,preserveMaterials:true}],{hdr:true,modelController:{afterVisibility:true,attach:(r,user)=>{if(user)scene?.attachModel(r);else scene=new ExoskeletonScene(lib,r)},detach:r=>scene?.detachModel(r),beforeDraw:quality=>scene?.apply(performance,performance.inputs,performance.phase,performance.routePhase,quality),estimateAdditionalGpuBytes:()=>scene?.estimateAdditionalGpuBytes()??0,dispose:()=>scene?.dispose()}}),value=>{value.dispose();slot?.dispose();slot=null})
         slot=new Cinema2UserModelSlot(lib,asset=>bridge?.replaceUserModel(asset?{asset,node:null,preserveMaterials:true,userModel:true}:null));slot.select(performance.model)
       }catch(error){scene?.dispose();report(error);return}}
-      if(bridge){bridge.setUserModelPresentation(performance.text('material-mode','original'));bridge.draw(execution,{...CINEMA2_THREE_DEFAULT_OVERRIDES,environmentIntensity:performance.n('reflection',.25)});if(bridge.ready){const bytes=bridge.estimateGpuBytes();if(bytes!==reported){reported=bytes;context.resources.reportGpuBytes(bytes)}}}
+      if(bridge){const mode=performance.text('material-mode','original');bridge.setUserModelPresentation(mode);
+        const lighting=execution.lightingEnvironment
+        const drawExecution=lighting&&scene?.usesOriginalImportedLighting(mode)?{...execution,lightingEnvironment:exoskeletonOriginalLighting(lighting)}:execution
+        bridge.draw(drawExecution,{...CINEMA2_THREE_DEFAULT_OVERRIDES,environmentIntensity:performance.n('reflection',.25)});if(bridge.ready){const bytes=bridge.estimateGpuBytes();if(bytes!==reported){reported=bytes;context.resources.reportGpuBytes(bytes)}}}
     }}]},getDiagnostics:()=>{const snapshot=slot?.getSnapshot();return snapshot&&snapshot.status!=='ready'?[...diagnostics,{code:`CINEMA2_USER_MODEL_${snapshot.status.toUpperCase()}`,path:`module.${context.module.id}.userModel`,message:snapshot.message??'Loading the pinned private model…'}]:diagnostics},inspect:()=>({...performance.inspect(),renderReady:bridge?.ready===true,userModel:slot?.getSnapshot()})}
   },
 }

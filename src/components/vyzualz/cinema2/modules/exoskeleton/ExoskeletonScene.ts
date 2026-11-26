@@ -1,4 +1,7 @@
 import type * as T from 'three'
+import { resolveCinema2ModelPresentation } from '../../model/Cinema2ModelPresentation'
+import type { Cinema2LightingEnvironmentFrame } from '../../spatial/Cinema2LightingEnvironmentRuntime'
+import type { Cinema2Color } from '../../contracts/Cinema2NativePresetManifest'
 import type { Cinema2ThreeLibrary } from '../three/Cinema2ThreeLibrary'
 import { EXOSKELETON_PALETTE, HERO_RADIUS, HERO_OFFSET, armorBankCounts, armorHalfExtent, armorPose, type ArmorInput } from './ExoskeletonGeometry'
 
@@ -7,6 +10,21 @@ interface Hero {root:T.Object3D;matrix:T.Matrix4;center:T.Vector3;fit:number;box
 interface Plate { bank:number;index:number;count:number;station:T.Group;slide:T.Group;hinge:T.Group }
 type Part = 'blade'|'liner'|'edge'|'channel'|'energy'|'rail'|'pin'|'joint'|'fastener'|'tip'
 interface Batch {mesh:T.InstancedMesh;used:number}
+
+const NEUTRAL_LIGHT: Cinema2Color = [1,1,1,1]
+
+/** The engine's spot/point powers scale with range squared. The long-range armor rig
+ * overwhelms the studio IBL at the small fitted hero. Keep the same positions, shadow
+ * settings and resolved control authority, but use a restrained neutral key/fill in
+ * Original mode. Never modify the shared frame or the authored palette. */
+export function exoskeletonOriginalLighting(frame: Readonly<Cinema2LightingEnvironmentFrame>): Cinema2LightingEnvironmentFrame {
+  return {...frame,lights:frame.lights.map(light=>{
+    if(light.id==='exoskeleton-fill')return {...light,color:NEUTRAL_LIGHT,intensity:light.intensity*.8}
+    if(light.id==='exoskeleton-key')return {...light,color:NEUTRAL_LIGHT,intensity:light.intensity*.22}
+    if(light.id==='exoskeleton-rim')return {...light,color:NEUTRAL_LIGHT,intensity:light.intensity*.16}
+    return light
+  })}
+}
 
 /** Independent scene geometry; the Three bridge owns the leased model and cloned model materials. */
 export class ExoskeletonScene {
@@ -86,20 +104,24 @@ export class ExoskeletonScene {
     const coreMesh=this.mesh(core,this.geometry(new THREE.IcosahedronGeometry(1.4,0)),this.material(.53,.62,.25));coreMesh.scale.set(.9,1.05,.72)
     const edgeMaterial=new THREE.LineBasicMaterial({color:0x48e8ff});const coreEdges=new THREE.LineSegments(this.geometry(new THREE.EdgesGeometry(coreMesh.geometry)),edgeMaterial);this.materials.add(edgeMaterial);coreEdges.scale.copy(coreMesh.scale).multiplyScalar(1.006);core.add(coreEdges)
     this.defaultHero=this.prepareHero(core)
-    for(const x of [-3.2,3.2]){const lamp=new THREE.PointLight(0x48e8ff,1,8,2);lamp.position.set(x,.8,1.2);root.add(lamp);this.spillLights.push(lamp)}
-    this.heroLight=new THREE.PointLight(0xe8f1ff,1,8,2);this.heroLight.position.set(0,2,3.5);root.add(this.heroLight)
+    for(const x of [-3.2,3.2]){const lamp=new THREE.PointLight(0x48e8ff,1,8,2);lamp.name=`exoskeleton-spill-${x<0?'left':'right'}`;lamp.position.set(x,.8,1.2);root.add(lamp);this.spillLights.push(lamp)}
+    this.heroLight=new THREE.PointLight(0xe8f1ff,1,8,2);this.heroLight.name='exoskeleton-hero-light';this.heroLight.position.set(0,2,3.5);root.add(this.heroLight)
   }
   private geometry<G extends T.BufferGeometry>(geo:G):G{this.geometries.add(geo);return geo}
   private material(color:number,metalness:number,roughness:number){const m=new this.library.THREE.MeshStandardMaterial({color:new this.library.THREE.Color().setScalar(color),metalness,roughness});this.materials.add(m);return m}
   private mesh(parent:T.Object3D,geo:T.BufferGeometry,mat:T.MeshStandardMaterial):T.Mesh{const mesh=new this.library.THREE.Mesh(geo,mat);mesh.castShadow=true;mesh.receiveShadow=true;parent.add(mesh);return mesh}
-  private prepareHero(root:T.Object3D):Hero{
+  private prepareHero(root:T.Object3D,imported=false):Hero{
     const {THREE}=this.library;if(root.matrixAutoUpdate)root.updateMatrix();root.updateMatrixWorld(true);const box=new THREE.Box3().setFromObject(root),size=box.getSize(new THREE.Vector3()),center=box.getCenter(new THREE.Vector3());const radius=size.length()/2
     const fit=Number.isFinite(radius)&&radius>1e-6?Math.min(HERO_RADIUS/radius,3.3/Math.max(size.x,1e-6),3.3/Math.max(size.y,1e-6)):1
     const materials:Hero['materials']=[];const seen=new Set<T.Material>()
-    root.traverse((object:T.Object3D)=>{const mesh=object as T.Mesh;if(!mesh.isMesh)return;mesh.castShadow=true;mesh.receiveShadow=true;for(const material of Array.isArray(mesh.material)?mesh.material:[mesh.material]){const m=material as T.MeshStandardMaterial;if(m.isMeshStandardMaterial&&!seen.has(m)){seen.add(m);materials.push({material:m,metalness:m.metalness,roughness:m.roughness,emissive:m.emissive.clone(),emission:m.emissiveIntensity})}}})
+    root.traverse((object:T.Object3D)=>{const mesh=object as T.Mesh;if(!mesh.isMesh)return;const slots=Array.isArray(mesh.material)?mesh.material:[mesh.material];
+      // Three's ordinary depth shadow is opaque for blended/transmissive surfaces.
+      // Keep opaque meshes and opaque alpha-tested cutouts as casters, not glass silhouettes.
+      mesh.castShadow=!imported||slots.every(material=>!material.transparent&&((material as T.MeshPhysicalMaterial).transmission??0)===0);mesh.receiveShadow=true;for(const material of slots){const m=material as T.MeshStandardMaterial;if(m.isMeshStandardMaterial&&!seen.has(m)){seen.add(m);materials.push({material:m,metalness:m.metalness,roughness:m.roughness,emissive:m.emissive.clone(),emission:m.emissiveIntensity})}}})
     const matrix=root.matrix.clone();root.matrixAutoUpdate=false;return {root,matrix,center,fit,materials,box}
   }
-  attachModel(root:T.Object3D){this.imported=this.prepareHero(root)}
+  attachModel(root:T.Object3D){this.imported=this.prepareHero(root,true)}
+  usesOriginalImportedLighting(mode:unknown){return this.imported!==null&&resolveCinema2ModelPresentation(mode)==='original'}
   detachModel(root:T.Object3D){if(this.imported?.root===root)this.imported=null}
   private tint(material:T.MeshStandardMaterial,color:readonly number[],emission=0){const {THREE}=this.library;material.color.setRGB(color[0]!,color[1]!,color[2]!,THREE.SRGBColorSpace);material.emissive.copy(material.color);material.emissiveIntensity=emission}
 
@@ -176,8 +198,13 @@ export class ExoskeletonScene {
       this.part('pin',carriage,0,0,.025,.034,w*.78,.034,0,0,Math.PI/2)
     }
     for(const batch of this.batches.values()){batch.mesh.count=batch.used;batch.mesh.instanceMatrix.needsUpdate=true;if(batch.mesh.instanceColor)batch.mesh.instanceColor.needsUpdate=true}
-    this.spillLights.forEach((light,i)=>{const c=i===0?primary:secondary;light.color.setRGB(c[0]!,c[1]!,c[2]!,THREE.SRGBColorSpace);light.intensity=spill*intensity*(8+5*energy)})
-    this.heroLight.color.setRGB(accent[0]!,accent[1]!,accent[2]!,THREE.SRGBColorSpace);this.heroLight.intensity=p.n('hero-emission',.2)*14;this.heroLight.visible=p.on('model-visible')
+    // Three point lights illuminate every mesh in the scene, not just the armor.
+    // Original keeps armor emissive strips colored, while direct illumination stays
+    // neutral and bounded even when shared choreography drives spill on a drop.
+    const original=this.usesOriginalImportedLighting(p.text('material-mode','original'))
+    this.spillLights.forEach((light,i)=>{const c=original?NEUTRAL_LIGHT:i===0?primary:secondary;light.color.setRGB(c[0]!,c[1]!,c[2]!,THREE.SRGBColorSpace);light.intensity=spill*intensity*(original?1.8+.6*energy:8+5*energy)})
+    const heroColor=original?NEUTRAL_LIGHT:accent
+    this.heroLight.color.setRGB(heroColor[0]!,heroColor[1]!,heroColor[2]!,THREE.SRGBColorSpace);this.heroLight.intensity=p.n('hero-emission',.2)*(original?4:14);this.heroLight.visible=p.on('model-visible')
   }
   estimateAdditionalGpuBytes(){
     let bytes=0
