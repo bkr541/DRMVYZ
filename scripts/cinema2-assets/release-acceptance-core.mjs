@@ -1,13 +1,7 @@
-import { inspectPixels, subjects } from './quality-review-core.mjs'
-
-// Superset of review anchors in SYS-03/04/05 and the named SYS-06 harnesses.
-// The original Review 01 document was not supplied, so this is deliberately
-// not represented as a verified transcription of its sixteen names.
-export const inventory = Object.freeze([
-  ...Object.keys(subjects), 'spectrum', 'corridor', 'everywhere', 'fracture', 'refraction', 'mosaic', 'overdrive',
-  'hud', 'purity', 'livewire', 'crate-wireframe-portal', 'allstar',
-])
-export const config = Object.freeze({ fixture: 'qa01-v2/sys04-review-v1', fps: 30, dpr: 1, width: 960, height: 540, quality: 'high' })
+import { inspectPixels } from './quality-review-core.mjs'
+import { coverageValid, inventoryVersion, equalSet } from './reviewed-release-inventory.mjs'
+export { inventory } from './reviewed-release-inventory.mjs'
+export const config = Object.freeze({ fixture: 'qa02-v3/sys04-review-v1', fps: 30, dpr: 1, width: 960, height: 540, quality: 'high' })
 export function pixelEvidence(rgb, width, height) {
   if (!(rgb instanceof Uint8Array) || !Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width <= 0 || height <= 0 || rgb.length !== width * height * 3) throw Error('Unexpected RGB dimensions')
   const zones = Array.from({ length: 9 }, () => ({ min: 255, max: 0, chromatic: 0, lit: 0, count: 0 }))
@@ -67,7 +61,7 @@ export function p95(values) {
 }
 export function regressionIssues(before,after) {
   const issues=[]
-  if (JSON.stringify(before.config)!==JSON.stringify(after.config) || JSON.stringify(before.environment)!==JSON.stringify(after.environment) || JSON.stringify(before.inventory)!==JSON.stringify(after.inventory)) return ['Incomparable capture configuration, environment or inventory']
+  if (before.inventoryVersion!==inventoryVersion || after.inventoryVersion!==inventoryVersion || JSON.stringify(before.config)!==JSON.stringify(after.config) || JSON.stringify(before.environment)!==JSON.stringify(after.environment) || !equalSet(before.inventory,after.inventory)) return ['Incomparable capture configuration, environment or inventory']
   for (const key of after.inventory) {
     const a=before.presets[key], b=after.presets[key]
     if(a?.status!=='pass'||b?.status!=='pass'){issues.push(`${key}: missing/pending/failed comparison evidence`);continue}
@@ -105,14 +99,15 @@ export function presetStatus(result) {
   const missing=(result.required??[]).filter(name=>!result.checks.some(c=>c.name===name))
   result.missingChecks=missing
   if(result.errors.length||result.checks.some(c=>c.status==='fail'))return 'fail'
-  if(!result.required?.length||missing.length||!result.frames.length||result.checks.some(c=>!['pass','not-applicable'].includes(c.status)))return 'incomplete'
+  if(!result.required?.length||missing.length||result.checks.some(c=>c.status==='not-applicable'&&result.mustPass?.includes(c.name))||!result.frames.length||result.checks.some(c=>!['pass','not-applicable'].includes(c.status)))return 'incomplete'
   return 'pass'
 }
 export function reportStatus(report) {
   if(report.errors.length||Object.values(report.presets).some(p=>p.status==='fail'))return 'fail'
-  if(report.blockers?.length||!report.inventory.length||report.inventory.some(k=>report.presets[k]?.status!=='pass'))return 'incomplete'
+  if(!coverageValid(report)||report.blockers?.length||!report.inventory.length||report.inventory.some(k=>{const p=report.presets[k];return p?.status!=='pass'||p.manifest?.id!==`drmvyz.cinema2.${k}`||!Array.isArray(p.checks)||!Array.isArray(p.frames)||!Array.isArray(p.errors)||presetStatus(p)!=='pass'}))return 'incomplete'
   return 'pass'
 }
+export const fullInventoryStatus=report=>reportStatus(report)==='pass'&&report.scope==='full-inventory'&&report.fullInventory?'pass':report.scope==='full-inventory'?reportStatus(report):'subset-only'
 export const reportExitCode=report=>reportStatus(report)==='pass'?0:1
 
 function validFrame(f) {

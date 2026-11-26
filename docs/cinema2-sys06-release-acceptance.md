@@ -48,3 +48,63 @@ The earlier capture-only `pattern-motion`, `media-pixel-evidence` and `context-r
 ### QA-01 verification on the supplied snapshot
 
 Linux x64, Node v22.16.0. `npm ci --offline --ignore-scripts --no-audit` exited 1 (ENOTCACHED for `zustand@5.0.13`; registry DNS unavailable). `npm run test:cinema2:release-policy` exited 0 (12/12 tests); `node --test scripts/cinema2-assets/quality-review-core.test.mjs` exited 0 (4/4). Negative controls include frozen and exposure-only motion, measured noise, invalid/mismatched frames, ready/invisible texture, wrong ROI and musical phase, stale/duplicate/missed or wrong fresh transition, wrong fallback identity, unreconstructed context and failed/missing scenario propagation to report/exit status. `npm run test:e2e:cinema2-release -- --presets spectrum,honey,corridor` exited 1 with `ERR_MODULE_NOT_FOUND` for `@playwright/test`; the manifest reported all three presets not-run and technical status incomplete. `npm run typecheck` and `npm run build` both exited 2 with TS2688 (`vite/client` missing). JavaScript syntax checks passed. No positive production rendering, browser negative-control execution, hardware, casting, Electron or human approval is claimed. Run the documented commands after installing locked dependencies. The prior Review 01 reference document/recordings were not supplied; the source contract and existing implementation notes are the basis of this change.
+
+## QA-02: reviewed inventory (schema 3, `reviewed-v1`)
+
+The definitive prompt-derived release matrix is `scripts/cinema2-assets/reviewed-release-inventory.mjs`. It preserves the original 19 and adds **Chamber and Monument**, for 21 unique registered IDs. All IDs use `drmvyz.cinema2.` plus the exact key (including `crate-wireframe-portal`). Monument, Monolith and Paradox are distinct. The original recording and original 33-file archive were not attached to QA-02; the following mapping uses the prior prompt index and source implementation notes, not a new visual review or a claim of exact recording coverage.
+
+| # | Prompt subject | Reviewed keys / applicable scenario focus |
+|---|---|---|
+| 01 | Spectrum rendering failure | `spectrum`: default, performance visibility, camera |
+| 02 | Unified Source interface | Shared; compiled source and fallback checks, no extra ID |
+| 03 | Imported model preservation | Shared; bound model, original presentation, removal |
+| 04 | Camera and pattern authority | Shared; camera, pattern/trigger, transport |
+| 05 | Visual-quality guardrails | Shared; default and performance captures, separate human rubric |
+| 06 | User-media readability | Shared; compiled image/video/SVG slots and visibility |
+| 07 | Production WebGL acceptance | Shared; matrix, reentry, retirement, context recovery |
+| 08 | Design Inspector hierarchy | Shared; manual controls; separate Inspector tests |
+| 09 | Everywhere Active Source/reset | `everywhere`: source, reset |
+| 10 | Everywhere Inspector | `everywhere`: manual controls; separate Inspector tests |
+| 11 | Colossus megastructure | `colossus`: default, performance, model |
+| 12 | Colossus patterns/camera | `colossus`: patterns, camera |
+| 13 | Colossus model controls | `colossus`: bound model, original presentation, fallback |
+| 14 | Chamber model color/transparency | `chamber`: original import, placement, visibility, removal; dedicated Chamber model harness also required |
+| 15 | Corridor media color/visibility | `corridor`: media formats, visibility, fallback |
+| 16 | Corridor media choreography | `corridor`: patterns, media, transport |
+| 17 | Wireframe Portal spatial expansion | `crate-wireframe-portal`: structure controls, portrait, patterns |
+| 18 | Exoskeleton armor redesign | `exoskeleton`: default, patterns, model |
+| 19 | Exoskeleton model appearance | `exoskeleton`: model, original presentation, fallback |
+| 20 | Fracture spatial rupture | `fracture`: default, patterns, media |
+| 21 | HUD negative space | `hud`: default, patterns, portrait |
+| 22 | Livewire camera | `livewire`: camera, patterns |
+| 23 | Livewire background | `livewire`: default, performance, patterns |
+| 24 | Monument architecture | `monument`: default, native typography, patterns, camera |
+| 25 | Monument source/typography | `monument`: text/font, pinned model, replacement, failed load, restoration |
+| 26 | Purity forward flight | `purity`: camera, motion, transport |
+| 27 | Seraph scale/model compatibility | `seraph`: default, portrait, compiled model applicability |
+| 28 | Relic volumetric artifact | `relic`: default, pattern motion, portrait |
+| 29 | Relic scale/model compatibility | `relic`: framing, compiled model applicability |
+| 30 | Refraction optical architecture | `refraction`: default, patterns, media |
+| 31 | Honey physical extrusion | `honey`: default, controls, spatial motion |
+| 32 | Honey choreography/depth | `honey`: patterns, transport, motion |
+| 33 | Honey camera profile | `honey`: camera, portrait |
+
+The five retained matrix entries not individually named in this prompt index are `paradox`, `monolith`, `mosaic`, `overdrive`, and `allstar`. They remain covered by the inherited SYS-04/05/06 anchors. Their applicable scenarios are derived from their compiled manifests, not inferred from their names. All 21 receive default, manual controls, patterns, applicable camera controls, transport, reset, portrait/quality, reentry, retirement and context recovery. No catalog-wide expansion is implied.
+
+Before creating any production runtime, a separate Vite page resolves **every** reviewed ID through the native registry/compiler and checks first-party declaration, non-foundation role and non-internal visibility. The runner rejects duplicate or unknown requested keys, missing/duplicate/mismapped reviewed IDs and unresolved/inactive compiled entries. The preflight is offline with respect to user catalog/account state; it does not test account-specific visibility. The report includes inventory version, expected/requested keys and IDs, absent entries, percentage of requested coverage (not percentage passed), registry preflight, scope, technical status and full-inventory status. The full run requires a passing result for every key; `--presets` remains a development-only scope, even when the explicit selection lists every key. Schema-2 comparisons are incompatible. `releaseApproval` remains false: the independent human/Electron/casting/performance gates are not completed by this browser script.
+
+Capability discovery records compiled slot accept lists and required flags, actual bound model selectors, fixed authored assets, text/model modes, camera refs and trigger options. For this technical matrix each advertised media format requires ready and visible fixture evidence; unsupported formats are reasoned not-applicable. An optional user source is optional for the artwork, not optional for testing its advertised capability. Image retains QA-01's removal and hidden negative checks; the SVG and constant-quadrant WebM fixtures exercise their own actual slot paths. Format-specific playback/fidelity and exhaustive imported material/alpha checks remain QA-04/05 and the dedicated Chamber harness's responsibility. Chamber's Home/Drift rig modes are exercised directly and kick zoom disabled for matched camera comparisons. Chamber has no hard Model Visible control; placement, rendered contribution and removal are the checks, not an invented control. Monument's custom saved text/font, native text visibility, original imported GLB, replacement and failed binding, model-mode fallback and restored text mode are compared against independently recreated matched reference frames. Missing required evidence, including an unsupported test environment, remains incomplete/fail. No production rendering/creative behavior was changed.
+
+Run from repository root after locked dependencies and Chromium are installed:
+
+```sh
+npm run test:cinema2:release-policy
+npm exec -- vitest run src/components/vyzualz/cinema2/__tests__/Cinema2KeeperPresetFramework.test.ts src/components/vyzualz/cinema2/__tests__/Cinema2Chamber.test.ts src/components/vyzualz/cinema2/__tests__/Cinema2MonumentPreset.test.ts src/components/vyzualz/cinema2/__tests__/Cinema2MonumentScene.test.ts
+npm run test:e2e:chamber-model
+npm run test:e2e:cinema2-release -- --presets chamber,monument
+npm run test:e2e:cinema2-release
+npm run typecheck
+npm run build
+```
+
+QA-02 verification in Linux x64 / Node 22.16.0: release-policy **16/16**, exit 0; offline locked installation exit 1 (`ENOTCACHED` for zustand); targeted Vitest invocation exit 1 (Vitest unavailable in offline cache); Chamber browser exit 1 (missing Playwright); subset and full browser commands exit 1 (missing `@playwright/test`, no captures); typecheck/build exit 2 (`vite/client` missing). The subset manifest reports 2 requested / 21 expected, 19 absent, subset-only and incomplete; the default manifest lists all 21 expected/requested and incomplete. Neither verifies real registry preflight or runtime rendering in this environment. Calibration of the new media/model/camera cases, Chamber's authored Standby behavior under QA-01 motion criteria, and any browser failures remain pending actual execution. No release approval is claimed.

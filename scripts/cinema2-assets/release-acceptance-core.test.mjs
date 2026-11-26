@@ -1,10 +1,13 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { inventory, pixelEvidence, visibleIssues, controlEvidence, p95, regressionIssues, retiredIssues } from './release-acceptance-core.mjs'
+import { reviewedEntries, inventoryVersion, inventoryCoverage, validateInventory, capabilityPlan } from './reviewed-release-inventory.mjs'
+import { fullInventoryStatus } from './release-acceptance-core.mjs'
+const registry=reviewedEntries.map(e=>({id:e.id,active:true,compiled:true}))
 const rgb=(r,g,b)=>Uint8Array.from(Array.from({length:81},()=>[r,g,b]).flat())
 test('release inventory covers all available review anchors without duplicate IDs',()=>{
-  assert.equal(new Set(inventory).size,inventory.length);assert.ok(inventory.length>=16)
-  for(const key of ['spectrum','hud','honey','purity','colossus','overdrive','crate-wireframe-portal'])assert.ok(inventory.includes(key))
+  assert.equal(new Set(inventory).size,inventory.length);assert.ok(inventory.length>=21)
+  for(const key of ['spectrum','hud','honey','purity','colossus','overdrive','crate-wireframe-portal','chamber','monument','monolith','paradox'])assert.ok(inventory.includes(key))
 })
 test('blank and flat bright output fail; dark spatial detail is not rejected',()=>{
   for(const frame of [rgb(0,0,0),rgb(255,255,255),rgb(50,100,150)])assert.ok(visibleIssues('honey',pixelEvidence(frame,9,9),'default').length)
@@ -18,7 +21,7 @@ test('ignored control and unchanged noisy control fail; actual change passes',()
 })
 test('p95 and comparative regression gate are not pass-by-absence',()=>{
   assert.equal(p95([1,2,3,4]),4);assert.throws(()=>p95([]))
-  const make=(cpuP95,gpuBytes)=>({config:{},environment:{},inventory:['honey'],presets:{honey:{status:'pass',metrics:{default:{cpuP95,gpuBytes,settings:'x',width:960,height:540}}}}})
+  const make=(cpuP95,gpuBytes)=>({inventoryVersion,config:{},environment:{},inventory:['honey'],presets:{honey:{status:'pass',metrics:{default:{cpuP95,gpuBytes,settings:'x',width:960,height:540}}}}})
   assert.deepEqual(regressionIssues(make(4,100),make(5,100)),[])
   assert.equal(regressionIssues(make(4,100),make(100,100)).length,1)
   assert.equal(regressionIssues(make(4,100),{...make(4,100),presets:{}}).length,1)
@@ -106,8 +109,8 @@ test('context loss requires retired resources, reconstructed generation, fresh f
   assert.ok(technicalIssues({}).length)
 })
 test('runner decision path propagates negative evidence, missing scenarios and invalid skips to report and exit code',()=>{
-  const result={required:['motion','scenario:patterns','fallback'],checks:[],errors:[],frames:[{name:'fixture'}]}
-  const report={inventory:['honey'],presets:{honey:result},errors:[],gates:{humanVisual:'pending',casting:'not-run'}}
+  const result={manifest:{id:'drmvyz.cinema2.honey'},required:['motion','scenario:patterns','fallback'],checks:[],errors:[],frames:[{name:'fixture'}]}
+  const report={registry,inventory:['honey'],...inventoryCoverage(['honey'],true),presets:{honey:result},errors:[],gates:{humanVisual:'pending',casting:'not-run'}}
   const refresh=()=>{result.status=presetStatus(result);return [reportStatus(report),reportExitCode(report)]}
   assert.deepEqual(refresh(),['incomplete',1])
   assert.throws(()=>recordCheck(result,'motion',undefined))
@@ -124,4 +127,34 @@ test('runner decision path propagates negative evidence, missing scenarios and i
   assert.equal(report.gates.humanVisual,'pending');assert.equal(report.gates.casting,'not-run')
   assert.equal(scenarioDecision([]).status,'incomplete')
   assert.throws(()=>assertion(undefined))
+})
+
+
+test('reviewed inventory rejects missing Chamber/Monument, duplicate aliases and wrong same-count sets before rendering',()=>{
+  validateInventory()
+  for(const key of ['chamber','monument'])assert.throws(()=>validateInventory(reviewedEntries.filter(e=>e.key!==key)))
+  assert.throws(()=>validateInventory([...reviewedEntries,reviewedEntries[0]]))
+  assert.throws(()=>validateInventory([...reviewedEntries.slice(0,-1),{key:'monolith-copy',id:'drmvyz.cinema2.monument'}]))
+  assert.throws(()=>validateInventory(reviewedEntries.map(e=>e.key==='monument'?{...e,id:'drmvyz.cinema2.monolith'}:e)))
+  const compiled=reviewedEntries.map(e=>({id:e.id,compiled:true,active:true}))
+  validateInventory(reviewedEntries,compiled)
+  for(const bad of [compiled.slice(1),compiled.map((e,i)=>i===0?{...e,id:'unknown'}:e),compiled.map((e,i)=>i===0?{...e,active:false}:e)])assert.throws(()=>validateInventory(reviewedEntries,bad))
+  assert.throws(()=>inventoryCoverage(['honey','honey'],true));assert.throws(()=>inventoryCoverage(['unknown'],true))
+})
+test('subset technical success cannot become full-inventory approval; forged coverage and missing result fail closed',()=>{
+  const make=(keys,explicit)=>({registry,inventory:keys,...inventoryCoverage(keys,explicit),presets:Object.fromEntries(keys.map(k=>[k,{status:'pass',manifest:{id:`drmvyz.cinema2.${k}`},required:['fixture'],checks:[{name:'fixture',status:'pass'}],frames:[{}],errors:[]}])) ,errors:[]})
+  const subset=make(['chamber','monument'],true)
+  assert.equal(reportExitCode(subset),0);assert.equal(fullInventoryStatus(subset),'subset-only');assert.equal(subset.absentEntries.length,19)
+  assert.equal(reportExitCode({...subset,fullInventory:true}),1)
+  assert.equal(reportExitCode(make(['chamber'],false)),1)
+  const full=make([...inventory],false);assert.equal(fullInventoryStatus(full),'pass')
+  assert.equal(fullInventoryStatus(make([...inventory].reverse(),true)),'subset-only');assert.equal(reportExitCode({...full,registry:registry.slice(1)}),1);full.presets.monument.manifest.id='drmvyz.cinema2.monolith';assert.equal(reportExitCode(full),1);delete full.presets.monument;assert.equal(reportExitCode(full),1)
+})
+test('compiled capabilities distinguish optional source slots and native typography from labels',()=>{
+  const meta={controls:[{id:'model',metadata:{editor:'user-model-selector'}},{id:'mode',options:[{value:'text'},{value:'model'}]},{id:'camera',options:[{value:'home'},{value:'drift'}]},{label:'Trigger',options:[{value:'drop'}]}],modules:[{parameterBindings:{userModel:{$ref:'model'},'content-type':{$ref:'mode'}},config:{instances:[{asset:'room'}]}}],cameras:[{controls:{rigMode:{$ref:'camera'}}}],mediaSlots:[{id:'panel',accepts:['image','video']},{id:'logo',accepts:['svg'],required:true}]}
+  const plan=capabilityPlan(meta);assert.deepEqual(plan.media.svg,[{id:'logo',required:true}]);assert.deepEqual(plan.media.video,[{id:'panel',required:false}]);assert.equal(plan.model.bound,true);assert.equal(plan.model.contentMode,'mode');assert.deepEqual(plan.model.fixedAssets,['room']);assert.equal(plan.camera.mode,'camera');assert.deepEqual(plan.patternTriggers,['drop'])
+  assert.equal(capabilityPlan({...meta,modules:[]}).model.bound,false);assert.deepEqual(capabilityPlan({controls:[{label:'Model'}]}).media,{image:[],video:[],svg:[]})
+})
+test('a required capability cannot be passed as not applicable',()=>{
+  const result={required:['model'],mustPass:['model'],checks:[{name:'model',status:'not-applicable',reason:'incorrect'}],errors:[],frames:[{}]};assert.equal(presetStatus(result),'incomplete')
 })

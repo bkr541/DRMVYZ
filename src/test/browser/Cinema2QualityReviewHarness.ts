@@ -1,6 +1,6 @@
 import { Cinema2Runtime } from '../../components/vyzualz/cinema2/runtime/Cinema2Runtime'
 import { Cinema2AudioIntelligenceBridge } from '../../components/vyzualz/cinema2/audio/Cinema2AudioIntelligenceBridge'
-import type { Cinema2ParameterId, Cinema2PresetId, Cinema2RenderQualityLevel } from '../../components/vyzualz/cinema2/contracts/Cinema2NativePresetManifest'
+import type { Cinema2MediaKind, Cinema2ParameterId, Cinema2PresetId, Cinema2RenderQualityLevel } from '../../components/vyzualz/cinema2/contracts/Cinema2NativePresetManifest'
 import { trippyBroMusicFixture } from '../support/TrippyBroMusicFixture'
 import { createCinema2MainframePatternCycle, nextCinema2MainframePattern } from '../../components/vyzualz/cinema2/modules/mainframe/Cinema2MainframePatternController'
 import { DEFAULT_MI_FRAME } from '../../features/musicIntelligence/constants'
@@ -97,7 +97,7 @@ function diagnostics() {
 const api = {
   inventory() { return { id: manifest.id, revision: manifest.revision, metadata: manifest.metadata,
     patterns: (manifest.parameters ?? []).find(p => p.label === 'Pattern')?.options ?? [], cameras: manifest.cameras,
-    mediaSlots: manifest.mediaSlots ?? [], controls: manifest.parameters ?? [], parameters: initial } },
+    mediaSlots: manifest.mediaSlots ?? [], modules: manifest.modules ?? [], controls: manifest.parameters ?? [], parameters: initial } },
   async prepare() {
     // Give asset imports time to resolve. Readiness is reported, never assumed from elapsed time alone.
     for (let i = 0; i < 60; i++) { await new Promise(resolve => setTimeout(resolve, 25)); tick() }
@@ -127,7 +127,7 @@ const api = {
     if (!patterns.every(p => typeof p === 'string')) return null
     const ids = patterns.map(String)
     const key = String(presetId).split('.').at(-1)
-    if (['honey','hud','purity','allstar','crate-wireframe-portal'].includes(key ?? '')) return nextCinema2MainframePattern(ids, current)
+    if (['honey','hud','purity','allstar','crate-wireframe-portal','chamber'].includes(key ?? '')) return nextCinema2MainframePattern(ids, current)
     const purpose = key === 'corridor' ? 'corridor-pattern-cycle' : ['spectrum','fracture','refraction','mosaic','overdrive','colossus','exoskeleton','monument','everywhere'].includes(key ?? '') ? `${key}-pattern-order` : null
     const modules = manifest.modules ?? []
     if (!purpose || modules.length !== 1) return null
@@ -139,7 +139,7 @@ const api = {
   pause(value: boolean) { paused = value },
   seek(time: number) { musicTime = time; stageFrame = 0; paused = false },
   resize(width: number, height: number) { runtime.resize({ width, height, dpr: 1 }); if (canvas.width !== width || canvas.height !== height) throw Error('Resize failed') },
-  async mediaFixture(remove = false) {
+  async mediaFixture(remove = false, kind: Cinema2MediaKind = 'image') {
     const slots = manifest.mediaSlots ?? []
     const fixture = document.createElement('canvas'); fixture.width = 320; fixture.height = 180
     const ctx = fixture.getContext('2d')!
@@ -147,20 +147,40 @@ const api = {
     ctx.fillStyle = '#18ed70'; ctx.fillRect(160, 0, 160, 90)
     ctx.fillStyle = '#2255ff'; ctx.fillRect(0, 90, 160, 90)
     ctx.fillStyle = '#fff'; ctx.fillRect(160, 90, 160, 90)
+    let url = fixture.toDataURL()
+    if (!remove && kind === 'svg') url = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180"><path fill="#ff2222" d="M0 0h160v90H0z"/><path fill="#18ed70" d="M160 0h160v90H160z"/><path fill="#2255ff" d="M0 90h160v90H0z"/><path fill="#fff" d="M160 90h160v90H160z"/></svg>')
+    if (!remove && kind === 'video') {
+      const stream = fixture.captureStream(15)
+      try {
+        const blob = await new Promise<Blob>((resolve, reject) => {
+          const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' })
+          const chunks: Blob[] = []
+          recorder.ondataavailable = event => chunks.push(event.data)
+          recorder.onerror = () => reject(Error('Video fixture recording failed'))
+          recorder.onstop = () => resolve(new Blob(chunks, {type: 'video/webm'}))
+          recorder.start()
+          const timer = setInterval(() => { ctx.fillStyle = '#fff'; ctx.fillRect(160,90,160,90) }, 50)
+          setTimeout(() => { clearInterval(timer); recorder.stop() }, 600)
+        })
+        url = URL.createObjectURL(blob)
+        addEventListener('beforeunload', () => URL.revokeObjectURL(url), { once: true })
+      } finally { stream.getTracks().forEach(track => track.stop()) }
+    }
     for (const slot of slots) {
+      if (!slot.accepts.includes(kind)) continue
       if (remove) runtime.getMediaSlotRuntime().remove(slot.id)
-      else if (slot.accepts.includes('image')) {
-        const status = await runtime.getMediaSlotRuntime().replace(slot.id, { id: 'sys06-rgb', label: 'SYS-06 RGB quadrants', kind: 'image', url: fixture.toDataURL(), width: 320, height: 180 }, { fit: 'contain' })
+      else {
+        const status = await runtime.getMediaSlotRuntime().replace(slot.id, { id: 'sys06-rgb', label: 'SYS-06 RGB quadrants', kind, url, width: 320, height: 180 }, { fit: 'contain' })
         if (status.status !== 'ready') throw Error(`Media ${slot.id}: ${status.status} ${status.error}`)
       }
     }
     return runtime.getMediaSlotRuntimeSnapshot()
   },
-  async modelFixture(remove = false) {
+  async modelFixture(remove = false, variant: 'primary' | 'replacement' | 'missing' = 'primary') {
     const parameter = (manifest.parameters ?? []).find(p => p.metadata?.editor === 'user-model-selector')
     if (!parameter) throw Error('Model selector absent')
     const fixture = await import('./Cinema2ReleaseModelFixture')
-    const value = remove ? 'default-model' : await fixture.installReleaseModelFixture()
+    const value = remove ? 'default-model' : await fixture.installReleaseModelFixture(variant)
     const result = runtime.getParameterState().setPersistentValue(parameter.id, value)
     if (!result.ok) throw Error(JSON.stringify(result.diagnostics))
     return runtime.getParameterState().getValue(parameter.id)

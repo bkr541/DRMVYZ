@@ -4,17 +4,18 @@ import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { join, resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import os from 'node:os'
-import { inventory, config, pixelEvidence, visibleIssues, controlEvidence, technicalIssues, retiredIssues, p95, regressionIssues, recordCheck, assertion, scenarioDecision, presetStatus, reportStatus, reportExitCode, motionEvidence, pairwiseEvidence, sourceVisibility, fallbackEvidence, triggerEvidence, recoveryEvidence } from './release-acceptance-core.mjs'
+import { inventory, config, pixelEvidence, visibleIssues, controlEvidence, technicalIssues, retiredIssues, p95, regressionIssues, recordCheck, assertion, scenarioDecision, presetStatus, reportStatus, reportExitCode, fullInventoryStatus, motionEvidence, pairwiseEvidence, sourceVisibility, fallbackEvidence, triggerEvidence, recoveryEvidence } from './release-acceptance-core.mjs'
+import { reviewedEntries, validateInventory, inventoryCoverage, capabilityPlan } from './reviewed-release-inventory.mjs'
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'../..')
 const args=process.argv.slice(2)
 const opt=(name,fallback)=>{const i=args.indexOf(`--${name}`);return i<0?fallback:args[i+1]}
 const keys=opt('presets',inventory.join(',')).split(',')
-if(!keys.length||new Set(keys).size!==keys.length||keys.some(k=>!inventory.includes(k)))throw Error('Unknown or duplicate preset')
+const coverage=inventoryCoverage(keys,args.includes('--presets'))
 const parent=join(root,'artifacts/cinema2-release');await mkdir(parent,{recursive:true})
 const output=await mkdtemp(join(parent,'run-'));console.log(`Release evidence: ${output}`)
 const hash=bytes=>createHash('sha256').update(bytes).digest('hex')
 const save=(path,data)=>writeFile(path,JSON.stringify(data,null,2)+'\n')
-const report={schemaVersion:2,technicalStatus:'incomplete',config,inventory:keys,fullInventory:keys.length===inventory.length,environment:{platform:os.platform(),arch:os.arch(),cpu:os.cpus()[0]?.model, node:process.version},
+const report={schemaVersion:3,technicalStatus:'incomplete',config,inventory:keys,...coverage,fullInventoryStatus:'incomplete',releaseApproval:false,environment:{platform:os.platform(),arch:os.arch(),cpu:os.cpus()[0]?.model, node:process.version},
   presets:Object.fromEntries(keys.map(key=>[key,{status:'not-run',reason:'Browser not started'}])),
   gates:{humanVisual:'pending',electronPreview:'not-run',electronFullscreen:'not-run',casting:'not-run',performanceComparison:'not-run'},errors:[],blockers:[]}
 let vite,browser
@@ -27,6 +28,8 @@ try {
   // Identify renderer separately from browser version (software vs hardware).
   const probe=await browser.newPage();report.environment.gl=await probe.evaluate(()=>{const gl=document.createElement('canvas').getContext('webgl2');if(!gl)return null;const ext=gl.getExtension('WEBGL_debug_renderer_info');return {vendor:gl.getParameter(ext?.UNMASKED_VENDOR_WEBGL??gl.VENDOR),renderer:gl.getParameter(ext?.UNMASKED_RENDERER_WEBGL??gl.RENDERER)}});await probe.close()
   if(!report.environment.gl)throw Error('WebGL2 unavailable in Chromium')
+  const preflight=await browser.newPage()
+  try { await preflight.goto(vite.resolvedUrls.local[0]+'src/test/browser/cinema2-release-inventory.html');await preflight.waitForFunction(()=>!!window.__cinema2ResolveReviewedIds,{},{timeout:30000});report.registry=await preflight.evaluate(ids=>window.__cinema2ResolveReviewedIds(ids),coverage.expectedIds);validateInventory(reviewedEntries,report.registry) } finally { await preflight.close() }
   for(const key of keys){
     const folder=join(output,key);await mkdir(folder,{recursive:true})
     const result={status:'running',errors:[],checks:[],required:['scenario:manual-controls','scenario:patterns','scenario:camera','scenario:transport-auto','scenario:media','scenario:model','scenario:reentry','frame:default','final-dispose'],frames:[],metrics:{},humanVisual:'pending'};report.presets[key]=result
@@ -72,6 +75,10 @@ try {
       await page.goto(`${url}?preset=drmvyz.cinema2.${key}&quality=high&mode=authored&release=1`)
       await page.waitForFunction(()=>!!window.__cinema2QualityReview,{},{timeout:30000})
       const meta=await api('inventory');result.manifest=meta
+      if(meta.id!==reviewedEntries.find(e=>e.key===key).id)throw Error('Runtime manifest does not match reviewed ID')
+      const capabilities=capabilityPlan(meta);result.capabilities=capabilities
+      result.mustPass=['frame:default','final-dispose','scenario:patterns','scenario:reentry','scenario:manual-controls','scenario:transport-auto','pattern-trigger-transition','context-restored']
+      for(const kind of ['image','video','svg']){const name=`media-format:${kind}`;requireCheck(name);if(capabilities.media[kind].length)result.mustPass.push(name)}
       const find=label=>meta.controls.find(p=>p.label.toLowerCase()===label.toLowerCase())
       const auto=find('Auto Performance'),pattern=find('Pattern'),change=find('Pattern Change'),trigger=find('Trigger'),camera=find('Camera Motion')??find('Camera Movement'),sync=find('BPM Sync')
       patternId=pattern?.id
@@ -85,15 +92,22 @@ try {
       for(const name of ['retire-portrait','frame:portrait','frame:medium'])requireCheck(name)
       const permissionId=meta.cameras?.find(c=>c.controls?.motionEnabled)?.controls?.motionEnabled?.$ref
       const cameraPermission=meta.controls.find(p=>p.id===permissionId)??(camera?.type==='boolean'?camera:null)
-      for(const name of cameraPermission?['camera-off-lock','camera-on-evidence']:['camera-permission'])requireCheck(name)
+      const cameraMode=meta.controls.find(p=>p.id===capabilities.camera.mode)
+      const lockCamera=async()=>{if(cameraPermission)await set(cameraPermission,false);else if(cameraMode)await set(cameraMode,'home');const zoom=meta.controls.find(p=>p.id===meta.cameras?.find(c=>c.controls?.kickZoom)?.controls?.kickZoom?.$ref);if(zoom?.type==='boolean')await set(zoom,false)}
+      for(const name of (cameraPermission||cameraMode)?['camera-off-lock','camera-on-evidence']:['camera-permission'])requireCheck(name)
       const freshRuntime=async(saved,name)=>{const retired=await api('switchPreset',meta.id,'high',saved);check(`retire:${name}`,retiredIssues(retired),retired)}
-      const active=f=>f.inspections.find(m=>typeof (m.activePattern??m.performingPattern)==='string')
-      const patternValue=f=>{const m=active(f);return m?.activePattern??m?.performingPattern}
+      const active=f=>f.inspections.find(m=>typeof (m.activePattern??m.performingPattern??m.pattern)==='string')
+      const patternValue=f=>{const m=active(f);return m?.activePattern??m?.performingPattern??m?.pattern}
       const state=f=>{const m=active(f),v=JSON.parse(f.settings).values;return {active:patternValue(f),base:m?.basePattern,saved:v[pattern.id],enabled:v[change.id],trigger:v[trigger.id],effectiveChange:m?.effectivePatternChange,effectiveTrigger:m?.effectiveTrigger,event:f.event,musicTime:f.conditions.musicTime}}
       const sameSettingsWithout=(f,id)=>{const saved=JSON.parse(f.settings);delete saved.values[id];return {...f,conditions:{...f.conditions,settings:JSON.stringify(saved)}}}
+      if(cameraPermission||cameraMode)result.mustPass.push('camera-off-lock','camera-on-evidence')
+      for(const [i] of meta.patterns.entries()){result.mustPass.push(`pattern-selected-${i}`,`pattern-motion-${i}`);if(i)result.mustPass.push(`pattern-pair-${i-1}-${i}`)}
       const imageSlots=meta.mediaSlots.filter(s=>s.accepts.includes('image'))
+      if(imageSlots.length)result.mustPass.push('media-loaded','media-pixel-evidence','media-fallback-evidence')
       for(const name of imageSlots.length?['media-loaded','media-pixel-evidence','media-fallback-evidence','media-hidden-negative-control']:['media'])requireCheck(name)
       for(const name of meta.controls.some(p=>p.metadata?.editor==='user-model-selector')?['model-loaded','model-pixel-evidence','model-fallback-evidence']:['model'])requireCheck(name)
+      if(capabilities.model){if(find('Model Visible')?.type==='boolean')result.mustPass.push('model-hidden-negative-control');else notApplicable('model-hidden-negative-control','No hard model visibility control in manifest');result.mustPass.push('model-loaded','model-pixel-evidence','model-fallback-evidence');if(key==='chamber')result.mustPass.push('chamber-model-placement');if(capabilities.model.contentMode)result.mustPass.push('native-typography','native-typography-visible','model-replacement','model-replacement-visible','model-failed-load','model-failed-load-fallback','typography-saved-restored','typography-pixel-restored')}
+      for(const name of result.mustPass)requireCheck(name)
       // Center-facing sources vs wrapping banks; the latter can occupy every zone.
       const mediaZones=['overdrive','livewire'].includes(key)?[1,3,4,5,7]:[0,1,2,3,4,5,6,7,8]
       const mediaReady=f=>imageSlots.every(s=>f.d.media.slots.some(m=>m.id===s.id&&m.status==='ready'&&m.source?.id==='sys06-rgb'))
@@ -129,7 +143,7 @@ try {
       })
       await scenario('patterns',async()=>{
         await set(auto,false);await set(change,false);await api('pause',false)
-        if(cameraPermission)await set(cameraPermission,false)
+        await lockCamera()
         const saved=await api('saved')
         check('pattern-inventory',meta.patterns.length>=6&&trigger?.options?.length===11?[]:['Missing six patterns or eleven shared triggers'])
         let previous
@@ -172,6 +186,13 @@ try {
         await set(auto,false)
         const bound=meta.cameras?.find(c=>c.controls?.motionEnabled)?.controls?.motionEnabled?.$ref
         const permission=meta.controls.find(p=>p.id===bound)??(camera?.type==='boolean'?camera:null)
+        if(cameraMode){
+          const pose=f=>JSON.stringify(f.conditions.camera)
+          await lockCamera();const a=await capture('camera-home-a','build',15),b=await capture('camera-home-b','drop',15)
+          await set(cameraMode,'drift');const c=await capture('camera-drift-a','build',15),d=await capture('camera-drift-b','drop',30)
+          check('camera-off-lock',pose(a)===pose(b)?[]:['Home camera moved']);check('camera-on-evidence',pose(c)!==pose(d)?[]:['Drift camera did not move'])
+          await set(cameraMode,'home');return
+        }
         if(!permission){if(meta.cameras?.length&&meta.cameras.every(c=>!c.motion&&!c.controls?.motionEnabled&&c.rig?.kind==='static'))notApplicable('camera-permission','No authored camera motion or permission; module motion is checked separately');else notRun('camera-permission','No boolean camera permission in compiled manifest');return}
         requireCheck('camera-off-lock');requireCheck('camera-on-evidence')
         await set(permission,false);const offA=await capture('camera-off-a','build',15),offB=await capture('camera-off-b','drop',15)
@@ -190,13 +211,14 @@ try {
         const reset=JSON.parse(await api('reset')).values;check('reset',JSON.stringify(reset)===JSON.stringify(authored)?[]:['Reset did not restore authored values']);await capture('reset','reference',15,true)
       })
       await scenario('media',async()=>{
-        if(!imageSlots.length){notApplicable('media','No image slot in manifest');return}
+        if(!imageSlots.length){notApplicable('media','No image slot in manifest')}
+        else {
         for(const name of ['media-loaded','media-pixel-evidence','media-fallback-evidence'])requireCheck(name)
         await set(auto,false);await set(change,false)
         const mode=find('Source Mode'),visibility=find('Media Visible')
         if(mode?.options?.some(o=>o.value==='auto'))await set(mode,'auto');else if(mode?.options?.some(o=>o.value==='single'))await set(mode,'single')
         if(visibility?.type==='boolean')await set(visibility,true)
-        if(cameraPermission)await set(cameraPermission,false)
+        await lockCamera()
         const saved=await api('saved')
         const sample=async(name,action,settings=saved)=>{
           await freshRuntime(settings,name)
@@ -223,22 +245,52 @@ try {
           const rejected=sourceVisibility(x,xx,y,{ready:mediaReady(y),fixture:true,expectedZones:mediaZones})
           check('media-hidden-negative-control',mediaReady(y)&&rejected.status==='fail'&&rejected.issues.includes('Ready source has no visible contribution in expected regions')?[]:['Loaded-but-hidden fixture was not conclusively rejected'],rejected)
         }else notApplicable('media-hidden-negative-control','No hard Media Visible permission; pure evaluator negative fixture remains mandatory')
+        decide('media-format:image',scenarioDecision(result.checks.filter(c=>['media-loaded','media-pixel-evidence','media-fallback-evidence'].includes(c.name))))
+        }
+        if(!imageSlots.length)notApplicable('media-format:image','No compiled image slot')
+        for(const kind of ['video','svg']){
+          const slots=capabilities.media[kind],name=`media-format:${kind}`
+          if(!slots.length){notApplicable(name,`No compiled ${kind} slot`);continue}
+          await set(auto,false);await set(change,false);await lockCamera()
+          const mode=find('Source Mode'),visibility=find('Media Visible')
+          if(mode?.options?.some(o=>o.value==='auto'))await set(mode,'auto');else if(mode?.options?.some(o=>o.value==='single'))await set(mode,'single')
+          if(visibility?.type==='boolean')await set(visibility,true)
+          const saved=await api('saved')
+          const sample=async(action)=>{await freshRuntime(saved,`${kind}-${action}`);if(action==='on')await api('mediaFixture',false,kind);await api('prepare');return capture(`${kind}-${action}`,'breakdown',30,false,'none')}
+          const a=await sample('off'),aa=await sample('aa'),on=await sample('on')
+          const ready=slots.every(s=>on.d.media.slots.some(m=>m.id===s.id&&m.status==='ready'&&m.source?.kind===kind))
+          decide(name,sourceVisibility(a,aa,on,{ready,fixture:true,expectedZones:mediaZones}))
+        }
       })
       await scenario('model',async()=>{
         const modelControl=meta.controls.find(p=>p.metadata?.editor==='user-model-selector')
         if(!modelControl){notApplicable('model','No pinned model selector');return}
+        if(!capabilities.model?.bound)throw Error('Model selector is not bound to compiled module')
         for(const name of ['model-loaded','model-pixel-evidence','model-fallback-evidence'])requireCheck(name)
-        await set(auto,false);await set(change,false);if(cameraPermission)await set(cameraPermission,false)
+        await set(auto,false);await set(change,false);await lockCamera()
+        const presentation=find('Model Presentation');if(presentation?.options?.some(o=>o.value==='original'))await set(presentation,'original')
         const visible=find('Model Visible');if(visible?.type==='boolean')await set(visible,true)
-        const content=find('Content Type');if(content?.options?.some(o=>o.value==='model'))await set(content,'model')
+        const content=meta.controls.find(p=>p.id===capabilities.model.contentMode)
+        const text=content&&find('Text'),font=content&&find('Font');let typography,typographyAA
+        if(content){
+          await set(content,'text');await set(text,'QA RELEASE');await set(font,font.options.find(o=>o.value!==authored[font.id]).value)
+          await api('modelFixture',true)
+          const textSaved=await api('saved');result.typographySaved=JSON.parse(textSaved).values
+          const nativeSample=async(name,settings=textSaved)=>{await freshRuntime(settings,name);await api('prepare');await api('prepare');await api('prepare');return capture(name,'breakdown',30,true,'none')}
+          typography=await nativeSample('native-typography');typographyAA=await nativeSample('native-typography-aa')
+          if(visible?.type==='boolean'){await set(visible,false);const hidden=await nativeSample('native-typography-hidden',await api('saved'));check('native-typography-visible',controlEvidence(typography.data,typographyAA.data,hidden.data).pass?[]:['Native hero visibility has no visible contribution']);await set(visible,true)}
+          check('native-typography',modelState(typography)?.binding==='default-model'&&JSON.parse(typography.settings).values[text.id]==='QA RELEASE'&&JSON.parse(typography.settings).values[font.id]===result.typographySaved[font.id]?[]:['Native typography settings or binding not restored'])
+          await set(content,'model')
+        }
         await api('modelFixture',true);const saved=await api('saved')
         const sample=async(name,action)=>{
           await freshRuntime(saved,name)
           let binding='default-model'
-          if(action!=='off')binding=await api('modelFixture')
+          if(action!=='off')binding=await api('modelFixture',false,'primary')
           await api('prepare');await api('prepare')
           const beforeRemoval=await api('diagnostics')
           if(action==='remove')await api('modelFixture',true)
+          if(action==='replacement'||action==='missing')binding=await api('modelFixture',false,action)
           await api('prepare')
           const f=await capture(name,'breakdown',30,false,'none')
           return {...sameSettingsWithout(f,modelControl.id),binding,beforeRemoval}
@@ -251,6 +303,33 @@ try {
         const restored=modelState(removed),original=modelState(a)
         if(!restored||!original||!beforeRemoval)notRun('model-fallback-evidence','Model source inspection unavailable')
         else decide('model-fallback-evidence',fallbackEvidence(a,aa,on,removed,beforeRemoval.binding===removed.binding&&beforeRemoval.status==='ready'&&restored.binding===original.binding&&restored.binding==='default-model'&&restored.status==='ready'&&!removed.pixels.uniform))
+        if(visible?.type==='boolean'){
+          await set(visible,false)
+          // Start both hidden runs with the same cleared binding (and restore the model-mode baseline after).
+          await api('modelFixture',true);const hiddenBase=await api('saved')
+          const hiddenCapture=async(name,withModel)=>{await freshRuntime(hiddenBase,name);if(withModel)await api('modelFixture');await api('prepare');await api('prepare');await api('prepare');return sameSettingsWithout(await capture(name,'breakdown',30,false,'none'),modelControl.id)}
+          const h=await hiddenCapture('model-hidden-off',false),hh=await hiddenCapture('model-hidden-aa',false),ho=await hiddenCapture('model-hidden-on',true)
+          const evidence=sourceVisibility(h,hh,ho,{ready:modelState(ho)?.status==='ready'})
+          check('model-hidden-negative-control',modelState(ho)?.status==='ready'&&evidence.status==='fail'&&evidence.issues.includes('Ready source has no visible contribution in expected regions')?[]:['Hidden model was not conclusively rejected'],evidence)
+          await set(visible,true)
+        }
+        if(key==='chamber')check('chamber-model-placement',on.inspections.some(m=>m.modelPlaced===true&&m.source==='dark-chamber.glb')&&removed.inspections.some(m=>m.modelPlaced===false)?[]:['Chamber model not placed or cleared'])
+        if(content){
+          const onAA=await sample('model-on-aa','on'),replacement=await sample('model-replacement','replacement')
+          const previousBinding=replacement.beforeRemoval.modules.modules.find(m=>m.inspection?.userModel)?.inspection.userModel
+          check('model-replacement',previousBinding?.binding===on.binding&&previousBinding.status==='ready'&&modelState(replacement)?.binding===replacement.binding&&modelState(replacement)?.status==='ready'&&replacement.binding!==on.binding?[]:['Replacement pinned binding not ready'])
+          decide('model-replacement-visible',sourceVisibility(on,onAA,replacement,{ready:modelState(replacement)?.status==='ready'}))
+          const missing=await sample('model-failed-load','missing')
+          check('model-failed-load',modelState(missing)?.binding===missing.binding&&['error','missing','unauthorized'].includes(modelState(missing)?.status)?[]:['Failed model did not produce an explicit failure state'])
+          decide('model-failed-load-fallback',fallbackEvidence(a,aa,on,missing,modelState(missing)?.binding===missing.binding&&['error','missing','unauthorized'].includes(modelState(missing)?.status)))
+          await api('modelFixture',true);await set(content,'text');const restoredSaved=await api('saved')
+          const values=JSON.parse(restoredSaved).values
+          check('typography-saved-restored',JSON.stringify(values)===JSON.stringify(result.typographySaved)?[]:['Text/font or saved source settings changed'])
+          const textSample=async name=>{await freshRuntime(restoredSaved,name);await api('prepare');await api('prepare');await api('prepare');return capture(name,'breakdown',30,true,'none')}
+          const t=await textSample('typography-restored'),tt=await textSample('typography-restored-aa')
+          const distance=controlEvidence(typography.data,typographyAA.data,t.data),fallback=controlEvidence(t.data,tt.data,a.data)
+          check('typography-pixel-restored',!distance.pass&&!fallback.pass?[]:['Restored text differs from native text or model-mode fallback beyond drift'],{distance,fallback})
+        }
       })
       await scenario('reentry',async()=>{
         await api('reset');const saved=await api('saved'),other=key==='spectrum'?'honey':'spectrum'
@@ -275,5 +354,5 @@ try {
   // measured technical failure. Both cases still exit nonzero.
   if(Object.values(report.presets).every(p=>p.status==='not-run')){report.blockers.push(String(e));for(const p of Object.values(report.presets))p.reason=String(e)}else report.errors.push(String(e))
 }
-finally{await browser?.close();await vite?.close();report.technicalStatus=reportStatus(report);await save(join(output,'manifest.json'),report)}
+finally{await browser?.close();await vite?.close();report.technicalStatus=reportStatus(report);report.fullInventoryStatus=fullInventoryStatus(report);await save(join(output,'manifest.json'),report)}
 process.exitCode=reportExitCode(report)
