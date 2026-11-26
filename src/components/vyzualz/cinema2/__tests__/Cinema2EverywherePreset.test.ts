@@ -1,3 +1,4 @@
+import { everywhereMediaPose } from '../modules/everywhere/Cinema2EverywhereMediaMotion'
 import { afterEach, describe, expect, it } from 'vitest'
 import { setAutoPerformanceUserDefault } from '../../../../lib/autoPerformanceDefault'
 import { createCinema2DesignParentGroupModel } from '../parameters/Cinema2InspectorModel'
@@ -63,8 +64,8 @@ describe('Everywhere', () => {
 
   it('builds a dense deterministic wall with a prominent hero and distinct screen programs', () => {
     const wall = buildEverywhereCabinetLayout()
-    expect(wall.length).toBeGreaterThan(60)
-    expect(wall[0]).toMatchObject({ x: 0, scale: 3.05 })
+    expect(wall).toHaveLength(306)
+    expect(wall[0]).toMatchObject({ x: 0, scale: 2.65 })
     expect(buildEverywhereCabinetLayout()).toEqual(wall)
     expect(wall.some(screen => screen.x < -6)).toBe(true)
     expect(wall.some(screen => screen.x > 6)).toBe(true)
@@ -94,19 +95,19 @@ describe('Everywhere', () => {
 
   it('covers the entire perspective frustum with rear cabinets in every tested layout', () => {
     const rear=buildEverywhereCabinetLayout().filter(c=>c.z<=EVERYWHERE_REAR_DEPTH+.05)
-    expect(rear).toHaveLength(117)
+    expect(rear).toHaveLength(247)
     expect(manifest.cameras?.[0]?.minAspect).toBeUndefined()
     // Ray/rounded cabinet front-plane intersection; use the un-beveled lip
     // footprint, not a loose bounding box. Test the maximum wall roll and push.
     for (const aspect of [.45,9/16,1,1.2,1.5,16/9,1.9,21/9,32/9,4]) {
       const cover=everywhereWallCoverScale(aspect)
-      for (const [roll,push] of [[-.01,0],[.01,.42]] as const) {
+      for (const [roll,push,distance] of [[-.01,0,14],[.01,0,17],[0,0,9]] as const) {
         let missing=0
         for (let iy=0;iy<=40;iy++) for (let ix=0;ix<=60;ix++) {
           const rx=(ix/30-1)*Math.tan(Math.PI/9)*aspect
           const ry=(iy/20-1)*Math.tan(Math.PI/9)
           const hit=rear.some(c=>{
-            const d=10.8-(c.z+.145*c.scale+push)
+            const d=distance-(c.z+.145*c.scale+push)
             const x=(rx*d*Math.cos(roll)+ry*d*Math.sin(roll))/cover-c.x
             const y=(-rx*d*Math.sin(roll)+ry*d*Math.cos(roll))/cover-c.y
             const dx=Math.abs(x)/c.scale-(.99-.153)
@@ -147,10 +148,46 @@ describe('Everywhere', () => {
     }
   })
 
-  it('preserves the default eye underneath transparent assigned media', () => {
-    expect(EVERYWHERE_SCREEN_FRAGMENT).toContain('media.a * inside * uMediaOpacity')
+  it('gates the built-in eye by source mode and composites media against dark glass', () => {
+    expect(EVERYWHERE_SCREEN_FRAGMENT).toContain('uSourceMode < .5 && uHasEye > .5')
+    expect(EVERYWHERE_SCREEN_FRAGMENT).toContain('picture=vec3(.002,.003,.004)')
+    expect(EVERYWHERE_SCREEN_FRAGMENT).toContain('result.a*=inside')
+    expect(EVERYWHERE_SCREEN_FRAGMENT).toContain('uSourceMode > 1.5')
     expect(EVERYWHERE_SCREEN_FRAGMENT).toContain('mix(picture,linearColor(media.rgb)')
     expect(EVERYWHERE_SCREEN_FRAGMENT).toContain('glassAlpha')
+  })
+
+  it('authors distinct, bounded content programs for every screen and keeps the hero readable', () => {
+    const wall=buildEverywhereCabinetLayout()
+    const look={...new Cinema2EverywherePerformance(()=>.5).look,phase:4.2,layout:'choreographed' as const}
+    const programs=EVERYWHERE_PATTERNS.map(({value})=>wall.map((cabinet,index)=>everywhereMediaPose(cabinet,index,{...look,pattern:value})))
+    expect(new Set(programs.map(program=>JSON.stringify(program))).size).toBe(12)
+    for(const program of programs) {
+      expect(program[0]?.power).toBe(1)
+      expect(program.some(pose=>pose.power===0)).toBe(true)
+      expect(new Set(program.map(pose=>pose.scale)).size).toBeGreaterThan(1)
+      for(const pose of program) {
+        expect(Object.values(pose).every(Number.isFinite)).toBe(true)
+        expect(pose.scale).toBeGreaterThanOrEqual(.45)
+        expect(pose.scale).toBeLessThanOrEqual(1.6)
+        expect([0,1,2]).toContain(pose.channel)
+      }
+    }
+    expect(everywhereMediaPose(wall[20]!,20,{...look,motion:0})).toMatchObject({scale:1,x:0,y:0,rotation:0,power:1,distortion:0,stretch:1})
+    expect(everywhereMediaPose(wall[20]!,20,{...look,screenPower:false}).power).toBe(1)
+    expect(parameter('media-layout').options?.map(item=>item.value)).toEqual(['choreographed','repeat','wall'])
+  })
+
+  it('uses the shared camera, bounded dolly travel and all twelve authored camera profiles',()=>{
+    const camera=manifest.cameras?.[0]!
+    expect(camera.transform?.position).toEqual([0,0,14])
+    expect(camera.controls?.motionEnabled?.$ref).toBe('everywhere-camera-motion')
+    expect(camera.controls?.positionOffset?.$ref).toBe('everywhere-camera-distance')
+    expect(camera.motion?.tempo?.weave).toBeGreaterThan(0)
+    const rules=manifest.choreography?.rules??[]
+    expect(rules.filter(rule=>rule.id.startsWith('everywhere-camera-track-'))).toHaveLength(12)
+    expect(rules.find(rule=>rule.id==='everywhere-camera-drop')?.source.signal).toBe('drop')
+    expect(rules.find(rule=>rule.id==='everywhere-camera-kick')?.enabledWhen).toContainEqual({kind:'parameter-equals',parameterId:'everywhere-kick-zoom',value:true})
   })
 
   it('resets its musical phase when the track timeline revision changes', () => {

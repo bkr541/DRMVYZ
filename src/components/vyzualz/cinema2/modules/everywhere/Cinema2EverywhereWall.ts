@@ -2,6 +2,7 @@ import type * as Three from 'three'
 import type { Cinema2Color } from '../../contracts/Cinema2NativePresetManifest'
 import type { Cinema2ManagedMediaResource } from '../../media/Cinema2MediaSlotRuntime'
 import type { Cinema2ThreeLibrary } from '../three/Cinema2ThreeLibrary'
+import { everywhereMediaPose } from './Cinema2EverywhereMediaMotion'
 import { everywhereEyePose } from './Cinema2EverywhereEyeMotion'
 import { EVERYWHERE_SCREEN_FRAGMENT, EVERYWHERE_SCREEN_VERTEX } from './Cinema2EverywhereScreens'
 
@@ -32,7 +33,12 @@ export interface EverywhereLook {
   motion: number
   scan: number
   glare: number
-  layout: 'repeat' | 'wall'
+  layout: 'repeat' | 'wall' | 'choreographed'
+  mediaFit?: 'contain' | 'cover' | 'stretch'
+  contentMotion?: number
+  scaleVariation?: number
+  screenPower?: boolean
+  heroReadability?: boolean
   colors: Colors
   energy: number
   bass: number
@@ -50,11 +56,15 @@ export interface EverywhereCabinet {
 // Five reference silhouettes, then irregular medium cabinets, then a continuous
 // rear mosaic. All coordinates are in world space; the camera never sees a wall edge.
 const MAIN: readonly EverywhereCabinet[] = [
-  {x:0,y:-.08,z:1.12,scale:3.05,roll:-.035,yaw:0,seed:.34},
+  {x:0,y:-.08,z:1.12,scale:2.65,roll:-.035,yaw:0,seed:.34},
   {x:-4.68,y:2.42,z:.58,scale:1.98,roll:-.37,yaw:.13,seed:.22},
   {x:4.75,y:2.38,z:.48,scale:1.99,roll:.35,yaw:-.15,seed:.78},
   {x:-4.96,y:-2.70,z:.64,scale:1.83,roll:-.39,yaw:.18,seed:.41},
   {x:4.97,y:-2.60,z:.55,scale:1.87,roll:.36,yaw:-.17,seed:.84},
+  {x:-7.9,y:0,z:.32,scale:1.38,roll:.20,yaw:.20,seed:.16},
+  {x:7.9,y:0,z:.35,scale:1.42,roll:-.18,yaw:-.20,seed:.68},
+  {x:0,y:5.0,z:.15,scale:1.35,roll:.10,yaw:.02,seed:.53},
+  {x:0,y:-5.1,z:.18,scale:1.42,roll:-.12,yaw:-.03,seed:.92},
 ]
 const MID: readonly (readonly [number,number,number,number,number,number])[] = [
   // x, y, depth, size, roll, yaw. Fill pockets rather than repeat a flat grid.
@@ -84,13 +94,18 @@ export function buildEverywhereCabinetLayout(): EverywhereCabinet[] {
   const sets = MAIN.map(item=>({...item}))
   const random = (i: number) => { const n=Math.sin(i*127.1+17.7)*43758.5453; return n-Math.floor(n) }
   MID.forEach(([x,y,z,scale,roll,yaw],index)=>sets.push({x,y,z,scale,roll,yaw,seed:random(index+150)}))
+  // Outer mid-depth banks provide parallax without covering the central hero.
+  for (let i=0;i<30;i++) {
+    const side=i<15 ? -1 : 1, j=i%15
+    sets.push({x:side*(8.8+(j%3)*1.72),y:(Math.floor(j/3)-2)*2.05,z:-.90-random(i+400)*.35,scale:.79+random(i+450)*.19,roll:(random(i+500)-.5)*.25,yaw:-side*.12,seed:random(i+600)})
+  }
   // Constant overlapping pitch at the rear: the narrowest cabinet footprint
   // exceeds both pitches, including bevel corners and perspective safety margin.
   // No random holes, even behind the hero: those become visible during cropping.
-  for (let row=0;row<9;row++) {
-    for (let column=0;column<13;column++) {
-      const i=row*13+column
-      sets.push({x:(column-6)*1.65+(row%2 ? .41 : -.41),y:(row-4)*1.23,
+  for (let row=0;row<13;row++) {
+    for (let column=0;column<19;column++) {
+      const i=row*19+column
+      sets.push({x:(column-9)*1.65+(row%2 ? .41 : -.41),y:(row-6)*1.23,
         z:EVERYWHERE_REAR_DEPTH+(i%2)*.045,scale:EVERYWHERE_REAR_SCALE,roll:0,yaw:0,seed:random(i)})
     }
   }
@@ -112,8 +127,8 @@ export function everywhereScreenGain(item: Readonly<EverywhereCabinet>, index: n
   const front = (phase*.58)%1
   const coverage = Math.min(1,look.coverage + look.energy*.12 - look.vocal*.10)
   let gain = .71+item.seed*.28
-  if (look.pattern === 'signal-sweep') gain = .22+.79*gaussian(item.x-(front*13-6.5),2.2)
-  if (look.pattern === 'outward-pulse') gain = .24+.80*gaussian(radius-front*7.7,1.5)
+  if (look.pattern === 'signal-sweep') gain = .22+.79*gaussian(item.x-(front*25-12.5),2.2)
+  if (look.pattern === 'outward-pulse') gain = .24+.80*gaussian(radius-front*14,1.5)
   if (look.pattern === 'cross-cut') gain = .24+.76*gaussian(item.y-item.x*Math.cos(phase)*.66,1.04)
   if (look.pattern === 'channel-hold') gain = ((index+(Math.floor(phase*.68)))%3===0) ? 1 : .24
   if (look.pattern === 'ghost-feed') gain = .33+.61*(.5+.5*Math.sin(phase*2.15+item.seed*9.4))**2
@@ -121,7 +136,7 @@ export function everywhereScreenGain(item: Readonly<EverywhereCabinet>, index: n
   if (look.pattern === 'retro-broadcast') gain = .62 + .38*gaussian(item.y, 2.8)
   if (look.pattern === 'tape-tracking') gain = .42 + .55*gaussian(item.y - Math.sin(phase*.7)*3, 2.1)
   if (look.pattern === 'channel-mosaic') gain = .58 + .40*(.5+.5*Math.sin(index*2.4+Math.floor(phase*.5)))
-  if (look.pattern === 'signal-relay') gain = .38 + .62*gaussian(radius-(front*7.5), 2.0)
+  if (look.pattern === 'signal-relay') gain = .38 + .62*gaussian(radius-(front*14), 2.0)
   if (look.pattern === 'midnight-replay') gain = .46 + .52*gaussian(radius, 3.0) + .10*Math.sin(phase*.5+item.seed*5)
   if (item.seed>coverage && index>0) gain*=.27
   const focus = .66 + .34 * Math.exp(-radius*.24)
@@ -152,6 +167,8 @@ export class Cinema2EverywhereWall {
   private readonly screenLocal: Three.Matrix4
   private readonly gains: Three.InstancedBufferAttribute
   private readonly eyePoses: Three.InstancedBufferAttribute
+  private readonly mediaPoses: Three.InstancedBufferAttribute
+  private readonly mediaEffects: Three.InstancedBufferAttribute
   private renderer: Three.WebGLRenderer | null = null
   private media: Readonly<Cinema2ManagedMediaResource> | null = null
   private eye: WebGLTexture | null = null
@@ -211,6 +228,10 @@ export class Cinema2EverywhereWall {
     plane.setAttribute('aProgram',this.gains)
     this.eyePoses = new T.InstancedBufferAttribute(new Float32Array(this.count*4),4)
     plane.setAttribute('aEyePose',this.eyePoses)
+    this.mediaPoses = new T.InstancedBufferAttribute(new Float32Array(this.count*4),4).setUsage(T.DynamicDrawUsage)
+    this.mediaEffects = new T.InstancedBufferAttribute(new Float32Array(this.count*4),4).setUsage(T.DynamicDrawUsage)
+    plane.setAttribute('aMediaPose',this.mediaPoses)
+    plane.setAttribute('aMediaEffects',this.mediaEffects)
     this.eyeTexture = new T.Texture()
     this.mediaTexture = new T.Texture()
     this.poolTextures = Array.from({length:3},()=>new T.Texture())
@@ -218,7 +239,7 @@ export class Cinema2EverywhereWall {
       vertexShader:EVERYWHERE_SCREEN_VERTEX,fragmentShader:EVERYWHERE_SCREEN_FRAGMENT,
       toneMapped:false,transparent:true,depthWrite:true,
       uniforms:{
-        uEye:{value:this.eyeTexture},uMedia:{value:this.mediaTexture},uHasEye:{value:0},uHasMedia:{value:0},
+        uEye:{value:this.eyeTexture},uMedia:{value:this.mediaTexture},uHasEye:{value:0},uHasMedia:{value:0},uSourceMode:{value:0},
         uPool0:{value:this.poolTextures[0]},uPool1:{value:this.poolTextures[1]},uPool2:{value:this.poolTextures[2]},
         uPoolAspect:{value:new T.Vector3()},uProgram:{value:new T.Vector4()},uMusic:{value:new T.Vector4()},
         uLayout:{value:0},uMediaAspect:{value:1},uMediaFit:{value:1},uMediaOpacity:{value:1},uMediaRotation:{value:0},
@@ -243,10 +264,12 @@ export class Cinema2EverywhereWall {
     this.place(.84)
   }
 
-  apply(look: Readonly<EverywhereLook>, eye: WebGLTexture | null, media: Readonly<Cinema2ManagedMediaResource> | null, poolMedia: readonly (Readonly<Cinema2ManagedMediaResource> | null)[] = [], poolStep = 0, aspectRatio = 16/9) {
+  apply(look: Readonly<EverywhereLook>, eye: WebGLTexture | null, media: Readonly<Cinema2ManagedMediaResource> | null, poolMedia: readonly (Readonly<Cinema2ManagedMediaResource> | null)[] = [], poolStep = 0, aspectRatio = 16/9, sourceMode: 'eyes'|'single'|'pool' = poolMedia.some(Boolean) ? 'pool' : media ? 'single' : 'eyes') {
     const { THREE } = this.library
     const uniforms = this.screenMaterial.uniforms
     this.eye = eye
+    media = sourceMode==='single' ? media : null
+    poolMedia = sourceMode==='pool' ? poolMedia : []
     this.media = media
     this.poolMedia = poolMedia
     const aspect = (i: number) => { const feed = poolMedia[i]; return feed ? feed.width / Math.max(1,feed.height) : 0 }
@@ -256,16 +279,21 @@ export class Cinema2EverywhereWall {
     this.place(look.angle)
     const cover = everywhereWallCoverScale(aspectRatio)
     this.group.scale.set(cover,cover,1)
-    const animateEyes = !media && !poolMedia.some(Boolean)
+    const animateEyes = sourceMode==='eyes'
     this.sets.forEach((item,index)=>{
       this.gains.setX(index,everywhereScreenGain(item,index,look))
       const pose=animateEyes ? everywhereEyePose(item,index,look) : [0,0,0,0] as const
       this.eyePoses.setXYZW(index,...pose)
+      const content=everywhereMediaPose(item,index,look)
+      this.mediaPoses.setXYZW(index,content.scale,content.x,content.y,content.rotation)
+      this.mediaEffects.setXYZW(index,content.power,content.channel,content.distortion,content.stretch)
     })
     this.gains.needsUpdate=true
     this.eyePoses.needsUpdate=true
-    this.group.rotation.z = .010 * Math.sin(look.phase*.42) * look.motion
-    this.group.position.z = .18 * look.build + .24 * look.drop
+    this.mediaPoses.needsUpdate=true
+    this.mediaEffects.needsUpdate=true
+    this.group.rotation.z = 0
+    this.group.position.z = 0
     const setColor = (color: Three.Color, rgba: Cinema2Color) => color.setRGB(rgba[0],rgba[1],rgba[2],THREE.SRGBColorSpace)
     setColor(this.caseMaterial.color,look.colors.cabinet)
     setColor(this.coolLight.color,look.colors.cool)
@@ -275,12 +303,14 @@ export class Cinema2EverywhereWall {
     setColor(uniforms.uTint!.value,look.colors.screen)
     uniforms.uLook!.value.set(look.phase,look.brightness,look.scan,look.glare)
     uniforms.uReaction!.value.set(look.bass+look.kick,(look.high+look.snare*.55)*(1-look.vocal*.7))
-    uniforms.uHasEye!.value=eye ? 1 : 0
+    uniforms.uHasEye!.value=eye && animateEyes ? 1 : 0
+    uniforms.uSourceMode!.value=sourceMode==='eyes' ? 0 : sourceMode==='single' ? 1 : 2
     uniforms.uHasMedia!.value=media ? 1 : 0
-    uniforms.uLayout!.value=look.layout==='wall' ? 1 : 0
+    uniforms.uLayout!.value=look.layout==='wall' ? 1 : look.layout==='choreographed' ? 2 : 0
+    uniforms.uMediaFit!.value=look.mediaFit==='cover' ? 1 : look.mediaFit==='stretch' ? 2 : 0
     if (media) {
       uniforms.uMediaAspect!.value=media.width/Math.max(1,media.height)
-      uniforms.uMediaFit!.value=media.presentation.fit==='contain' ? 0 : media.presentation.fit==='cover' ? 1 : 2
+      if (!look.mediaFit) uniforms.uMediaFit!.value=media.presentation.fit==='contain' ? 0 : media.presentation.fit==='cover' ? 1 : 2
       uniforms.uMediaOpacity!.value=media.presentation.opacity
       uniforms.uMediaTransform!.value.set(...media.presentation.position,...media.presentation.scale)
       uniforms.uMediaRotation!.value=media.presentation.rotation*Math.PI/180

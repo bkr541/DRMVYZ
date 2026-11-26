@@ -84,7 +84,9 @@ export class Cinema2EverywherePerformance {
     this.look={
       pattern:base?.activePattern ?? this.look.pattern,phase:this.phase,motion,
       brightness:n('brightness',1.06,0,1.8),coverage:n('coverage',.86,.18),angle:n('angle',.84,0,1.25),
-      scan:n('scan',.20),glare:n('glare',.65),layout:parameters.get('mediaLayout')==='wall' ? 'wall' : 'repeat',
+      scan:n('scan',.20),glare:n('glare',.65),layout:parameters.get('mediaLayout')==='wall' ? 'wall' : parameters.get('mediaLayout')==='repeat' ? 'repeat' : 'choreographed',
+      mediaFit:parameters.get('mediaFit')==='cover' ? 'cover' : parameters.get('mediaFit')==='stretch' ? 'stretch' : 'contain',
+      contentMotion:n('contentMotion',.75),scaleVariation:n('scaleVariation',.6),screenPower:parameters.get('screenPower')!==false,heroReadability:parameters.get('heroReadability')!==false,
       colors:{background:rgba('background'),cabinet:rgba('cabinet'),cool:rgba('cool'),warm:rgba('warm'),screen:rgba('screen')},
       energy:signal('energy'),bass:signal('bass'),high:signal('high'),vocal:signal('vocal'),
       kick:signal('kick'),snare:signal('snare'),build:signal('build'),drop:signal('drop'),
@@ -115,6 +117,7 @@ export const cinema2EverywhereNativeModuleDefinition: Readonly<Cinema2ModuleType
     let wall: Cinema2EverywhereWall | null = null
     let bridge: Cinema2ThreeSceneBridge | null = null
     let starting=false, disposed=false, measured=false, wallGpuBytes=0, reportedBytes=-1
+    const sourceMode=()=>context.mediaPoolSource?.getSelection() ? 'pool' as const : context.media.getSlot('screenMedia')?.source ? 'single' as const : 'eyes' as const
     let aspectRatio=16/9
     const diagnostics: Cinema2ModuleDiagnostic[]=[]
     const report=(error:unknown)=>diagnostics.push({
@@ -149,7 +152,7 @@ export const cinema2EverywhereNativeModuleDefinition: Readonly<Cinema2ModuleType
               },node:null,preserveMaterials:true}],{
                 hdr:true,modelController:{
                   attach:root=>{wall=new Cinema2EverywhereWall(library,merge,root)},
-                  beforeDraw:()=>wall?.apply(performance.look,eye?.status==='ready' ? eye.texture : null,context.media.get('screenMedia'),pool?.getResources(),pool?.step,aspectRatio),
+                  beforeDraw:()=>wall?.apply(performance.look,eye?.status==='ready' ? eye.texture : null,context.media.get('screenMedia'),pool?.getResources(),pool?.step,aspectRatio,sourceMode()),
                   dispose:()=>wall?.dispose(),
                 },
               }),value=>value.dispose())
@@ -167,7 +170,7 @@ export const cinema2EverywhereNativeModuleDefinition: Readonly<Cinema2ModuleType
         },
       }]},
       getDiagnostics:()=>diagnostics,
-      inspect:()=>({...performance.inspect(),screens:wall?.count ?? 0,renderReady:bridge?.ready===true,eyeReady:eye?.status==='ready',userMedia:context.media.get('screenMedia')!=null,poolMediaCount:pool?.count ?? 0,poolStep:pool?.step ?? 0,poolReadyChannels:pool?.getResources().filter(Boolean).length ?? 0}),
+      inspect:()=>({...performance.inspect(),screens:wall?.count ?? 0,renderReady:bridge?.ready===true,eyeReady:eye?.status==='ready',sourceMode:sourceMode(),userMedia:sourceMode()==='single'&&context.media.get('screenMedia')!=null,poolMediaCount:pool?.count ?? 0,poolStep:pool?.step ?? 0,poolReadyChannels:pool?.getResources().filter(Boolean).length ?? 0}),
     }
   },
 }

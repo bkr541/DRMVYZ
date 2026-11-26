@@ -606,6 +606,8 @@ export interface MediaLibraryBrowserProps {
   onSelectModel?: (asset: ModelAsset) => void
   onSelectBuiltinModel?: (model: BuiltinModel) => void
   onSelect?: (id: string) => void
+  /** Opt-in preset-specific source exclusivity; all other consumers retain the default. */
+  onActivatePool?: (id: string | null) => void
   /** Optional card-click interception for anchored action menus. When supplied,
    * it replaces immediate selection without changing the default behavior of
    * other MediaLibraryBrowser consumers. */
@@ -649,6 +651,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
   activeMediaId,
   activeModelId = null, onSelectModel, onSelectBuiltinModel,
   onSelect,
+  onActivatePool,
   onCardActionRequest,
   onOpenMediaManager,
   onOpenLyricManager,
@@ -1556,7 +1559,8 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
         title={active ? 'Active pool — click to deactivate' : 'Set as active pool'}
         onClick={event => {
           event.stopPropagation()
-          setActiveCanvasMediaPool(active ? null : poolId)
+          if (onActivatePool) onActivatePool(active ? null : poolId)
+          else setActiveCanvasMediaPool(active ? null : poolId)
         }}
       >
         {active ? 'Active' : 'Set Active'}

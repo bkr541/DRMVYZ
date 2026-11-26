@@ -14,6 +14,7 @@ import { EVERYWHERE_COLORS, EVERYWHERE_PATTERNS } from '../modules/everywhere/Ci
 import { CINEMA2_QUALITY_MODE_PARAMETER } from '../parameters/Cinema2PerformanceParameters'
 import { CINEMA2_AFTERHOURS_TRIGGER_OPTIONS } from './Cinema2AfterhoursPreset'
 import { cinema2AutoTargets } from './Cinema2AutoPerformanceAuthoring'
+import { everywhereCameraProfileRules } from '../modules/everywhere/Cinema2EverywhereCameraMotion'
 import { withCinema2MoodDrives } from './Cinema2MoodConductorAuthoring'
 
 export const CINEMA2_EVERYWHERE_PRESET_ID = cinema2NamespacedId<Cinema2PresetId>('drmvyz.cinema2.everywhere')
@@ -51,14 +52,27 @@ const parameters: readonly Cinema2ParameterManifest[] = [
   slider('brightness','Screen Brightness','design','Cabinets',1,1.06,0,1.8,'Exposure of pictures on the CRT screens.'),
   slider('coverage','Screen Coverage','design','Cabinets',2,.86,.18,1,'Adjusts how many surrounding screens stay fully lit.'),
   slider('angle','Cabinet Angle','design','Cabinets',3,.84,0,1.25,'Sets how much the surrounding cabinets tilt and turn.'),
-  {...base('pattern','Pattern','design','Pattern',1,'Choose a screen program for the whole wall.'),type:'enum',defaultValue:'all-eyes',options:EVERYWHERE_PATTERNS},
-  {...base('pattern-change','Pattern Change','design','Pattern',2,'Advance the pattern on the selected shared musical event.'),type:'boolean',defaultValue:false},
-  {...base('trigger','Trigger','design','Pattern',3,'Choose the musical event that advances the pattern.'),type:'enum',defaultValue:'bar4',
+  {...base('pattern','Pattern','design','Pattern',20,'Choose a screen program for the whole wall.'),type:'enum',defaultValue:'all-eyes',options:EVERYWHERE_PATTERNS},
+  {...base('pattern-change','Pattern Change','design','Pattern',21,'Advance the pattern on the selected shared musical event.'),type:'boolean',defaultValue:false},
+  {...base('trigger','Trigger','design','Pattern',22,'Choose the musical event that advances the pattern.'),type:'enum',defaultValue:'bar4',
     options:CINEMA2_AFTERHOURS_TRIGGER_OPTIONS,visibleWhen:[{kind:'parameter-equals',parameterId:id('pattern-change'),value:true}]},
-  {...base('screen-media','Screen Media','design','Screen Media',1,'Select a feed in the Source tab’s Media Library.'),type:'media',defaultValue:null,mediaSlot:cinema2Ref(CINEMA2_EVERYWHERE_MEDIA_SLOT)},
-  {...base('media-layout','Media Layout','design','Screen Media',2,'Repeat the same picture on each television or spread it across the whole wall.'),type:'enum',
-    defaultValue:'repeat',options:[{value:'repeat',label:'Repeat on each screen'},{value:'wall',label:'Span the wall'}]},
-  {...base('pool-trigger','Pool Trigger','design','Screen Media',3,'Choose when the active media pool advances, independently of Pattern Change. Program uses the current pattern’s authored musical cadence.'),type:'enum',defaultValue:'program',options:[{value:'program',label:'Program cadence'},...CINEMA2_AFTERHOURS_TRIGGER_OPTIONS]},
+  {...base('screen-media','Screen Media','design','Screen Media',30,'Select a feed in the Source tab’s Media Library.'),type:'media',defaultValue:null,mediaSlot:cinema2Ref(CINEMA2_EVERYWHERE_MEDIA_SLOT)},
+  {...base('media-layout','Media Layout','design','Screen Media',31,'Repeat the same picture on each television or spread it across the whole wall.'),type:'enum',
+    defaultValue:'choreographed',options:[{value:'choreographed',label:'Choreographed distribution'},{value:'repeat',label:'Repeat on each screen'},{value:'wall',label:'Span the wall'}]},
+  {...base('pool-trigger','Pool Trigger','design','Screen Media',33,'Choose when the active media pool advances, independently of Pattern Change. Program uses the current pattern’s authored musical cadence.'),type:'enum',defaultValue:'program',options:[{value:'program',label:'Program cadence'},...CINEMA2_AFTERHOURS_TRIGGER_OPTIONS]},
+  {...base('media-fit','Media Fit','design','Screen Media',32,'Contain preserves complete wordmarks; Cover crops; Fill stretches.'),type:'enum',defaultValue:'contain',options:[{value:'contain',label:'Contain'},{value:'cover',label:'Cover'},{value:'stretch',label:'Fill'}]},
+  slider('content-motion','Content Motion','design','Screen Media',34,.75,0,1,'Strength of motion inside each CRT.'),
+  slider('scale-variation','Scale Variation','design','Screen Media',35,.6,0,1,'Independent media scale variations.'),
+  {...base('screen-power','Screen Power Choreography','design','Screen Media',36,'Allow individual screens to switch off in the pattern.'),type:'boolean',defaultValue:true},
+  {...base('hero-readability','Preserve Hero Readability','design','Screen Media',37,'Keep the central screen lit and restrain its distortion.'),type:'boolean',defaultValue:true},
+  {...base('camera-motion','Camera Motion','design','Camera',5,'Enable the shared cinematic camera.'),type:'boolean',defaultValue:true},
+  {...base('camera-mode','Camera Mode','design','Camera',6,'Choose a cinematic movement profile.'),type:'enum',defaultValue:'cinematic',options:[{value:'cinematic',label:'Cinematic'},{value:'pattern',label:'Pattern Driven'},{value:'hero',label:'Hero Focus'},{value:'explore',label:'Wall Exploration'},{value:'gentle',label:'Gentle Sway'}],visibleWhen:[{kind:'parameter-equals',parameterId:id('camera-motion'),value:true}]},
+  {...base('camera-distance','Camera Distance','design','Camera',7,'Distance from the CRT installation.'),type:'vec3',defaultValue:[0,0,0],min:-3,max:3,step:.1},
+  {...slider('camera-sway','Camera Sway','design','Camera',8,.45,0,1,'Shared cinematic drift and beat sway.'),visibleWhen:[{kind:'parameter-equals',parameterId:id('camera-motion'),value:true}]},
+  {...slider('camera-impact','Drop Impact','design','Camera',9,.7,0,1,'Strength of build, drop and phrase camera accents.'),visibleWhen:[{kind:'parameter-equals',parameterId:id('camera-motion'),value:true}]},
+  {...slider('camera-roll','Camera Roll','design','Camera',10,.2,0,1,'Strength of musical banking.'),visibleWhen:[{kind:'parameter-equals',parameterId:id('camera-motion'),value:true}]},
+  {...base('kick-zoom','Zoom on Kick','design','Camera',11,'Optional additional rhythmic lens punch.'),type:'boolean',defaultValue:false,visibleWhen:[{kind:'parameter-equals',parameterId:id('camera-motion'),value:true}]},
+  {...base('camera-follow','Follow Screen Choreography','design','Camera',12,'Use the selected pattern to direct camera accents.'),type:'boolean',defaultValue:true,visibleWhen:[{kind:'parameter-equals',parameterId:id('camera-motion'),value:true}]},
   slider('bloom','Bloom','effects','CRT Finish',1,.34,0,1.2,'Optical glow around the brightest screen and cabinet highlights.'),
   slider('scan','Scanlines','effects','CRT Finish',2,.20,0,1,'Strength of the fine CRT raster.'),
   slider('glare','Glass Glare','effects','CRT Finish',3,.65,0,1,'Intensity of the glass reflection and recessed lip highlights.'),
@@ -71,7 +85,7 @@ const parameters: readonly Cinema2ParameterManifest[] = [
 const bindings = {
   motion:ref('motion'), bpmSync:ref('bpm-sync'), autoPerformance:auto, brightness:ref('brightness'),
   coverage:ref('coverage'), angle:ref('angle'), pattern:ref('pattern'), patternChange:ref('pattern-change'),
-  trigger:ref('trigger'), poolTrigger:ref('pool-trigger'), mediaLayout:ref('media-layout'), scan:ref('scan'), glare:ref('glare'),
+  trigger:ref('trigger'), poolTrigger:ref('pool-trigger'), mediaLayout:ref('media-layout'),mediaFit:ref('media-fit'),contentMotion:ref('content-motion'),scaleVariation:ref('scale-variation'),screenPower:ref('screen-power'),heroReadability:ref('hero-readability'), scan:ref('scan'), glare:ref('glare'),
   background:ref('background'),cabinet:ref('cabinet'),cool:ref('cool'),warm:ref('warm'),screen:ref('screen'),
 }
 const defaults=Object.fromEntries(Object.entries(bindings).map(([key,binding])=>[key,parameters.find(parameter=>parameter.id===binding.$ref)!.defaultValue]))
@@ -107,6 +121,7 @@ const manifest: Cinema2NativePresetManifest = {
     { id: 'audio.features', requirement: 'optional', purpose: 'Energy and vocal presence control exposure and hero focus.' },
     { id: 'music.beat', requirement: 'optional', purpose: 'Beat-synchronized channel patterns and screen motion.' },
     { id: 'music.rhythm-events', requirement: 'optional', purpose: 'Kick and snare accents on the television screens.' },
+    { id: 'music.phrase', requirement: 'optional', purpose: 'Phrase-boundary camera reveals.' },
     { id: 'music.drop', requirement: 'optional', purpose: 'Drop events send a radial burst across the wall.' },
     { id: 'visual-director.significance', requirement: 'optional', purpose: 'Build sections pull attention toward the center screen.' },
     { id: 'media.image', requirement: 'optional', purpose: 'Images from the shared Media Library.' },
@@ -131,8 +146,11 @@ const manifest: Cinema2NativePresetManifest = {
   layers: [{ id: layer, label: 'CRT Wall', source: cinema2Ref(root), role: 'world', depthPolicy: 'read-write', order: 0 }],
   cameras: [{
     id: camera, label: 'Front Wall', projection: 'perspective', fovDegrees: 40,
-    near: 0.2, far: 40, transform: { position: [0, 0, 10.8] },
+    near: 0.2, far: 60, transform: { position: [0, 0, 14] },
     targetNode: cinema2Ref(aim), rig: { kind: 'static' },
+    motion:{idleMotion:true,drift:{position:.85,target:.18,rollDegrees:.45,fovDegrees:.35,speed:.065,seed:4512},tempo:{referenceBpm:120,weave:.85,bob:.12,roll:.5,fov:.35,punch:0},fovRateLimitDegreesPerSecond:18},
+    controls:{motionEnabled:ref('camera-motion'),motionAmount:ref('camera-sway'),masterMotionAmount:ref('motion'),tempoSync:ref('bpm-sync'),positionOffset:ref('camera-distance')},
+    smoothingMs:140,safety:{minPosition:[-2,-1.3,9],maxPosition:[2,1.3,17],maxPositionOffset:[2,1.3,5],maxTargetOffset:[1.2,.65,.2],minFovDegrees:29,maxFovDegrees:41,minNear:.2,maxFar:60},
   }],
   environment: { backgroundColor: EVERYWHERE_COLORS.background, exposure: 1, controls: { backgroundColor: ref('background') } },
   effects: [
@@ -149,6 +167,7 @@ const manifest: Cinema2NativePresetManifest = {
     route('vocal', 'audio.features.vocalPresence', 'audio.features', 207),
     route('build', 'director.build', 'visual-director.significance', 140),
     event('kick', 0.04, 0.24), event('snare', 0.018, 0.21), event('drop', 0.17, 1.02),
+    ...everywhereCameraProfileRules(camera),
   ] },
 }
 

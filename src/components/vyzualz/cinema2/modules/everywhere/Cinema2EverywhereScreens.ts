@@ -1,18 +1,24 @@
 export const EVERYWHERE_SCREEN_VERTEX = /* glsl */ `
 attribute vec4 aProgram; // exposure, seed, aspect, hero
+attribute vec4 aMediaPose; // scale, offset x/y, rotation
+attribute vec4 aMediaEffects; // power, channel, distortion, vertical stretch
 attribute vec4 aEyePose; // gaze x/y, blink, roll back
 varying vec2 vUv;
 varying vec2 vWall;
 varying vec2 vCabinet;
 varying vec4 vProgram;
 varying vec4 vEyePose;
+varying vec4 vMediaPose;
+varying vec4 vMediaEffects;
 void main() {
   vec4 local = instanceMatrix * vec4(position,1.0);
   vUv = uv;
-  vWall = local.xy / vec2(19.0,10.0) + .5;
-  vCabinet = instanceMatrix[3].xy / vec2(19.0,10.0) + .5;
+  vWall = local.xy / vec2(30.0,15.0) + .5;
+  vCabinet = instanceMatrix[3].xy / vec2(30.0,15.0) + .5;
   vProgram = aProgram;
   vEyePose = aEyePose;
+  vMediaPose = aMediaPose;
+  vMediaEffects = aMediaEffects;
   gl_Position = projectionMatrix * modelViewMatrix * local;
 }`
 
@@ -25,6 +31,7 @@ uniform sampler2D uPool2;
 uniform vec3 uPoolAspect; // zero means no ready feed
 uniform vec4 uProgram; // CRT mode, channel step, kick, snare
 uniform vec4 uMusic; // bass, high, build, drop
+uniform float uSourceMode; // eyes, single, pool (including loading)
 uniform float uHasEye;
 uniform float uHasMedia;
 uniform float uLayout;
@@ -43,6 +50,8 @@ varying vec2 vWall;
 varying vec2 vCabinet;
 varying vec4 vProgram;
 varying vec4 vEyePose;
+varying vec4 vMediaPose;
+varying vec4 vMediaEffects;
 
 float hash(vec2 p) {
   vec3 q = fract(vec3(p.xyx)*.1031);
@@ -137,10 +146,32 @@ vec3 animatedEye(vec2 uv, vec4 pose) {
   return picture*(1.0-.62*crease*blink);
 }
 
-vec4 poolPicture(sampler2D tex, float aspect, float screenAspect, vec2 uv) {
-  vec2 fit = screenAspect > aspect ? vec2(1.0,aspect/screenAspect) : vec2(screenAspect/aspect,1.0);
-  vec2 q = (uv-.5)*fit+.5;
-  return texture2D(tex,clamp(vec2(q.x,1.0-q.y),.001,.999));
+vec2 contentUV(vec2 uv) {
+  if (uLayout > .5 && uLayout < 1.5) return uv;
+  vec2 q=(uv-.5-vMediaPose.yz)/max(.01,vMediaPose.x);
+  q.y/=max(.1,vMediaEffects.w);
+  float c=cos(vMediaPose.w),s=sin(vMediaPose.w);
+  q=mat2(c,-s,s,c)*q;
+  q.x+=vMediaEffects.z*.055*sin(q.y*65.0+uLook.x*9.0);
+  return q+.5;
+}
+vec4 mediaPicture(sampler2D tex, float aspect, float screenAspect, vec2 uv, vec4 transform, float rotation) {
+  vec2 fit=vec2(1.0);
+  if (uMediaFit < .5) fit=screenAspect>aspect ? vec2(screenAspect/aspect,1.0) : vec2(1.0,aspect/screenAspect);
+  else if (uMediaFit < 1.5) fit=screenAspect>aspect ? vec2(1.0,aspect/screenAspect) : vec2(screenAspect/aspect,1.0);
+  vec2 q=(contentUV(uv)-.5)*fit/max(transform.zw,vec2(.01));
+  float c=cos(rotation),s=sin(rotation);
+  q=mat2(c,-s,s,c)*q+transform.xy;
+  float inside=step(0.0,q.x)*step(q.x,1.0)*step(0.0,q.y)*step(q.y,1.0);
+  vec4 result=texture2D(tex,clamp(vec2(q.x,1.0-q.y),0.0,1.0));
+  result.a*=inside;
+  if(vMediaEffects.z>.01) {
+    vec2 offset=vec2(vMediaEffects.z*.012,0.0);
+    vec4 echo=texture2D(tex,clamp(vec2(q.x,1.0-q.y)+offset,0.0,1.0));
+    result.rgb.r=mix(result.r,echo.r,vMediaEffects.z*.6);
+    result.a=max(result.a,echo.a*inside*vMediaEffects.z*.25);
+  }
+  return result;
 }
 
 void main() {
@@ -162,7 +193,7 @@ void main() {
   float detail = 1.0-uLook.z*.14*row*(1.0-smoothstep(.0012,.0048,fwidth(vUv.y)));
   float line = exp(-pow((fract(vUv.y + uLook.x*.18+seed*.23)-.5)*8.0,2.0));
   vec3 picture = vec3(.036,.025,.017)*(1.0+hash(floor(curved*144.0))*1.5);
-  if (uHasEye > .5) {
+  if (uSourceMode < .5 && uHasEye > .5) {
     // Do not mirror animated pictures: synchronized world-left/right gazes
     // must look in the same direction across all cabinets.
     picture = animatedEye(curved,vEyePose);
@@ -171,43 +202,28 @@ void main() {
     float alternate = smoothstep(.52,.90,seed)*(1.0-vProgram.w);
     picture = mix(picture,picture*vec3(.80,1.05,1.16),alternate*.33);
   }
-  if (uHasMedia > .5) {
-    float screenAspect = uLayout > .5 ? 19.0/10.0 : vProgram.z;
-    vec2 source = uLayout > .5 ? vWall : curved;
-    vec2 fit = vec2(1.0);
-    if (uMediaFit < .5) fit = screenAspect > uMediaAspect ? vec2(screenAspect/uMediaAspect,1.0) : vec2(1.0,uMediaAspect/screenAspect);
-    else if (uMediaFit < 1.5) fit = screenAspect > uMediaAspect ? vec2(1.0,uMediaAspect/screenAspect) : vec2(screenAspect/uMediaAspect,1.0);
-    vec2 q = (source-.5)*fit/max(uMediaTransform.zw,vec2(.01));
-    float c=cos(uMediaRotation),s=sin(uMediaRotation);
-    source = mat2(c,-s,s,c)*q + uMediaTransform.xy;
-    vec4 media = texture2D(uMedia,clamp(vec2(source.x,1.0-source.y),0.0,1.0));
-    float inside = step(0.0,source.x)*step(source.x,1.0)*step(0.0,source.y)*step(source.y,1.0);
-    // The media alpha and fit mask determine the blend. Transparent pixels must
-    // reveal the original eye feed, not punch black holes into it.
-    picture = mix(picture,linearColor(media.rgb),clamp(media.a * inside * uMediaOpacity,0.0,1.0));
+  bool span=uLayout>.5 && uLayout<1.5;
+  float screenAspect=span ? 2.0 : vProgram.z;
+  vec2 source=span ? vWall : curved;
+  float channel=0.0;
+  if (uSourceMode > .5) picture=vec3(.002,.003,.004);
+  if (uSourceMode > .5 && uSourceMode < 1.5 && uHasMedia > .5) {
+    vec4 media=mediaPicture(uMedia,uMediaAspect,screenAspect,source,uMediaTransform,uMediaRotation);
+    picture=mix(picture,linearColor(media.rgb),clamp(media.a*uMediaOpacity,0.0,1.0));
   }
-  // A bounded set of shared feeds; every cabinet chooses a channel without
-  // allocating a decoder or texture of its own. Span mode uses one wall feed.
-  float channel = floor(seed*3.0);
-  if (mode == 2.0) channel = floor((vCabinet.y+1.0)*3.0);
-  if (mode == 3.0) channel = floor((vCabinet.x+1.0)*3.0);
-  if (mode == 4.0) channel = floor(vCabinet.x*6.0)+floor(vCabinet.y*5.0);
-  if (mode == 5.0) channel = floor(length(vCabinet-.5)*9.0);
-  if (mode == 6.0) channel = vProgram.w>.5 ? 0.0 : floor(seed*3.0);
-  if (uLayout > .5) channel = 0.0;
-  channel = mod(channel+uProgram.y,3.0);
-  // Fall through to another ready channel when a pool is small or loading.
-  for (int i=0;i<3;i++) {
-    if ((channel<.5 && uPoolAspect.x>0.0) || (channel>.5 && channel<1.5 && uPoolAspect.y>0.0) || (channel>1.5 && uPoolAspect.z>0.0)) break;
-    channel=mod(channel+1.0,3.0);
+  if (uSourceMode > 1.5) {
+    channel=mod((span ? 0.0 : vMediaEffects.y)+uProgram.y,3.0);
+    for (int i=0;i<3;i++) {
+      if ((channel<.5 && uPoolAspect.x>0.0) || (channel>.5 && channel<1.5 && uPoolAspect.y>0.0) || (channel>1.5 && uPoolAspect.z>0.0)) break;
+      channel=mod(channel+1.0,3.0);
+    }
+    vec4 feed=vec4(0.0);
+    vec4 identityTransform=vec4(.5,.5,1.0,1.0);
+    if(channel<.5 && uPoolAspect.x>0.0) feed=mediaPicture(uPool0,uPoolAspect.x,screenAspect,source,identityTransform,0.0);
+    else if(channel>.5 && channel<1.5 && uPoolAspect.y>0.0) feed=mediaPicture(uPool1,uPoolAspect.y,screenAspect,source,identityTransform,0.0);
+    else if(channel>1.5 && uPoolAspect.z>0.0) feed=mediaPicture(uPool2,uPoolAspect.z,screenAspect,source,identityTransform,0.0);
+    picture=mix(picture,linearColor(feed.rgb),feed.a);
   }
-  vec2 poolUV=uLayout>.5 ? vWall : curved;
-  float poolScreenAspect=uLayout>.5 ? 19.0/10.0 : vProgram.z;
-  vec4 feed=vec4(0.0);
-  if (channel<.5 && uPoolAspect.x>0.0) feed=poolPicture(uPool0,uPoolAspect.x,poolScreenAspect,poolUV);
-  else if (channel<1.5 && channel>.5 && uPoolAspect.y>0.0) feed=poolPicture(uPool1,uPoolAspect.y,poolScreenAspect,poolUV);
-  else if (channel>1.5 && uPoolAspect.z>0.0) feed=poolPicture(uPool2,uPoolAspect.z,poolScreenAspect,poolUV);
-  picture=mix(picture,linearColor(feed.rgb),feed.a);
   float luma=dot(picture,vec3(.2126,.7152,.0722));
   float noise=hash(floor(vUv*vec2(330.0,190.0))+vec2(floor(uLook.x*12.0),seed*93.0));
   if (mode == 1.0) {
@@ -237,7 +253,8 @@ void main() {
   float glint = exp(-pow((p.y - .66 + p.x*.28)*7.1,2.0)) * exp(-pow((p.x+.48)*2.3,2.0));
   vec3 glass = (uCool*(.21*glint + rim*.043*max(0.0,-p.x)) + uWarm * rim*.067*max(0.0,p.x))*uLook.w;
   float breakUp = 1.0-uReaction.y*line*.38;
-  vec3 rgb = picture*uTint*detail*edgeFalloff*breakUp*uLook.y*vProgram.x + glass;
+  float power=uSourceMode>.5 ? vMediaEffects.x : 1.0;
+  vec3 rgb = power*picture*uTint*detail*edgeFalloff*breakUp*uLook.y*vProgram.x + glass;
   gl_FragColor=vec4(rgb,glassAlpha);
   #include <colorspace_fragment>
 }`

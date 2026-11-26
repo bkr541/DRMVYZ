@@ -23,20 +23,21 @@ export function everywhereEyePose(item: Readonly<EverywhereCabinet>,index: numbe
   const t=Math.max(0,look.phase-.22)
   const radius=Math.hypot(item.x,item.y)
   const nx=item.x/Math.max(1,radius), ny=item.y/Math.max(1,radius)
+  const travelRadius=radius*.67, travelX=item.x*.67, travelY=item.y*.67
   let x=0,y=0,blink=0,roll=0
   switch (look.pattern) {
     case 'all-eyes':
       x=gaze(t,8); y=.35*gaze(t-2,16)*smooth(t*3)
       blink=pulse(t-2,8,.52); roll=pulse(t-6,16,1.3)*.8; break
     case 'signal-sweep':
-      x=gaze(t,6); blink=pulse(t-1.1-item.x*.17,6,.48); break
+      x=gaze(t,6); blink=pulse(t-1.1-travelX*.17,6,.48); break
     case 'outward-pulse': {
-      const wave=pulse(t-radius*.17,6,2.6)
-      x=nx*wave; y=ny*wave*.65; blink=pulse(t-radius*.20,6,.55); break
+      const wave=pulse(t-travelRadius*.17,6,2.6)
+      x=nx*wave; y=ny*wave*.65; blink=pulse(t-travelRadius*.20,6,.55); break
     }
     case 'cross-cut':
       x=gaze(t,8)*(item.y>=0?1:-1); y=gaze(t,8)*(item.x>=0?-.55:.55)
-      blink=pulse(t-2-(item.x+item.y)*.12,8,.52); break
+      blink=pulse(t-2-(travelX+travelY)*.12,8,.52); break
     case 'channel-hold': {
       const bank=index%3, p=t-bank*.55
       x=gaze(p,9); y=.28*gaze(p-2,9); blink=pulse(p-2,9,.65); break
@@ -49,11 +50,11 @@ export function everywhereEyePose(item: Readonly<EverywhereCabinet>,index: numbe
     case 'retro-broadcast':
       x=.65*gaze(t,8); y=.24*gaze(t-2,8); blink=pulse(t-3,8,.74); break
     case 'tape-tracking':
-      x=.75*gaze(t-item.y*.10,6); y=.42*gaze(t,6); blink=pulse(t-2-item.y*.10,6,.50); break
+      x=.75*gaze(t-travelY*.10,6); y=.42*gaze(t,6); blink=pulse(t-2-travelY*.10,6,.50); break
     case 'channel-mosaic':
       x=gaze(t+(index%3)*.8,8); y=.45*gaze(t+(index%3)*.8,6); blink=pulse(t-1-(index%3)*.5,6,.52); break
     case 'signal-relay':
-      x=nx*pulse(t-radius*.20,6,2.3); y=ny*pulse(t-radius*.20,6,2.3); blink=pulse(t-radius*.20,6,.50); break
+      x=nx*pulse(t-travelRadius*.20,6,2.3); y=ny*pulse(t-travelRadius*.20,6,2.3); blink=pulse(t-travelRadius*.20,6,.50); break
     case 'midnight-replay':
       x=.5*gaze(t,12); y=.3*gaze(t,8); blink=pulse(t-3-item.seed*.5,10,.85); roll=pulse(t-7,16,2); break
   }

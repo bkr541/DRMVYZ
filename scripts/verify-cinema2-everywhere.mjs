@@ -35,7 +35,7 @@ try {
     await api('prepare')
     await expect.poll(async () => {
       const state = inspection(await api('advanceBy', .05))
-      return state.renderReady && state.eyeReady && state.screens > 30
+      return state.renderReady && state.eyeReady && state.screens === 306
     }).toBe(true)
     assert.equal(JSON.parse((await api('status')).authored).values['everywhere-auto-performance'], auto)
   }
@@ -120,6 +120,9 @@ try {
   const control = id => inspector.locator(`[data-cinema2-control-id="everywhere-${id}"]`)
   await expect(control('pattern').locator('select, [role="combobox"]')).toBeEnabled()
   await expect(control('trigger')).toHaveCount(0)
+  await expect(control('pool-trigger')).toHaveCount(0)
+  await expect(inspector.getByText('Default Eyes',{exact:true})).toBeVisible()
+  await expect(control('camera-motion').getByRole('switch')).toBeChecked()
   for (const group of ['Master Controls','Design','Effects','Palette']) {
     await expect(inspector.getByText(group,{exact:true})).toBeVisible()
   }
@@ -142,7 +145,10 @@ try {
   await expect.poll(async () => inspection(await api('advanceBy',.05)).userMedia).toBe(true)
   await library.screenshot({path:join(output,'source.png')})
   await library.evaluate(element => { element.style.display = 'none' })
+  const choreographed = await capture('media-choreographed')
+  await change({'media-layout':'repeat'})
   const repeated = await capture('media-repeat')
+  changed(choreographed,repeated,'Choreographed / Repeat layouts')
   changed(baseline,repeated,'Shared Source feed',1)
   await change({'media-layout':'wall'})
   changed(repeated,await capture('media-wall'),'Repeat / Wall media layouts',1)
@@ -158,6 +164,8 @@ try {
   }
   await library.getByRole('button',{name:'Pools',exact:true}).click()
   await library.getByRole('button',{name:'Activate pool CRT Review Pool'}).click()
+  assert.equal((await api('status')).media.slots[0].source,null)
+  assert.equal(inspection(await api('advanceBy',.05)).sourceMode,'pool')
   await change({pattern:'static-switch','media-layout':'repeat','pool-trigger':'kick',motion:.8})
   await api('setMusic',{active:true,event:null})
   await expect.poll(async () => inspection(await api('advanceBy',.05)).poolReadyChannels).toBe(2)
@@ -169,7 +177,15 @@ try {
   await library.evaluate(element => { element.style.display = '' })
   await library.getByRole('button',{name:'Deactivate pool CRT Review Pool'}).click()
   await expect.poll(async () => inspection(await api('advanceBy',.05)).poolReadyChannels).toBe(0)
-  assert.equal((await api('status')).media.slots[0].source?.id,'crt-test-image')
+  assert.equal((await api('status')).media.slots[0].source,null)
+  assert.equal(inspection(await api('advanceBy',.05)).sourceMode,'eyes')
+  await library.getByRole('button',{name:'All',exact:true}).click()
+  await library.getByText('CRT test image',{exact:true}).first().click()
+  await page.getByRole('menuitem',{name:'Make Active'}).click()
+  await expect.poll(async()=>inspection(await api('advanceBy',.05)).sourceMode).toBe('single')
+  await library.getByRole('button',{name:'Reset to Default Eyes'}).click()
+  assert.equal((await api('status')).media.slots[0].source,null)
+  assert.equal(inspection(await api('advanceBy',.05)).sourceMode,'eyes')
   assert.deepEqual(errors,[])
   console.log(`EVERYWHERE production WebGL, twelve patterns, audio, Inspector, Source and shared pools passed. Captures in ${output}`)
 } finally {

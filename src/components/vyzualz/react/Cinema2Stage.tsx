@@ -1,3 +1,5 @@
+import { observeEverywherePool } from './Cinema2EverywhereMediaSourceController'
+import { useReactStore } from '../../../stores/reactStore'
 import { createCinema2WorkspaceMediaPoolSource } from './Cinema2WorkspaceMediaPoolSource'
 import { measurePerformanceSurface, performanceRenderDpr } from './output/performanceOutputGeometry'
 import { GraphicsHealer } from '../../../lib/graphicsSelfHealing'
@@ -114,6 +116,7 @@ export function Cinema2Stage({
     const activationStarted = performance.now()
     recordPerformanceEvent('cinema2', 'activation-started', { presetId: presetId ?? 'foundation' })
     let runtime: Cinema2Runtime | null = null
+    let stopEverywherePoolObserver: (()=>void) | null = null
     let resizeObserver: ResizeObserver | null = null
     let lastResolution: CanvasResolution | null = null
     let retired = false
@@ -156,6 +159,7 @@ export function Cinema2Stage({
       resizeObserver?.disconnect()
       window.removeEventListener('resize', resize)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
+      stopEverywherePoolObserver?.()
       if (runtime) onRuntimeRetiringRef.current?.(captureCinema2WorkspacePresetState(runtime))
       onRuntimeReadyRef.current?.(null)
       onRuntimeSnapshotRef.current?.(null)
@@ -234,7 +238,10 @@ export function Cinema2Stage({
       runtime = created.runtime
       setActiveRuntime(runtime)
       onRuntimeReadyRef.current?.(runtime)
-      void restoreCinema2WorkspaceMedia(runtime, restoreState).catch(error => {
+      const everywhere = runtime.getCompiledPresetPlan().presetId === 'drmvyz.cinema2.everywhere'
+      if(everywhere) stopEverywherePoolObserver=observeEverywherePool(runtime)
+      const restoreMedia = everywhere && useReactStore.getState().canvasOrchestrationSettings.activeMediaPoolId ? null : restoreState
+      void restoreCinema2WorkspaceMedia(runtime, restoreMedia).catch(error => {
         notify('react', {
           tone: 'warning',
           title: 'Saved media not restored',

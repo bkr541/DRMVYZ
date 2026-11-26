@@ -76,7 +76,7 @@ export class Cinema2EverywherePool {
     this.pending.add(channel)
     void Promise.resolve().then(() => this.source.resolve(id)).then(source => {
       if (this.disposed || generation !== this.generation || !source || source.id !== id) return
-      return this.slots.replace(slot, source, { fit: 'cover' })
+      return this.slots.replace(slot, source, { fit: 'contain' })
     }).catch(() => { /* Keep the last ready feed; a future event can try again. */ }).finally(() => {
       if (generation === this.generation) this.pending.delete(channel)
     })

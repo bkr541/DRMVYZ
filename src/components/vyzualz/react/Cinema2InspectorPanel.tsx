@@ -22,6 +22,9 @@ import { IconChipButton } from './controls/IconChipButton'
 import { findCinema2PolicyControls, Cinema2LivePolicyProvider, Cinema2LiveValuesProvider, resolveCinema2LivePolicy, resolveCinema2LiveValues, useCinema2LivePolicies, useCinema2LivePolicy, useCinema2LiveValue, useCinema2LiveValues, } from './Cinema2LiveValues'
 import { PanelSubtabs } from './PanelSubtabs'
 import { ReactAudioPanel } from './ReactAudioPanel'
+import { useReactStore } from '../../../stores/reactStore'
+import { resetEverywhereMedia } from './Cinema2EverywhereMediaSourceController'
+import { CINEMA2_EVERYWHERE_MEDIA_SLOT } from '../cinema2/presets/Cinema2EverywherePreset'
 
 export interface Cinema2InspectorPanelProps {
   runtime: Cinema2Runtime | null
@@ -229,6 +232,7 @@ export function Cinema2InspectorPanel({ runtime, surface, sharedAudioAnalysis = 
                     <Cinema2DesignParentGroup
                       key={parent.id}
                       parent={parent}
+                      runtime={runtime}
                       onChange={commit}
                       onTrigger={dispatch}
                     />
@@ -284,10 +288,12 @@ const PARENT_GROUP_ICONS: Readonly<Record<Cinema2DesignParentGroupModel['id'], A
 
 function Cinema2DesignParentGroup({
   parent,
+  runtime,
   onChange,
   onTrigger,
 }: {
   parent: Readonly<Cinema2DesignParentGroupModel>
+  runtime: Cinema2Runtime
   onChange: (control: Readonly<Cinema2InspectorControlModel>, value: Cinema2JsonValue) => void
   onTrigger: (control: Readonly<Cinema2InspectorControlModel>) => void
 }) {
@@ -301,7 +307,9 @@ function Cinema2DesignParentGroup({
       {parent.controls.length > 0 && (
         <Cinema2InspectorControls controls={parent.controls} onChange={onChange} onTrigger={onTrigger} />
       )}
-      {parent.groups.map((group, groupIndex) => (
+      {parent.groups.map((group, groupIndex) => group.controls.some(control=>control.definition.id==='everywhere-screen-media') ? (
+        <EverywhereScreenMediaGroup key="everywhere-screen-media" runtime={runtime} group={group} onChange={onChange} onTrigger={onTrigger}/>
+      ) : (
         <Cinema2InspectorGroup
           key={group.label ?? `ungrouped-${groupIndex}`}
           group={group}
@@ -387,6 +395,28 @@ function Cinema2InspectorInstance({
       </Collapsible>
     </div>
   )
+}
+
+/** The media descriptor is runtime-owned, never a free-form parameter. */
+function EverywhereScreenMediaGroup({runtime,group,onChange,onTrigger}: {
+  runtime: Cinema2Runtime
+  group: Readonly<Cinema2InspectorGroupModel>
+  onChange: (control: Readonly<Cinema2InspectorControlModel>, value: Cinema2JsonValue)=>void
+  onTrigger: (control: Readonly<Cinema2InspectorControlModel>)=>void
+}) {
+  const slots=runtime.getMediaSlotRuntime()
+  const snapshot=useSyncExternalStore(slots.subscribe,slots.getSnapshot)
+  const slot=snapshot.slots.find(item=>item.id===CINEMA2_EVERYWHERE_MEDIA_SLOT)
+  const pool=useReactStore(state=>state.canvasOrchestrationSettings.mediaPools.find(item=>item.id===state.canvasOrchestrationSettings.activeMediaPoolId)??null)
+  const custom=!!pool||!!slot?.source
+  const controls=group.controls.filter(control=>control.definition.id!=='everywhere-screen-media' && custom && (control.definition.id!=='everywhere-pool-trigger'||!!pool))
+  return <Collapsible label="Screen Media">
+    <div className="rv-canvas-panel-status"><span>Content Source</span><strong>{pool ? 'Media Pool' : slot?.source ? 'Individual Media' : 'Default Eyes'}</strong></div>
+    <div className="rv-ctrl-info">{pool ? `${pool.name} · ${pool.mediaIds.length} items` : slot?.source ? `${slot.source.label}${slot.status==='loading'?' · Loading…':''}` : 'Built-in animated eyes. Choose an image, SVG, video or pool in the Source tab.'}</div>
+    {!pool && slot?.error && <div className="rv-ctrl-info" role="status">{slot.error}</div>}
+    {custom && <button type="button" className="vz-coll-active-btn" onClick={()=>resetEverywhereMedia(runtime)}>Reset to Default Eyes</button>}
+    <Cinema2InspectorControls controls={controls} onChange={onChange} onTrigger={onTrigger}/>
+  </Collapsible>
 }
 
 function Cinema2InspectorGroup({
@@ -641,6 +671,10 @@ function Cinema2SchemaControlBody({
       )
     case 'vec2':
     case 'vec3': {
+      if(definition.id==='everywhere-camera-distance') {
+        const z=isNumericArray(value,3) ? value[2]! : 0
+        return <SliderRow id={controlId} label={definition.label} value={14+z} min={11} max={17} step={.1} resetValue={14} disabled={disabled} onChange={next=>onChange([0,0,next-14])}/>
+      }
       const length = definition.type === 'vec2' ? 2 : 3
       const vector = isNumericArray(value, length) ? value : Array.from({ length }, () => 0)
       const axes = ['X', 'Y', 'Z']
