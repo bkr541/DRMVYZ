@@ -16,7 +16,15 @@ export const HERO_RADIUS = 2.85
 export const HERO_OFFSET = .4
 // Worst case: bounding sphere at scale 1.2, all three offsets, idle movement and 15% clearance.
 export const HERO_EXCLUSION = (HERO_RADIUS * 1.2 + Math.sqrt(3)*HERO_OFFSET + .12) * 1.15
-export const ARM_MIN_RADIUS = 5.45
+// Maximum radial extent of the machined links, collars, pistons and end tools.
+export const ARM_SURFACE_ALLOWANCE = 1.02
+export const ARM_MIN_RADIUS = 6.05
+export const COLOSSUS_FLOOR_Y = -5.25
+export const COLOSSUS_CAMERA = {
+  position: [0,-1.45,13.4], target: [0,.15,0], fovDegrees: 42,
+  minPosition: [-1.1,-2,12.8], maxPosition: [1.1,-.8,14.2],
+  minFovDegrees: 41, maxFovDegrees: 43,
+} as const
 export const clamp01 = (n:number) => Math.max(0,Math.min(1,n))
 export type Point = readonly [number,number,number]
 export interface ArmPose { shoulder:Point; elbow:Point; tip:Point; jaw:number; pulse:number }
@@ -35,9 +43,10 @@ function poseForPattern(index:number,p:ArmInput):ArmPose {
   }
   const motion=p.safety*(1-.30*clamp01(p.vocal)), a=p.articulation*motion
   const rad=ARM_MIN_RADIUS+.85*(1-clamp01(p.reach*(.3+(inward-.3)*motion)+(.20*p.bass+.25*p.kick+.20*p.build)*motion))+.35*spread*a+.48*p.release*motion
-  // Each segment lies in the same outward half-space; the closest surface remains outside the exclusion sphere.
-  const point=(r:number,t:number,z:number):Point=>[Math.cos(angle)*r-Math.sin(angle)*t,Math.sin(angle)*r+Math.cos(angle)*t,z]
-  return {shoulder:point(8.05,0,-3.5),elbow:point(6.65,.75*bend*a+.28*p.mid*motion,-1.75-.36*p.piston*motion),tip:point(rad,.45*bend*a,-.35+.30*p.piston*motion),jaw:.14+.35*clamp01(p.jaw+.15*p.snare*motion),pulse:((p.routePhase+chase)%1+1)%1}
+  // Outward radial anchors and bounded floor clamp protect the hero and deck.
+  // The enlarged surface allowance is exercised against sampled links and pattern blends.
+  const point=(r:number,t:number,z:number):Point=>[Math.cos(angle)*r-Math.sin(angle)*t,Math.max(COLOSSUS_FLOOR_Y+ARM_SURFACE_ALLOWANCE+.16,Math.sin(angle)*r+Math.cos(angle)*t),z]
+  return {shoulder:point(10.1,0,-5.4),elbow:point(7.75,1.05*bend*a+.35*p.mid*motion,-2.65-.52*p.piston*motion),tip:point(rad,.65*bend*a,.05+.40*p.piston*motion),jaw:.14+.35*clamp01(p.jaw+.15*p.snare*motion),pulse:((p.routePhase+chase)%1+1)%1}
 }
 
 /** Blend automatic changes only; both poses and their convex segment interpolation stay outside the hero half-space. */
