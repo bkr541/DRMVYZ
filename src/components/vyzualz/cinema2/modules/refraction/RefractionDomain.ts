@@ -13,37 +13,39 @@ export const REFRACTION_COLORS = {
 export const clamp=(v:number,min=0,max=1)=>Math.max(min,Math.min(max,v))
 export const PRISM_CAPACITY=18
 export interface PrismAnchor {x:number;y:number;z:number;width:number;height:number;bank:number;inverted:boolean;slab:boolean}
-// Hero triptych first; additions fill the upper and outer negative space, never the hero sightline.
+// A large central optical gate, staggered lateral crystal banks and deep relay surfaces.
+// The first six anchors retain a complete composition at minimum prism count.
 export const PRISM_ANCHORS: readonly PrismAnchor[] = [
-  {x:-2.65,y:-.18,z:.65,width:2.45,height:3.15,bank:0,inverted:false,slab:false},
-  {x:0,y:.12,z:.82,width:2.45,height:3.15,bank:0,inverted:true,slab:false},
-  {x:2.65,y:-.18,z:.65,width:2.45,height:3.15,bank:0,inverted:false,slab:false},
-  {x:-4.25,y:.95,z:-1.6,width:1.85,height:2.8,bank:1,inverted:true,slab:false},
-  {x:4.25,y:.95,z:-1.6,width:1.85,height:2.8,bank:1,inverted:false,slab:false},
-  {x:0,y:2.42,z:-2.25,width:2.45,height:.72,bank:1,inverted:false,slab:true},
-  {x:-2.1,y:2.38,z:-2.6,width:1.5,height:1.55,bank:1,inverted:true,slab:false},
-  {x:2.1,y:2.38,z:-2.6,width:1.5,height:1.55,bank:1,inverted:false,slab:false},
-  {x:-4.2,y:-1.58,z:-3.2,width:1.65,height:.68,bank:2,inverted:false,slab:true},
-  {x:4.2,y:-1.58,z:-3.2,width:1.65,height:.68,bank:2,inverted:false,slab:true},
-  {x:-1.5,y:-1.95,z:-3.6,width:1.4,height:.65,bank:2,inverted:false,slab:true},
-  {x:1.5,y:-1.95,z:-3.6,width:1.4,height:.65,bank:2,inverted:false,slab:true},
-  {x:-5.5,y:.1,z:-4.4,width:1.4,height:2.1,bank:2,inverted:false,slab:false},
-  {x:5.5,y:.1,z:-4.4,width:1.4,height:2.1,bank:2,inverted:true,slab:false},
-  {x:-3.6,y:2.55,z:-5.2,width:1.45,height:.65,bank:2,inverted:false,slab:true},
-  {x:3.6,y:2.55,z:-5.2,width:1.45,height:.65,bank:2,inverted:false,slab:true},
-  {x:-5.3,y:2.55,z:-5.8,width:1.15,height:1.45,bank:2,inverted:true,slab:false},
-  {x:5.3,y:2.55,z:-5.8,width:1.15,height:1.45,bank:2,inverted:false,slab:false},
+  {x:0,y:.15,z:.65,width:3.05,height:3.65,bank:0,inverted:false,slab:false},
+  {x:-2.65,y:-.25,z:-.15,width:1.85,height:3.65,bank:0,inverted:true,slab:false},
+  {x:2.65,y:-.25,z:-.15,width:1.85,height:3.65,bank:0,inverted:false,slab:false},
+  {x:-3.95,y:.55,z:-2.9,width:1.6,height:3.4,bank:1,inverted:false,slab:false},
+  {x:3.95,y:.55,z:-2.9,width:1.6,height:3.4,bank:1,inverted:true,slab:false},
+  {x:0,y:2.65,z:-2.8,width:3.1,height:.72,bank:1,inverted:false,slab:true},
+  {x:-1.65,y:2.25,z:-4.1,width:1.3,height:1.5,bank:1,inverted:true,slab:false},
+  {x:1.65,y:2.25,z:-4.1,width:1.3,height:1.5,bank:1,inverted:false,slab:false},
+  {x:-4.3,y:-1.9,z:-4.1,width:1.65,height:.65,bank:2,inverted:false,slab:true},
+  {x:4.3,y:-1.9,z:-4.1,width:1.65,height:.65,bank:2,inverted:false,slab:true},
+  {x:-1.55,y:-2.2,z:-4.9,width:1.45,height:.65,bank:2,inverted:false,slab:true},
+  {x:1.55,y:-2.2,z:-4.9,width:1.45,height:.65,bank:2,inverted:false,slab:true},
+  {x:-5.4,y:.1,z:-5.1,width:1.25,height:2.8,bank:2,inverted:false,slab:false},
+  {x:5.4,y:.1,z:-5.1,width:1.25,height:2.8,bank:2,inverted:true,slab:false},
+  {x:-3.5,y:2.65,z:-6,width:1.4,height:.65,bank:2,inverted:false,slab:true},
+  {x:3.5,y:2.65,z:-6,width:1.4,height:.65,bank:2,inverted:false,slab:true},
+  {x:-5.3,y:2.65,z:-6.4,width:1.1,height:1.35,bank:2,inverted:true,slab:false},
+  {x:5.3,y:2.65,z:-6.4,width:1.1,height:1.35,bank:2,inverted:false,slab:false},
 ]
+export const OPTICAL_APERTURE = {width:.72,height:.60} as const
 export function prismUv(index:number,grouping:string,grouped:boolean,channels:number,step:number){
   const p=PRISM_ANCHORS[index]!, count=Math.max(1,channels)
   // Continuous coordinates describe a common 12.8 x 6 composition in world XY.
   // Grouped coordinates describe a full fitted feed per physical aperture.
   const width=12.8,height=6
-  const w=grouped?1:p.width/width,h=grouped?1:p.height/height
+  const w=grouped?1:p.width*OPTICAL_APERTURE.width/width,h=grouped?1:p.height*OPTICAL_APERTURE.height/height
   const x=grouped?0:clamp(.5+p.x/width-w/2,0,1-w)
   const y=grouped?0:clamp(.5+p.y/height-h/2,0,1-h)
   const group=grouped?(grouping==='upright-inverted'?(p.inverted?1:0):p.bank):0
-  return {x,y,w,h,channel:(group+step)%count,aspect:grouped?p.width/p.height:width/height}
+  return {x,y,w,h,channel:(group+step)%count,aspect:grouped?p.width*OPTICAL_APERTURE.width/(p.height*OPTICAL_APERTURE.height):width/height}
 }
 export interface RefractionMotion {
   pattern:RefractionPattern;phase:number;separation:number;rotation:number;transmission:number;roughness:number;refraction:number;
@@ -65,4 +67,33 @@ export function prismPose(index:number,p:RefractionMotion){
   const depth=clamp(z*(p.separation+.2*p.bass)+.25*p.kick*side+.15*p.build*side+.24*p.drop*wave,-.8,.8)
   const emission=p.edgeEmission===0?0:clamp((light*p.edgeEmission+.15*p.high+.08*p.snare*(a.inverted?1:0)+.14*p.downbeat*(1+wave)/2+.08*p.phrase+.06*p.beat+.05*p.energy+.16*p.impact*p.drop)*p.intensity)
   return {x:x*amp,y:y*amp,z:depth*amp,rx:rx*rotation*amp,ry:ry*rotation*amp,light:emission,glass:clamp(glass),optical:clamp(optical*p.refraction*restraint*(1+.15*p.kick))}
+}
+
+export type OpticalPoint = readonly [number, number, number]
+export interface OpticalPath { source:OpticalPoint; entry:OpticalPoint; exit:OpticalPoint; primary:OpticalPoint; secondary:OpticalPoint; gain:number }
+/** Analytic, artist-directed light paths in prism-local coordinates. Z is in crystal depths.
+ * Both surface crossings are on the broad front/rear facets; the exit rays diverge outside
+ * the crystal. No independent clock: phase and envelopes arrive from shared performance.
+ */
+export function opticalPath(index:number,p:RefractionMotion,locked=false):OpticalPath {
+  const a=PRISM_ANCHORS[index]!,t=locked?0:p.phase,side=a.inverted?-1:1
+  const wave=Math.sin(t+index*.51),sweep=(1-Math.cos(t))/2
+  let sx=-.94*side,sy=.33,ex=-.25*side,ey=.14,ox=.25*side,oy=-.08,dx=.94*side,dy=-.36,spread=.08,gain=1
+  switch(p.pattern){
+    case 'prism-rotation': sy=.36*wave+.12;ey=.15*wave;oy=-.14*wave;dy=-.35*wave-.12;break
+    case 'spectral-split': sy=-.42;ey=-.18;oy=.16;dy=.48;spread=.25+.19*sweep;break
+    case 'transparency': sx=-.7*side;sy=.05;ex=-.18*side;ey=0;ox=.18*side;oy=0;dx=.7*side;dy=.05;spread=.035;gain=.45;break
+    case 'convergence': {const inward=a.x===0?side:-Math.sign(a.x);sx=-.92*inward;sy=.43;ex=-.22*inward;ey=.18;ox=.22*inward;oy=-.12;dx=1.06*inward;dy=-.42+.28*sweep;spread=.05;break}
+    case 'glass-relay': {sx=-.88;sy=.25;ex=-.26;ey=.10;ox=.26;oy=-.10;dx=.88;dy=-.25;const chase=((t/(2*Math.PI)*2)%1+1)%1,d=Math.abs(index/PRISM_CAPACITY-chase);gain=.12+.88*Math.exp(-(Math.min(d,1-d)**2)/.025);break}
+    case 'refraction': sx=-.88*side;sy=-.38;ex=-.20*side;ey=-.14;ox=.12*side;oy=.18;dx=.9*side;dy=.28+.26*wave;spread=.15+.17*sweep;break
+  }
+  const split=spread*p.refraction*(p.readability ? .85 : 1)*(1-.3*p.vocal)*(1+.25*p.build+.25*p.drop)
+  // The incident slope is restricted so the straight path always crosses both broad faces.
+  // Interpolate from that straight ray to the authored optical bend; no claim of ray tracing.
+  sx=ex+(sx-ex)*.42;sy=ey+(sy-ey)*.42
+  const bend=p.refraction, straightY=ey+(ey-sy)*1.24/.88, straightX=ex+(ex-sx)*1.24/.88
+  ox=straightX+(ox-straightX)*bend;oy=straightY+(oy-straightY)*bend
+  const travelX=ox+(ex-sx)*1.53/.88,travelY=oy+(ey-sy)*1.53/.88
+  dx=travelX+(dx-travelX)*bend;dy=travelY+(dy-travelY)*bend
+  return {source:[sx,sy,-2],entry:[ex,ey,-1.12],exit:[ox,oy,.12],primary:[dx,dy+split,1.65],secondary:[dx,dy-split,1.65],gain}
 }
