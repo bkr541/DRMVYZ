@@ -1,6 +1,6 @@
 import { Cinema2Runtime } from '../../components/vyzualz/cinema2/runtime/Cinema2Runtime'
 import { Cinema2AudioIntelligenceBridge } from '../../components/vyzualz/cinema2/audio/Cinema2AudioIntelligenceBridge'
-import type { Cinema2PresetId, Cinema2RenderQualityLevel } from '../../components/vyzualz/cinema2/contracts/Cinema2NativePresetManifest'
+import type { Cinema2ParameterId, Cinema2PresetId, Cinema2RenderQualityLevel } from '../../components/vyzualz/cinema2/contracts/Cinema2NativePresetManifest'
 import { trippyBroMusicFixture } from '../support/TrippyBroMusicFixture'
 import { DEFAULT_MI_FRAME } from '../../features/musicIntelligence/constants'
 import type { MusicIntelligenceFrame } from '../../features/musicIntelligence/types'
@@ -9,41 +9,55 @@ import type { MusicIntelligenceFrame } from '../../features/musicIntelligence/ty
 type Stage = 'reference' | 'idle' | 'build' | 'drop' | 'breakdown'
 const canvas = document.querySelector<HTMLCanvasElement>('#review')!
 const query = new URLSearchParams(location.search)
-const presetId = query.get('preset') as Cinema2PresetId
-const quality = (query.get('quality') ?? 'high') as Cinema2RenderQualityLevel
+let presetId = query.get('preset') as Cinema2PresetId
+let quality = (query.get('quality') ?? 'high') as Cinema2RenderQualityLevel
 let callback: FrameRequestCallback | null = null
 let index = 0, source = false, stage: Stage = 'reference', stageFrame = 0, musicTime = 0
-let lastGlError = 0
+let lastGlError = 0, paused = false
+let glErrors: number[] = []
+let publicationSequence = 0, publicationTime = 0
+let bpmSync = true
 let published: MusicIntelligenceFrame = DEFAULT_MI_FRAME
-const bridge = new Cinema2AudioIntelligenceBridge({
-  getFrame: () => published,
-  getPublicationMeta: () => ({ sequence: index, publishedAtMs: index * 1000 / 30, publisherId: 'sys04-review-v1', kind: 'frame' }),
-})
-const created = Cinema2Runtime.create(canvas, {
-  presetId, renderQuality: quality, diagnosticsEnabled: true,
-  randomness: { mode: 'deterministic', seed: 'sys04-review-v1' },
-  audioIntelligenceBridge: bridge,
-  transportSource: { getState: () => ({ sourcePresent: source, playing: source, analysisActive: source, paused: false,
-    trackId: source ? published.trackId : null, timeSec: musicTime, bpm: 120, bpmSync: true }) },
-  requestAnimationFrame: next => { callback = next; return 1 },
-  cancelAnimationFrame: () => { callback = null },
-})
-if (!created.runtime) throw new Error(created.error)
-const runtime = created.runtime
-const manifest = runtime.getCompiledPresetPlan().manifest
-const auto = manifest.parameters.find(p => p.label === 'Auto Performance')
-const mode = query.get('mode') ?? 'authored'
-if (mode !== 'authored') {
-  if (!auto) throw new Error('Auto Performance control not present')
-  const result = runtime.getParameterState().setPersistentValue(auto.id, mode === 'auto')
-  if (!result.ok) throw new Error(JSON.stringify(result.diagnostics))
+function createRuntime(serializedParameterState?: string) {
+  const bridge = new Cinema2AudioIntelligenceBridge({
+    getFrame: () => published,
+    getPublicationMeta: () => ({ sequence: query.has('release') ? publicationSequence : index, publishedAtMs: query.has('release') ? publicationTime : index * 1000 / 30, publisherId: 'sys04-review-v1', kind: 'frame' }),
+  })
+  const created = Cinema2Runtime.create(canvas, {
+    presetId, serializedParameterState, renderQuality: quality, diagnosticsEnabled: true,
+    randomness: { mode: 'deterministic', seed: 'sys04-review-v1' },
+    audioIntelligenceBridge: bridge,
+    transportSource: { getState: () => ({ sourcePresent: source, playing: source && !paused, analysisActive: source, paused,
+      trackId: source ? published.trackId : null, timeSec: musicTime, bpm: 120, bpmSync }) },
+    requestAnimationFrame: next => { callback = next; return 1 },
+    cancelAnimationFrame: () => { callback = null },
+  })
+  if (!created.runtime) throw new Error(created.error)
+  return created.runtime
 }
-const initial = runtime.serializeParameterState()
+let runtime = createRuntime()
+let manifest = runtime.getCompiledPresetPlan().manifest
+const mode = query.get('mode') ?? 'authored'
+function applyMode() {
+  const auto = (manifest.parameters ?? []).find(p => p.label === 'Auto Performance')
+  if (mode !== 'authored') {
+    if (!auto) throw new Error('Auto Performance control not present')
+    const result = runtime.getParameterState().setPersistentValue(auto.id, mode === 'auto')
+    if (!result.ok) throw new Error(JSON.stringify(result.diagnostics))
+  }
+}
+applyMode()
+function syncTransportSetting() {
+  const control = (manifest.parameters ?? []).find(p => p.label === 'BPM Sync')
+  bpmSync = control ? runtime.getParameterState().getValue(control.id) === true : true
+}
+syncTransportSetting()
+let initial = runtime.serializeParameterState()
 runtime.resize({ width: innerWidth, height: innerHeight, dpr: 1 })
 runtime.start()
 function tick() {
   index++
-  if (source) {
+  if (source && !paused) {
     musicTime += 1 / 30
     const energy = stage === 'build' ? .35 + Math.min(stageFrame / 60, 1) * .55 : stage === 'drop' ? .95 : .16
     const hit = stageFrame === 0 && stage === 'drop' ? 'drop' : stageFrame % 30 === 0 ? 'downbeat' : stageFrame % 15 === 0 ? 'kick' : stageFrame % 15 === 7 ? 'snare' : null
@@ -51,6 +65,7 @@ function tick() {
       build: stage === 'build' ? Math.min(stageFrame / 60, 1) : 0, advanceBeatGrid: true, event: hit, eventId: index })
     published = { ...upstream, section: { ...upstream.section, type: stage === 'build' ? 'build' : stage === 'drop' ? 'drop' : 'breakdown',
       startSec: musicTime - stageFrame / 30, endSec: musicTime - stageFrame / 30 + 2, intensity: energy, progress: Math.min(stageFrame / 60, 1) } }
+    publicationSequence++; publicationTime = index * 1000 / 30
     stageFrame++
   }
   const next = callback as FrameRequestCallback | null
@@ -58,18 +73,24 @@ function tick() {
   callback = null
   const start = performance.now()
   next(index * 1000 / 30)
-  const glError = canvas.getContext('webgl2')?.getError() ?? -1
-  if (glError !== 0) lastGlError = glError
+  const gl = canvas.getContext('webgl2')
+  // Drain a bounded queue so a later successful frame cannot hide an earlier error.
+  for (let i = 0; i < 16; i++) {
+    const error = gl?.getError() ?? -1
+    if (error === 0) break
+    lastGlError = error; glErrors.push(error)
+    if (error === gl?.CONTEXT_LOST_WEBGL || error === -1) break
+  }
   return performance.now() - start
 }
 function diagnostics() {
-  return { glError: lastGlError, runtime: runtime.getSnapshot(), modules: runtime.getModuleRuntimeSnapshot(), render: runtime.getRenderGraphExecutorSnapshot(),
+  return { glError: lastGlError, glErrors: [...glErrors], resources: runtime.getResourceManagerSnapshot(), media: runtime.getMediaSlotRuntimeSnapshot(), visualTime: runtime.getVisualElapsedTimeSec(), choreography: runtime.getChoreographyRuntimeSnapshot(), runtime: runtime.getSnapshot(), modules: runtime.getModuleRuntimeSnapshot(), render: runtime.getRenderGraphExecutorSnapshot(),
     camera: runtime.getCameraRuntimeSnapshot(), director: runtime.getVisualDirectorFrame(), transport: runtime.getTransportFrameState() }
 }
 const api = {
   inventory() { return { id: manifest.id, revision: manifest.revision, metadata: manifest.metadata,
-    patterns: manifest.parameters.find(p => p.label === 'Pattern')?.options ?? [], cameras: manifest.cameras,
-    mediaSlots: manifest.mediaSlots ?? [], parameters: initial } },
+    patterns: (manifest.parameters ?? []).find(p => p.label === 'Pattern')?.options ?? [], cameras: manifest.cameras,
+    mediaSlots: manifest.mediaSlots ?? [], controls: manifest.parameters ?? [], parameters: initial } },
   async prepare() {
     // Give asset imports time to resolve. Readiness is reported, never assumed from elapsed time alone.
     for (let i = 0; i < 60; i++) { await new Promise(resolve => setTimeout(resolve, 25)); tick() }
@@ -78,12 +99,77 @@ const api = {
   async capture(nextStage: Stage, frames: number) {
     if (stage !== nextStage) { stage = nextStage; stageFrame = 0 }
     source = stage !== 'reference' && stage !== 'idle'
+    const saved = runtime.serializeParameterState()
     const timings = []
     for (let i = 0; i < frames; i++) { timings.push(tick()); if (i === frames - 1) break; await new Promise(resolve => setTimeout(resolve, 0)) }
     // Read before the WebGL drawing buffer is retired.
     const png = canvas.toDataURL('image/png')
-    return { png, timings, frame: index, stageFrame, musicTime, diagnostics: diagnostics(), parametersUnchanged: initial === runtime.serializeParameterState() }
+    return { png, timings, frame: index, stageFrame, musicTime, diagnostics: diagnostics(), parametersUnchanged: (query.get('release') ? saved : initial) === runtime.serializeParameterState() }
   },
+  // Release-only controls, using the same runtime, scheduler and native media service.
+  set(id: Cinema2ParameterId, value: unknown) {
+    const result = runtime.getParameterState().setPersistentValue(id, value)
+    if (!result.ok) throw Error(JSON.stringify(result.diagnostics))
+    syncTransportSetting()
+    return runtime.getParameterState().getValue(id)
+  },
+  saved() { return runtime.serializeParameterState() },
+  reset() { runtime.getParameterState().resetAll(); syncTransportSetting(); return runtime.serializeParameterState() },
+  pause(value: boolean) { paused = value },
+  seek(time: number) { musicTime = time; stageFrame = 0; paused = false },
+  resize(width: number, height: number) { runtime.resize({ width, height, dpr: 1 }); if (canvas.width !== width || canvas.height !== height) throw Error('Resize failed') },
+  async mediaFixture(remove = false) {
+    const slots = manifest.mediaSlots ?? []
+    const fixture = document.createElement('canvas'); fixture.width = 320; fixture.height = 180
+    const ctx = fixture.getContext('2d')!
+    ctx.fillStyle = '#ff2222'; ctx.fillRect(0, 0, 160, 90)
+    ctx.fillStyle = '#18ed70'; ctx.fillRect(160, 0, 160, 90)
+    ctx.fillStyle = '#2255ff'; ctx.fillRect(0, 90, 160, 90)
+    ctx.fillStyle = '#fff'; ctx.fillRect(160, 90, 160, 90)
+    for (const slot of slots) {
+      if (remove) runtime.getMediaSlotRuntime().remove(slot.id)
+      else if (slot.accepts.includes('image')) {
+        const status = await runtime.getMediaSlotRuntime().replace(slot.id, { id: 'sys06-rgb', label: 'SYS-06 RGB quadrants', kind: 'image', url: fixture.toDataURL(), width: 320, height: 180 }, { fit: 'contain' })
+        if (status.status !== 'ready') throw Error(`Media ${slot.id}: ${status.status} ${status.error}`)
+      }
+    }
+    return runtime.getMediaSlotRuntimeSnapshot()
+  },
+  async modelFixture(remove = false) {
+    const parameter = (manifest.parameters ?? []).find(p => p.metadata?.editor === 'user-model-selector')
+    if (!parameter) throw Error('Model selector absent')
+    const fixture = await import('./Cinema2ReleaseModelFixture')
+    const value = remove ? 'default-model' : await fixture.installReleaseModelFixture()
+    const result = runtime.getParameterState().setPersistentValue(parameter.id, value)
+    if (!result.ok) throw Error(JSON.stringify(result.diagnostics))
+    return runtime.getParameterState().getValue(parameter.id)
+  },
+  switchPreset(id: Cinema2PresetId, nextQuality: Cinema2RenderQualityLevel, saved?: string) {
+    runtime.dispose()
+    const retired = diagnostics()
+    presetId = id; quality = nextQuality; callback = null; index = 0; source = false; paused = false
+    stage = 'reference'; stageFrame = 0; musicTime = 0; published = DEFAULT_MI_FRAME; publicationSequence = 0; publicationTime = 0; lastGlError = 0; glErrors = []
+    // A fresh bridge is constructed by createRuntime; restore only the canonical saved state.
+    runtime = createRuntime(saved); manifest = runtime.getCompiledPresetPlan().manifest
+    if (!saved) applyMode()
+    syncTransportSetting()
+    initial = runtime.serializeParameterState(); runtime.resize({width: innerWidth, height: innerHeight, dpr: 1}); runtime.start()
+    return retired
+  },
+  async recoverContext() {
+    const gl = canvas.getContext('webgl2')
+    const extension = gl?.getExtension('WEBGL_lose_context')
+    if (!extension) return { supported: false }
+    const generation = runtime.getSnapshot().contextGeneration
+    const wait = async (predicate: () => boolean) => {
+      for (let i = 0; i < 200; i++) { if (predicate()) return; await new Promise(resolve => setTimeout(resolve, 25)) }
+      throw Error('Context lifecycle event timed out')
+    }
+    extension.loseContext(); await wait(() => runtime.getSnapshot().phase === 'context-lost')
+    extension.restoreContext(); await wait(() => runtime.getSnapshot().contextGeneration > generation && runtime.getSnapshot().phase === 'running')
+    return { supported: true, generation, restored: runtime.getSnapshot().contextGeneration }
+  },
+  diagnostics,
   dispose() { runtime.dispose(); return runtime.getSnapshot() },
 }
 declare global { interface Window { __cinema2QualityReview?: typeof api } }

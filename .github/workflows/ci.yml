@@ -41,6 +41,9 @@ jobs:
       - name: Type-check
         run: npm run typecheck
 
+      - name: Cinema 2.0 release policy tests
+        run: npm run test:cinema2:release-policy
+
       - name: Native Node tests
         run: npm run test:native
 
@@ -119,4 +122,27 @@ jobs:
             test-results/
             playwright-report/
           if-no-files-found: ignore
+          retention-days: 7
+
+  cinema2-release:
+    # Full production canvas matrix is a deliberate release operation, not a
+    # 15-minute smoke test. Software/hardware identity is recorded in evidence.
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 110
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.12.0
+          cache: npm
+      - run: npm ci
+      - run: npm run playwright:install:ci
+      - run: npm run test:e2e:cinema2-release
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cinema2-release-evidence
+          path: artifacts/cinema2-release/
+          if-no-files-found: warn
           retention-days: 7
