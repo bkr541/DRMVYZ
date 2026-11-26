@@ -269,6 +269,7 @@ import { applyAutoPerformanceDefaultToReactState, applyAutoPerformanceDefaultToS
 import { normalizeCanvasVhsSettings } from '../components/vyzualz/react/renderers/vhs/VhsSettings'
 import { normalizeCanvasDivinitySettings } from '../components/vyzualz/react/renderers/divinity/DivinitySettings'
 import { normalizeCanvasFluiditySettings } from '../components/vyzualz/react/renderers/fluidity/FluiditySettings'
+import { normalizeCanvasMorphSettings } from '../components/vyzualz/react/renderers/morph/MorphSettings'
 import { normalizeCanvasTerminalSettings } from '../components/vyzualz/react/renderers/terminal/TerminalSettings'
 import { normalizeCanvasCellularSettings } from '../components/vyzualz/react/renderers/cellular/CellularSettings'
 import { normalizeCanvasPhaseDragSettings } from '../components/vyzualz/react/renderers/phaseDrag/PhaseDragSettings'
@@ -4914,6 +4915,7 @@ export function normalizeCanvasPresetSettings(value: unknown): CanvasPresetSetti
     cellular: normalizeCanvasCellularSettings(source.cellular),
     terminal: normalizeCanvasTerminalSettings(source.terminal),
     fluidity: normalizeCanvasFluiditySettings(source.fluidity),
+    morph: normalizeCanvasMorphSettings(source.morph),
     divinity: normalizeCanvasDivinitySettings(source.divinity),
     vhs: normalizeCanvasVhsSettings(source.vhs),
     shiftgrid: normalizeCanvasShiftgridSettings(source.shiftgrid),
@@ -8481,6 +8483,7 @@ export const useReactStore = create<ReactStoreState>()(
         })
         return {
           ...repaired,
+          ...(manualSelection && state.selectedCanvasPresetId === 'canvas-morph' ? { canvasPresetSettings: { ...state.canvasPresetSettings, morph: { ...state.canvasPresetSettings.morph, sourceMode: 'single' as const } } } : {}),
           canvasOrchestrationSettings,
           ...(manualSelection ? { selectedCanvasLayerId: null } : {}),
         }

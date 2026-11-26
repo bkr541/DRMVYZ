@@ -13,6 +13,8 @@ import { getLaserDmxWebGLShaderProgramSources } from '../../components/vyzualz/r
 import { getPixGridGpuShaderProgramSources } from '../../components/vyzualz/react/renderers/pixGrid/PixGridGpuShaderSources'
 import { getCinema2EchoformShaderProgramSources } from '../../components/vyzualz/cinema2/modules/echoform/Cinema2EchoformRenderer'
 
+import { MORPH_VERTEX, MORPH_FRAGMENT, MORPH_BLUR, MORPH_COMPOSITE } from '../../components/vyzualz/react/renderers/morph/MorphShaders'
+
 const systemChromium = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
 
 test.use({
@@ -44,6 +46,9 @@ test('all registered Shader scenes compile and link in WebGL2', async ({ page })
           }
         }),
     ),
+    ...[MORPH_FRAGMENT, MORPH_BLUR, MORPH_COMPOSITE].map((fragSrc, index) => ({
+      sceneId: 'canvas-morph', sceneName: 'CANVAS Morph', label: ['transform', 'bloom', 'composite'][index], vertSrc: MORPH_VERTEX, fragSrc,
+    })),
     ...getLaserDmxWebGLShaderProgramSources().map(program => ({
       sceneId: 'laser-dmx-webgl',
       sceneName: 'LaserDMX Show Director WebGL',

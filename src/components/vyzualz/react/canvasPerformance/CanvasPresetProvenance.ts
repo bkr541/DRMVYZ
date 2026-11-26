@@ -32,6 +32,7 @@ const CANONICAL_CANVAS_PRESET_FIELDS: ReadonlyArray<keyof CanvasPresetSettings> 
   'cellular',
   'terminal',
   'fluidity',
+  'morph',
   'divinity',
   'vhs',
 ]

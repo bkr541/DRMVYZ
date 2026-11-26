@@ -11,6 +11,7 @@ import { DEFAULT_CANVAS_CUTBANK_SETTINGS, type CanvasCutbankSettings } from './r
 import { DEFAULT_CANVAS_VHS_SETTINGS, type CanvasVhsSettings } from './renderers/vhs/VhsSettings'
 import { DEFAULT_CANVAS_DIVINITY_SETTINGS, type CanvasDivinitySettings } from './renderers/divinity/DivinitySettings'
 import { DEFAULT_CANVAS_FLUIDITY_SETTINGS, type CanvasFluiditySettings } from './renderers/fluidity/FluiditySettings'
+import { DEFAULT_CANVAS_MORPH_SETTINGS, type CanvasMorphSettings } from './renderers/morph/MorphSettings'
 import { DEFAULT_CANVAS_TERMINAL_SETTINGS, type CanvasTerminalSettings } from './renderers/terminal/TerminalSettings'
 import { DEFAULT_CANVAS_CELLULAR_SETTINGS, type CanvasCellularSettings } from './renderers/cellular/CellularSettings'
 import { DEFAULT_CANVAS_PHASE_DRAG_SETTINGS, type CanvasPhaseDragSettings } from './renderers/phaseDrag/PhaseDragSettings'
@@ -239,10 +240,11 @@ export type CanvasPresetId =
   | 'canvas-cellular'
   | 'canvas-terminal'
   | 'canvas-fluidity'
+  | 'canvas-morph'
   | 'canvas-divinity'
   | 'canvas-vhs'
 
-export type CanvasPresetRendererKind = 'standard' | 'particleAura' | 'fragmentCollage' | 'laserImageFx' | 'cutbank' | 'shiftgrid' | 'imageMutation' | 'dataBleed' | 'phaseDrag' | 'cellular' | 'terminal' | 'fluidity' | 'divinity' | 'vhs'
+export type CanvasPresetRendererKind = 'standard' | 'particleAura' | 'fragmentCollage' | 'laserImageFx' | 'cutbank' | 'shiftgrid' | 'imageMutation' | 'dataBleed' | 'phaseDrag' | 'cellular' | 'terminal' | 'fluidity' | 'morph' | 'divinity' | 'vhs'
 export type CanvasPresetColorMode = 'original' | 'palette' | 'audioReactive'
 export type CanvasParticleQuality = 'low' | 'balanced' | 'high'
 export type CanvasLaserImageEffect =
@@ -338,7 +340,7 @@ export const DEFAULT_CANVAS_VIDEO_TIMING_SETTINGS: CanvasVideoTimingSettings = {
   sectionTriggerTypes: ['intro', 'build', 'drop', 'breakdown', 'outro'],
 }
 
-export const CANVAS_PRESET_SETTINGS_SCHEMA_VERSION = 21 as const
+export const CANVAS_PRESET_SETTINGS_SCHEMA_VERSION = 22 as const
 
 export interface CanvasPresetSettings {
   schemaVersion: typeof CANVAS_PRESET_SETTINGS_SCHEMA_VERSION
@@ -431,6 +433,7 @@ export interface CanvasPresetSettings {
   cellular: CanvasCellularSettings
   terminal: CanvasTerminalSettings
   fluidity: CanvasFluiditySettings
+  morph: CanvasMorphSettings
   divinity: CanvasDivinitySettings
   vhs: CanvasVhsSettings
   /** SHIFTGRID's dedicated durable preferences (schema v11). Runtime grid/source state is never persisted here. */
@@ -616,6 +619,7 @@ export const DEFAULT_CANVAS_PRESET_SETTINGS: CanvasPresetSettings = {
   cellular: DEFAULT_CANVAS_CELLULAR_SETTINGS,
   terminal: DEFAULT_CANVAS_TERMINAL_SETTINGS,
   fluidity: DEFAULT_CANVAS_FLUIDITY_SETTINGS,
+  morph: DEFAULT_CANVAS_MORPH_SETTINGS,
   divinity: DEFAULT_CANVAS_DIVINITY_SETTINGS,
   vhs: DEFAULT_CANVAS_VHS_SETTINGS,
   shiftgrid: DEFAULT_CANVAS_SHIFTGRID_SETTINGS,
@@ -1083,6 +1087,15 @@ export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
       intensity: 0,
       fluidity: DEFAULT_CANVAS_FLUIDITY_SETTINGS,
     },
+    controls: [],
+  },
+  {
+    id: 'canvas-morph',
+    name: 'Morph',
+    description: 'Audio-reactive liquid smear, colored halftone and infinite recursive tunnels using your own imagery.',
+    accent: '#00d8e5',
+    rendererKind: 'morph',
+    settings: { ...DEFAULT_CANVAS_PRESET_SETTINGS, drySourceMix: 0, sourceVisibility: 0, intensity: 0, morph: DEFAULT_CANVAS_MORPH_SETTINGS },
     controls: [],
   },
   {

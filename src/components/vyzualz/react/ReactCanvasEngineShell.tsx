@@ -73,6 +73,10 @@ import { isDivinityClean } from './renderers/divinity/DivinitySettings'
 import { CanvasFluidityLayer } from './renderers/fluidity/CanvasFluidityLayer'
 import { FluidityControls } from './renderers/fluidity/FluidityControls'
 import { isFluidityClean } from './renderers/fluidity/FluiditySettings'
+import { CanvasMorphLayer } from './renderers/morph/CanvasMorphLayer'
+import { MorphControls } from './renderers/morph/MorphControls'
+import { isMorphClean } from './renderers/morph/MorphSettings'
+import { MORPH_DEFAULT_SOURCE, resolveMorphPoolItem } from './renderers/morph/MorphSource'
 import { CanvasTerminalLayer } from './renderers/terminal/CanvasTerminalLayer'
 import { TerminalControls } from './renderers/terminal/TerminalControls'
 import { isTerminalClean } from './renderers/terminal/TerminalSettings'
@@ -370,6 +374,11 @@ function CanvasLegacySessionMedia({ compact = false }: { compact?: boolean }) {
 function CanvasMediaLibrary({ compact = false }: { compact?: boolean }) {
   const activeCanvasMediaId = useReactStore(s => s.activeCanvasMediaId)
   const selectCanvasMediaItem = useReactStore(s => s.selectCanvasMediaItem)
+  const morphSelected = useReactStore(s => s.selectedCanvasPresetId === 'canvas-morph')
+  const morphSettings = useReactStore(s => s.canvasPresetSettings.morph)
+  const setMorphSettings = useReactStore(s => s.setCanvasPresetSettings)
+  const [pastingMorph, setPastingMorph] = useState(false)
+  const pasteBusy = useRef(false)
   const ensureMediaSigned = useMediaStore(s => s.ensureMediaSigned)
   const orchestration = useReactStore(s => s.canvasOrchestrationSettings)
   const addCanvasAuthoredLayer = useReactStore(s => s.addCanvasAuthoredLayer)
@@ -483,10 +492,58 @@ function CanvasMediaLibrary({ compact = false }: { compact?: boolean }) {
     void addLayerNow(mediaId)
   }
 
+  const importMorphClipboard = async (readImage: () => Promise<Blob | null>) => {
+    if (pasteBusy.current) return
+    pasteBusy.current = true
+    setPastingMorph(true)
+    setActionFeedback(null)
+    try {
+      const blob = await readImage()
+      if (!blob) throw new Error('Clipboard does not contain an image. Copy a logo or screenshot first.')
+      const extensions: Record<string, string> = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/svg+xml': 'svg' }
+      const extension = extensions[blob.type]
+      if (!extension) throw new Error('Paste a PNG, JPEG, WebP or SVG image.')
+      const file = new File([blob], `Morph-${Date.now()}.${extension}`, { type: blob.type })
+      const result = await useMediaStore.getState().uploadCanonicalVisualFile(file)
+      if (!result.ok) throw new Error(result.error)
+      await ensureMediaSigned([result.item.id], 'visible')
+      if (useReactStore.getState().selectedCanvasPresetId === 'canvas-morph') selectCanvasMediaItem(result.item.id)
+    } catch (error) {
+      setActionFeedback(error instanceof Error ? error.message : 'Unable to paste image.')
+    } finally {
+      pasteBusy.current = false
+      setPastingMorph(false)
+    }
+  }
+
   return (
-    <div className={`rv-canvas-library-shell${compact ? ' rv-canvas-library-shell--compact' : ''}`}>
+    <div className={`rv-canvas-library-shell${compact ? ' rv-canvas-library-shell--compact' : ''}`}
+      tabIndex={morphSelected ? 0 : undefined}
+      onPaste={morphSelected ? event => {
+        const target = event.target as HTMLElement
+        if (target.closest('input, textarea, [contenteditable="true"]')) return
+        const file = Array.from(event.clipboardData.items).find(item => item.kind === 'file' && item.type.startsWith('image/'))?.getAsFile()
+        if (!file) return
+        event.preventDefault()
+        void importMorphClipboard(async () => file)
+      } : undefined}>
+      {morphSelected && <>
+        <CanvasSelectRow label="MORPH Source" value={morphSettings.sourceMode} options={[{ value: 'single', label: 'Active Media' }, { value: 'pool', label: 'Media Pool' }, { value: 'default', label: 'Default Visual' }]} onChange={sourceMode => setMorphSettings({ morph: { ...morphSettings, sourceMode: sourceMode as typeof morphSettings.sourceMode } })} />
+        {morphSettings.sourceMode === 'pool' && <CanvasSelectRow label="Media Pool" value={morphSettings.poolId ?? ''} options={[{ value: '', label: 'Active Pool' }, ...orchestration.mediaPools.map(pool => ({ value: pool.id, label: pool.name }))]} onChange={poolId => setMorphSettings({ morph: { ...morphSettings, poolId: poolId || null } })} />}
+        <div className="rv-ctrl-action-row">
+        <button type="button" className="rv-ctrl-toggle" disabled={pastingMorph} onClick={() => void importMorphClipboard(async () => {
+          if (!navigator.clipboard?.read) throw new Error('Focus the Source panel and use Paste (Cmd/Ctrl+V).')
+          const items = await navigator.clipboard.read()
+          for (const item of items) {
+            const type = item.types.find(value => value.startsWith('image/'))
+            if (type) return item.getType(type)
+          }
+          return null
+        })}>{pastingMorph ? 'Importing…' : 'Paste Image'}</button>
+        <button type="button" className="rv-ctrl-toggle" onClick={() => setMorphSettings({ morph: { ...morphSettings, sourceMode: 'default' } })}>Clear Source</button>
+      </div></>}
       <MediaLibraryBrowser
-        activeMediaId={activeCanvasMediaId}
+        activeMediaId={morphSelected && morphSettings.sourceMode !== 'single' ? null : activeCanvasMediaId}
         onCardActionRequest={openMediaActions}
         context="canvas"
         title="Media Library"
@@ -1573,10 +1630,6 @@ export function CanvasEngineSurface({
   const trackAnalysisRef = useRef<TrackIntelligenceAnalysis | null>(trackAnalysis)
   const trackSectionsRef = useRef<ReactTrackSection[]>(trackSections)
   const getAudioTimeRef = useRef<typeof getAudioTime>(getAudioTime)
-  const activeItem = useMemo(
-    () => mediaItems.find(item => item.id === activeCanvasMediaId) ?? null,
-    [activeCanvasMediaId, mediaItems],
-  )
   const activeSavedCanvasShow = useMemo(() => {
     const show = canvasShowManagerShows.find(candidate => candidate.id === canvasShowManagerActiveShowId) ?? null
     return show && validateCanvasShowManagerShow(show).valid ? show : null
@@ -1585,6 +1638,33 @@ export function CanvasEngineSurface({
   const runtimeCanvasShow = showPreviewMode
     ? (previewShow && validateCanvasShowManagerShow(previewShow).valid ? previewShow : null)
     : activeSavedCanvasShow
+  const [morphPoolBlock, setMorphPoolBlock] = useState(0)
+  // A plain primary layer without effects is still eligible for direct rendering.
+  const morphPrimary = orchestrationSettings.primaryLayer
+  const morphHasEffects = morphPrimary?.kind === 'authored'
+    ? Boolean(orchestrationSettings.authoredLayers.find(layer => layer.id === morphPrimary.layerId)?.effects.length)
+    : Boolean(morphPrimary?.layer.effects.length)
+  const morphOwnsSource = selectedCanvasPresetId === 'canvas-morph' && !runtimeCanvasShow && orchestrationSettings.renderMode === 'single' && !morphHasEffects
+  const morphPool = orchestrationSettings.mediaPools.find(pool => pool.id === (canvasPresetSettings.morph.poolId ?? orchestrationSettings.activeMediaPoolId))
+  const morphSourceMode = canvasPresetSettings.morph.sourceMode
+  const activeItem = useMemo(() => {
+    const selected = mediaItems.find(item => item.id === activeCanvasMediaId) ?? null
+    if (!morphOwnsSource) return selected
+    if (morphSourceMode === 'default') return MORPH_DEFAULT_SOURCE
+    if (morphSourceMode === 'pool') return resolveMorphPoolItem(morphPool?.mediaIds ?? [], mediaItems, morphPoolBlock) ?? MORPH_DEFAULT_SOURCE
+    return selected ?? MORPH_DEFAULT_SOURCE
+  }, [activeCanvasMediaId, mediaItems, morphOwnsSource, morphSourceMode, morphPool, morphPoolBlock])
+  useEffect(() => {
+    if (!morphOwnsSource || morphSourceMode !== 'pool') { setMorphPoolBlock(0); return }
+    if (morphPool?.mediaIds.length) void useMediaStore.getState().ensureMediaSigned(morphPool.mediaIds, 'visible')
+    const tick = () => {
+      const context = particlePerformanceContextRef.current
+      if (reactivityActive && context?.capabilities.beatGrid && context.confidence.grid > .15) setMorphPoolBlock(Math.max(0, context.performanceFourBarBlockIndex))
+    }
+    tick()
+    const timer = window.setInterval(tick, 100)
+    return () => window.clearInterval(timer)
+  }, [morphOwnsSource, morphSourceMode, morphPool, reactivityActive, activeAudioTrackId])
   const fracturesSourceKey = activeItem
     ? `${activeItem.id}:${activeItem.type}:${activeItem.mediaRevision ?? 0}:${activeItem.objectUrl}`
     : null
@@ -1611,10 +1691,11 @@ export function CanvasEngineSurface({
   const phaseDragSelected = rendererKind === 'phaseDrag'
   const cellularSelected = rendererKind === 'cellular'
   const terminalSelected = rendererKind === 'terminal'
+  const morphSelected = rendererKind === 'morph'
   const fluiditySelected = rendererKind === 'fluidity'
   const divinitySelected = rendererKind === 'divinity'
   const vhsSelected = rendererKind === 'vhs'
-  const directImageSelected = mutagenSelected || dataBleedSelected || phaseDragSelected || cellularSelected || terminalSelected || fluiditySelected || divinitySelected || vhsSelected
+  const directImageSelected = mutagenSelected || dataBleedSelected || phaseDragSelected || cellularSelected || terminalSelected || morphSelected || fluiditySelected || divinitySelected || vhsSelected
   const directImageSourceKey = `${rendererKind}:${fracturesSourceKey}`
   const cutbankActive = rendererKind === 'cutbank'
   const shiftgridDirectActive = canRenderShiftgridDirectPreset(rendererKind, runtimeCanvasShow != null)
@@ -1637,6 +1718,7 @@ export function CanvasEngineSurface({
   const phaseDragActive = directImageActive && phaseDragSelected
   const cellularActive = directImageActive && cellularSelected
   const terminalActive = directImageActive && terminalSelected
+  const morphActive = directImageActive && morphSelected
   const fluidityActive = directImageActive && fluiditySelected
   const divinityActive = directImageActive && divinitySelected
   const vhsActive = directImageActive && vhsSelected
@@ -1644,6 +1726,8 @@ export function CanvasEngineSurface({
     ? isVhsClean(canvasPresetSettings.vhs)
     : divinitySelected
     ? isDivinityClean(canvasPresetSettings.divinity)
+    : morphSelected
+    ? isMorphClean(canvasPresetSettings.morph)
     : fluiditySelected
     ? isFluidityClean(canvasPresetSettings.fluidity)
     : terminalSelected
@@ -2100,7 +2184,7 @@ export function CanvasEngineSurface({
       effectsContext.clearRect(0, 0, cssWidth, cssHeight)
 
       const source = particleSourceRef.current
-      const heldTemporalFrame = (dataBleedActive || phaseDragActive || cellularActive || terminalActive || fluidityActive || divinityActive || vhsActive) && !directImageReconstructed && directImageOutputCanvasRef.current
+      const heldTemporalFrame = (dataBleedActive || phaseDragActive || cellularActive || terminalActive || morphActive || fluidityActive || divinityActive || vhsActive) && !directImageReconstructed && directImageOutputCanvasRef.current
       if (!activeItem || !source || (!heldTemporalFrame && !isCanvasParticleSourceReady(source)) || (directImageSelected && !directImageSourceReady)) {
         if (directImageSelected) captureContext.clearRect(0, 0, targetWidth, targetHeight)
         return
@@ -2279,7 +2363,7 @@ export function CanvasEngineSurface({
       window.cancelAnimationFrame(frameId)
       onLiveFps?.(0)
     }
-  }, [dataBleedActive, phaseDragActive, cellularActive, terminalActive, fluidityActive, divinityActive, vhsActive, directImageSelected, directImageOwnerPending, directImageSourceReady, directImageActive, directImageReconstructed, activeItem, analyser, canvasPresetSettings, effectPassActive, effectiveBackgroundMode, cutbankActive, fragmentCollageActive, isPaused, isPlaying, laserImageFxActive, liveInputAnalysisOnly, onLiveFps, orchestrationRenderable, particleReconstructionActive, particleSourceRef, reactivityActive, shiftgridDirectActive])
+  }, [dataBleedActive, phaseDragActive, cellularActive, terminalActive, morphActive, fluidityActive, divinityActive, vhsActive, directImageSelected, directImageOwnerPending, directImageSourceReady, directImageActive, directImageReconstructed, activeItem, analyser, canvasPresetSettings, effectPassActive, effectiveBackgroundMode, cutbankActive, fragmentCollageActive, isPaused, isPlaying, laserImageFxActive, liveInputAnalysisOnly, onLiveFps, orchestrationRenderable, particleReconstructionActive, particleSourceRef, reactivityActive, shiftgridDirectActive])
 
   useEffect(() => {
     setMediaLoadError(EMPTY_CANVAS_MEDIA_LOAD_STATE)
@@ -2888,6 +2972,17 @@ export function CanvasEngineSurface({
             activeItem={activeItem} sourceRef={particleSourceRef}
             outputAlpha={directImageReconstructed ? 0 : directImageSourceAlpha}
             settings={canvasPresetSettings.fluidity} fitMode={settings.fitMode}
+            sourceTransform={{ scale: settings.scale, positionX: settings.positionX, positionY: settings.positionY, rotation: settings.rotation }}
+            performanceContextRef={particlePerformanceContextRef} trackIdentity={activeAudioTrackId ?? null}
+            audioActive={reactivityActive} getAudioTime={getAudioTime} isPlaying={isPlaying} isPaused={isPaused}
+            onCanvasReady={handleDirectImageCanvasReady} onStatusChange={setDirectImageRendererNotice}
+          />
+        )}
+        {morphActive && (
+          <CanvasMorphLayer
+            activeItem={activeItem} sourceRef={particleSourceRef}
+            outputAlpha={directImageReconstructed ? 0 : directImageSourceAlpha}
+            settings={canvasPresetSettings.morph} fitMode={settings.fitMode}
             sourceTransform={{ scale: settings.scale, positionX: settings.positionX, positionY: settings.positionY, rotation: settings.rotation }}
             performanceContextRef={particlePerformanceContextRef} trackIdentity={activeAudioTrackId ?? null}
             audioActive={reactivityActive} getAudioTime={getAudioTime} isPlaying={isPlaying} isPaused={isPaused}
@@ -4776,6 +4871,7 @@ function CanvasPresetControls() {
   if (selectedPreset.rendererKind === 'phaseDrag') return <CanvasPhaseDragControls />
   if (selectedPreset.rendererKind === 'vhs') return <VhsControls />
   if (selectedPreset.rendererKind === 'divinity') return <DivinityControls />
+  if (selectedPreset.rendererKind === 'morph') return <MorphControls />
   if (selectedPreset.rendererKind === 'fluidity') return <FluidityControls />
   if (selectedPreset.rendererKind === 'terminal') return <TerminalControls />
   if (selectedPreset.rendererKind === 'cellular') return <CellularControls />
@@ -4935,6 +5031,7 @@ function CanvasPanelFooterActions({ showReset }: { showReset: boolean }) {
     && selectedPreset.rendererKind !== 'phaseDrag'
     && selectedPreset.rendererKind !== 'cellular'
     && selectedPreset.rendererKind !== 'terminal'
+    && selectedPreset.rendererKind !== 'morph'
     && selectedPreset.rendererKind !== 'fluidity'
     && selectedPreset.rendererKind !== 'divinity'
     && selectedPreset.rendererKind !== 'vhs'

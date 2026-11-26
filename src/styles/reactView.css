@@ -11400,6 +11400,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-canvas-engine-surface[data-renderer-kind='cellular'],
 .rv-canvas-engine-surface[data-renderer-kind='terminal'],
 .rv-canvas-engine-surface[data-renderer-kind='fluidity'],
+.rv-canvas-engine-surface[data-renderer-kind='morph'],
 .rv-canvas-engine-surface[data-renderer-kind='divinity'],
 .rv-canvas-engine-surface[data-renderer-kind='vhs'] { background: transparent; }
 .rv-canvas-live-output[data-direct-image-active='true']:not(.rv-canvas-live-output--transparent) { background: #02070a; }
@@ -11411,6 +11412,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-canvas-cellular-layer,
 .rv-canvas-terminal-layer,
 .rv-canvas-fluidity-layer,
+.rv-canvas-morph-layer,
 .rv-canvas-divinity-layer,
 .rv-canvas-vhs-layer {
   position: absolute;
@@ -11429,6 +11431,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-canvas-cellular-layer[data-ready='true'],
 .rv-canvas-terminal-layer[data-ready='true'],
 .rv-canvas-fluidity-layer[data-ready='true'],
+.rv-canvas-morph-layer[data-ready='true'],
 .rv-canvas-divinity-layer[data-ready='true'],
 .rv-canvas-vhs-layer[data-ready='true'] {
   visibility: visible;

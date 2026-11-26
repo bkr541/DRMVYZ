@@ -2,10 +2,10 @@ import type { CanvasPresetSettings } from '../components/vyzualz/react/ReactType
 
 /**
  * Applies the user's Auto Performance default (System Settings) to every Auto Performance toggle the React view owns outside Cinema 2.0:
- * the ten CANVAS renderers, the six XY Scope instruments and the XY Scope parameter, and Sound Drawing's show toggle.
+ * the eleven CANVAS renderers, the six XY Scope instruments and the XY Scope parameter, and Sound Drawing's show toggle.
  * Pure: returns a patch with only what changes, or null when every toggle already has the value.
  */
-export const CANVAS_AUTO_PERFORMANCE_ENGINES = ['cutbank', 'mutagen', 'dataBleed', 'phaseDrag', 'cellular', 'terminal', 'fluidity', 'divinity', 'vhs', 'shiftgrid'] as const
+export const CANVAS_AUTO_PERFORMANCE_ENGINES = ['cutbank', 'mutagen', 'dataBleed', 'phaseDrag', 'cellular', 'terminal', 'fluidity', 'morph', 'divinity', 'vhs', 'shiftgrid'] as const
 export const XY_SCOPE_AUTO_PERFORMANCE_INSTRUMENTS = ['textV2', 'osc1', 'osc2', 'phasePortal', 'octa', 'wire', 'init'] as const
 
 type Settings = Record<string, unknown>
@@ -35,7 +35,9 @@ export function applyAutoPerformanceDefaultToCanvasSettings(settings: CanvasPres
   let changed = false
   const next: Settings = { ...settings }
   for (const engine of CANVAS_AUTO_PERFORMANCE_ENGINES) {
-    const updated = withToggle(next[engine], value)
+    const toggled = withToggle(next[engine], value)
+    const updated = engine === 'morph' && value && isRecord(toggled) && toggled.patternChange === true
+      ? { ...toggled, patternChange: false } : toggled
     if (updated !== next[engine]) { next[engine] = updated; changed = true }
   }
   return changed ? next as unknown as CanvasPresetSettings : settings

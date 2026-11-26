@@ -8,7 +8,7 @@ The React View engine ID is `canvas`.
 
 ## Preset specifications
 
-Data Bleed, Phase Drag, Cellular, Terminal, Fluidity, Divinity and VHS are selectable presets.
+Data Bleed, Phase Drag, Cellular, Terminal, Fluidity, Divinity, VHS and Morph are selectable presets.
 
 - [Data Bleed — data moshing](canvas-data-bleed.md)
 - [Phase Drag — slit scan](canvas-phase-drag.md)
@@ -17,6 +17,7 @@ Data Bleed, Phase Drag, Cellular, Terminal, Fluidity, Divinity and VHS are selec
 - [Fluidity — liquid glass](canvas-fluidity.md)
 - [Divinity — god rays](canvas-divinity.md)
 - [VHS — CRT and analog treatment](canvas-vhs.md)
+- [Morph — liquid smear, halftone and recursive tunnels](canvas-morph.md)
 
 ## Canonical implementation
 
