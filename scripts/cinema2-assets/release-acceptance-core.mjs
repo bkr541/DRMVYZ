@@ -1,7 +1,7 @@
 import { inspectPixels } from './quality-review-core.mjs'
 import { coverageValid, inventoryVersion, equalSet } from './reviewed-release-inventory.mjs'
 export { inventory } from './reviewed-release-inventory.mjs'
-export const config = Object.freeze({ fixture: 'qa04-v4/sys04-review-v1', fps: 30, dpr: 1, width: 960, height: 540, quality: 'high' })
+export const config = Object.freeze({ fixture: 'qa06-v1/sys04-review-v1', fps: 30, dpr: 1, width: 960, height: 540, quality: 'high' })
 export function pixelEvidence(rgb, width, height) {
   if (!(rgb instanceof Uint8Array) || !Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width <= 0 || height <= 0 || rgb.length !== width * height * 3) throw Error('Unexpected RGB dimensions')
   const zones = Array.from({ length: 9 }, () => ({ min: 255, max: 0, chromatic: 0, lit: 0, count: 0 }))
@@ -179,7 +179,7 @@ export function pairwiseEvidence(a,aa,b) {
   const edits=Object.keys({...av,...bv}).filter(k=>!same(av[k],bv[k]))
   if(edits.length!==1||av[edits[0]]!==a.conditions.pattern||bv[edits[0]]!==b.conditions.pattern)return outcome([],['Pairwise settings differ beyond selected pattern'])
   const evidence=spatialChange(a,aa,b,'edges')
-  return outcome(evidence.passingZones.length?[]:['Adjacent patterns visually indistinguishable'],[],{...evidence,conditions:[a.conditions,aa.conditions,b.conditions]})
+  return outcome(evidence.passingZones.length?[]:['Patterns visually indistinguishable'],[],{...evidence,conditions:[a.conditions,aa.conditions,b.conditions]})
 }
 // The synthetic RGB quadrants must contribute actual localized chromatic
 // pixels, not just illumination or a resource-ready flag. Projected panels
@@ -238,4 +238,70 @@ export function recoveryEvidence(recovery,before,after) {
     now.phase!=='running'&&'Recovered runtime not running',now.resources.activeAnimationFrameCount!==1&&'Recovered runtime did not schedule next frame',now.frameCount<=restored.frameCount&&'No fresh production frame',now.resources.activeWebGLContextCount!==1&&'Unexpected WebGL ownership',
     after.pixels?.uniform&&'Recovered frame uniform',...technicalIssues(after.capture)].filter(Boolean)
   return outcome(issues,[],{recovery,before:old,after:now})
+}
+
+// Camera-only displacement uses fixed world probes, never moving scene geometry.
+// This is a projection diagnostic, not proof that the actual source is unclipped.
+export function cameraSequenceEvidence(frames,{expect='measure',reference,safety={}}={}) {
+  if(!Array.isArray(frames)||frames.length<2)return outcome([],['Missing camera sequence'])
+  const cameras=frames.map(f=>f.d?.camera?.camera)
+  const valid=c=>c&&[c.position,c.target].every(v=>Array.isArray(v)&&v.length===3&&v.every(Number.isFinite))&&
+    [c.near,c.far,c.fovDegrees,c.rollDegrees,c.aspect].every(Number.isFinite)&&Array.isArray(c.viewProjectionMatrix)&&c.viewProjectionMatrix.length===16&&c.viewProjectionMatrix.every(Number.isFinite)
+  if(cameras.some(c=>!valid(c))||frames.some(f=>!Number.isFinite(f.width)||!Number.isFinite(f.height)||f.width!==frames[0].width||f.height!==frames[0].height))return outcome([],['Missing comparable camera poses, lenses or matrices'])
+  const first=cameras[0],distance=(a,b)=>Math.hypot(...a.map((v,i)=>v-b[i])),depth=distance(first.position,first.target)
+  const direction=first.target.map((v,i)=>(v-first.position[i])/Math.max(depth,1e-9))
+  const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]]
+  const rightRaw=cross(direction,Math.abs(direction[1])>.95?[0,0,1]:[0,1,0]),right=rightRaw.map(x=>x/Math.max(1e-9,Math.hypot(...rightRaw))),up=cross(right,direction)
+  const probes=[first.target,...[-1,1].flatMap(side=>[-.15,.15].map(z=>first.target.map((v,i)=>v+depth*(side*.12*right[i]+.08*up[i]+z*direction[i]))))]
+  const project=(c,p)=>{const m=c.viewProjectionMatrix,v=[...p,1],q=[0,1,2,3].map(r=>v.reduce((n,x,i)=>n+x*m[i*4+r],0));return q[3]>1e-9?[q[0]/q[3]*frames[0].width/2,q[1]/q[3]*frames[0].height/2,q[2]/q[3]]:null}
+  const initial=probes.map(p=>project(first,p)), projected=cameras.map(c=>probes.map(p=>project(c,p)))
+  const inView=p=>p&&Math.abs(p[0])<=frames[0].width/2&&Math.abs(p[1])<=frames[0].height/2&&Math.abs(p[2])<=1
+  const maxPixels=Math.max(0,...projected.flatMap(row=>row.map((p,i)=>inView(p)&&inView(initial[i])?distance(p.slice(0,2),initial[i].slice(0,2)):0)))
+  const poseDelta=Math.max(...cameras.map(c=>Math.max(distance(c.position,first.position),distance(c.target,first.target),Math.abs(c.fovDegrees-first.fovDegrees),Math.abs(c.rollDegrees-first.rollDegrees),Math.abs(c.near-first.near),Math.abs(c.far-first.far))))
+  const issues=[]
+  for(const [i,c] of cameras.entries()){
+    const target=project(c,c.target)
+    if(c.near<=0||c.far<=c.near||c.aspect<=0||c.fovDegrees<=0||c.fovDegrees>=180||distance(c.position,c.target)<=1e-6||!target||Math.abs(target[2])>1+1e-5)issues.push(`Camera ${i}: invalid lens or target outside depth clip`)
+    if(c.near<(safety.minNear??0)-1e-6||c.far>(safety.maxFar??Infinity)+1e-6||c.fovDegrees<(safety.minFovDegrees??0)-1e-6||c.fovDegrees>(safety.maxFovDegrees??180)+1e-6)issues.push(`Camera ${i}: authored lens safety exceeded`)
+  }
+  if(expect==='locked'&&poseDelta>1e-6)issues.push('Locked camera pose/lens moved')
+  if(expect==='moving'&&(poseDelta<=1e-6||maxPixels<1))issues.push('Enabled camera has no measurable authored view displacement (1 px minimum)')
+  if(expect==='reduced'&&(!Number.isFinite(reference?.maxPixels)||reference.maxPixels<1))return outcome(issues,['Missing measurable full-motion reference'],{poseDelta,maxPixels,projected})
+  if(expect==='reduced'&&maxPixels>reference.maxPixels+1)issues.push('Reduced motion exceeds full-motion displacement')
+  return outcome(issues,[],{poseDelta,maxPixels,projected,thresholdPixels:1,probes,expect,cameras:cameras.map(({position,target,fovDegrees,rollDegrees,near,far})=>({position,target,fovDegrees,rollDegrees,near,far}))})
+}
+
+// Canonical event routing is observed from the production audio bridge. The
+// expected cycle is authored, not inferred from a successful transition.
+export function triggerSequenceEvidence(samples,trigger,expectedNext) {
+  const names=['arm','negative','fresh','duplicate','hold','paused','resume','disabled','disabledEvent']
+  if(names.some(k=>!samples?.[k]||typeof samples[k].active!=='string'||typeof samples[k].saved!=='string'||typeof samples[k].effectiveChange!=='boolean'||samples[k].effectiveTrigger!==trigger||samples[k].trigger!==trigger))return outcome([],['Missing effective trigger matrix observations'],{samples,trigger})
+  const {arm,negative,fresh,duplicate,hold,paused,resume,disabled,disabledEvent}=samples
+  if(!negative.event?.explicit||!fresh.event?.explicit||!duplicate.event?.explicit||!disabledEvent.event?.explicit||typeof expectedNext!=='string')return outcome([],['Missing fixture identity or authored next-pattern policy'],{samples,trigger,expectedNext})
+  const issues=[]
+  if(negative.event.canonical!==null||negative.active!==arm.active)issues.push('Nonqualifying event advanced pattern or qualified unexpectedly')
+  if(typeof fresh.event.canonical!=='string'||fresh.active!==expectedNext||fresh.active===negative.active)issues.push('Qualifying event did not advance exactly to authored successor')
+  if(duplicate.event.explicit.id!==fresh.event.explicit.id||duplicate.event.explicit.replay!==true||duplicate.event.canonical!==null&&duplicate.event.canonical!==fresh.event.canonical||duplicate.active!==fresh.active)issues.push('Duplicate identity advanced pattern or fixture was not a duplicate')
+  if([hold,paused,resume].some(v=>v.active!==fresh.active))issues.push('Pattern changed without qualifying event during hold/pause/resume')
+  if([arm,negative,fresh,duplicate,hold,paused,resume].some(v=>v.enabled!==true||v.effectiveChange!==true))issues.push('Enabled manual authority was not retained')
+  if([disabled,disabledEvent].some(v=>v.enabled!==false||v.effectiveChange!==false||v.active!==v.saved)||typeof disabledEvent.event.canonical!=='string')issues.push('Pattern Change off did not hold through a qualifying event')
+  if(names.some(k=>samples[k].saved!==arm.saved))issues.push('Saved pattern changed during trigger sequence')
+  return outcome(issues,[],{samples,trigger,expectedNext})
+}
+
+// Matched camera OFF/OFF/ON sequences: reject unpaired times, unrelated
+// parameter changes and differing inspected geometry phases. Actual pixels
+// corroborate the independent fixed-probe displacement, not the reverse.
+export function cameraRenderEvidence(off,repeat,on,cameraIds) {
+  if(!Array.isArray(off)||!Array.isArray(repeat)||!Array.isArray(on)||!off.length||off.length!==repeat.length||off.length!==on.length||!cameraIds?.length)return outcome([],['Missing camera render comparison'])
+  const observations=[]
+  for(let i=0;i<off.length;i++){
+    const [a,aa,b]=[off[i],repeat[i],on[i]]
+    if(!comparableFrames([a,aa,b])||!matching(a,aa)||!matching(a,b,{settings:false,camera:false}))return outcome([],['Unmatched camera render checkpoint'])
+    const withoutCamera=f=>{const v=JSON.parse(f.conditions.settings).values;for(const id of cameraIds)delete v[id];return v}
+    if(!same(withoutCamera(a),withoutCamera(b))||!same(a.motion,b.motion)||!same(a.motion,aa.motion))return outcome([],['Geometry phases or non-camera settings differ in camera comparison'])
+    const spatial=spatialChange(a,aa,b,'edges')
+    observations.push({...spatial,stage:a.conditions.stage,frame:a.conditions.frame})
+  }
+  return outcome(observations.some(v=>v.passingZones.length)?[]:['Camera change not visible above repeated OFF capture noise'],[],{observations,cameraIds})
 }

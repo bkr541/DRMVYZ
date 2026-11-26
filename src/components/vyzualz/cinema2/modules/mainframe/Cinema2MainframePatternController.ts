@@ -69,7 +69,7 @@ export class Cinema2MainframePatternController<Pattern extends string = Cinema2M
   private patternChange: boolean | null = null
   private trigger: Cinema2MainframeTriggerId | null = null
   private patternStartBeat = 0
-  // At most one observed identity per canonical trigger. A null frame is not a new event.
+  // A bounded replay window per canonical trigger. A null frame is not a new event.
   private readonly events = new Cinema2PatternEventLatch<Cinema2MainframeTriggerId>()
 
   constructor(

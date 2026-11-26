@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { join, resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import os from 'node:os'
-import { inventory, config, pixelEvidence, visibleIssues, controlEvidence, technicalIssues, retiredIssues, p95, regressionIssues, recordCheck, assertion, scenarioDecision, presetStatus, reportStatus, reportExitCode, fullInventoryStatus, motionEvidence, pairwiseEvidence, sourceVisibility, fallbackEvidence, triggerEvidence, recoveryEvidence } from './release-acceptance-core.mjs'
+import { inventory, config, pixelEvidence, visibleIssues, controlEvidence, technicalIssues, retiredIssues, p95, regressionIssues, recordCheck, assertion, scenarioDecision, presetStatus, reportStatus, reportExitCode, fullInventoryStatus, motionEvidence, pairwiseEvidence, cameraSequenceEvidence, cameraRenderEvidence, triggerSequenceEvidence, sourceVisibility, fallbackEvidence, triggerEvidence, recoveryEvidence } from './release-acceptance-core.mjs'
 import { decodedMediaEvidence, videoFrameEvidence, projectedMediaEvidence } from './media-fidelity-evidence.mjs'
 import { materialRegions, compareMaterialRegions, authoredMaterialEvidence } from './model-fidelity-evidence.mjs'
 import { reviewedEntries, validateInventory, inventoryCoverage, capabilityPlan } from './reviewed-release-inventory.mjs'
@@ -37,7 +37,7 @@ try {
   try { await preflight.goto(vite.resolvedUrls.local[0]+'src/test/browser/cinema2-release-inventory.html');await preflight.waitForFunction(()=>!!window.__cinema2ResolveReviewedIds,{},{timeout:30000});report.registry=await preflight.evaluate(ids=>window.__cinema2ResolveReviewedIds(ids),coverage.expectedIds);validateInventory(reviewedEntries,report.registry);report.modelInventory=await preflight.evaluate(()=>window.__cinema2ModelInventory()) } finally { await preflight.close() }
   for(const key of keys){
     const folder=join(output,key);await mkdir(folder,{recursive:true})
-    const result={status:'running',errors:[],checks:[],required:['scenario:manual-controls','scenario:patterns','scenario:camera','scenario:transport-auto','scenario:media','scenario:model','scenario:reentry','frame:default','final-dispose'],frames:[],metrics:{},humanVisual:'pending'};report.presets[key]=result
+    const result={status:'running',errors:[],checks:[],required:['scenario:manual-controls','scenario:patterns','scenario:camera','scenario:transport-auto','scenario:trigger-matrix','scenario:media','scenario:model','scenario:reentry','frame:default','final-dispose'],frames:[],metrics:{},humanVisual:'pending',qa06:{physicalAttribution:'pending visual review',sourceFraming:'pending source-bound clearance and visual review',perceivedDirection:key==='purity'?'pending visual review':'not-applicable'}};report.presets[key]=result
     const page=await browser.newPage({viewport:{width:config.width,height:config.height},deviceScaleFactor:1})
     page.on('pageerror',e=>result.errors.push(e.message));page.on('console',m=>{if(m.type()==='error'||/GL_INVALID|WebGL.*error/i.test(m.text()))result.errors.push(m.text())})
     const api=(method,...values)=>page.evaluate(({method,values})=>window.__cinema2QualityReview[method](...values),{method,values})
@@ -48,9 +48,9 @@ try {
     const notApplicable=(name,reason)=>decide(name,{status:'not-applicable',reason})
     const scenario=async(name,fn)=>{const label=`scenario:${name}`;requireCheck(label);const first=result.checks.length;try{await fn();decide(label,scenarioDecision(result.checks.slice(first)))}catch(e){check(label,[String(e)])}}
     const set=async(p,value)=>{if(!p)throw Error('Required control missing');const actual=await api('set',p.id,value);if(JSON.stringify(actual)!==JSON.stringify(value))throw Error(`Control ${p.id} rejected value: ${JSON.stringify(actual)}`)}
-    const capture=async(name,stage='drop',frames=15,visible=false,fixture=null)=>{
+    const capture=async(name,stage='drop',frames=15,visible=false,fixture=null,explicit=null)=>{
       requireCheck(`frame:${name}`)
-      const {png,...c}=await api('capture',stage,frames,fixture)
+      const {png,...c}=await api('capture',stage,frames,fixture,explicit)
       const image=Buffer.from(png.split(',')[1],'base64'), file=`${name}.png`
       await writeFile(join(folder,file),image)
       const frameRecord={name,file,sha256:hash(image),...c};result.frames.push(frameRecord)
@@ -66,7 +66,7 @@ try {
       const {position,target,fovDegrees,rollDegrees}=d.camera.camera
       const values=JSON.parse(settings).values
       const inspections=d.modules.modules.map(m=>({id:m.moduleId,...m.inspection}))
-      const motion=Object.fromEntries(inspections.flatMap(m=>['phase','travel','geometryTravel','spin','morphPhase','routePhase','projectionPhase'].filter(k=>Number.isFinite(m[k])).map(k=>[`${m.id}:${k}`,m[k]])))
+      const motion=Object.fromEntries(inspections.flatMap(m=>['phase','travel','geometryTravel','spin','morphPhase','routePhase','projectionPhase','aperture','extrusion','forwardTravel','cameraClearance'].filter(k=>Number.isFinite(m[k])).map(k=>[`${m.id}:${k}`,m[k]])))
       return {data,pixels,d,capture:c,width:info.width,height:info.height,settings,inspections,motion,event:c.event,
         conditions:{stage:c.stage,fixture:c.fixture,quality:c.quality,frame:c.frame,stageFrame:c.stageFrame,musicTime:c.musicTime,visualTime:d.visualTime,settings,pattern:values[patternId],camera:{position,target,fovDegrees,rollDegrees}}}
 
@@ -90,9 +90,10 @@ try {
       const authored=JSON.parse(meta.parameters).values
       // Register unconditional assertions before scenarios execute. Dynamic
       // controls/patterns register their expected checks from the manifest.
+      for(const id of capabilities.patternTriggers)requireCheck(`trigger-matrix:${id}`)
       for(const name of ['palette-inventory','bpm-transport','pattern-inventory','pattern-trigger-transition','performance-visible','pause-clock','reset','context-restored','final-dispose'])requireCheck(name)
       for(const p of meta.controls.filter(p=>p.type==='color'&&p.designParentGroup==='palette'&&p.exposure!=='hidden'))requireCheck(`visible-control-${p.id}`)
-      for(const [i] of meta.patterns.entries()){requireCheck(`pattern-selected-${i}`);requireCheck(`pattern-motion-${i}`);if(i)requireCheck(`pattern-pair-${i-1}-${i}`)}
+      for(const [i] of meta.patterns.entries()){requireCheck(`pattern-selected-${i}`);requireCheck(`pattern-motion-${i}`);for(let j=0;j<i;j++)requireCheck(`pattern-pair-${j}-${i}`)}
       for(const i of [0,1])for(const name of [`retire-${i}`,`retire-other-${i}`,`frame:reentry-${i}`,`saved-reentry-${i}`])requireCheck(name)
       for(const name of ['retire-portrait','frame:portrait','frame:medium'])requireCheck(name)
       const permissionId=meta.cameras?.find(c=>c.controls?.motionEnabled)?.controls?.motionEnabled?.$ref
@@ -102,11 +103,14 @@ try {
       for(const name of (cameraPermission||cameraMode)?['camera-off-lock','camera-on-evidence']:['camera-permission'])requireCheck(name)
       const freshRuntime=async(saved,name,quality='high')=>{const retired=await api('switchPreset',meta.id,quality,saved);check(`retire:${name}`,retiredIssues(retired),retired)}
       const active=f=>f.inspections.find(m=>typeof (m.activePattern??m.performingPattern??m.pattern)==='string')
-      const patternValue=f=>{const m=active(f);return m?.activePattern??m?.performingPattern??m?.pattern}
-      const state=f=>{const m=active(f),v=JSON.parse(f.settings).values;return {active:patternValue(f),base:m?.basePattern,saved:v[pattern.id],enabled:v[change.id],trigger:v[trigger.id],effectiveChange:m?.effectivePatternChange,effectiveTrigger:m?.effectiveTrigger,event:f.event,musicTime:f.conditions.musicTime}}
+      // Livewire deliberately delegates to Say It's internal controller IDs. Keep
+      // raw inspections in the report; compare the corresponding authored IDs.
+      const authoredPatternId=value=>key==='livewire'?meta.patterns[['solid','pulse','letter-chase','alternate','center-wave','strobe'].indexOf(value)]?.value??value:value
+      const patternValue=f=>{const m=active(f);return authoredPatternId(m?.activePattern??m?.performingPattern??m?.pattern)}
+      const state=f=>{const m=active(f),v=JSON.parse(f.settings).values;return {active:patternValue(f),base:authoredPatternId(m?.basePattern),saved:v[pattern.id],enabled:v[change.id],trigger:v[trigger.id],effectiveChange:m?.effectivePatternChange,effectiveTrigger:m?.effectiveTrigger,event:f.event,musicTime:f.conditions.musicTime}}
       const sameSettingsWithout=(f,id)=>{const saved=JSON.parse(f.settings);delete saved.values[id];return {...f,conditions:{...f.conditions,settings:JSON.stringify(saved)}}}
       if(cameraPermission||cameraMode)result.mustPass.push('camera-off-lock','camera-on-evidence')
-      for(const [i] of meta.patterns.entries()){result.mustPass.push(`pattern-selected-${i}`,`pattern-motion-${i}`);if(i)result.mustPass.push(`pattern-pair-${i-1}-${i}`)}
+      for(const [i] of meta.patterns.entries()){result.mustPass.push(`pattern-selected-${i}`,`pattern-motion-${i}`);for(let j=0;j<i;j++)result.mustPass.push(`pattern-pair-${j}-${i}`)}
       const imageSlots=meta.mediaSlots.filter(s=>s.accepts.includes('image'))
       if(imageSlots.length)result.mustPass.push('media-loaded','media-pixel-evidence','media-fallback-evidence')
       if(meta.mediaSlots.length)result.mustPass.push('media-projected-fidelity','media-lifecycle-fidelity')
@@ -154,21 +158,32 @@ try {
         await set(auto,false);await set(change,false);await api('pause',false)
         await lockCamera()
         const saved=await api('saved')
-        check('pattern-inventory',meta.patterns.length>=6&&trigger?.options?.length===11?[]:['Missing six patterns or eleven shared triggers'])
-        let previous
+        check('pattern-inventory',meta.patterns.length>=6&&Array.isArray(meta.sharedTriggers)&&meta.sharedTriggers.length===trigger?.options?.length&&meta.sharedTriggers.every(id=>trigger.options.some(o=>o.value===id))?[]:['Missing six patterns or eleven shared triggers'])
+        const previous=[]
         for(const [i,p] of meta.patterns.entries()){
           for(const name of [`pattern-selected-${i}`,`pattern-motion-${i}`])requireCheck(name)
-          if(i>0)requireCheck(`pattern-pair-${i-1}-${i}`)
+          for(let j=0;j<i;j++)requireCheck(`pattern-pair-${j}-${i}`)
           await scenario(`pattern-${p.value}`,async()=>{
             // Identical activation state, seed, warmup and fixture; change the
             // pattern only after activation so random geometry stays comparable.
-            const sample=async(suffix)=>{await freshRuntime(saved,`pattern-${i}-${suffix}`);await set(pattern,p.value);await api('prepare');return capture(`pattern-${i}-${suffix}`,'breakdown',30,false,'none')}
-            const a=await sample('a'),aa=await sample('aa'),b=await capture(`pattern-${i}-advance`,'breakdown',30,false,'none'),later=await capture(`pattern-${i}-later`,'breakdown',30,false,'none')
-            const observed=[a,aa,b,later].map(patternValue)
+            const sample=async(suffix)=>{await freshRuntime(saved,`pattern-${i}-${suffix}`);await set(pattern,p.value);await api('prepare');const sequence=[];for(let n=0;n<3;n++)sequence.push(await capture(`pattern-${i}-${suffix}-${n}`,'breakdown',30,false,'none'));return sequence}
+            const first=await sample('a'),second=await sample('aa'),[a]=first,[aa,b,later]=second
+            const observed=[...first,...second].map(patternValue)
             if(observed.some(v=>v===undefined))notRun(`pattern-selected-${i}`,'No effective pattern inspection');else check(`pattern-selected-${i}`,observed.every(v=>v===p.value)?[]:['Module did not hold selected pattern'],{observed,expected:p.value})
             decide(`pattern-motion-${i}`,motionEvidence(a,aa,b,later))
-            if(i>0){if(previous)decide(`pattern-pair-${i-1}-${i}`,pairwiseEvidence(previous.a,previous.aa,a));else notRun(`pattern-pair-${i-1}-${i}`,'Previous pattern missing')}
-            previous={a,aa}
+            if(key==='purity'){
+              const travel=second.map(f=>active(f)?.travel)
+              if(travel.some(v=>!Number.isFinite(v)))notRun(`purity-forward-${i}`,'Missing native travel inspection')
+              else check(`purity-forward-${i}`,travel.every((v,n)=>n===0||v>travel[n-1])?[]:['Purity native forward travel stalled or reversed'],{travel,visualDirection:'human review pending'})
+            }
+            for(let j=0;j<i;j++){
+              const earlier=previous[j]
+              if(!earlier){notRun(`pattern-pair-${j}-${i}`,'Previous pattern missing');continue}
+              const checkpoints=first.map((f,n)=>{const forward=pairwiseEvidence(earlier.first[n],earlier.second[n],f),reverse=pairwiseEvidence(f,second[n],earlier.first[n]);return {...scenarioDecision([{name:'forward',...forward},{name:'reverse',...reverse}]),forward,reverse}})
+              const status=checkpoints.some(c=>c.status==='pass')?'pass':checkpoints.some(c=>c.status==='incomplete')?'incomplete':'fail'
+              decide(`pattern-pair-${j}-${i}`,{status,issues:status==='pass'?[]:['No distinguishable matched checkpoint above both repeatability baselines'],evidence:{checkpoints,classification:key==='livewire'?'LED topology/timing':'spatial edge differences; physical attribution requires inspection'}})
+            }
+            previous[i]={first,second}
             // Preserve the original musical-phase captures for artistic review.
             // They are technical frame checks, not evidence of controlled motion.
             await capture(`pattern-${i}-build`,'build',15);await capture(`pattern-${i}-drop`,'drop',15);await capture(`pattern-${i}-hold`,'drop',15)
@@ -191,24 +206,93 @@ try {
         const hold=await capture('pattern-drop-hold','breakdown',15,false,'none')
         decide('pattern-trigger-transition',triggerEvidence(Object.fromEntries(Object.entries({before,takeover,noEvent,stale,fresh,duplicate,hold}).map(([k,f])=>[k,state(f)])),meta.patterns.map(p=>p.value),selected,JSON.parse(await api('saved')).values[change.id]===true,expectedNext))
       })
-      await scenario('camera',async()=>{
-        await set(auto,false)
-        const bound=meta.cameras?.find(c=>c.controls?.motionEnabled)?.controls?.motionEnabled?.$ref
-        const permission=meta.controls.find(p=>p.id===bound)??(camera?.type==='boolean'?camera:null)
-        if(cameraMode){
-          const pose=f=>JSON.stringify(f.conditions.camera)
-          await lockCamera();const a=await capture('camera-home-a','build',15),b=await capture('camera-home-b','drop',15)
-          await set(cameraMode,'drift');const c=await capture('camera-drift-a','build',15),d=await capture('camera-drift-b','drop',30)
-          check('camera-off-lock',pose(a)===pose(b)?[]:['Home camera moved']);check('camera-on-evidence',pose(c)!==pose(d)?[]:['Drift camera did not move'])
-          await set(cameraMode,'home');return
+      await scenario('trigger-matrix',async()=>{
+        await api('reset');await set(auto,false);await lockCamera()
+        await set(pattern,meta.patterns[0].value);await set(change,true)
+        let identity=100000
+        for(const id of capabilities.patternTriggers){
+          await set(trigger,id);await api('seek',15.8)
+          const arm=await capture(`trigger-${id}-arm`,'breakdown',4,false,'none')
+          const kind=['bar','bar4','bar8'].includes(id)?'bar':['beat2','beat4'].includes(id)?'beat':id
+          const negativeKind=['beat2','beat4','bar4','bar8'].includes(id)?kind:id==='kick'?'snare':'kick'
+          const negativeBeat=['bar4','bar8'].includes(id)?4:31
+          const emit=(name,kind,beat,eventId,replay=false)=>capture(`trigger-${id}-${name}`,'breakdown',1,false,'none',{trigger:id,kind,beat,id:eventId,replay})
+          const negative=await emit('nonqualifying',negativeKind,negativeBeat,++identity)
+          const expectedNext=await api('expectedNextPattern',patternValue(negative))
+          const eventId=++identity
+          const fresh=await emit('fresh',kind,32,eventId)
+          const duplicate=await emit('duplicate',kind,32,eventId,true)
+          const hold=await capture(`trigger-${id}-hold`,'breakdown',2,false,'none')
+          await api('pause',true)
+          const paused=await capture(`trigger-${id}-paused`,'breakdown',2,false,'none')
+          await api('pause',false)
+          const resume=await capture(`trigger-${id}-resume`,'breakdown',2,false,'none')
+          await set(change,false)
+          await api('seek',31.8)
+          const disabled=await capture(`trigger-${id}-disabled`,'breakdown',5,false,'none')
+          const disabledEvent=await emit('disabled-event',kind,64,++identity)
+          const samples=Object.fromEntries(Object.entries({arm,negative,fresh,duplicate,hold,paused,resume,disabled,disabledEvent}).map(([k,f])=>[k,state(f)]))
+          decide(`trigger-matrix:${id}`,triggerSequenceEvidence(samples,id,expectedNext))
+          await set(change,true)
         }
-        if(!permission){if(meta.cameras?.length&&meta.cameras.every(c=>!c.motion&&!c.controls?.motionEnabled&&c.rig?.kind==='static'))notApplicable('camera-permission','No authored camera motion or permission; module motion is checked separately');else notRun('camera-permission','No boolean camera permission in compiled manifest');return}
-        requireCheck('camera-off-lock');requireCheck('camera-on-evidence')
-        await set(permission,false);const offA=await capture('camera-off-a','build',15),offB=await capture('camera-off-b','drop',15)
-        await set(permission,true);const onA=await capture('camera-on-a','build',15),onB=await capture('camera-on-b','drop',15)
-        const pose=c=>{const {position,target,fovDegrees,rollDegrees}=c.d.camera.camera;return JSON.stringify({position,target,fovDegrees,rollDegrees})}
-        check('camera-off-lock',pose(offA)===pose(offB)?[]:['Camera pose changed with hard permission off'])
-        check('camera-on-evidence',pose(onA)!==pose(onB)?[]:['Camera pose did not change during ON checkpoints'],{changed:pose(onA)!==pose(onB)})
+        await api('reset')
+      })
+      await scenario('camera',async()=>{
+        await api('reset');await set(auto,false);await set(change,false)
+        const binding=meta.cameras?.find(c=>c.controls?.motionEnabled||c.controls?.rigMode||c.motion)
+        const controlFor=name=>meta.controls.find(p=>p.id===binding?.controls?.[name]?.$ref)
+        const permission=controlFor('motionEnabled')??cameraPermission
+        const safety=controlFor('motionSafety'),amount=controlFor('masterMotionAmount')??controlFor('motionAmount'),zoom=controlFor('kickZoom')
+        const baseline=await api('saved')
+        const sample=async(name,configure,portrait=false)=>{
+          await freshRuntime(baseline,`camera-${name}`)
+          if(portrait)await api('resize',540,960)
+          await configure();await api('prepare')
+          await capture(`camera-${name}-idle`,'idle',15,false,'none')
+          const frames=[]
+          for(const [i,stage] of ['build','build','drop','drop','breakdown'].entries())frames.push(await capture(`camera-${name}-${i}`,stage,15,false,'staged'))
+          await api('pause',true)
+          // First paused frame may settle the transport state; compare subsequent frames.
+          const held=await capture(`camera-${name}-paused`,'breakdown',1,false,'none')
+          const heldLater=await capture(`camera-${name}-paused-later`,'breakdown',15,false,'none')
+          decide(`camera-${name}-pause`,cameraSequenceEvidence([held,heldLater],{expect:'locked'}))
+          await api('pause',false)
+          const decision=cameraSequenceEvidence(frames,{expect:'measure',safety:binding?.safety})
+          decide(`camera-${name}-bounds`,decision)
+          return {frames,decision}
+        }
+        const on=async()=>{if(permission)await set(permission,true);if(cameraMode)await set(cameraMode,'drift');if(safety?.options?.some(o=>o.value==='full'))await set(safety,'full');if(zoom)await set(zoom,false)}
+        if(!permission&&!cameraMode){
+          if(meta.cameras?.length&&meta.cameras.every(c=>!c.motion&&!c.controls?.motionEnabled&&c.rig?.kind==='static'))notApplicable('camera-permission','Authored static rig without camera motion controls; native motion checked separately')
+          else notRun('camera-permission','No hard permission or supported mode in compiled manifest; independent camera evidence required')
+          return
+        }
+        const off=await sample('off',async()=>{await on();await lockCamera()})
+        const offRepeat=await sample('off-repeat',async()=>{await on();await lockCamera()})
+        const enabled=await sample('on',on)
+        decide('camera-off-lock',cameraSequenceEvidence(off.frames,{expect:'locked',safety:binding?.safety}))
+        decide('camera-on-evidence',cameraSequenceEvidence(enabled.frames,{expect:'moving',safety:binding?.safety}))
+        decide('camera-rendered-view',cameraRenderEvidence(off.frames,offRepeat.frames,enabled.frames,[permission?.id,cameraMode?.id].filter(Boolean)))
+        if(safety){
+          for(const mode of ['reduced','lockoff'].filter(v=>safety.options?.some(o=>o.value===v))){
+            const measured=await sample(mode,async()=>{await on();await set(safety,mode)})
+            const evidence=cameraSequenceEvidence(measured.frames,{expect:mode==='lockoff'?'locked':'reduced',reference:enabled.decision.evidence,safety:binding?.safety})
+            decide(`camera-safety-${mode}`,evidence)
+          }
+        }
+        if(amount&&Number.isFinite(amount.min)&&Number.isFinite(amount.max)){
+          for(const [label,value] of [['min',amount.min],['max',amount.max]]){
+            const measured=await sample(`amount-${label}`,async()=>{await on();await set(amount,value)})
+            // A zero additive amount is not a hard stop for every authored rig.
+            decide(`camera-amount-${label}`,cameraSequenceEvidence(measured.frames,{expect:'measure',safety:binding?.safety}))
+          }
+        }
+        if(zoom)await sample('kick-zoom',async()=>{await on();await set(zoom,true)})
+        if(sync)await sample('free-time',async()=>{await on();await set(sync,false)})
+        await sample('auto',async()=>{await on();await set(auto,true)})
+        await sample('portrait',on,true)
+        await api('resize',config.width,config.height)
+        await api('reset')
       })
       await scenario('transport-auto',async()=>{
         await set(auto,true);await capture('auto-build','build',30);await capture('auto-drop-onset','drop',1)

@@ -158,3 +158,40 @@ test('compiled capabilities distinguish optional source slots and native typogra
 test('a required capability cannot be passed as not applicable',()=>{
   const result={required:['model'],mustPass:['model'],checks:[{name:'model',status:'not-applicable',reason:'incorrect'}],errors:[],frames:[{}]};assert.equal(presetStatus(result),'incomplete')
 })
+
+import { cameraSequenceEvidence } from './release-acceptance-core.mjs'
+const cameraFrame=(x=0,near=.1,far=20)=>({width:960,height:540,d:{camera:{camera:{position:[x,0,4],target:[x,0,0],near,far,aspect:960/540,fovDegrees:50,rollDegrees:0,viewProjectionMatrix:[.5,0,0,0,0,.5,0,0,0,0,.1,0,-x*.5,0,0,1]}}}})
+test('camera sequence rejects moving lock, imperceptible enabled camera and unsafe clipping',()=>{
+  const a=cameraFrame(),b=cameraFrame(.1)
+  assert.equal(cameraSequenceEvidence([a,a],{expect:'locked'}).status,'pass')
+  assert.equal(cameraSequenceEvidence([a,b],{expect:'locked'}).status,'fail')
+  assert.equal(cameraSequenceEvidence([a,a],{expect:'moving'}).status,'fail')
+  assert.equal(cameraSequenceEvidence([a,cameraFrame(.0001)],{expect:'moving'}).status,'fail')
+  const full=cameraSequenceEvidence([a,b],{expect:'moving'})
+  assert.equal(full.status,'pass');assert.ok(full.evidence.maxPixels>1)
+  assert.equal(cameraSequenceEvidence([a,cameraFrame(.2)],{expect:'reduced',reference:full.evidence}).status,'fail')
+  assert.equal(cameraSequenceEvidence([a,cameraFrame(.02)],{expect:'reduced',reference:full.evidence}).status,'pass')
+  assert.equal(cameraSequenceEvidence([a,cameraFrame(0,3,2)]).status,'fail')
+  assert.equal(cameraSequenceEvidence([a,cameraFrame(0,.01,20)],{safety:{minNear:.1}}).status,'fail')
+  const clipped=cameraFrame();clipped.d.camera.camera.viewProjectionMatrix[14]=2
+  assert.equal(cameraSequenceEvidence([a,clipped]).status,'fail')
+  assert.equal(cameraSequenceEvidence([a,{}]).status,'incomplete')
+})
+
+import { triggerSequenceEvidence } from './release-acceptance-core.mjs'
+test('trigger matrix requires exact successor, matching replay, nonqualifying hold and disabled hold',()=>{
+  const row=(active,canonical=null,explicit=null,enabled=true)=>({active,saved:'a',trigger:'kick',effectiveTrigger:'kick',enabled,effectiveChange:enabled,event:{canonical,explicit}})
+  const make=()=>({arm:row('a'),negative:row('a',null,{id:1}),fresh:row('b','hit2',{id:2}),duplicate:row('b','hit2',{id:2,replay:true}),hold:row('b'),paused:row('b'),resume:row('b'),disabled:row('a',null,null,false),disabledEvent:row('a','hit3',{id:3},false)})
+  assert.equal(triggerSequenceEvidence(make(),'kick','b').status,'pass')
+  for(const key of ['negative','duplicate','paused','disabledEvent']){const s=make();s[key].active='c';assert.equal(triggerSequenceEvidence(s,'kick','b').status,'fail')}
+  const wrong=make();wrong.fresh.active='c';assert.equal(triggerSequenceEvidence(wrong,'kick','b').status,'fail')
+  assert.equal(triggerSequenceEvidence(make(),'kick',null).status,'incomplete')
+})
+
+import { cameraRenderEvidence } from './release-acceptance-core.mjs'
+test('camera rendered comparison rejects unchanged output and unrelated object motion',()=>{
+  const cameraOn=f=>({...f,conditions:{...f.conditions,settings:JSON.stringify({...JSON.parse(f.conditions.settings),values:{...JSON.parse(f.conditions.settings).values,camera:true}}),camera:{...f.conditions.camera,position:[.2,0,4]}}})
+  assert.equal(cameraRenderEvidence([original],[original],[cameraOn(original)],['camera']).status,'fail')
+  assert.equal(cameraRenderEvidence([original],[original],[cameraOn(shifted)],['camera']).status,'pass')
+  assert.equal(cameraRenderEvidence([original],[original],[{...cameraOn(shifted),motion:{phase:2}}],['camera']).status,'incomplete')
+})

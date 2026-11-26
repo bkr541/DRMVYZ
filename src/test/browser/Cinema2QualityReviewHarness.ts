@@ -1,8 +1,10 @@
+import { CINEMA2_AFTERHOURS_TRIGGER_IDS, resolveCinema2AfterhoursTriggerEventIdentity, type Cinema2AfterhoursTriggerId } from '../../components/vyzualz/cinema2/modules/Cinema2AfterhoursNativeModule'
 import { cinema2UserModelCache } from '../../components/vyzualz/cinema2/model/Cinema2UserModelCache'
 import { Cinema2Runtime } from '../../components/vyzualz/cinema2/runtime/Cinema2Runtime'
 import { Cinema2AudioIntelligenceBridge } from '../../components/vyzualz/cinema2/audio/Cinema2AudioIntelligenceBridge'
 import type { Cinema2MediaKind, Cinema2ParameterId, Cinema2PresetId, Cinema2RenderQualityLevel } from '../../components/vyzualz/cinema2/contracts/Cinema2NativePresetManifest'
-import { trippyBroMusicFixture } from '../support/TrippyBroMusicFixture'
+import type { Cinema2ModuleFrameReadContext } from '../../components/vyzualz/cinema2/modules/Cinema2ModuleContracts'
+import { trippyBroMusicFixture, type TrippyBroFixtureOptions } from '../support/TrippyBroMusicFixture'
 import { createCinema2MainframePatternCycle, nextCinema2MainframePattern } from '../../components/vyzualz/cinema2/modules/mainframe/Cinema2MainframePatternController'
 import { DEFAULT_MI_FRAME } from '../../features/musicIntelligence/constants'
 import { cinema2SlotSupportsPool } from '../../components/vyzualz/cinema2/media/Cinema2SourceCapabilities'
@@ -13,6 +15,9 @@ import type { MusicIntelligenceFrame } from '../../features/musicIntelligence/ty
 // Test-only controlled upstream publications; production runtime owns all response and timing.
 type Stage = 'reference' | 'idle' | 'build' | 'drop' | 'breakdown'
 type ControlledEvent = 'none' | 'fresh' | 'stale' | 'duplicate' | 'staged'
+type TriggerPublication = { trigger: Cinema2AfterhoursTriggerId; kind: NonNullable<TrippyBroFixtureOptions['event']> | null; beat: number; id: number; replay?: boolean }
+let triggerPublication: TriggerPublication | null = null
+let lastTriggerPublication: {id: number; time: number; frameId: number} | null = null
 let controlled: ControlledEvent | null = null
 let lastDrop: { id: number; time: number } | null = null
 const canvas = document.querySelector<HTMLCanvasElement>('#review')!
@@ -85,8 +90,13 @@ function tick() {
     if (controlled === 'fresh') lastDrop = { id: index, time: musicTime }
     const event = controlled === 'stale' ? { id: -1, time: Math.max(0, musicTime - .5) } : controlled === 'duplicate' ? lastDrop : null
     if (controlled === 'duplicate' && !event) throw Error('No fresh event to repeat')
-    const upstream = trippyBroMusicFixture({ timeSec: musicTime, frameId: index, energy, bass: energy, high: energy * .7,
-      build: !controlledOverride && stage === 'build' ? Math.min(stageFrame / 60, 1) : 0, advanceBeatGrid: true, event: hit, eventId: event?.id ?? index, eventTime: event?.time ?? musicTime })
+    const explicit = triggerPublication
+    if(explicit && !explicit.replay) lastTriggerPublication = {id: explicit.id, time: musicTime, frameId: index}
+    if(explicit?.replay && lastTriggerPublication?.id !== explicit.id) throw Error('Invalid trigger replay fixture')
+    const structural = explicit?.kind === 'drop' || explicit?.kind === 'phrase'
+    const replay = explicit?.replay ? lastTriggerPublication : null
+    const upstream = trippyBroMusicFixture({ timeSec: musicTime, frameId: replay?.frameId ?? index, energy, bass: energy, high: energy * .7,
+      build: !controlledOverride && stage === 'build' ? Math.min(stageFrame / 60, 1) : 0, advanceBeatGrid: true, event: explicit ? explicit.kind : hit, beatIndex: explicit?.beat, eventId: explicit?.id ?? event?.id ?? index, eventTime: structural && replay ? replay.time : event?.time ?? musicTime })
     published = { ...upstream, section: { ...upstream.section, type: stage === 'build' ? 'build' : stage === 'drop' ? 'drop' : 'breakdown',
       startSec: controlledOverride ? 0 : musicTime - stageFrame / 30, endSec: controlledOverride ? 1000 : musicTime - stageFrame / 30 + 2, intensity: energy, progress: controlledOverride ? .5 : Math.min(stageFrame / 60, 1) } }
     publicationSequence++; publicationTime = index * 1000 / 30
@@ -113,24 +123,31 @@ function diagnostics() {
 }
 const api = {
   inventory() { return { id: manifest.id, revision: manifest.revision, metadata: manifest.metadata,
-    patterns: (manifest.parameters ?? []).find(p => p.label === 'Pattern')?.options ?? [], cameras: manifest.cameras,
+    sharedTriggers: CINEMA2_AFTERHOURS_TRIGGER_IDS, patterns: (manifest.parameters ?? []).find(p => p.label === 'Pattern')?.options ?? [], cameras: manifest.cameras,
     mediaSlots: manifest.mediaSlots ?? [], poolSlots: (manifest.mediaSlots ?? []).filter(slot=>cinema2SlotSupportsPool(slot.id)).map(slot=>slot.id), modules: manifest.modules ?? [], controls: manifest.parameters ?? [], parameters: initial } },
   async prepare() {
     // Give asset imports time to resolve. Readiness is reported, never assumed from elapsed time alone.
     for (let i = 0; i < 60; i++) { await new Promise(resolve => setTimeout(resolve, 25)); tick() }
     return diagnostics()
   },
-  async capture(nextStage: Stage, frames: number, fixture: ControlledEvent | null = null) {
+  async capture(nextStage: Stage, frames: number, fixture: ControlledEvent | null = null, explicit: TriggerPublication | null = null) {
     if (!Number.isSafeInteger(frames) || frames < 1) throw Error('Invalid capture sample count')
+    if (explicit && frames !== 1) throw Error('Explicit event requires exactly one frame')
     controlled = fixture
+    triggerPublication = explicit
+    const previousTimeSec = musicTime
     if (stage !== nextStage) { stage = nextStage; stageFrame = 0 }
     source = stage !== 'reference' && stage !== 'idle'
     const saved = runtime.serializeParameterState()
     const timings = []
     for (let i = 0; i < frames; i++) { timings.push(tick()); if (i === frames - 1) break; await new Promise(resolve => setTimeout(resolve, 0)) }
+    triggerPublication = null
+    const canonical = explicit ? resolveCinema2AfterhoursTriggerEventIdentity({
+      audio: runtime.getAudioIntelligenceFrame(), director: runtime.getVisualDirectorFrame(), transport: runtime.getTransportFrameState(),
+    } as Cinema2ModuleFrameReadContext, explicit.trigger, previousTimeSec) : null
     // Read before the WebGL drawing buffer is retired.
     const png = canvas.toDataURL('image/png')
-    return { png, timings, frame: index, stageFrame, musicTime, stage, quality, fixture, event: fixture === null ? null : { mode: fixture, semanticMoments: published.semanticMoments, publicationSequence, publicationTime }, diagnostics: diagnostics(), parametersUnchanged: (query.get('release') ? saved : initial) === runtime.serializeParameterState() }
+    return { png, timings, frame: index, stageFrame, musicTime, stage, quality, fixture, event: fixture === null ? null : { mode: fixture, semanticMoments: published.semanticMoments, publicationSequence, publicationTime, explicit, canonical, rhythm: published.rhythm, phraseMarkers: published.phraseMarkers }, diagnostics: diagnostics(), parametersUnchanged: (query.get('release') ? saved : initial) === runtime.serializeParameterState() }
   },
   // Release-only controls, using the same runtime, scheduler and native media service.
   set(id: Cinema2ParameterId, value: unknown) {
@@ -144,8 +161,8 @@ const api = {
     if (!patterns.every(p => typeof p === 'string')) return null
     const ids = patterns.map(String)
     const key = String(presetId).split('.').at(-1)
-    if (['honey','hud','purity','allstar','crate-wireframe-portal','chamber'].includes(key ?? '')) return nextCinema2MainframePattern(ids, current)
-    const purpose = key === 'corridor' ? 'corridor-pattern-cycle' : ['spectrum','fracture','refraction','mosaic','overdrive','colossus','exoskeleton','monument','everywhere'].includes(key ?? '') ? `${key}-pattern-order` : null
+    if (['honey','hud','purity','allstar','crate-wireframe-portal','chamber','seraph','relic','paradox','monolith'].includes(key ?? '')) return nextCinema2MainframePattern(ids, current)
+    const purpose = key === 'livewire' ? 'say-it-pattern-cycle' : key === 'corridor' ? 'corridor-pattern-cycle' : ['spectrum','fracture','refraction','mosaic','overdrive','colossus','exoskeleton','monument','everywhere'].includes(key ?? '') ? `${key}-pattern-order` : null
     const modules = manifest.modules ?? []
     if (!purpose || modules.length !== 1) return null
     const moduleId = modules[0]!.id
@@ -213,7 +230,7 @@ const api = {
     runtime.dispose()
     const retired = diagnostics()
     presetId = id; quality = nextQuality; callback = null; index = 0; source = false; paused = false
-    stage = 'reference'; stageFrame = 0; musicTime = 0; controlled = null; lastDrop = null; published = DEFAULT_MI_FRAME; publicationSequence = 0; publicationTime = 0; lastGlError = 0; glErrors = []
+    stage = 'reference'; stageFrame = 0; musicTime = 0; controlled = null; lastDrop = null; triggerPublication = null; lastTriggerPublication = null; published = DEFAULT_MI_FRAME; publicationSequence = 0; publicationTime = 0; lastGlError = 0; glErrors = []
     // A fresh bridge is constructed by createRuntime; restore only the canonical saved state.
     selectPool(false); poolRequests=[]; mediaProbe = new ReleaseMediaProbe(); runtime = createRuntime(saved); manifest = runtime.getCompiledPresetPlan().manifest
     if (!saved) applyMode()
