@@ -17,9 +17,10 @@ export function HealthReadout() {
   return <HeaderReadout label="HEALTH" title={summary}>
     <div className="vz-health-chips" role="status" aria-live="polite" aria-label={summary} data-health-readout>
       {HEALTH_SYSTEMS.map(system => (
-        <strong key={system} className="vz-health-chip vz-header-readout-primary" data-health={systems[system].state} data-health-system={system}>
-          <i className="vz-header-readout-led" aria-hidden="true" />{CHIP_TEXT[system]}
-        </strong>
+        <span key={system} className="vz-health-chip" data-health={systems[system].state} data-health-system={system}>
+          <i className="vz-header-readout-led" aria-hidden="true" />
+          <strong className="vz-header-readout-primary">{CHIP_TEXT[system]}</strong>
+        </span>
       ))}
     </div>
   </HeaderReadout>

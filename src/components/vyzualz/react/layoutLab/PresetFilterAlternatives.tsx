@@ -1,6 +1,9 @@
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { AppIcon, type AppIconKind } from '../../../shared/icons/AppIcon'
+import { HeaderActionIcon } from '../../layout/HeaderActionIcon'
 import { HeaderIconKey } from '../../layout/HeaderIconKey'
+import '../../layout/HeaderControlGroup.css'
+import '../controls/LibraryViewToggle.css'
 import { RailWindowHeader } from '../../layout/RailWindowHeader'
 import { usePresetScopeFilter } from '../../../../features/presetCatalog/presetCatalogStore'
 import type { PresetScopeTab } from '../../../../features/presetCatalog/presetScope'
@@ -32,14 +35,16 @@ function Highlight({ value, query }: { value: string; query: string }) {
     : <span key={index}>{part.text}</span>)}</>
 }
 
-function ScopeToggle({ scope, onChange }: { scope: PresetScopeTab; onChange: (next: PresetScopeTab) => void }) {
+function ScopeToggle({ scope, onChange, visualSearch }: { scope: PresetScopeTab; onChange: (next: PresetScopeTab) => void; visualSearch: boolean }) {
   const next = scope === 'system' ? 'user' : 'system'
   return <div className="vz-md-view-toggles">
     <div className="vz-header-group dv-library-view-toggle" data-preset-scope={scope} role="group"
       aria-label={`Preset scope: ${scope === 'system' ? 'System' : 'User'}`}>
       <HeaderIconKey label={next === 'user' ? 'User presets' : 'System presets'}
-        icon={<AppIcon kind={next === 'user' ? 'user' : 'layers'} size={12}
-          viewBox={next === 'user' ? '6 2 20 28' : '2 2 28 28'} color="currentColor" />}
+        icon={visualSearch
+          ? <HeaderActionIcon action={next === 'user' ? 'userProfile' : 'grid'} />
+          : <AppIcon kind={next === 'user' ? 'user' : 'layers'} size={12}
+            viewBox={next === 'user' ? '6 2 20 28' : '2 2 28 28'} color="currentColor" />}
         onClick={() => onChange(next)} />
     </div>
   </div>
@@ -172,7 +177,7 @@ function AlternativePreview({ study, records }: { study: Study; records: readonl
   useEffect(() => {
     if (showPopup && activeIndex >= 0) anchor.current?.ownerDocument.getElementById(`${popupId}-option-${activeIndex}`)?.scrollIntoView?.({ block: 'nearest' })
   }, [showPopup, activeIndex, popupId])
-  const scopeToggle = <ScopeToggle scope={scope} onChange={changeScope} />
+  const scopeToggle = <ScopeToggle scope={scope} onChange={changeScope} visualSearch={study.id === 'visual-search'} />
   const appliedCount = appliedFilters(groups, active).length
   let index = 0
   const renderChoice = (choice: PopupChoice): ReactNode => {

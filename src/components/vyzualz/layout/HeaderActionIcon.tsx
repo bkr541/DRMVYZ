@@ -25,6 +25,7 @@ const HEADER_ACTIONS = {
   redo: { kind: 'redo', bounds: '4 5 24 21' },
   list: { kind: 'list', bounds: '4 6 24 20' },
   grid: { kind: 'grid', bounds: '4 4 24 24' },
+  userProfile: { kind: 'userProfile', bounds: '2 2 28 28' },
   favorite: { kind: 'star', bounds: '3 3 26 26' },
 } as const
 

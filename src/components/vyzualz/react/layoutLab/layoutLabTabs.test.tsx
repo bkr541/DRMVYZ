@@ -345,10 +345,16 @@ describe('persistent Layout Lab tabs', () => {
       const grouped = study('grouped-search')
       const suggestions = study('metadata-suggestions')
       const visual = study('visual-search')
+      const visualToggle = visual.querySelector<HTMLButtonElement>('[aria-label="User presets"]')!
+      expect(visualToggle.querySelector('[data-app-icon="userProfile"]')).not.toBeNull()
+      expect(visualToggle.classList.contains('vz-header-icon-key')).toBe(true)
       for (const element of [grouped, suggestions, visual]) {
         await click(element.querySelector<HTMLButtonElement>('[aria-label="User presets"]')!)
         expect(element.querySelector('.dv-library-view-toggle')?.getAttribute('data-preset-scope')).toBe('user')
       }
+      const visualGrid = visualToggle.querySelector('[data-app-icon="grid"]')
+      expect(visualGrid?.getAttribute('viewBox')).toBe('4 4 24 24')
+      expect(visualToggle.getAttribute('aria-label')).toBe('System presets')
       const groupedInput = grouped.querySelector<HTMLInputElement>('[role="combobox"]')!
       await enter(groupedInput, 'TestTag')
       expect(grouped.querySelector('[role="group"][aria-label="Metadata matches"] [role="option"] mark')?.textContent).toBe('TestTag')

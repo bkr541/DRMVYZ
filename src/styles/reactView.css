@@ -22438,12 +22438,13 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   --dock-ink-dim: rgba(196, 207, 211, 0.58);
   --dock-line: rgba(154, 178, 188, 0.18);
   --dock-fill: rgba(255, 255, 255, 0.045);
+  --dock-key-size: 32px;
 }
 
 /* Left card */
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-left {
-  grid-template-columns: max-content 112px minmax(0, 1fr);
-  grid-template-rows: auto 36px;
+  grid-template-columns: max-content max-content minmax(0, 1fr);
+  grid-template-rows: auto var(--dock-key-size);
   align-content: center;
   column-gap: 12px;
   row-gap: 12px;
@@ -22490,26 +22491,30 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-play-slot {
   grid-column: 2;
   grid-row: 2;
-  width: 112px;
-  height: 36px;
+  width: calc(3 * var(--dock-key-size) + 12px);
+  height: var(--dock-key-size);
 }
 
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-addtrack-btn,
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-playlist-trigger,
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-track-nav-btn,
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-play-slot .az-play-btn {
-  width: 36px;
-  height: 36px;
-  transition: all 0.15s;
+  box-sizing: border-box;
+  flex: 0 0 var(--dock-key-size);
+  width: var(--dock-key-size);
+  height: var(--dock-key-size);
+  min-width: 0;
+  padding: 0;
+  border-radius: var(--radius-group);
 }
 
-/* Layout Lab "03 · Progress Tile" surfaces, applied without changing the
-   production dock's existing button geometry or placement. */
+/* Preserve the Progress Tile action colors on the shared square key geometry. */
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-addtrack-btn {
   border: 1px solid rgba(74, 199, 219, 0.6) !important;
-  border-radius: 50%;
+  border-radius: var(--radius-group);
   background: linear-gradient(180deg, #1d2d34, #131d22);
   color: var(--dock-cyan-bright) !important;
-  box-shadow: 0 0 0 3px #1c2026, 0 4px 10px rgba(0, 0, 0, 0.45) !important;
+  box-shadow: none !important;
 }
 
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-play-slot .az-play-btn {
@@ -22571,8 +22576,8 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 /* Right card */
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-right {
-  grid-template-columns: minmax(0, 1fr) repeat(3, 32px);
-  grid-template-rows: repeat(2, 32px);
+  grid-template-columns: minmax(0, 1fr) repeat(3, var(--dock-key-size));
+  grid-template-rows: repeat(2, var(--dock-key-size));
   align-content: center;
   align-items: stretch;
   column-gap: 8px;

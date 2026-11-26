@@ -367,7 +367,7 @@
   --type-header-readout-secondary: 450 10px/1.25 var(--type-header-readout-family);
 }
 :root body .vz-header-readout-label { font: var(--type-header-readout-label); letter-spacing: .08em; }
-:root body .vz-header-readout-values, :root body .vz-header-readout-primary { font: var(--type-header-readout-primary); }
+:root body .vz-header-readout-values, :root body .vz-header-readout-primary { font: var(--type-header-readout-primary); letter-spacing: normal; }
 :root body .vz-header-readout-values em { font: var(--type-header-readout-secondary); }
 :root body .vz-header-readout-values button { font: var(--type-header-readout-secondary); }
 

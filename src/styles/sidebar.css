@@ -267,8 +267,8 @@
 /* Production rail: Layout Lab Preview 1, permanently collapsed. Keep these
  * styles here so production never depends on the workbench's mockup CSS. */
 .az-sidebar.az-sidebar--notched {
-  --az-notch-height: 64px;
-  --az-notch-width: 44px;
+  --az-notch-height: 72px;
+  --az-notch-width: 49.5px;
   --az-notch-top: calc(var(--az-sidebar-selected-y, 39px) - var(--az-notch-height) / 2);
   --az-notch-sweep: 380ms cubic-bezier(.22, 1, .36, 1);
   box-sizing: border-box;
@@ -337,7 +337,9 @@
 .az-sidebar--notched .az-nav-item--active .nav-medallion {
   width: 52px;
   height: 52px;
-  inset-inline-start: calc(100% - 44px);
+  /* The notch artwork is centered 18/44 of its width in from the rail edge. */
+  inset-inline-start: calc(100% - var(--az-notch-width) * 18 / 44 - 26px);
+  padding: 2px;
 }
 .az-sidebar--notched .az-nav-item:focus-visible { background: transparent; }
 .az-sidebar--notched .az-nav-item--active:is(:hover, :focus-visible) {

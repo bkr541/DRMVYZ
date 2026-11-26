@@ -6,6 +6,8 @@ import { CARBON_GLYPHS, type CarbonGlyphKind } from './carbonGlyphs'
 /** Custom 32px artwork for icons Carbon has no equivalent for (brand, workspace, lighting and effect icons): 1.5px round strokes, subdued structural lines and cyan functional details. */
 const DRAWINGS = {
   clearAll: ['M4 6h24M4 14h14M4 22h10', 'M21 19l8 8M29 19l-8 8'],
+  // Circular profile badge, distinct from the standing user glyph.
+  userProfile: ['M16 3a13 13 0 1 0 0 26 13 13 0 1 0 0-26M16 8a4.5 4.5 0 1 0 0 9 4.5 4.5 0 1 0 0-9M7.5 25.8C8.3 21.9 11.8 20 16 20s7.7 1.9 8.5 5.8', ''],
   clock: ['M16 3a13 13 0 1 0 0 26 13 13 0 1 0 0-26', 'M16 8v8l5 3'],
   calendar: ['M4 7h24v21H4ZM4 13h24M10 3v6M22 3v6', 'M9 18h3M15 18h3M21 18h3M9 23h3M15 23h3'],
   audioTrack: [

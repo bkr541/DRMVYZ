@@ -66,6 +66,9 @@ describe('Option E React header readouts', () => {
     expect(health.closest('.vz-header-readout')?.querySelector('.vz-header-readout-label')?.textContent).toBe('HEALTH')
     expect([...health.querySelectorAll('.vz-header-readout-primary')].map(el => el.textContent)).toEqual(['CAST', 'AUDIO', 'GFX'])
     expect(health.querySelectorAll('.vz-header-readout-led')).toHaveLength(3)
+    const quality = container.querySelector('[data-performance-metric="quality"]')!
+    expect([...health.querySelectorAll('.vz-header-readout-primary')].every(el =>
+      el.tagName === quality.tagName && el.className === quality.className && !el.querySelector('.vz-header-readout-led'))).toBe(true)
     expect(health.querySelector('em')).toBeNull()
     await act(async () => { useHealthStore.getState().setHealth('audio', 'healing', 'Audio output stopped') })
     expect(chip('audio')).toBe('healing')
