@@ -51,6 +51,7 @@ describe('CHAMBER source GLB preservation', () => {
 import { cinema2Ref } from '../contracts/Cinema2NativePresetManifest'
 import { CINEMA2_CHAMBER_PRESET_ID, chamberParameterId } from '../presets/Cinema2ChamberPreset'
 import { Cinema2ChamberController } from '../modules/Cinema2ChamberNativeModule'
+import { CHAMBER_ORIGINAL_SHAFT_FRONT_GAIN } from '../modules/chamber/Cinema2ChamberFixtures'
 import { CHAMBER_PALETTE_DEFAULTS } from '../modules/chamber/Cinema2ChamberPalette'
 import {
   CHAMBER_BEACON_CELLS, CHAMBER_LAMP_CELLS, CHAMBER_RING_CELLS, CHAMBER_TICK_CELLS, CINEMA2_CHAMBER_PATTERN_IDS, evaluateChamberPattern,
@@ -506,6 +507,47 @@ describe('CHAMBER model slot', () => {
     expect(wordmark.x).toBeCloseTo(8.8, 2); expect(wordmark.y).toBeLessThan(3.2)
     expect(tall.y).toBeCloseTo(3.2, 2); expect(tall.x).toBeLessThan(8.8)
     expect(square.y).toBeCloseTo(3.2, 2); expect(square.x).toBeCloseTo(3.2, 2)
+  })
+
+  it('caps depth for thick imported models without distorting their proportions', async () => {
+    const r = await rig({ modelTilt: 0, modelDrift: 0 }, 'user-model:test:1', [4, 2, 8]); r.draw(5)
+    const box = new THREE.Box3(); for (const corner of r.corners()) box.expandByPoint(corner)
+    const size = box.getSize(new THREE.Vector3())
+    expect(size.toArray()).toEqual([expect.closeTo(1.6, 4), expect.closeTo(.8, 4), expect.closeTo(3.2, 4)])
+  })
+
+  it('protects Original models from the foreground shaft while retaining the projection and material alpha', async () => {
+    const r = await rig({ pattern: 'lockdown-flash' })
+    const mesh = r.model.children[0] as THREE.Mesh
+    const map = new THREE.Texture()
+    const opaque = new THREE.MeshStandardMaterial({ color: 0xc42c18, map, metalness: .8, roughness: .23, alphaTest: .4 })
+    const blend = new THREE.MeshPhysicalMaterial({ color: 0x2244ff, opacity: .35, transparent: true, depthWrite: false, roughness: .3 })
+    mesh.material = [opaque, blend]
+    const materialState = (m: THREE.MeshStandardMaterial) => ({ color: m.color.toArray(), opacity: m.opacity, transparent: m.transparent, depthWrite: m.depthWrite, depthTest: m.depthTest, alphaTest: m.alphaTest, metalness: m.metalness, roughness: m.roughness, map: m.map })
+    const before = [materialState(opaque), materialState(blend)]
+    const shaft = r.scene.getObjectByName('chamber-shaft') as THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial>
+    const light = r.model.getObjectByName('chamber-model-light') as THREE.PointLight
+    r.draw(2)
+    expect(byLabel('Model Presentation')).toMatchObject({ defaultValue: 'original', automatable: false, choreographable: false })
+    expect(manifest.modules![0]!.parameterBindings!.userModelPresentation).toEqual(cinema2Ref(chamberParameterId('userModelPresentation')))
+    expect(shaft.material).toMatchObject({ transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: true })
+    expect(shaft.visible).toBe(true)
+    expect(shaft.material.uniforms.uFrontGain!.value).toBe(CHAMBER_ORIGINAL_SHAFT_FRONT_GAIN)
+    expect(shaft.renderOrder).toBe(-1)
+    expect(light.color.toArray()).toEqual([1, 1, 1])
+    r.set('userModelPresentation', 'integrated'); r.draw(2)
+    expect(shaft.material.uniforms.uFrontGain!.value).toBe(1)
+    expect(shaft.renderOrder).toBe(5)
+    expect(light.color.r).toBeLessThan(light.color.b)
+    r.set('userModelPresentation', 'original'); r.run(4)
+    expect(shaft.material.uniforms.uFrontGain!.value).toBe(CHAMBER_ORIGINAL_SHAFT_FRONT_GAIN)
+    expect([materialState(opaque), materialState(blend)]).toEqual(before)
+    expect(opaque.map).toBe(map)
+    r.controller.detach(r.model); r.draw(5)
+    expect(shaft.material.uniforms.uFrontGain!.value).toBe(1)
+    expect(shaft.renderOrder).toBe(5)
+    expect(r.controller.inspect().modelPlaced).toBe(false)
+    r.controller.dispose(); map.dispose(); opaque.dispose(); blend.dispose()
   })
 
   it('eases the lean and turn as a model gets bigger, so its corners do not swing further than a small model\'s', async () => {

@@ -11,7 +11,8 @@ import { Cinema2MainframePatternController, resolveCinema2MainframeTriggerEventI
 import { Cinema2MainframeBeatClockResolver } from './mainframe/Cinema2MainframePatternEngine'
 import { connectedPieces, splitGeometryByCell } from './chamber/Cinema2ChamberCells'
 import { CHAMBER_PALETTE_DEFAULTS, CHAMBER_PALETTE_NAMES, type ChamberPaletteName } from './chamber/Cinema2ChamberPalette'
-import { CHAMBER_FIXTURES, buildChamberFixtures, type ChamberFixtureSet } from './chamber/Cinema2ChamberFixtures'
+import { resolveCinema2ModelPresentation } from '../model/Cinema2ModelPresentation'
+import { CHAMBER_FIXTURES, buildChamberFixtures, setChamberShaftModelProtection, type ChamberFixtureSet } from './chamber/Cinema2ChamberFixtures'
 import {
   CINEMA2_CHAMBER_DEFAULT_PATTERN, CINEMA2_CHAMBER_PATTERN_IDS, CINEMA2_CHAMBER_TRIGGER_IDS, blendChamberLevels, evaluateChamberPattern,
   type ChamberLevels, type Cinema2ChamberPattern,
@@ -28,10 +29,10 @@ const DEFAULT_MODEL_ASSET_ID = 'user-model-default'
  * Where the chosen model stands, in world space (the chamber's floor is near y = 0): the middle of the mechanical structure, between the platform (its top is at about
  * y = 0.8) and the lamp under the device (about y = 5.2), clear of the arms. `MODEL_BOX` is the space it fills at Model Size 1: as wide as the middle of the structure
  * allows (from the home view that is about 60% of the picture, the way the chamber is meant to show a title) and as tall as the gap between the platform and the lamp.
- * Each model is scaled to fit that box by its own shape, so a wide logo fills the width and a tall or square one is limited by the height.
+ * Each model is scaled to fit that box by its own shape, so a wide logo fills the width and a tall or square one is limited by the height, and a deep model by the chamber’s clearance.
  */
 const MODEL_CENTER = [0, 3.1, 0] as const
-const MODEL_BOX = { width: 8.8, height: 3.2 } as const
+const MODEL_BOX = { width: 8.8, height: 3.2, depth: 3.2 } as const
 /** A big model swings its corners much further than a small one for the same lean, so the lean and turn are eased by how big the model stands: full at about this half-size and under, down to `MIN_SWING`. */
 const SWING_HALF_EXTENT = 1.7, MIN_SWING = .4
 /** The light on the model: where it stands in the world (in front of and a little above the model), how far it reaches, and its colour. It belongs to the model, so with none chosen there is no light. */
@@ -96,7 +97,7 @@ export class Cinema2ChamberController {
   private modelPose: { position: [number, number, number]; yaw: number; pitch: number; roll: number; scale: number } | null = null
   /** The scale that makes the model, as the loader normalized it, fill `MODEL_BOX`. */
   private modelFit = 1
-  /** The longest side of the model's width and height as the loader normalized it. */
+  /** The longest side of the model as the loader normalized it. */
   private modelSpan = 2
 
   constructor(private readonly library: Cinema2ThreeLibrary) {
@@ -228,12 +229,12 @@ export class Cinema2ChamberController {
     this.userBase = model.matrix.clone()
     model.matrixAutoUpdate = false
     this.userRoot = model
-    // Measure the model as it stands normalized (its width and height) and find the scale that fills the box.
+    // Measure the model as it stands normalized (including depth) and find the scale that fills the box.
     const { THREE: three } = this.library
     model.updateWorldMatrix(true, true)
     const size = new three.Box3().setFromObject(model).getSize(new three.Vector3()), parentScale = model.parent?.getWorldScale(new three.Vector3()).x || 1
-    this.modelSpan = Math.max(.01, size.x / parentScale, size.y / parentScale)
-    this.modelFit = Math.min(MODEL_BOX.width / Math.max(.01, size.x / parentScale), MODEL_BOX.height / Math.max(.01, size.y / parentScale))
+    this.modelSpan = Math.max(.01, size.x / parentScale, size.y / parentScale, size.z / parentScale)
+    this.modelFit = Math.min(MODEL_BOX.width / Math.max(.01, size.x / parentScale), MODEL_BOX.height / Math.max(.01, size.y / parentScale), MODEL_BOX.depth / Math.max(.01, size.z / parentScale))
     // The light is the model's own, so the empty chamber is never lit by it; it is positioned in world space (see placeUserModel). Same intensity mapping as the manifest lights.
     const { THREE } = this.library
     const light = new THREE.PointLight(0xffffff, 0, MODEL_LIGHT.range, 2)
@@ -274,6 +275,10 @@ export class Cinema2ChamberController {
     const light = this.userLight
     if (light) {
       // A light with a fixed place in the world, whatever the model does: undo the model's own transform, then place it.
+      // Original already receives the shared neutral studio IBL. Keep the authored light
+      // amount, but do not add the integrated cyan cast to the saved model colors.
+      if (this.originalPresentation()) light.color.setRGB(1, 1, 1)
+      else light.color.setRGB(...MODEL_LIGHT.color, this.library.THREE.SRGBColorSpace)
       light.intensity = this.number('modelLight', .5, 0, 1.5) * Math.PI * (MODEL_LIGHT.range * .5) ** 2
       light.matrix.copy(model.matrix).invert().multiply(this.scratch.light.makeTranslation(...MODEL_LIGHT.position))
       light.matrixWorldNeedsUpdate = true
@@ -362,11 +367,16 @@ export class Cinema2ChamberController {
     this.placeUserModel()
   }
 
+  private originalPresentation(): boolean {
+    return resolveCinema2ModelPresentation(this.params?.get('userModelPresentation')) === 'original'
+  }
+
   /** The light shaft and the two wash lights (the blades and scan rings are cells, driven with the rest). */
   private driveFixtures(levels: ChamberLevels, master: number, score: number, cue: Record<ChamberFamily, number>): void {
     const fixtures = this.fixtures
     if (!fixtures) return
     const { THREE } = this.library
+    setChamberShaftModelProtection(fixtures.shaft, this.userRoot != null && this.originalPresentation())
     const shaftColor = this.color('shaftColor'), washColor = this.color('washColor')
     const shaftLevel = levels.shaft + cue.core * score * 1.2, shaftUniform = (fixtures.shaft.material as THREE.ShaderMaterial).uniforms.uColor!.value as THREE.Color
     shaftUniform.setRGB(shaftColor[0], shaftColor[1], shaftColor[2], THREE.SRGBColorSpace).multiplyScalar(CHAMBER_FIXTURES.shaft.emission * master * this.number('shaftLight', 1, 0, 2) * shaftLevel)

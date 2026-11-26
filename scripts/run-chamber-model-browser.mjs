@@ -87,6 +87,60 @@ try {
   await api('bind', 0); await api('set', { 'camera-mode': 'drift' }); for (let i = 0; i < 6; i++) await api('advanceBy', 4)
   await pixels('drift')
   report.passed.push('the model stays in place while the camera drifts round the platform')
+  // CHA-01: use identical embedded GLB bytes in the actual Model Editor and
+  // Chamber. Keep camera and time fixed for opacity/presentation comparisons.
+  for (const quality of ['high', 'low']) {
+    const comparison = await browser.newPage({ viewport: { width: W, height: H } })
+    comparison.on('pageerror', e => report.errors.push(e.message))
+    try {
+      await comparison.goto(`${process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:5174'}/src/test/browser/chamber-model.html?quality=${quality}`)
+      await comparison.waitForFunction(() => window.__chamberModel, {}, { timeout: 120000 })
+      const invoke = (method, ...args) => comparison.evaluate(([m, a]) => window.__chamberModel[m](...a), [method, args])
+      const capture = async (name, selector = '#chamber-model') => {
+        await comparison.waitForTimeout(600)
+        const png = await comparison.locator(selector).screenshot()
+        await writeFile(`${output}/${quality}-${name}.png`, png)
+        return sharp(png).removeAlpha().raw().toBuffer()
+      }
+      const check = async (method, ...args) => {
+        const result = await invoke(method, ...args)
+        assert.equal(result.snapshot.phase, 'running'); assert.equal(result.modules.failedModuleCount, 0); assert.equal(result.effects.failedEffectCount, 0)
+        return result
+      }
+      await check('prepare')
+      await check('set', { 'model-tilt': 0, 'model-drift': 0, 'pattern': 'standby', 'shaft-light': 1, 'user-model-presentation': 'original' })
+      const noModel = await capture('import-empty')
+      await check('bind', 3)
+      const opaque = await capture('import-opaque-original')
+      assert(difference(noModel, opaque, CENTER) > 2, `${quality}: opaque imported model is visible`)
+      await check('set', { 'user-model-presentation': 'integrated' })
+      const integrated = await capture('import-opaque-integrated')
+      assert(difference(opaque, integrated, CENTER) > .2, `${quality}: presentation mode changes the rendered model`)
+      await check('set', { 'user-model-presentation': 'original' })
+      await check('bind', 4)
+      const translucent = await capture('import-transparent-original')
+      assert(difference(opaque, translucent, CENTER) > .2, `${quality}: authored alpha changes the image`)
+      assert(difference(noModel, translucent, CENTER) > .2, `${quality}: translucent model remains visible`)
+      if (quality === 'high') {
+        for (const which of [3, 4]) {
+          await invoke('openEditor', which)
+          await comparison.locator('#chamber-editor-comparison canvas').waitFor()
+          await comparison.getByRole('button', { name: 'Floor grid and axis lines' }).click()
+          await capture(`editor-${which === 3 ? 'opaque' : 'transparent'}`, '#chamber-editor-comparison canvas')
+          await invoke('closeEditor')
+        }
+      }
+      // Transport-driven motion at both tiers; not a substitute for analysed audio playback.
+      await check('bind', 3)
+      await check('set', { 'model-tilt': 1, 'model-drift': 1, 'pattern': 'lockdown-flash', 'camera-mode': 'drift', 'shaft-light': 2 })
+      await check('setTransport', { present: true, paused: false, bpm: 128 })
+      for (let step = 0; step < 3; step++) { await check('advanceBy', 2); await capture(`import-motion-${step}`) }
+      await check('setTransport', { paused: true })
+      await capture('import-paused')
+      report.passed.push(`${quality}: opaque/transparent imported GLBs, Original/Integrated, and transport-driven motion`)
+      report.measurements.push({ quality, opaqueVisibility: difference(noModel, opaque, CENTER), alphaDifference: difference(opaque, translucent, CENTER), presentationDifference: difference(opaque, integrated, CENTER) })
+    } finally { await comparison.close() }
+  }
   assert.deepEqual(report.errors, [], 'no page errors')
 } finally {
   await writeFile(`${output}/report.json`, JSON.stringify(report, null, 1)); await browser.close()

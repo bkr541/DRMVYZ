@@ -15,6 +15,17 @@ export const CHAMBER_FIXTURES = Object.freeze({
   wash: Object.freeze({ positions: Object.freeze([[-5, 2.4, 3] as const, [5, 2.4, 3] as const]), range: 9, emission: .3 }),
 })
 
+/** In Original presentation the near wall remains a faint optical cue, not a bright overlay on the model. */
+export const CHAMBER_ORIGINAL_SHAFT_FRONT_GAIN = .12
+
+export function setChamberShaftModelProtection(shaft: THREE.Mesh, enabled: boolean): void {
+  const material = shaft.material as THREE.ShaderMaterial
+  material.uniforms.uFrontGain!.value = enabled ? CHAMBER_ORIGINAL_SHAFT_FRONT_GAIN : 1
+  // Opaque geometry already populates depth. Draw the shaft before ordinary alpha-blended
+  // model surfaces in Original mode, so their authored opacity composites over the light.
+  shaft.renderOrder = enabled ? -1 : 5
+}
+
 export interface ChamberFixtureSet {
   readonly group: THREE.Group
   readonly blades: THREE.Mesh[]
@@ -64,7 +75,7 @@ export function buildChamberFixtures(
     return mesh
   })
 
-  // The shaft: an open cone, narrow at the lamp and wide at the platform, brightest at the top and fading toward the floor. Added on top of the picture, so it only ever adds light.
+  // The shaft: an open cone, narrow at the lamp and wide at the platform, brightest at the top and fading toward the floor. Additive with depth testing; Original model presentation attenuates the near wall.
   const { top, bottom, topRadius, bottomRadius } = CHAMBER_FIXTURES.shaft, length = top - bottom
   const shaftGeometry = new THREE.CylinderGeometry(topRadius, bottomRadius, length, 64, 1, true)
   const positions = shaftGeometry.getAttribute('position'), fade = new Float32Array(positions.count)
@@ -72,10 +83,10 @@ export function buildChamberFixtures(
   shaftGeometry.setAttribute('fade', new THREE.BufferAttribute(fade, 1))
   // Its own small shader (the same way the room's dust is drawn): colour times the fade, added to the picture, never covering it.
   const shaftMaterial = new THREE.ShaderMaterial({
-    uniforms: { uColor: { value: new THREE.Color(0, 0, 0) } },
+    uniforms: { uColor: { value: new THREE.Color(0, 0, 0) }, uFrontGain: { value: 1 } },
     vertexShader: ['attribute float fade;', 'varying float vFade;', 'void main() {', '  vFade = fade;', '  gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );', '}'].join('\n'),
-    fragmentShader: ['uniform vec3 uColor;', 'varying float vFade;', 'void main() {', '  gl_FragColor = vec4( uColor * vFade, 1.0 );', '  #include <colorspace_fragment>', '}'].join('\n'),
-    transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
+    fragmentShader: ['uniform vec3 uColor;', 'uniform float uFrontGain;', 'varying float vFade;', 'void main() {', '  float gain = gl_FrontFacing ? uFrontGain : 1.0;', '  gl_FragColor = vec4( uColor * vFade * gain, 1.0 );', '  #include <colorspace_fragment>', '}'].join('\n'),
+    transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: true, side: THREE.DoubleSide,
   })
   const shaft = own(new THREE.Mesh(shaftGeometry, shaftMaterial))
   shaft.name = 'chamber-shaft'; shaft.position.y = bottom + length / 2; shaft.renderOrder = 5
