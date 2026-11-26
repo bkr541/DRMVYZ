@@ -197,11 +197,11 @@ export class ColossusScene {
     const brightness=(q:number)=>{const distance=((q%1)+1)%1,activeWidth=width*density;return activeWidth>0&&distance<activeWidth?(1-distance/activeWidth)*intensity:0}
     this.arms.forEach((arm,i)=>{
       const pose=colossusArmPose(i,{...input,phase,routePhase});arm.shoulder.position.set(...pose.shoulder);arm.elbow.position.set(...pose.elbow);arm.tool.position.set(...pose.tip);arm.tool.rotation.z=Math.atan2(pose.tip[1],pose.tip[0]);
-      arm.jaws.forEach((jaw,j)=>{jaw.position.set(-.24,(j?1:-1)*pose.jaw,.30);jaw.scale.set(.80,.22,.40);jaw.rotation.z=(j?1:-1)*.22})
+      arm.jaws.forEach((jaw,j)=>{jaw.position.set(-.24,(j?1:-1)*pose.jaw,.30);jaw.scale.set(.80,.22,.40);jaw.rotation.z=(j?1:-1)*(.10+.48*pose.jaw)})
       const endpoints=[pose.shoulder,pose.elbow,pose.tip]
       arm.links.forEach((link,j)=>{const a=endpoints[j]!,b=endpoints[j+1]!,off=(point:Point,z:number):Point=>[point[0],point[1],point[2]+z];this.segment(link.body,a,b,.94,.87);this.segment(link.inset,off(a,.48),off(b,.48),.65,.14);this.segment(link.rail,off(a,.58),off(b,.58),.055,.055);this.segment(link.flange,off(a,-.35),off(b,-.35),.61,.37)
-        const travel=.58-.22*input.piston;const middle:Point=[a[0]+(b[0]-a[0])*travel,a[1]+(b[1]-a[1])*travel,a[2]+(b[2]-a[2])*travel-.64];this.segment(link.sleeve,off(a,-.64),middle,.23,.23);this.segment(link.piston,middle,off(b,-.64),.14,.14)
-        link.cells.forEach((cell,k)=>{const t=(k+.5)/link.cells.length;cell.position.set(a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t+.60);cell.quaternion.copy(link.body.quaternion);cell.scale.set(.38,.15,.07);cell.visible=quality!=='low'||k%2===0;this.pulse(cell,j===0?primary:secondary,.15+3.5*brightness((k+j*8)/16-pose.pulse)+.7*(j===0?input.kick:input.snare)*intensity+.45*(p.n('high',0)+p.n('air',0))*intensity)})
+        const travel=.75-.48*pose.piston;const middle:Point=[a[0]+(b[0]-a[0])*travel,a[1]+(b[1]-a[1])*travel,a[2]+(b[2]-a[2])*travel-.64];this.segment(link.sleeve,off(a,-.64),middle,.23,.23);this.segment(link.piston,middle,off(b,-.64),.14,.14)
+        link.cells.forEach((cell,k)=>{const t=(k+.5)/link.cells.length;cell.position.set(a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t+.60);cell.quaternion.copy(link.body.quaternion);cell.scale.set(.38,.15,.07);cell.visible=quality!=='low'||k%2===0;this.pulse(cell,j===0?primary:secondary,.10+3.5*(.35+.9*pose.charge)*brightness((k+j*8)/16-pose.pulse)+.7*(j===0?input.kick:input.snare)*intensity+.45*(p.n('high',0)+p.n('air',0))*intensity)})
       })
     })
     this.towerCells.forEach((cell,i)=>this.pulse(cell,primary,.12+2.4*brightness(i/10-routePhase)))

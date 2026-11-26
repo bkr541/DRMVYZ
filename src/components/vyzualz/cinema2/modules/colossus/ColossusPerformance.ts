@@ -5,16 +5,16 @@ import { Cinema2BeatClock } from '../Cinema2BeatClock'
 import { Cinema2MainframePatternController, createCinema2MainframePatternCycle } from '../mainframe/Cinema2MainframePatternController'
 import { Cinema2PatternAutoPerformance } from '../mainframe/Cinema2PatternAutoPerformance'
 import type { Cinema2ModuleParameterReadFacet, Cinema2ModuleUpdateContext } from '../Cinema2ModuleContracts'
-import { COLOSSUS_PALETTE, COLOSSUS_PATTERNS, type ColossusPattern } from './ColossusGeometry'
+import { COLOSSUS_PALETTE, COLOSSUS_PATTERNS, colossusPatternWeights, type ColossusPattern } from './ColossusGeometry'
 
 export class ColossusPerformance {
   private readonly clock=new Cinema2BeatClock()
   private readonly resolver=new Cinema2PatternControlResolver<Cinema2AfterhoursTriggerId>()
   private readonly controller:Cinema2MainframePatternController<ColossusPattern>
-  private readonly auto=new Cinema2PatternAutoPerformance<ColossusPattern>({buildPattern:'assembly',dropPattern:'impact',dropBeats:3,mood:{options:{calm:['suspension','assembly'],driving:['articulation','assembly'],tense:['separation','assembly'],peak:['mechanical-bloom','impact']}}})
+  private readonly auto=new Cinema2PatternAutoPerformance<ColossusPattern>({buildPattern:'suspension',dropPattern:'impact',dropBeats:8,mood:{options:{calm:['suspension','assembly'],driving:['articulation','assembly'],tense:['separation','assembly'],peak:['mechanical-bloom','impact']}}})
   private identity='';private lastTime:number|null=null;private lastBeat:number|null=null;private lastPattern:ColossusPattern|null=null;private wasPlaying=false
   private lastTimestamp:number|null=null;private lastRevision:number|null=null;private lastAuto=false;private suppressEvent:string|null=null;private lastSavedChange=false;private lastSavedTrigger:Cinema2AfterhoursTriggerId='bar4'
-  previousPattern:ColossusPattern='assembly';patternBlend=1
+  previousPattern:ColossusPattern='assembly';patternBlend=1;private fromWeights:readonly number[]|undefined
   private params:Cinema2ModuleParameterReadFacet|null=null
   phase=0;routePhase=0;pattern:ColossusPattern='assembly';basePattern:ColossusPattern='assembly'
   constructor(sample:(i:number)=>number){this.controller=new Cinema2MainframePatternController(createCinema2MainframePatternCycle(sample,COLOSSUS_PATTERNS.map(p=>p.value)),'assembly')}
@@ -24,7 +24,7 @@ export class ColossusPerformance {
   color(key:keyof typeof COLOSSUS_PALETTE):readonly number[]{const v=this.params?.get(key);return Array.isArray(v)&&v.length===4&&v.every(c=>typeof c==='number'&&Number.isFinite(c))?v:COLOSSUS_PALETTE[key]}
   get model(){return this.params?.get('userModel')??DEFAULT_MODEL_BINDING}
   get safety(){const value=this.text('motion-safety','reduced');return value==='lockoff'?0:value==='reduced'?.45:1}
-  get inputs(){return {pattern:this.pattern,previousPattern:this.previousPattern,blend:this.patternBlend,reach:this.n('arm-reach',.5),articulation:this.n('arm-articulation',.5),piston:this.n('piston-travel',.4),jaw:this.n('jaw-opening',.4),release:this.n('drop-release',.65)*this.n('drop',0)*(.7+.3*this.n('impact',0)),kick:this.n('kick',0)*this.n('intensity',.75),snare:this.n('snare',0)*this.n('intensity',.75),bass:(this.n('sub',0)+this.n('bass',0))*.5,mid:this.n('mid',0),build:this.n('build',0),vocal:this.n('vocal',0),safety:this.safety}}
+  get inputs(){return {pattern:this.pattern,previousPattern:this.previousPattern,blend:this.patternBlend,fromWeights:this.fromWeights,reach:this.n('arm-reach',.5),articulation:this.n('arm-articulation',.5),piston:this.n('piston-travel',.4),jaw:this.n('jaw-opening',.4),release:this.n('drop-release',.65)*this.n('drop',0)*(.7+.3*this.n('impact',0)),kick:this.n('kick',0)*this.n('intensity',.75),snare:this.n('snare',0)*this.n('intensity',.75),bass:(this.n('sub',0)+this.n('bass',0))*.5,mid:this.n('mid',0),build:this.n('build',0),vocal:this.n('vocal',0),safety:this.safety}}
   update({frame,parameters}:Cinema2ModuleUpdateContext){
     this.params=parameters
     const time=frame.transport?.timeSec??frame.audio?.upstream.timeSec??frame.elapsedTimeSec
@@ -34,7 +34,7 @@ export class ColossusPerformance {
     const delta=Math.min(.1,Math.max(0,idle&&this.lastTimestamp!==null?(frame.timestampMs-this.lastTimestamp)/1000:frame.deltaTimeSec))
     this.lastTimestamp=frame.timestampMs
     const reset=identity!==this.identity||(this.lastTime!=null&&(time<this.lastTime-.035||time-this.lastTime>Math.max(1,frame.deltaTimeSec*6)))
-    if(reset){this.clock.reset();this.resolver.reset();this.controller.reset();this.auto.reset();this.lastBeat=null;this.phase=0;this.routePhase=0;this.suppressEvent=null;this.patternBlend=1}
+    if(reset){this.clock.reset();this.resolver.reset();this.controller.reset();this.auto.reset();this.lastBeat=null;this.phase=0;this.routePhase=0;this.suppressEvent=null;this.patternBlend=1;this.fromWeights=undefined}
     const timingFrame={...frame,deltaTimeSec:active||idle?delta:0,...(frame.transport?{transport:{...frame.transport,animationActive:active||idle}}:{})}
     const beat=this.clock.update(timingFrame,parameters.get('bpm-sync')!==false&&frame.transport?.bpmSync!==false,90).beats
     const authored=COLOSSUS_PATTERNS.find(p=>p.value===parameters.get('pattern'))?.value??'assembly'
@@ -58,11 +58,17 @@ export class ColossusPerformance {
       this.basePattern=this.controller.update({authoredPattern:authored,patternChange:controls.patternChange,trigger:controls.trigger,absoluteBeat:beat,reset,reselect:changed,triggerEventId:event}).activePattern
       const override=this.auto.update({enabled:automatic,absoluteBeat:beat,buildCharge:silence?0:this.n('build',0),dropEventId:drop,patternEdited:changed,reset,mood:frame.mood,deltaTimeSec:delta,basePattern:this.basePattern,patternChange:controls.patternChange,seed:identity})
       const next=override.pattern??this.basePattern
-      if(next!==this.pattern){this.previousPattern=this.pattern;this.pattern=next;this.patternBlend=manual||reset?1:0}
+      if(next!==this.pattern){
+        this.fromWeights=colossusPatternWeights(this.pattern,this.previousPattern,this.patternBlend,this.fromWeights)
+        this.previousPattern=this.pattern;this.pattern=next
+        // Selection/authority changes now; the machinery catches up over 400 ms.
+        // While paused, an explicit user edit still previews the selected program immediately.
+        this.patternBlend=reset||(!active&&!idle)||this.safety===0?1:0
+      }
     }
     if(this.lastBeat!==null&&this.safety>0&&(active||idle)){
       const beatDelta=Math.max(0,Math.min(1,beat-this.lastBeat));this.phase+=beatDelta*this.n('motion-rate',1,.25,2)*(active?1:.67);this.routePhase=(this.routePhase+beatDelta*this.n('route-rate',1,.25,2)*.25)%1
-      this.patternBlend=Math.min(1,this.patternBlend+delta*2.5)
+      this.patternBlend=Math.min(1,this.patternBlend+delta*2.5);if(this.patternBlend===1)this.fromWeights=undefined
     }
     this.lastRevision=revision;this.lastAuto=automatic;this.lastSavedChange=savedChange;this.lastSavedTrigger=trigger
     this.identity=identity;this.lastTime=time;this.lastBeat=beat;this.lastPattern=authored;this.wasPlaying=active

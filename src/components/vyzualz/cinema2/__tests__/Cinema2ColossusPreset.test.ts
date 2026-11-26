@@ -9,12 +9,17 @@ import { validateCinema2PresetAuthoringConventions } from '../presets/Cinema2Pre
 import { withCinema2AutoCoverage } from '../presets/Cinema2AutoCoverage'
 import { CINEMA2_AUTO_COVERAGE_EXEMPT } from '../presets/Cinema2AutoCoverageExemptions'
 import { ARM_SURFACE_ALLOWANCE, COLOSSUS_CAMERA, COLOSSUS_FLOOR_Y, COLOSSUS_PALETTE, COLOSSUS_PATTERNS, HERO_EXCLUSION, colossusArmPose, type ArmInput } from '../modules/colossus/ColossusGeometry'
+import { checkColossusProgramSeparation, checkColossusCamera, checkColossusTriggerAuthority, checkColossusAutoPerformance } from './support/ColossusMotionChecks'
 import { ColossusPerformance } from '../modules/colossus/ColossusPerformance'
 import type { Cinema2ModuleUpdateContext } from '../modules/Cinema2ModuleContracts'
 const param=(name:string)=>manifest.parameters!.find(p=>p.id===`colossus-${name}`)!
 const input:ArmInput={pattern:'assembly',phase:2.3,routePhase:.2,reach:.5,articulation:.5,piston:.4,jaw:.4,release:0,kick:0,snare:0,bass:0,mid:0,build:0,vocal:0,safety:1}
 
 describe('COLOSSUS',()=>{
+  it('separates all six reduced-motion trajectories and retargets without a discontinuity',()=>{checkColossusProgramSeparation()})
+  it('drives the shared camera runtime from real choreography and respects permission and safety',()=>{checkColossusCamera()})
+  it('uses shared Auto Performance build and drop overrides without changing saved controls',()=>{checkColossusAutoPerformance()})
+  it('consumes two real shared drop events with manual takeover, pause and seek',()=>{checkColossusTriggerAuthority()})
   it('compiles both authored and production coverage with canonical source, pattern and Inspector contracts',()=>{
     const covered=withCinema2AutoCoverage(manifest,{exempt:CINEMA2_AUTO_COVERAGE_EXEMPT.colossus})
     for(const m of [manifest,covered]){
@@ -92,7 +97,7 @@ describe('COLOSSUS',()=>{
     const perf=new ColossusPerformance(i=>(i%7)/7),values:Record<string,unknown>={pattern:'assembly','bpm-sync':true,'pattern-change':false,'auto-performance':false}
     const update=(time:number,paused=false,trackId='track')=>perf.update({parameters:{get:(key:string)=>values[key]},frame:{contextGeneration:1,frameId:Math.round(time*60),timestampMs:time*1000,elapsedTimeSec:time,deltaTimeSec:.05,audio:null,director:null,mood:null,transport:{trackId,timeSec:time,playing:!paused,paused,animationActive:!paused,bpmSync:true,bpm:120,sourcePresent:true}}} as unknown as Cinema2ModuleUpdateContext)
     update(0);update(.05);expect(perf.phase).toBeGreaterThan(0)
-    values.pattern='separation';update(.1);expect(perf.pattern).toBe('separation');expect(perf.patternBlend).toBe(1)
+    values.pattern='separation';update(.1);expect(perf.pattern).toBe('separation');expect(perf.patternBlend).toBeLessThan(1);expect(perf.basePattern).toBe('separation')
     const phase=perf.phase;update(.15,true);expect(perf.phase).toBe(phase)
     update(.2,false,'new');expect(perf.phase).toBe(0)
   })
