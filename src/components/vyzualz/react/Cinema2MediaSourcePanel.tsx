@@ -2,10 +2,8 @@ import { useReactStore } from '../../../stores/reactStore'
 import { ContextActionMenu } from '../context-menu/ContextActionMenu'
 import { MediaAddToPoolPicker } from '../media/MediaAddToMenu'
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
-import type { UploadedMedia } from '../../../stores/mediaStore'
 import { useMediaStore } from '../../../stores/mediaStore'
-import type { Cinema2MediaKind } from '../cinema2/contracts/Cinema2NativePresetManifest'
-import type { Cinema2MediaSlotRuntimeSnapshot, Cinema2MediaSource } from '../cinema2/media/Cinema2MediaSlotRuntime'
+import type { Cinema2MediaSlotRuntimeSnapshot } from '../cinema2/media/Cinema2MediaSlotRuntime'
 import type { Cinema2Runtime } from '../cinema2/runtime/Cinema2Runtime'
 import { MediaLibraryBrowser, type MediaLibraryCardActionAnchor } from '../media/MediaLibraryBrowser'
 import { notify } from '../../../stores/notificationStore'
@@ -16,6 +14,7 @@ import { captureCinema2WorkspacePresetState } from '../cinema2/runtime/Cinema2Wo
 import { Cinema2ActiveSource, Cinema2SourceThumbnail } from './Cinema2ActiveSource'
 import { cinema2SlotSupportsPool } from '../cinema2/media/Cinema2SourceCapabilities'
 import { isUnifiedSvgMediaItem } from './svgSourceLifecycle'
+import { cinema2MediaSourceFromLibraryItem, getCinema2MediaDisabledReason } from './Cinema2LibraryMediaSource'
 
 export interface Cinema2MediaSourcePanelProps {
   runtime: Cinema2Runtime | null
@@ -145,27 +144,4 @@ export function Cinema2MediaSourcePanel({ runtime }: Cinema2MediaSourcePanelProp
   )
 }
 
-export function cinema2MediaSourceFromLibraryItem(media: UploadedMedia): Readonly<Cinema2MediaSource> | null {
-  const url = (media.proxyUrl ?? media.url ?? '').trim()
-  if (!url) return null
-  const kind: Cinema2MediaKind = isUnifiedSvgMediaItem(media) ? 'svg' : media.type
-  return Object.freeze({
-    id: media.id,
-    revision: media.revision ?? `${media.storagePath ?? media.id}:${media.urlExpiresAt ?? 0}`,
-    label: media.title?.trim() || media.name,
-    kind,
-    url,
-    mimeType: media.mimeType ?? media.metadata.detectedMimeType ?? null,
-    ...(typeof media.metadata.width === 'number' ? { width: media.metadata.width } : {}),
-    ...(typeof media.metadata.height === 'number' ? { height: media.metadata.height } : {}),
-    ...(typeof media.metadata.duration === 'number' ? { durationSec: media.metadata.duration } : {}),
-  })
-}
-
-export function getCinema2MediaDisabledReason(media: UploadedMedia, accepts: readonly Cinema2MediaKind[]): string | null {
-  if (media.uploading) return 'This media is still uploading.'
-  if (media.lifecycleStatus === 'deletion_pending') return 'This media is pending deletion.'
-  const source = cinema2MediaSourceFromLibraryItem(media)
-  if (!source) return 'This media does not currently have a loadable runtime source.'
-  return accepts.includes(source.kind) ? null : `This slot accepts ${accepts.join(', ')} media.`
-}
+export { cinema2MediaSourceFromLibraryItem, getCinema2MediaDisabledReason } from './Cinema2LibraryMediaSource'

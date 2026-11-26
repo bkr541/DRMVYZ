@@ -5,11 +5,14 @@ import type { Cinema2MediaKind, Cinema2ParameterId, Cinema2PresetId, Cinema2Rend
 import { trippyBroMusicFixture } from '../support/TrippyBroMusicFixture'
 import { createCinema2MainframePatternCycle, nextCinema2MainframePattern } from '../../components/vyzualz/cinema2/modules/mainframe/Cinema2MainframePatternController'
 import { DEFAULT_MI_FRAME } from '../../features/musicIntelligence/constants'
+import { cinema2SlotSupportsPool } from '../../components/vyzualz/cinema2/media/Cinema2SourceCapabilities'
+import type { Cinema2MediaPoolSource } from '../../components/vyzualz/cinema2/media/Cinema2MediaPoolSource'
+import { ReleaseMediaProbe, releaseMediaFixture, type MediaVariant } from './Cinema2ReleaseMediaFixture'
 import type { MusicIntelligenceFrame } from '../../features/musicIntelligence/types'
 
 // Test-only controlled upstream publications; production runtime owns all response and timing.
 type Stage = 'reference' | 'idle' | 'build' | 'drop' | 'breakdown'
-type ControlledEvent = 'none' | 'fresh' | 'stale' | 'duplicate'
+type ControlledEvent = 'none' | 'fresh' | 'stale' | 'duplicate' | 'staged'
 let controlled: ControlledEvent | null = null
 let lastDrop: { id: number; time: number } | null = null
 const canvas = document.querySelector<HTMLCanvasElement>('#review')!
@@ -23,6 +26,17 @@ let glErrors: number[] = []
 let publicationSequence = 0, publicationTime = 0
 let bpmSync = true
 let published: MusicIntelligenceFrame = DEFAULT_MI_FRAME
+let mediaProbe = new ReleaseMediaProbe()
+let poolSelection: ReturnType<Cinema2MediaPoolSource['getSelection']> = null
+const poolListeners = new Set<() => void>()
+let poolRequests: string[] = []
+const poolVariants = ['chart','alpha','tall','chart'] as const
+const poolSource: Cinema2MediaPoolSource = {
+  getSelection:()=>poolSelection,
+  subscribe(listener){poolListeners.add(listener);return ()=>{poolListeners.delete(listener)}},
+  async resolve(id){const i=Number(id.split('-').at(-1));const variant=poolVariants[i];if(!variant)return null;poolRequests.push(id);return {...releaseMediaFixture(variant).source,id}},
+}
+function selectPool(enabled:boolean){poolSelection=enabled?{id:'qa05-pool',mediaIds:poolVariants.map((_,i)=>`qa05-pool-${i}`)}:null;for(const listener of poolListeners)listener()}
 function createRuntime(serializedParameterState?: string) {
   const bridge = new Cinema2AudioIntelligenceBridge({
     getFrame: () => published,
@@ -30,6 +44,7 @@ function createRuntime(serializedParameterState?: string) {
   })
   const created = Cinema2Runtime.create(canvas, {
     presetId, serializedParameterState, renderQuality: quality, diagnosticsEnabled: true,
+    ...(query.has('release') ? { mediaLoader: mediaProbe.loader, mediaPoolSource: poolSource } : {}),
     randomness: { mode: 'deterministic', seed: 'sys04-review-v1' },
     audioIntelligenceBridge: bridge,
     transportSource: { getState: () => ({ sourcePresent: source, playing: source && !paused, analysisActive: source, paused,
@@ -64,15 +79,16 @@ function tick() {
   index++
   if (source && !paused) {
     musicTime += 1 / 30
-    const energy = controlled !== null ? .75 : stage === 'build' ? .35 + Math.min(stageFrame / 60, 1) * .55 : stage === 'drop' ? .95 : .16
-    const hit = controlled !== null ? (controlled === 'none' ? null : 'drop') : stageFrame === 0 && stage === 'drop' ? 'drop' : stageFrame % 30 === 0 ? 'downbeat' : stageFrame % 15 === 0 ? 'kick' : stageFrame % 15 === 7 ? 'snare' : null
+    const controlledOverride = controlled !== null && controlled !== 'staged'
+    const energy = controlledOverride ? .75 : stage === 'build' ? .35 + Math.min(stageFrame / 60, 1) * .55 : stage === 'drop' ? .95 : .16
+    const hit = controlledOverride ? (controlled === 'none' ? null : 'drop') : stageFrame === 0 && stage === 'drop' ? 'drop' : stageFrame % 30 === 0 ? 'downbeat' : stageFrame % 15 === 0 ? 'kick' : stageFrame % 15 === 7 ? 'snare' : null
     if (controlled === 'fresh') lastDrop = { id: index, time: musicTime }
     const event = controlled === 'stale' ? { id: -1, time: Math.max(0, musicTime - .5) } : controlled === 'duplicate' ? lastDrop : null
     if (controlled === 'duplicate' && !event) throw Error('No fresh event to repeat')
     const upstream = trippyBroMusicFixture({ timeSec: musicTime, frameId: index, energy, bass: energy, high: energy * .7,
-      build: controlled === null && stage === 'build' ? Math.min(stageFrame / 60, 1) : 0, advanceBeatGrid: true, event: hit, eventId: event?.id ?? index, eventTime: event?.time ?? musicTime })
+      build: !controlledOverride && stage === 'build' ? Math.min(stageFrame / 60, 1) : 0, advanceBeatGrid: true, event: hit, eventId: event?.id ?? index, eventTime: event?.time ?? musicTime })
     published = { ...upstream, section: { ...upstream.section, type: stage === 'build' ? 'build' : stage === 'drop' ? 'drop' : 'breakdown',
-      startSec: controlled !== null ? 0 : musicTime - stageFrame / 30, endSec: controlled !== null ? 1000 : musicTime - stageFrame / 30 + 2, intensity: energy, progress: controlled !== null ? .5 : Math.min(stageFrame / 60, 1) } }
+      startSec: controlledOverride ? 0 : musicTime - stageFrame / 30, endSec: controlledOverride ? 1000 : musicTime - stageFrame / 30 + 2, intensity: energy, progress: controlledOverride ? .5 : Math.min(stageFrame / 60, 1) } }
     publicationSequence++; publicationTime = index * 1000 / 30
     stageFrame++
   }
@@ -98,7 +114,7 @@ function diagnostics() {
 const api = {
   inventory() { return { id: manifest.id, revision: manifest.revision, metadata: manifest.metadata,
     patterns: (manifest.parameters ?? []).find(p => p.label === 'Pattern')?.options ?? [], cameras: manifest.cameras,
-    mediaSlots: manifest.mediaSlots ?? [], modules: manifest.modules ?? [], controls: manifest.parameters ?? [], parameters: initial } },
+    mediaSlots: manifest.mediaSlots ?? [], poolSlots: (manifest.mediaSlots ?? []).filter(slot=>cinema2SlotSupportsPool(slot.id)).map(slot=>slot.id), modules: manifest.modules ?? [], controls: manifest.parameters ?? [], parameters: initial } },
   async prepare() {
     // Give asset imports time to resolve. Readiness is reported, never assumed from elapsed time alone.
     for (let i = 0; i < 60; i++) { await new Promise(resolve => setTimeout(resolve, 25)); tick() }
@@ -140,42 +156,45 @@ const api = {
   pause(value: boolean) { paused = value },
   seek(time: number) { musicTime = time; stageFrame = 0; paused = false },
   resize(width: number, height: number) { runtime.resize({ width, height, dpr: 1 }); if (canvas.width !== width || canvas.height !== height) throw Error('Resize failed') },
-  async mediaFixture(remove = false, kind: Cinema2MediaKind = 'image') {
-    const slots = manifest.mediaSlots ?? []
-    const fixture = document.createElement('canvas'); fixture.width = 320; fixture.height = 180
-    const ctx = fixture.getContext('2d')!
-    ctx.fillStyle = '#ff2222'; ctx.fillRect(0, 0, 160, 90)
-    ctx.fillStyle = '#18ed70'; ctx.fillRect(160, 0, 160, 90)
-    ctx.fillStyle = '#2255ff'; ctx.fillRect(0, 90, 160, 90)
-    ctx.fillStyle = '#fff'; ctx.fillRect(160, 90, 160, 90)
-    let url = fixture.toDataURL()
-    if (!remove && kind === 'svg') url = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180"><path fill="#ff2222" d="M0 0h160v90H0z"/><path fill="#18ed70" d="M160 0h160v90H160z"/><path fill="#2255ff" d="M0 90h160v90H0z"/><path fill="#fff" d="M160 90h160v90H160z"/></svg>')
-    if (!remove && kind === 'video') {
-      const stream = fixture.captureStream(15)
-      try {
-        const blob = await new Promise<Blob>((resolve, reject) => {
-          const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' })
-          const chunks: Blob[] = []
-          recorder.ondataavailable = event => chunks.push(event.data)
-          recorder.onerror = () => reject(Error('Video fixture recording failed'))
-          recorder.onstop = () => resolve(new Blob(chunks, {type: 'video/webm'}))
-          recorder.start()
-          const timer = setInterval(() => { ctx.fillStyle = '#fff'; ctx.fillRect(160,90,160,90) }, 50)
-          setTimeout(() => { clearInterval(timer); recorder.stop() }, 600)
-        })
-        url = URL.createObjectURL(blob)
-        addEventListener('beforeunload', () => URL.revokeObjectURL(url), { once: true })
-      } finally { stream.getTracks().forEach(track => track.stop()) }
-    }
-    for (const slot of slots) {
-      if (!slot.accepts.includes(kind)) continue
-      if (remove) runtime.getMediaSlotRuntime().remove(slot.id)
-      else {
-        const status = await runtime.getMediaSlotRuntime().replace(slot.id, { id: 'sys06-rgb', label: 'SYS-06 RGB quadrants', kind, url, width: 320, height: 180 }, { fit: 'contain' })
+  async mediaFixture(remove = false, kind: Cinema2MediaKind = 'image', variant: MediaVariant = kind === 'image' ? 'chart' : kind) {
+    const slots = (manifest.mediaSlots ?? []).filter(slot => slot.accepts.includes(kind))
+    if (!slots.length) throw Error(`No ${kind} slots`)
+    if (remove) { for (const slot of slots) runtime.getMediaSlotRuntime().remove(slot.id); mediaProbe.unpin() }
+    else {
+      const {source} = releaseMediaFixture(variant)
+      if(source.kind!==kind)throw Error('Fixture format mismatch')
+      for (const slot of slots) {
+        const status = await runtime.getMediaSlotRuntime().replace(slot.id, source, { fit: 'contain' })
         if (status.status !== 'ready') throw Error(`Media ${slot.id}: ${status.status} ${status.error}`)
       }
+      if(kind==='video')await mediaProbe.pin(.2)
     }
     return runtime.getMediaSlotRuntimeSnapshot()
+  },
+  mediaTime(time: number) { return mediaProbe.pin(time) },
+  mediaDecode(variant: MediaVariant,time=0) { return mediaProbe.inspect(variant,time) },
+  mediaPool(enabled: boolean){ selectPool(enabled) },
+  mediaPoolRequests(){return [...poolRequests]},
+  async mediaPlayback() {
+    // Pin near the end, then let the actual transport pause/resume callbacks
+    // control the native decoder. Poll boundedly for progress and wrap.
+    await mediaProbe.pin(1.55)
+    mediaProbe.unpin(); paused=true; tick()
+    const before=mediaProbe.inspect('video',1.55).playback
+    await new Promise(resolve=>setTimeout(resolve,150));tick()
+    const held=mediaProbe.inspect('video',1.55).playback
+    paused=false;tick()
+    let previous=held?.currentTimeSec??0, advanced=false, wrapped=false
+    for(let i=0;i<100;i++){
+      await new Promise(resolve=>setTimeout(resolve,30));tick()
+      const now=mediaProbe.inspect('video',0).playback
+      if(!now)break
+      if(now.currentTimeSec>previous+.015)advanced=true
+      if(now.currentTimeSec<previous-.2)wrapped=true
+      previous=now.currentTimeSec
+      if(advanced&&wrapped)break
+    }
+    return {before,held,advanced,wrapped,after:mediaProbe.inspect('video',0).playback}
   },
   async modelFixture(remove = false, variant: import('./Cinema2ReleaseModelFixture').ReleaseModelVariant = 'primary') {
     const parameter = (manifest.parameters ?? []).find(p => p.metadata?.editor === 'user-model-selector')
@@ -196,7 +215,7 @@ const api = {
     presetId = id; quality = nextQuality; callback = null; index = 0; source = false; paused = false
     stage = 'reference'; stageFrame = 0; musicTime = 0; controlled = null; lastDrop = null; published = DEFAULT_MI_FRAME; publicationSequence = 0; publicationTime = 0; lastGlError = 0; glErrors = []
     // A fresh bridge is constructed by createRuntime; restore only the canonical saved state.
-    runtime = createRuntime(saved); manifest = runtime.getCompiledPresetPlan().manifest
+    selectPool(false); poolRequests=[]; mediaProbe = new ReleaseMediaProbe(); runtime = createRuntime(saved); manifest = runtime.getCompiledPresetPlan().manifest
     if (!saved) applyMode()
     syncTransportSetting()
     initial = runtime.serializeParameterState(); runtime.resize({width: innerWidth, height: innerHeight, dpr: 1}); runtime.start()

@@ -5,18 +5,22 @@ import { join, resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import os from 'node:os'
 import { inventory, config, pixelEvidence, visibleIssues, controlEvidence, technicalIssues, retiredIssues, p95, regressionIssues, recordCheck, assertion, scenarioDecision, presetStatus, reportStatus, reportExitCode, fullInventoryStatus, motionEvidence, pairwiseEvidence, sourceVisibility, fallbackEvidence, triggerEvidence, recoveryEvidence } from './release-acceptance-core.mjs'
+import { decodedMediaEvidence, videoFrameEvidence, projectedMediaEvidence } from './media-fidelity-evidence.mjs'
 import { materialRegions, compareMaterialRegions, authoredMaterialEvidence } from './model-fidelity-evidence.mjs'
 import { reviewedEntries, validateInventory, inventoryCoverage, capabilityPlan } from './reviewed-release-inventory.mjs'
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'../..')
 const args=process.argv.slice(2)
 const opt=(name,fallback)=>{const i=args.indexOf(`--${name}`);return i<0?fallback:args[i+1]}
 const keys=opt('presets',inventory.join(',')).split(',')
+// Optional independently authored masks; absence must never count as a pass.
+const maskFile=opt('media-masks',null)
+const mediaMasks=maskFile?JSON.parse(await readFile(resolve(maskFile),'utf8')):{}
 const coverage=inventoryCoverage(keys,args.includes('--presets'))
 const parent=join(root,'artifacts/cinema2-release');await mkdir(parent,{recursive:true})
 const output=await mkdtemp(join(parent,'run-'));console.log(`Release evidence: ${output}`)
 const hash=bytes=>createHash('sha256').update(bytes).digest('hex')
 const save=(path,data)=>writeFile(path,JSON.stringify(data,null,2)+'\n')
-const report={schemaVersion:4,technicalStatus:'incomplete',config,inventory:keys,...coverage,fullInventoryStatus:'incomplete',releaseApproval:false,environment:{platform:os.platform(),arch:os.arch(),cpu:os.cpus()[0]?.model, node:process.version},
+const report={schemaVersion:5,technicalStatus:'incomplete',config,inventory:keys,...coverage,fullInventoryStatus:'incomplete',releaseApproval:false,environment:{platform:os.platform(),arch:os.arch(),cpu:os.cpus()[0]?.model, node:process.version},
   presets:Object.fromEntries(keys.map(key=>[key,{status:'not-run',reason:'Browser not started'}])),
   gates:{humanVisual:'pending',electronPreview:'not-run',electronFullscreen:'not-run',casting:'not-run',performanceComparison:'not-run'},errors:[],blockers:[]}
 let vite,browser
@@ -71,7 +75,7 @@ try {
     // Bound a failed preset rather than stopping the entire matrix. Closing the
     // page also terminates a wedged evaluate/asset load.
     let timer
-    const deadline=new Promise((_,reject)=>{timer=setTimeout(()=>{void page.close();reject(Error('Preset exceeded 600s deadline'))},600000)})
+    const deadline=new Promise((_,reject)=>{timer=setTimeout(()=>{void page.close();reject(Error('Preset exceeded 1800s deadline'))},1800000)})
     try{await Promise.race([deadline,(async()=>{
       await page.goto(`${url}?preset=drmvyz.cinema2.${key}&quality=high&mode=authored&release=1`)
       await page.waitForFunction(()=>!!window.__cinema2QualityReview,{},{timeout:30000})
@@ -96,7 +100,7 @@ try {
       const cameraMode=meta.controls.find(p=>p.id===capabilities.camera.mode)
       const lockCamera=async()=>{if(cameraPermission)await set(cameraPermission,false);else if(cameraMode)await set(cameraMode,'home');const zoom=meta.controls.find(p=>p.id===meta.cameras?.find(c=>c.controls?.kickZoom)?.controls?.kickZoom?.$ref);if(zoom?.type==='boolean')await set(zoom,false)}
       for(const name of (cameraPermission||cameraMode)?['camera-off-lock','camera-on-evidence']:['camera-permission'])requireCheck(name)
-      const freshRuntime=async(saved,name)=>{const retired=await api('switchPreset',meta.id,'high',saved);check(`retire:${name}`,retiredIssues(retired),retired)}
+      const freshRuntime=async(saved,name,quality='high')=>{const retired=await api('switchPreset',meta.id,quality,saved);check(`retire:${name}`,retiredIssues(retired),retired)}
       const active=f=>f.inspections.find(m=>typeof (m.activePattern??m.performingPattern??m.pattern)==='string')
       const patternValue=f=>{const m=active(f);return m?.activePattern??m?.performingPattern??m?.pattern}
       const state=f=>{const m=active(f),v=JSON.parse(f.settings).values;return {active:patternValue(f),base:m?.basePattern,saved:v[pattern.id],enabled:v[change.id],trigger:v[trigger.id],effectiveChange:m?.effectivePatternChange,effectiveTrigger:m?.effectiveTrigger,event:f.event,musicTime:f.conditions.musicTime}}
@@ -105,6 +109,7 @@ try {
       for(const [i] of meta.patterns.entries()){result.mustPass.push(`pattern-selected-${i}`,`pattern-motion-${i}`);if(i)result.mustPass.push(`pattern-pair-${i-1}-${i}`)}
       const imageSlots=meta.mediaSlots.filter(s=>s.accepts.includes('image'))
       if(imageSlots.length)result.mustPass.push('media-loaded','media-pixel-evidence','media-fallback-evidence')
+      if(meta.mediaSlots.length)result.mustPass.push('media-projected-fidelity','media-lifecycle-fidelity')
       for(const name of imageSlots.length?['media-loaded','media-pixel-evidence','media-fallback-evidence','media-hidden-negative-control']:['media'])requireCheck(name)
       for(const name of meta.controls.some(p=>p.metadata?.editor==='user-model-selector')?['model-loaded','model-pixel-evidence','model-fallback-evidence']:['model'])requireCheck(name)
       if(capabilities.model){result.mustPass.push('model-material-fidelity','model-authored-materials','model-pinned-upgrade','model-cache-released','model-pinned-reentry','model-replacement','model-replacement-visible','model-failed-load','model-failed-load-fallback');if(find('Model Visible')?.type==='boolean')result.mustPass.push('model-hidden-negative-control');else notApplicable('model-hidden-negative-control','No hard model visibility control in manifest');result.mustPass.push('model-loaded','model-pixel-evidence','model-fallback-evidence');if(key==='chamber')result.mustPass.push('chamber-model-placement');if(capabilities.model.contentMode)result.mustPass.push('native-typography','native-typography-visible','model-replacement','model-replacement-visible','model-failed-load','model-failed-load-fallback','typography-saved-restored','typography-pixel-restored')}
@@ -115,8 +120,7 @@ try {
       for(const name of result.mustPass)requireCheck(name)
       // Center-facing sources vs wrapping banks; the latter can occupy every zone.
       const mediaZones=['overdrive','livewire'].includes(key)?[1,3,4,5,7]:[0,1,2,3,4,5,6,7,8]
-      const mediaReady=f=>imageSlots.every(s=>f.d.media.slots.some(m=>m.id===s.id&&m.status==='ready'&&m.source?.id==='sys06-rgb'))
-      const mediaRestored=f=>imageSlots.every(s=>f.d.media.slots.some(m=>m.id===s.id&&m.source===null&&m.status!=='ready'))&&f.d.media.readyResourceCount===0&&f.inspections.every(m=>m.userMedia!==true)
+      const mediaReady=f=>imageSlots.every(s=>f.d.media.slots.some(m=>m.id===s.id&&m.status==='ready'&&m.source?.id==='qa05-chart'))
       const modelState=f=>f.inspections.find(m=>m.userModel)?.userModel
 
       result.prepare=await api('prepare');await capture('default','reference',1,true)
@@ -216,56 +220,114 @@ try {
         const reset=JSON.parse(await api('reset')).values;check('reset',JSON.stringify(reset)===JSON.stringify(authored)?[]:['Reset did not restore authored values']);await capture('reset','reference',15,true)
       })
       await scenario('media',async()=>{
-        if(!imageSlots.length){notApplicable('media','No image slot in manifest')}
-        else {
-        for(const name of ['media-loaded','media-pixel-evidence','media-fallback-evidence'])requireCheck(name)
-        await set(auto,false);await set(change,false)
-        const mode=find('Source Mode'),visibility=find('Media Visible')
-        if(mode?.options?.some(o=>o.value==='auto'))await set(mode,'auto');else if(mode?.options?.some(o=>o.value==='single'))await set(mode,'single')
+        const formats=['image','video','svg'].filter(kind=>capabilities.media[kind].length)
+        for(const kind of ['image','video','svg'].filter(k=>!formats.includes(k)))notApplicable(`media-format:${kind}`,`No compiled ${kind} slot`)
+        if(!formats.length){notApplicable('media','No compiled media slots');return}
+        await api('reset');await set(auto,false);await set(change,false);await lockCamera()
+        const mode=find('Source Mode')??find('Content Mode'),visibility=find('Media Visible')
+        if(mode?.options?.some(o=>o.value==='auto'))await set(mode,'auto')
         if(visibility?.type==='boolean')await set(visibility,true)
-        await lockCamera()
+        if(key==='overdrive') {await set(find('Display Style'),'color');await set(find('LED Intensity'),1)}
         const saved=await api('saved')
-        const sample=async(name,action,settings=saved)=>{
-          await freshRuntime(settings,name)
-          if(action!=='off')await api('mediaFixture')
+        const ready=(f,kind,variant)=>capabilities.media[kind].every(s=>f.d.media.slots.some(m=>m.id===s.id&&m.status==='ready'&&m.source?.id===`qa05-${variant}`&&m.source.kind===kind))
+        const restored=(f,kind)=>capabilities.media[kind].every(s=>f.d.media.slots.some(m=>m.id===s.id&&m.source===null&&m.status!=='ready'))&&f.d.media.readyResourceCount===0&&f.inspections.every(m=>m.userMedia!==true)
+        const sample=async(name,action,kind,variant,{settings=saved,stage='breakdown',quality='high',time=.2,replacement=false}={})=>{
+          await freshRuntime(settings,name,quality)
+          if(replacement)await api('mediaFixture',false,'image','chart')
+          else if(action!=='off')await api('mediaFixture',false,kind,variant)
           await api('prepare')
+          if(replacement)await api('mediaFixture',false,kind,variant)
           const beforeRemoval=await api('diagnostics')
-          if(action==='remove')await api('mediaFixture',true)
+          if(action==='remove')await api('mediaFixture',true,kind,variant)
+          if(action==='on'&&kind==='video')await api('mediaTime',time)
           await api('prepare')
-          const frame=await capture(name,'breakdown',30,false,'none')
-          return {...frame,beforeRemoval}
+          const frame=await capture(name,stage,30,false,stage==='breakdown'?'none':'staged')
+          const decoded=action==='on'?await api('mediaDecode',variant,time):null
+          const source=frame.d.media.slots.filter(s=>s.source).map(s=>({slot:s.id,id:s.source.id,kind:s.source.kind,playback:s.playback}))
+          return {...frame,beforeRemoval,decoded,source}
         }
-        const a=await sample('media-before','off'),aa=await sample('media-before-aa','off'),on=await sample('media-on','on')
-        // Retain build/drop visual-review images separately from matched evidence.
-        await capture('media-build','build',30);await capture('media-drop','drop',30,true)
-        const removed=await sample('media-fallback','remove')
-        check('media-loaded',mediaReady(on)?[]:['Expected fixture slot not ready'],on.d.media)
-        // Broad projected panel ROIs for wrapping architectural sources; no
-        // hard-coded central rectangle that would exclude corridor wall panels.
-        decide('media-pixel-evidence',sourceVisibility(a,aa,on,{ready:mediaReady(on),fixture:true,expectedZones:mediaZones}))
-        decide('media-fallback-evidence',fallbackEvidence(a,aa,on,removed,mediaReady({d:removed.beforeRemoval})&&mediaRestored(removed)&&!removed.pixels.uniform&&removed.inspections.filter(m=>m.sourceMode!==undefined).every(m=>a.inspections.some(base=>base.id===m.id&&base.sourceMode===m.sourceMode))))
-        if(visibility?.type==='boolean'){
-          await set(visibility,false);const hiddenSaved=await api('saved')
-          const x=await sample('media-hidden-off','off',hiddenSaved),xx=await sample('media-hidden-aa','off',hiddenSaved),y=await sample('media-hidden-on','on',hiddenSaved)
+        const run=async(kind,variant,quality,stage,strict=true)=>{
+          const label=`media-${variant}-${quality}-${stage}`
+          const options={quality,stage}
+          const a=await sample(`${label}-off`,'off',kind,variant,options),aa=await sample(`${label}-aa`,'off',kind,variant,options),on=await sample(`${label}-on`,'on',kind,variant,options)
+          const removed=await sample(`${label}-removed`,'remove',kind,variant,options)
+          const loaded=ready(on,kind,variant)
+          const visibilityEvidence=sourceVisibility(a,aa,on,{ready:loaded,fixture:true,expectedZones:mediaZones})
+          const fallback=fallbackEvidence(a,aa,on,removed,ready({d:removed.beforeRemoval},kind,variant)&&restored(removed,kind)&&!removed.pixels.uniform&&removed.inspections.filter(m=>m.sourceMode!==undefined).every(m=>a.inspections.some(base=>base.id===m.id&&base.sourceMode===m.sourceMode)))
+          const decorate=decision=>({...decision,evidence:{...decision.evidence,source:on.source,variant,phase:stage,quality,roi:mediaZones}})
+          decide(`${label}-decode`,decodedMediaEvidence(on.decoded,variant,kind==='video'?.2:0))
+          check(`${label}-loaded`,loaded?[]:['Expected fixture slot not ready'],{source:on.source})
+          if(strict){
+            decide(`${label}-visibility`,decorate(visibilityEvidence));decide(`${label}-fallback`,decorate(fallback))
+            const calibration=mediaMasks[`${key}/${variant}/${quality}/${stage}`]
+            decide(`${label}-projection`,decorate(projectedMediaEvidence(on,a,calibration?.width===on.width&&calibration?.height===on.height?calibration.regions:[])))
+          }
+          else {
+            // Authored dark/fade/distortion intervals are not automatically a defect.
+            // Record measured observations, not a readability pass.
+            result.mediaPhaseObservations??=[];result.mediaPhaseObservations.push({label,visibility:decorate(visibilityEvidence),fallback:decorate(fallback)})
+          }
+          if(kind==='video'&&strict){
+            const repeat=await sample(`${label}-video-aa`,'on',kind,variant,options)
+            const second=await sample(`${label}-video-next`,'on',kind,variant,{...options,time:1.2})
+            decide(`${label}-video-repeat-decode`,decodedMediaEvidence(repeat.decoded,variant,.2))
+            decide(`${label}-video-second-decode`,decodedMediaEvidence(second.decoded,variant,1.2))
+            check(`${label}-video-slot-identity`,ready(repeat,kind,variant)&&ready(second,kind,variant)?[]:['Video fixture identity or readiness lost during seek'],{repeat:repeat.source,second:second.source})
+            decide(`${label}-video-advances`,videoFrameEvidence(on,repeat,second,{first:on.decoded?.playback?.currentTimeSec,repeat:repeat.decoded?.playback?.currentTimeSec,second:second.decoded?.playback?.currentTimeSec,expectedZones:mediaZones}))
+            if(quality==='high'){const playback=await api('mediaPlayback');check('media-video-playback',playback.before?.paused&&playback.held?.paused&&Math.abs(playback.before.currentTimeSec-playback.held.currentTimeSec)<.05&&playback.advanced&&playback.wrapped&&playback.after?.loop?[]:['Video did not pause, resume and loop through production transport'],playback)}
+          }
+          return {a,aa,on,removed,loaded,visibilityEvidence,fallback}
+        }
+        const projectionStart=result.checks.length
+        for(const kind of formats){
+          const start=result.checks.length
+          for(const quality of ['high','medium','low'])for(const variant of kind==='image'?['chart','alpha','tall']:[kind]){
+            const evidence=await run(kind,variant,quality,'breakdown')
+            if(kind==='image'&&variant==='alpha'&&quality==='high'){
+              const replaced=await sample('media-replacement','on','image','alpha',{replacement:true})
+              const repeat=await sample('media-replacement-aa','on','image','alpha')
+              const comparison=fallbackEvidence(evidence.on,repeat,evidence.a,replaced,ready(replaced,'image','alpha'))
+              decide('media-replacement',comparison)
+            }
+            if(kind==='image'&&variant==='chart'&&quality==='high'){
+              check('media-loaded',evidence.loaded?[]:['Expected fixture slot not ready'],evidence.on.d.media)
+              decide('media-pixel-evidence',evidence.visibilityEvidence);decide('media-fallback-evidence',evidence.fallback)
+            }
+          }
+          if(kind==='image')for(const stage of ['idle','build','drop'])await run(kind,'chart','high',stage,false)
+          decide(`media-format:${kind}`,scenarioDecision(result.checks.slice(start)))
+        }
+        decide('media-projected-fidelity',scenarioDecision(result.checks.slice(projectionStart).filter(c=>c.name.endsWith('-projection'))))
+        if(visibility?.type==='boolean'&&imageSlots.length){
+          await freshRuntime(saved,'media-hidden-settings');await set(visibility,false);const settings=await api('saved')
+          const x=await sample('media-hidden-off','off','image','chart',{settings}),xx=await sample('media-hidden-aa','off','image','chart',{settings}),y=await sample('media-hidden-on','on','image','chart',{settings})
           const rejected=sourceVisibility(x,xx,y,{ready:mediaReady(y),fixture:true,expectedZones:mediaZones})
           check('media-hidden-negative-control',mediaReady(y)&&rejected.status==='fail'&&rejected.issues.includes('Ready source has no visible contribution in expected regions')?[]:['Loaded-but-hidden fixture was not conclusively rejected'],rejected)
-        }else notApplicable('media-hidden-negative-control','No hard Media Visible permission; pure evaluator negative fixture remains mandatory')
-        decide('media-format:image',scenarioDecision(result.checks.filter(c=>['media-loaded','media-pixel-evidence','media-fallback-evidence'].includes(c.name))))
-        }
-        if(!imageSlots.length)notApplicable('media-format:image','No compiled image slot')
-        for(const kind of ['video','svg']){
-          const slots=capabilities.media[kind],name=`media-format:${kind}`
-          if(!slots.length){notApplicable(name,`No compiled ${kind} slot`);continue}
-          await set(auto,false);await set(change,false);await lockCamera()
-          const mode=find('Source Mode'),visibility=find('Media Visible')
-          if(mode?.options?.some(o=>o.value==='auto'))await set(mode,'auto');else if(mode?.options?.some(o=>o.value==='single'))await set(mode,'single')
-          if(visibility?.type==='boolean')await set(visibility,true)
-          const saved=await api('saved')
-          const sample=async(action)=>{await freshRuntime(saved,`${kind}-${action}`);if(action==='on')await api('mediaFixture',false,kind);await api('prepare');return capture(`${kind}-${action}`,'breakdown',30,false,'none')}
-          const a=await sample('off'),aa=await sample('aa'),on=await sample('on')
-          const ready=slots.every(s=>on.d.media.slots.some(m=>m.id===s.id&&m.status==='ready'&&m.source?.kind===kind))
-          decide(name,sourceVisibility(a,aa,on,{ready,fixture:true,expectedZones:mediaZones}))
-        }
+        }else if(imageSlots.length)notApplicable('media-hidden-negative-control','No hard Media Visible permission; pure evaluator negative fixture remains mandatory')
+        if(meta.poolSlots?.length&&capabilities.media.image.length){
+          await freshRuntime(saved,'pool-settings')
+          const trigger=find('Pool Trigger'),automation=find('Pool Automation')
+          if(automation)await set(automation,true)
+          const cadence=trigger?.options?.find(o=>o.value==='beat')??trigger?.options?.find(o=>o.value==='beat2')
+          if(cadence){
+            await set(trigger,cadence.value);const settings=await api('saved')
+            const poolSample=async(name,action)=>{
+              await freshRuntime(settings,name);if(action!=='off')await api('mediaPool',true)
+              await api('prepare');const requestsBefore=await api('mediaPoolRequests')
+              if(action==='remove')await api('mediaPool',false)
+              const frame=await capture(name,'build',120,false,'staged')
+              return {...frame,requestsBefore,requests:await api('mediaPoolRequests')}
+            }
+            const a=await poolSample('media-pool-off','off'),aa=await poolSample('media-pool-aa','off'),on=await poolSample('media-pool-on','on'),removed=await poolSample('media-pool-removed','remove')
+            const poolReady=f=>f.inspections.some(m=>m.poolReady===true||m.poolReady>0||m.poolReadyChannels>0)
+            decide('media-pool-visible',sourceVisibility(a,aa,on,{ready:poolReady(on),fixture:true,expectedZones:mediaZones}))
+            check('media-pool-rotation',on.requests.includes('qa05-pool-3')&&poolReady(on)?[]:['No resolved fourth pool entry after shared cadence'],{initial:on.requestsBefore,requests:on.requests,inspections:on.inspections})
+            decide('media-pool-fallback',fallbackEvidence(a,aa,on,removed,!poolReady(removed)&&removed.inspections.every(m=>m.sourceMode!=='pool')))
+          }else notRun('media-pool-rotation','No supported short pool cadence found; capability requires a dedicated scenario')
+        }else if(!meta.poolSlots?.length)notApplicable('media-pool-rotation','No pool-capable compiled slot')
+        // The direct decoder and pool lifecycle have separate gates; final-frame
+        // loop and reentry remain unverified until matched scene calibration.
+        notRun('media-lifecycle-fidelity','Matched final-frame pause/resume, loop and source-preserving quality/reentry captures remain pending')
       })
       await scenario('model',async()=>{
         const modelControl=meta.controls.find(p=>p.metadata?.editor==='user-model-selector')

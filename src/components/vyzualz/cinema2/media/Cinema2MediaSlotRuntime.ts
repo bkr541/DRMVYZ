@@ -447,7 +447,7 @@ function abortError(): DOMException {
   return new DOMException('Cinema 2.0 media loading was cancelled.', 'AbortError')
 }
 
-const browserCinema2MediaLoader: Cinema2MediaLoader = Object.freeze({
+export const browserCinema2MediaLoader: Cinema2MediaLoader = Object.freeze({
   async load(source: Readonly<Cinema2MediaSource>, signal: AbortSignal) {
     if (signal.aborted) throw abortError()
     return source.kind === 'video' ? loadBrowserVideo(source, signal) : loadBrowserImage(source, signal)
