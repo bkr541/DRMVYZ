@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import { cinema2NativePresetRegistry } from '../presets/Cinema2PresetRegistry'
+import { cinema2SlotSupportsPool } from '../media/Cinema2SourceCapabilities'
 import { CINEMA2_EVERYWHERE_PRESET_ID } from '../presets/Cinema2EverywherePreset'
 import { CINEMA2_CORRIDOR_PRESET_ID } from '../presets/Cinema2CorridorPreset'
 import {
@@ -16,6 +18,9 @@ import {
   exportCinema2LegacyArchive,
   getCinema2WorkspacePresetState,
   parseCinema2WorkspaceDocument,
+  migrateCinema2LegacyPoolSelection,
+  reconcileCinema2PoolReferences,
+  removeCinema2MediaReferences,
   storeCinema2WorkspacePresetState,
 } from '../runtime/Cinema2WorkspacePersistence'
 
@@ -39,6 +44,12 @@ const MEDIA_ASSIGNMENT = Object.freeze({
 })
 
 describe('Cinema 2.0 durable workspace state', () => {
+  it('keeps the legacy per-preset pool pointer scoped to one authored pool slot', () => {
+    for (const manifest of cinema2NativePresetRegistry.list()) {
+      expect(manifest.mediaSlots?.filter(slot => cinema2SlotSupportsPool(slot.id)).length ?? 0, manifest.id).toBeLessThanOrEqual(1)
+    }
+  })
+
   it('keeps pool choice scoped to its preset across switching, retirement and reload', () => {
     const first = activateCinema2Workspace(createEmptyCinema2WorkspaceDocument(), { presetId: CINEMA2_EVERYWHERE_PRESET_ID })
     if (!first.ok) throw new Error('Could not activate Everywhere')
@@ -52,6 +63,34 @@ describe('Cinema 2.0 durable workspace state', () => {
     expect(getCinema2WorkspacePresetState(reloaded.value, CINEMA2_CORRIDOR_PRESET_ID)?.poolId).toBeNull()
     const reset = storeCinema2WorkspacePresetState(reloaded.value, { ...first.state, poolId: null })
     expect(getCinema2WorkspacePresetState(reset, CINEMA2_EVERYWHERE_PRESET_ID)?.poolId).toBeNull()
+  })
+
+  it('normalizes malformed pool IDs without inheriting a different Canvas pool', () => {
+    const first = activateCinema2Workspace(createEmptyCinema2WorkspaceDocument(), { presetId: CINEMA2_EVERYWHERE_PRESET_ID })
+    if (!first.ok) throw new Error('Could not activate Everywhere')
+    for (const poolId of [42, {}, '', '   ']) {
+      const input = { ...first.document, presets: [{ ...first.state, poolId }] }
+      const normalized = parseCinema2WorkspaceDocument(input).value
+      expect(migrateCinema2LegacyPoolSelection(normalized, 'unrelated').presets[0]?.poolId).toBeNull()
+    }
+    const { poolId: _poolId, ...legacy } = first.state
+    const old = parseCinema2WorkspaceDocument({ ...first.document, presets: [legacy] }).value
+    const migrated = migrateCinema2LegacyPoolSelection(old, 'legacy')
+    expect(migrated.presets[0]?.poolId).toBe('legacy')
+    expect(reconcileCinema2PoolReferences(migrated, [{ id: 'legacy' }])).toBe(migrated)
+    expect(reconcileCinema2PoolReferences(migrated, []).presets[0]?.poolId).toBeNull()
+  })
+
+  it('removes only confirmed deleted individual media assignments', () => {
+    const activated = activateCinema2Workspace(createEmptyCinema2WorkspaceDocument(), {
+      presetId: CINEMA2_REACTOR_PRESET_ID, mediaPatch: [MEDIA_ASSIGNMENT],
+    })
+    if (!activated.ok) throw new Error('Could not activate Reactor')
+    expect(removeCinema2MediaReferences(activated.document, 'unrelated')).toBe(activated.document)
+    const cleaned = removeCinema2MediaReferences(activated.document, MEDIA_ASSIGNMENT.source.id)
+    expect(cleaned.presets[0]?.mediaSlots).toEqual([])
+    expect(cleaned.presets[0]?.serializedParameterState).toBe(activated.state.serializedParameterState)
+    expect(cleaned.activationRevision).toBe(activated.document.activationRevision)
   })
 
   it('accepts every mapped Phase 1 migration destination through the activation contract', () => {

@@ -8,19 +8,21 @@ export function getCinema2PresetPoolId(state: ReturnType<typeof useReactStore.ge
   return state.cinema2Workspace.presets.find(preset => preset.presetId === presetId)?.poolId ?? null
 }
 
-const generations = new WeakMap<Cinema2Runtime, number>()
-export function beginEverywhereMediaRequest(runtime: Cinema2Runtime) {
-  const generation=(generations.get(runtime)??0)+1
-  generations.set(runtime,generation)
+const generations = new WeakMap<Cinema2Runtime, Map<Cinema2MediaSlotId, number>>()
+export function beginEverywhereMediaRequest(runtime: Cinema2Runtime, slotId = CINEMA2_EVERYWHERE_MEDIA_SLOT) {
+  let owner = generations.get(runtime)
+  if (!owner) { owner = new Map(); generations.set(runtime, owner) }
+  const generation = (owner.get(slotId) ?? 0) + 1
+  owner.set(slotId, generation)
   return generation
 }
-export function isEverywhereMediaRequestCurrent(runtime: Cinema2Runtime, generation: number) {
-  return generations.get(runtime)===generation
+export function isEverywhereMediaRequestCurrent(runtime: Cinema2Runtime, generation: number, slotId = CINEMA2_EVERYWHERE_MEDIA_SLOT) {
+  return generations.get(runtime)?.get(slotId) === generation
 }
 export function clearEverywhereIndividualMedia(runtime: Cinema2Runtime) {
   beginEverywhereMediaRequest(runtime)
   const slots=runtime.getMediaSlotRuntime()
-  if(slots.getSlotSnapshot(CINEMA2_EVERYWHERE_MEDIA_SLOT)?.source) slots.remove(CINEMA2_EVERYWHERE_MEDIA_SLOT)
+  slots.remove(CINEMA2_EVERYWHERE_MEDIA_SLOT)
 }
 /** Persist only the selection, not a second copy of the pool library. */
 export function setCinema2PoolSelection(runtime: Cinema2Runtime, poolId: string | null) {
@@ -29,14 +31,14 @@ export function setCinema2PoolSelection(runtime: Cinema2Runtime, poolId: string 
   store.storeCinema2WorkspacePresetState({ ...captureCinema2WorkspacePresetState(runtime), poolId })
 }
 export function resetCinema2Media(runtime: Cinema2Runtime, slotId: Cinema2MediaSlotId, supportsPool: boolean) {
-  beginEverywhereMediaRequest(runtime)
+  beginEverywhereMediaRequest(runtime, slotId)
   runtime.getMediaSlotRuntime().remove(slotId)
   if (supportsPool) setCinema2PoolSelection(runtime, null)
   else useReactStore.getState().storeCinema2WorkspacePresetState(captureCinema2WorkspacePresetState(runtime))
 }
 export function activateCinema2Pool(runtime: Cinema2Runtime, slotId: Cinema2MediaSlotId, poolId: string | null) {
   if (poolId !== null && !useReactStore.getState().canvasOrchestrationSettings.mediaPools.some(pool => pool.id === poolId)) return
-  beginEverywhereMediaRequest(runtime)
+  beginEverywhereMediaRequest(runtime, slotId)
   runtime.getMediaSlotRuntime().remove(slotId)
   setCinema2PoolSelection(runtime, poolId)
 }

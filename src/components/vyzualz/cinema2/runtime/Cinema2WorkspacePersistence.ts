@@ -217,6 +217,42 @@ export function storeCinema2WorkspacePresetState(
   return replacePreset(document, parsed.value, false)
 }
 
+export function removeCinema2MediaReferences(
+  document: Readonly<Cinema2WorkspaceDocument>,
+  mediaId: string,
+): Readonly<Cinema2WorkspaceDocument> {
+  let changed = false
+  const presets = document.presets.map(preset => {
+    const mediaSlots = preset.mediaSlots.filter(slot => slot.source.id !== mediaId)
+    if (mediaSlots.length === preset.mediaSlots.length) return preset
+    changed = true
+    return deepFreeze({ ...preset, mediaSlots })
+  })
+  return changed ? deepFreeze({ ...document, presets }) : document
+}
+
+/** Reconcile only against the authoritative named-pool library (not paged media
+ * results or signed URL availability). Explicit null prevents legacy inheritance. */
+export function reconcileCinema2PoolReferences(
+  document: Readonly<Cinema2WorkspaceDocument>,
+  pools: readonly { id: string }[],
+): Readonly<Cinema2WorkspaceDocument> {
+  const valid = new Set(pools.map(pool => pool.id))
+  let changed = false
+  const presets = document.presets.map(preset => {
+    if (preset.poolId == null || valid.has(preset.poolId)) return preset
+    changed = true
+    return deepFreeze({
+      ...preset,
+      poolId: null,
+      // While a pool is selected, these individual descriptors are suppressed
+      // by Stage. Never resurrect one when the pool is deleted.
+      mediaSlots: preset.mediaSlots.filter(slot => !cinema2SlotSupportsPool(slot.slotId)),
+    })
+  })
+  return changed ? deepFreeze({ ...document, presets }) : document
+}
+
 /** Legacy workspaces had a single Canvas pool pointer. Preserve it for the saved
  * active Cinema preset only, never inherit it when switching to a new preset. */
 export function migrateCinema2LegacyPoolSelection(document: Readonly<Cinema2WorkspaceDocument>, poolId: string | null): Readonly<Cinema2WorkspaceDocument> {
@@ -338,7 +374,8 @@ function parsePresetState(
       lookId: typeof input.lookId === 'string' && input.lookId.trim() ? input.lookId : null,
       serializedParameterState: parameterState.serialize(),
       mediaSlots: media.mediaSlots,
-      ...(compiled.plan.manifest.mediaSlots?.some(slot => cinema2SlotSupportsPool(slot.id)) && (input.poolId === null || typeof input.poolId === 'string' && input.poolId.trim()) ? { poolId: input.poolId as string | null } : {}),
+      ...(compiled.plan.manifest.mediaSlots?.some(slot => cinema2SlotSupportsPool(slot.id)) && Object.prototype.hasOwnProperty.call(input, 'poolId') && input.poolId !== undefined
+        ? { poolId: typeof input.poolId === 'string' && input.poolId.trim() ? input.poolId : null } : {}),
     }),
     diagnostics,
   }

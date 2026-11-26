@@ -27,6 +27,13 @@ export function findCinema2UserModelParameter(manifest: Readonly<Cinema2NativePr
   return null
 }
 
+/** Both declared slot kinds can be presented independently. Monument's authored
+ * typography/model selector remains exclusive, not a second media slot. */
+export function resolveCinema2SourcePanels(manifest: Readonly<Cinema2NativePresetManifest> | undefined) {
+  const modelParameter = findCinema2UserModelParameter(manifest)
+  return { modelParameter, media: !modelParameter || (manifest?.id !== 'drmvyz.cinema2.monument' && (manifest?.mediaSlots?.length ?? 0) > 0) }
+}
+
 /** Presets whose model slot is part of the preset itself: the model is chosen from the library and replaced by choosing another, with no "Remove model" or media shortcuts. */
 const PRESETS_WITH_A_FIXED_MODEL_SLOT: ReadonlySet<string> = new Set(['drmvyz.cinema2.crate-bass-sigil', 'drmvyz.cinema2.chamber'])
 
@@ -56,7 +63,7 @@ export function Cinema2ModelSourcePanel({ runtime, parameterId }: { runtime: Cin
   const thirdLine = useSyncExternalStore(state.subscribe, () => readMonument('line-3', ''))
   const font = useSyncExternalStore(state.subscribe, () => readMonument('font', 'anton'))
   const [search, setSearch] = useState(''), [view, setView] = useState<LibraryView>('grid')
-  const [thumbnail, setThumbnail] = useState<string | null>(null)
+  const [thumbnail, setThumbnail] = useState<{ lookupKey: string; url: string } | null>(null)
   const [pinned, setPinned] = useState<PinnedModel | null>(null), [problem, setProblem] = useState<{ lookupKey: string; message: string } | null>(null)
 
   let binding: ReturnType<typeof parseUserModelBinding> | null = null
@@ -100,7 +107,7 @@ export function Cinema2ModelSourcePanel({ runtime, parameterId }: { runtime: Cin
         await modelAssetRepository.getVersion(pinnedId, pinnedVersion)
         if (!active) return
         setPinned({ asset, version: pinnedVersion, lookupKey })
-        void modelAssetRepository.signedUrl(pinnedId, pinnedVersion, 'thumbnailPath').then(result => { if (active) setThumbnail(result.url) }).catch(() => {})
+        void modelAssetRepository.signedUrl(pinnedId, pinnedVersion, 'thumbnailPath').then(result => { if (active) setThumbnail({ lookupKey, url: result.url }) }).catch(() => {})
       }
     }).catch(error => { if (active) setProblem({ lookupKey, message: `The selected model or pinned version is unavailable.${error instanceof Error ? ` ${error.message}` : ''}` }) })
     return () => { active = false }
@@ -131,7 +138,7 @@ export function Cinema2ModelSourcePanel({ runtime, parameterId }: { runtime: Cin
   return (
     <div className="rv-canvas-engine-panel" data-cinema2-model-source="slot">
       <Cinema2ActiveSource name={typographyActive ? typographyName : currentPinned ? `${currentPinned.asset.name} · v${pinnedVersion}` : pinnedId ? `Pinned model · v${pinnedVersion}` : 'Built-in model'}
-        type={typographyActive ? typographyType : modelFallback ? '3D model · Typography fallback' : pinnedId ? '3D model' : 'Built-in content'} preview={<Cinema2SourceThumbnail url={activePinnedId && currentPinned ? thumbnail : null} />}
+        type={typographyActive ? typographyType : modelFallback ? '3D model · Typography fallback' : pinnedId ? '3D model' : 'Built-in content'} preview={<Cinema2SourceThumbnail url={activePinnedId && currentPinned && thumbnail?.lookupKey === lookupKey ? thumbnail.url : null} />}
         status={status}
         error={typographyActive ? null : pinnedProblem ?? runtimeProblem} actions={[
           { id: 'replace', label: activePinnedId ? 'Replace model' : 'Choose model', onSelect: replace },

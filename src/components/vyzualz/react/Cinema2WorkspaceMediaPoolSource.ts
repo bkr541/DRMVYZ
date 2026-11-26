@@ -1,7 +1,7 @@
 import { useMediaStore } from '../../../stores/mediaStore'
 import { useReactStore } from '../../../stores/reactStore'
 import type { Cinema2MediaPoolSource } from '../cinema2/media/Cinema2MediaPoolSource'
-import { cinema2MediaSourceFromLibraryItem, getCinema2MediaDisabledReason } from './Cinema2MediaSourcePanel'
+import { cinema2MediaSourceFromLibraryItem, getCinema2MediaDisabledReason } from './Cinema2LibraryMediaSource'
 import { cinema2NativePresetRegistry } from '../cinema2/presets/Cinema2PresetRegistry'
 import { cinema2SlotSupportsPool } from '../cinema2/media/Cinema2SourceCapabilities'
 import { isUnifiedSvgMediaItem } from './svgSourceLifecycle'
@@ -36,10 +36,14 @@ export function createCinema2WorkspaceMediaPoolSource(presetId?: Cinema2PresetId
     },
     subscribe(listener) {
       let previous = source.getSelection()
+      let accountId = useMediaStore.getState().accountId
       const changed = () => {
         const next = source.getSelection()
-        if (next === previous) return
-        const changedMembership = next?.id !== previous?.id || next?.mediaIds.length !== previous?.mediaIds.length
+        const nextAccount = useMediaStore.getState().accountId
+        const changedAccount = nextAccount !== accountId
+        accountId = nextAccount
+        if (next === previous && !changedAccount) return
+        const changedMembership = changedAccount || next?.id !== previous?.id || next?.mediaIds.length !== previous?.mediaIds.length
           || next?.mediaIds.some((id, index) => id !== previous?.mediaIds[index])
         previous = next
         if (changedMembership) listener()
@@ -49,8 +53,14 @@ export function createCinema2WorkspaceMediaPoolSource(presetId?: Cinema2PresetId
       return () => { unsubscribeWorkspace(); unsubscribeMedia() }
     },
     async resolve(mediaId) {
+      const accountId = useMediaStore.getState().accountId
+      const selected = source.getSelection()
+      if (!selected?.mediaIds.includes(mediaId)) return null
       await useMediaStore.getState().ensureMediaSigned([mediaId], 'visible')
-      const item = useMediaStore.getState().items.find(candidate => candidate.id === mediaId)
+      const state = useMediaStore.getState()
+      const current = source.getSelection()
+      if (state.accountId !== accountId || current?.id !== selected.id || !current.mediaIds.includes(mediaId)) return null
+      const item = state.items.find(candidate => candidate.id === mediaId)
       return item && !getCinema2MediaDisabledReason(item, accepts) ? cinema2MediaSourceFromLibraryItem(item) : null
     },
   }

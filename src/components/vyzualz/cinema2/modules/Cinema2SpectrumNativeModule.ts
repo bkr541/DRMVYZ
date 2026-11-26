@@ -68,7 +68,7 @@ export const cinema2SpectrumNativeModuleDefinition:Readonly<Cinema2ModuleTypeDef
     const performance=new SpectrumPerformance(i=>context.randomness.sample('spectrum-pattern-order',i))
     const source=context.mediaPoolSource
     // Existing named-pool channels are runtime-local, not authored or persisted slots.
-    const acquirePool=()=>source?context.resources.acquire('spectrum:pool','SpectrumMediaPool',gl=>new Cinema2EverywherePool({getSelection:()=>{const l=performance.look;return l?.visible&&(l.mode==='auto'||l.mode==='pool')?source.getSelection():null},resolve:id=>source.resolve(id)},new Cinema2MediaSlotRuntime(gl,EVERYWHERE_POOL_SLOTS)),p=>p.dispose()):null
+    const acquirePool=()=>source?context.resources.acquire('spectrum:pool','SpectrumMediaPool',gl=>new Cinema2EverywherePool({getSelection:()=>{const l=performance.look;return l?.visible&&(l.mode==='auto'||l.mode==='pool')?source.getSelection():null},resolve:id=>source.resolve(id),subscribe:source.subscribe},new Cinema2MediaSlotRuntime(gl,EVERYWHERE_POOL_SLOTS)),p=>p.dispose()):null
     let pool:ReturnType<typeof acquirePool>=null
     type RenderState = 'idle'|'loading'|'warming'|'ready'|'recoverable-failure'|'fatal'|'disposed'
     let library:Cinema2ThreeLibrary|null=null,scene:SpectrumScene|null=null,bridge:Cinema2ThreeSceneBridge|null=null,reported=-1

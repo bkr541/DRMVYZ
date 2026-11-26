@@ -154,6 +154,35 @@ describe('Cinema 2.0 media-slot runtime', () => {
     expect(gl.__calls.createdTextures).toBe(gl.__calls.deletedTextures)
   })
 
+  it('retires a pending source before signing its replacement and isolates other slots', async () => {
+    const pending = new Map<string, { resolve: (media: Cinema2LoadedMedia) => void; signal: AbortSignal }>()
+    const runtime = new Cinema2MediaSlotRuntime(createCinemaMockWebGL(), [
+      { id: optionalSlotId, label: 'Optional', accepts: ['image'] },
+      { id: requiredSlotId, label: 'Required', accepts: ['image'], required: true },
+    ], { load: (candidate, signal) => new Promise(resolve => pending.set(candidate.id, { resolve, signal })) })
+    const a = runtime.replace(optionalSlotId, source('a'))
+    const independent = runtime.replace(requiredSlotId, source('other'))
+    runtime.cancelPendingReplacement(optionalSlotId)
+    expect(pending.get('a')!.signal.aborted).toBe(true)
+    expect(pending.get('other')!.signal.aborted).toBe(false)
+    const retired = loaded()
+    pending.get('a')!.resolve(retired)
+    pending.get('other')!.resolve(loaded())
+    await Promise.all([a, independent])
+    expect(retired.dispose).toHaveBeenCalledTimes(1)
+    expect(runtime.getCommittedSource(optionalSlotId)).toBeNull()
+    expect(runtime.getCommittedSource(requiredSlotId)?.source.id).toBe('other')
+    const b = runtime.replace(optionalSlotId, source('b'))
+    runtime.removeSourceById('b')
+    const removed = loaded()
+    pending.get('b')!.resolve(removed)
+    await b
+    expect(removed.dispose).toHaveBeenCalledTimes(1)
+    expect(runtime.getSlotSnapshot(optionalSlotId)?.status).toBe('empty')
+    expect(runtime.getCommittedSource(requiredSlotId)?.source.id).toBe('other')
+    runtime.dispose()
+  })
+
   it('updates video textures, exposes playback metadata, and recreates the managed texture after context loss', async () => {
     const gl = createCinemaMockWebGL()
     let frameReady = true

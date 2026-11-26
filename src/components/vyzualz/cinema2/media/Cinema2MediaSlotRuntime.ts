@@ -261,6 +261,41 @@ export class Cinema2MediaSlotRuntime {
     return freezeSlotSnapshot(record)
   }
 
+  /** A new intent may still be waiting for its URL. Cancel the obsolete decode
+   * now, without discarding the last committed frame. */
+  cancelPendingReplacement(slotId: Cinema2MediaSlotId): void {
+    const record = this.requireRecord(slotId)
+    if (this.disposed || !record.abortController) return
+    record.generation++
+    record.abortController.abort()
+    record.abortController = null
+    record.source = record.resourceSource
+    record.presentation = record.resourcePresentation
+    record.status = record.loaded ? (record.texture ? 'ready' : 'loading') : record.manifest.required ? 'missing-required' : 'empty'
+    record.error = null
+    this.emit()
+  }
+
+  /** Confirmed library deletion, unlike paging or temporary URL loss. */
+  removeSourceById(mediaId: string): void {
+    if (this.disposed) return
+    for (const record of this.records.values()) {
+      if (record.source?.id === mediaId && record.abortController) this.cancelPendingReplacement(record.manifest.id)
+      if (record.resourceSource?.id === mediaId && record.abortController) {
+        // A different candidate is loading. Retire only the deleted last-good
+        // resource; do not cancel that candidate or disturb another slot.
+        this.releaseTexture(record)
+        disposeLoadedMedia(record.loaded)
+        record.loaded = null
+        record.resourceSource = null
+        record.resourcePresentation = DEFAULT_PRESENTATION
+        this.emit()
+      } else if (record.source?.id === mediaId || record.resourceSource?.id === mediaId) {
+        this.remove(record.manifest.id)
+      }
+    }
+  }
+
   remove(slotId: Cinema2MediaSlotId): Readonly<Cinema2MediaSlotSnapshot> {
     const record = this.requireRecord(slotId)
     if (this.disposed) return freezeSlotSnapshot(record)

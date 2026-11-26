@@ -9,7 +9,7 @@ import { XyScopeEnginePanel } from './xyScope/XyScopeWorkspace'
 import { Cinema2TextLibraryPanel } from './Cinema2TextLibraryPanel'
 import { isCinema2TextPreset } from '../cinema2/text/Cinema2TextConfiguration'
 import { Cinema2MediaSourcePanel } from './Cinema2MediaSourcePanel'
-import { Cinema2ModelSourcePanel, findCinema2UserModelParameter } from './Cinema2ModelSourcePanel'
+import { Cinema2ModelSourcePanel, resolveCinema2SourcePanels } from './Cinema2ModelSourcePanel'
 import type { Cinema2Runtime } from '../cinema2'
 import { useShallow } from 'zustand/react/shallow'
 import { resolveCinematicConfigForPreset, useReactStore } from '../../../stores/reactStore'
@@ -453,9 +453,14 @@ export function ReactEnginePanel({
       {activeReactEngineId === 'cinema2' && (
         isCinema2TextPreset(cinema2Runtime?.getCompiledPresetPlan().presetId)
           ? <Cinema2TextLibraryPanel runtime={cinema2Runtime} />
-          : cinema2Runtime && findCinema2UserModelParameter(cinema2Runtime.getCompiledPresetPlan().manifest)
-            ? <Cinema2ModelSourcePanel key={cinema2Runtime.getCompiledPresetPlan().presetId} runtime={cinema2Runtime} parameterId={findCinema2UserModelParameter(cinema2Runtime.getCompiledPresetPlan().manifest)!} />
-            : <Cinema2MediaSourcePanel key={cinema2Runtime?.getCompiledPresetPlan().presetId} runtime={cinema2Runtime} />
+          : (() => {
+            const plan = cinema2Runtime?.getCompiledPresetPlan()
+            const { modelParameter, media } = resolveCinema2SourcePanels(plan?.manifest)
+            return <>
+              {cinema2Runtime && modelParameter && <Cinema2ModelSourcePanel key={`${plan?.presetId}:model`} runtime={cinema2Runtime} parameterId={modelParameter} />}
+              {media && <Cinema2MediaSourcePanel key={`${plan?.presetId}:media`} runtime={cinema2Runtime} />}
+            </>
+          })()
       )}
 
       {/* Cinematic Worlds source selection lives in the left rail. */}

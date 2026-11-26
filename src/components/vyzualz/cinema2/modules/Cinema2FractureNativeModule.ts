@@ -65,7 +65,7 @@ export const cinema2FractureNativeModuleDefinition:Readonly<Cinema2ModuleTypeDef
     const performance=new FracturePerformance(i=>context.randomness.sample('fracture-pattern-order',i))
     const source=context.mediaPoolSource
     // Existing named-pool channels are runtime-local, not authored or persisted slots.
-    const pool=source?context.resources.acquire('fracture:pool','FractureMediaPool',gl=>new Cinema2EverywherePool({getSelection:()=>{const l=performance.look;return l?.visible&&(l.mode==='auto'||l.mode==='pool')?source.getSelection():null},resolve:id=>source.resolve(id)},new Cinema2MediaSlotRuntime(gl,EVERYWHERE_POOL_SLOTS)),p=>p.dispose()):null
+    const pool=source?context.resources.acquire('fracture:pool','FractureMediaPool',gl=>new Cinema2EverywherePool({getSelection:()=>{const l=performance.look;return l?.visible&&(l.mode==='auto'||l.mode==='pool')?source.getSelection():null},resolve:id=>source.resolve(id),subscribe:source.subscribe},new Cinema2MediaSlotRuntime(gl,EVERYWHERE_POOL_SLOTS)),p=>p.dispose()):null
     let library:Cinema2ThreeLibrary|null=null,scene:FractureScene|null=null,bridge:Cinema2ThreeSceneBridge|null=null,starting=false,disposed=false,reported=-1
     const diagnostics:Cinema2ModuleDiagnostic[]=[]
     const report=(e:unknown)=>diagnostics.push({code:'CINEMA2_FRACTURE_FAILED',message:e instanceof Error?e.message:String(e),path:'$.modules'})

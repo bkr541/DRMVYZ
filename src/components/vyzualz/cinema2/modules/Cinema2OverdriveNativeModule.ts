@@ -19,7 +19,15 @@ type Merge=typeof import('three/examples/jsm/utils/BufferGeometryUtils.js')['mer
 /** A single transient decoder. Keep the last ready picture until replacement completes. */
 export class OverdrivePool {
   private scope='';private generation=0;private cursor=0;private lastEvent:string|null=null;private pending=false;private disposed=false
-  constructor(private readonly source:Cinema2MediaPoolSource,private readonly slots:Cinema2MediaSlotRuntime){}
+  private readonly unsubscribe?:()=>void
+  constructor(private readonly source:Cinema2MediaPoolSource,private readonly slots:Cinema2MediaSlotRuntime){
+    this.unsubscribe=source.subscribe?.(()=>this.invalidate())
+  }
+  private invalidate(){
+    if(this.disposed)return
+    this.scope='';this.generation++;this.cursor=0;this.pending=false;this.lastEvent=null
+    this.slots.remove(poolSlot)
+  }
   update(identity:string,event:string|null,reset:boolean,paused:boolean,enabled:boolean){
     if(this.disposed)return
     const selection=enabled?this.source.getSelection():null
@@ -29,9 +37,9 @@ export class OverdrivePool {
     else if(event&&event!==this.lastEvent){this.lastEvent=event;if(ids.length&&!this.pending){this.cursor=(this.cursor+1)%ids.length;this.load(ids[this.cursor]!)}}
     this.slots.updateVideoTextures(paused)
   }
-  private load(id:string){const generation=this.generation;this.pending=true;void Promise.resolve().then(()=>this.source.resolve(id)).then(source=>{if(!this.disposed&&generation===this.generation&&source?.id===id)return this.slots.replace(poolSlot,source,{fit:'contain'})}).catch(()=>{/* retry on next musical event */}).finally(()=>{if(generation===this.generation)this.pending=false})}
+  private load(id:string){const generation=this.generation;const selection=JSON.stringify(this.source.getSelection());this.pending=true;void Promise.resolve().then(()=>this.source.resolve(id)).then(source=>{if(!this.disposed&&generation===this.generation&&selection===JSON.stringify(this.source.getSelection())&&source?.id===id)return this.slots.replace(poolSlot,source,{fit:'contain'})}).catch(()=>{/* retry on next musical event */}).finally(()=>{if(generation===this.generation)this.pending=false})}
   get resource(){return this.slots.getManagedResource(poolSlot)}
-  dispose(){this.disposed=true;this.generation++;this.slots.dispose()}
+  dispose(){if(this.disposed)return;this.disposed=true;this.unsubscribe?.();this.generation++;this.slots.dispose()}
 }
 export class Cinema2OverdrivePerformance {
   private readonly clock=new Cinema2BeatClock()

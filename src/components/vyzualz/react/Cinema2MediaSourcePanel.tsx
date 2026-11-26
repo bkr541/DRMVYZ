@@ -2,6 +2,7 @@ import { useReactStore } from '../../../stores/reactStore'
 import { ContextActionMenu } from '../context-menu/ContextActionMenu'
 import { MediaAddToPoolPicker } from '../media/MediaAddToMenu'
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { subscribeCinema2MediaDeletion } from '../../../stores/cinema2MediaDeletion'
 import { useMediaStore } from '../../../stores/mediaStore'
 import type { Cinema2MediaSlotRuntimeSnapshot } from '../cinema2/media/Cinema2MediaSlotRuntime'
 import type { Cinema2Runtime } from '../cinema2/runtime/Cinema2Runtime'
@@ -46,18 +47,27 @@ export function Cinema2MediaSourcePanel({ runtime }: Cinema2MediaSourcePanelProp
   const presetId = runtime?.getCompiledPresetPlan().presetId
   const activePool = useReactStore(state => poolCapable ? state.canvasOrchestrationSettings.mediaPools.find(pool => pool.id === getCinema2PresetPoolId(state, presetId)) ?? null : null)
   const everywhere = selectedSlot?.id === 'everywhere-screen-media'
-  const displayedSource = everywhere && selectedSlot
+  const displayedSource = selectedSlot
     ? mediaRuntime?.getCommittedSource(selectedSlot.id)?.source ?? null
-    : selectedSlot?.source ?? null
-  const compatiblePoolCount = useMediaStore(state => everywhere && activePool && selectedSlot
+    : null
+  const compatiblePoolCount = useMediaStore(state => activePool && selectedSlot
     ? new Set(state.items.filter(item => activePool.mediaIds.includes(item.id) && !item.uploading
       && item.lifecycleStatus !== 'deletion_pending' && selectedSlot.accepts.includes(isUnifiedSvgMediaItem(item) ? 'svg' : item.type)).map(item => item.id)).size
-    : activePool?.mediaIds.length ?? 0)
+    : 0)
   const previewItem = useMediaStore(state => state.items.find(item => item.id === (activePool?.mediaIds[0] ?? displayedSource?.id)))
   const request = useRef(0)
+  const signingId = useRef<string | null>(null)
+  const accountId = useMediaStore(state => state.accountId)
   const library = useRef<HTMLDivElement>(null)
   const [pending, setPending] = useState(false)
-  useLayoutEffect(() => { setActionMenu(null); setPending(false); return () => { request.current++ } }, [runtime, selectedSlot?.id])
+  useLayoutEffect(() => {
+    setActionMenu(null); setPending(false); signingId.current = null
+    const unsubscribe = subscribeCinema2MediaDeletion(id => {
+      if (signingId.current !== id) return
+      request.current++; signingId.current = null; setPending(false)
+    })
+    return () => { unsubscribe(); request.current++ }
+  }, [runtime, selectedSlot?.id, accountId])
 
   useEffect(() => {
     if (snapshot.slots.some(slot => slot.id === selectedSlotId)) return
@@ -73,11 +83,16 @@ export function Cinema2MediaSourcePanel({ runtime }: Cinema2MediaSourcePanelProp
 
   const makeActive = (mediaId: string) => {
     const ticket = ++request.current
-    const generation = poolCapable ? beginEverywhereMediaRequest(runtime) : null
-    const current = () => ticket === request.current && (generation === null || isEverywhereMediaRequestCurrent(runtime,generation))
+    signingId.current = mediaId
+    const generation = beginEverywhereMediaRequest(runtime, selectedSlot.id)
+    const accountId = useMediaStore.getState().accountId
+    mediaRuntime?.cancelPendingReplacement(selectedSlot.id)
+    const current = () => ticket === request.current
+      && isEverywhereMediaRequestCurrent(runtime, generation, selectedSlot.id)
+      && useMediaStore.getState().accountId === accountId
     const assign = () => {
       if (!current() || !mediaRuntime) return
-      setPending(false)
+      setPending(false); signingId.current = null
       const media = useMediaStore.getState().items.find(item => item.id === mediaId)
       if (!media) { notify('react', { tone: 'error', title: 'Media could not be loaded', message: 'Media is unavailable.' }); return }
       const source = cinema2MediaSourceFromLibraryItem(media)
@@ -97,7 +112,8 @@ export function Cinema2MediaSourcePanel({ runtime }: Cinema2MediaSourcePanelProp
           if (current()) notify('react', { tone: 'error', title: 'Media could not be loaded', message: `${selectedSlot.label}: ${error instanceof Error ? error.message : String(error)}` })
         })
     }
-    if (!poolCapable) { assign(); return }
+    const candidate = useMediaStore.getState().items.find(item => item.id === mediaId)
+    if (!poolCapable && !candidate?.storagePath) { assign(); return }
     setActionMenu(null)
     setPending(true)
     void useMediaStore.getState().ensureMediaSigned([mediaId], 'visible').then(assign).catch(error => {
@@ -113,7 +129,7 @@ export function Cinema2MediaSourcePanel({ runtime }: Cinema2MediaSourcePanelProp
       <Cinema2ActiveSource key={selectedSlot.id} name={activePool?.name ?? displayedSource?.label ?? (selectedSlot.required ? 'Source required' : everywhere ? 'Default Eyes' : 'Native preset content')}
         type={activePool ? 'Media pool' : displayedSource ? displayedSource.kind.toUpperCase() : selectedSlot.required ? 'Required slot' : 'Built-in content'}
         preview={<Cinema2SourceThumbnail url={previewItem?.localThumbnailObjectUrl ?? previewItem?.thumbnailUrl ?? (!activePool && displayedSource?.kind !== 'video' ? displayedSource?.url ?? (everywhere ? '/cinema2/textures/everywhere-eye.webp' : null) : null)} />}
-        status={pending || selectedSlot.status === 'loading' ? everywhere ? 'Loading replacement…' : 'Loading media…' : activePool ? `${compatiblePoolCount} media items${everywhere && !compatiblePoolCount ? ' · Showing default eyes' : ''}` : selectedSlot.required && !selectedSlot.source ? 'Choose compatible media.' : undefined}
+        status={pending || selectedSlot.status === 'loading' ? everywhere ? 'Loading replacement…' : 'Loading media…' : activePool ? `${compatiblePoolCount} media items${!compatiblePoolCount ? everywhere ? ' · Showing default eyes' : ' · Showing native content' : ''}` : selectedSlot.required && !selectedSlot.source ? 'Choose compatible media.' : undefined}
         error={selectedSlot.error} actions={[
           { id: 'replace', label: activePool || displayedSource ? 'Replace source' : 'Choose source', onSelect: () => queueMicrotask(() => (library.current?.querySelector<HTMLElement>('input') ?? library.current?.querySelector<HTMLElement>('button'))?.focus()) },
           ...(!selectedSlot.required && (activePool || selectedSlot.source || pending) ? [{ id: 'reset', label: everywhere ? 'Restore Default Eyes' : 'Remove source / Restore built-in', onSelect: () => { request.current++; setPending(false); setActionMenu(null); resetCinema2Media(runtime, selectedSlot.id, poolCapable) } }] : []),

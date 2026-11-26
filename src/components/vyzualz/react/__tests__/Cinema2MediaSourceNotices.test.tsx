@@ -13,7 +13,7 @@ const snapshot = {
     presentation: {}, error: null, readyWidth: null, readyHeight: null, playback: null,
   }],
 }
-const mediaRuntime = { subscribe: () => () => undefined, getSnapshot: () => snapshot, replace: mocks.replace }
+const mediaRuntime = { subscribe: () => () => undefined, getSnapshot: () => snapshot, replace: mocks.replace, getCommittedSource: () => null, cancelPendingReplacement: () => {} }
 
 vi.mock('../../media/MediaLibraryBrowser', () => ({
   MediaLibraryBrowser: ({ onSelect }: { onSelect: (id: string) => void }) => <button data-testid="pick" onClick={() => onSelect('media-1')}>pick</button>,

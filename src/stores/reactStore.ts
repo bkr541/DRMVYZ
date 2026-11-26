@@ -1,4 +1,4 @@
-import { migrateCinema2LegacyPoolSelection } from '../components/vyzualz/cinema2/runtime/Cinema2WorkspacePersistence'
+import { migrateCinema2LegacyPoolSelection, reconcileCinema2PoolReferences } from '../components/vyzualz/cinema2/runtime/Cinema2WorkspacePersistence'
 import { isNativePadDestination, activateNativePadDestination } from '../components/vyzualz/react/performancePadDestinations'
 import { blockTextSceneNavigation, requestTextSceneNavigation } from '../features/cinema2Text/textSceneNavigation'
 import { create } from 'zustand'
@@ -4175,8 +4175,11 @@ function retireLegacyReactEngineState(
   input: Record<string, unknown>,
   originalSelection: Cinema2LegacySelectionMigration | null = null,
 ): Record<string, unknown> {
-  const workspace = migrateCinema2LegacyPoolSelection(normalizeCinema2WorkspaceDocument(input.cinema2Workspace),
-    normalizeCanvasOrchestrationSettings(input.canvasOrchestrationSettings).activeMediaPoolId)
+  const canvas = normalizeCanvasOrchestrationSettings(input.canvasOrchestrationSettings)
+  const migratedWorkspace = migrateCinema2LegacyPoolSelection(normalizeCinema2WorkspaceDocument(input.cinema2Workspace), canvas.activeMediaPoolId)
+  const workspace = input.canvasOrchestrationSettings === undefined
+    ? migratedWorkspace
+    : reconcileCinema2PoolReferences(migratedWorkspace, canvas.mediaPools)
   const selection = migrateLegacyReactSelectionToCinema2({
     workspace,
     engineId: input.activeReactEngineId,
@@ -6507,6 +6510,7 @@ export function mergeReactStoreState(
     laserDmxBeamMatrixPresetDirty: dirty,
     canvasEngineSettings: createCanvasEngineSettingsForPersistence(merged.canvasEngineSettings),
     canvasOrchestrationSettings,
+    cinema2Workspace: reconcileCinema2PoolReferences(merged.cinema2Workspace, canvasOrchestrationSettings.mediaPools),
     canvasPresetOverride: merged.canvasEngineSettings.autoSelectEnabled || merged.canvasPresetOverride?.source !== 'auto'
       ? merged.canvasPresetOverride
       : null,
@@ -6719,7 +6723,10 @@ export const useReactStore = create<ReactStoreState>()(
         return result
       },
       storeCinema2WorkspacePresetState: (state) => set(current => ({
-        cinema2Workspace: storeCinema2WorkspacePresetDocumentState(current.cinema2Workspace, state),
+        cinema2Workspace: reconcileCinema2PoolReferences(
+          storeCinema2WorkspacePresetDocumentState(current.cinema2Workspace, state),
+          current.canvasOrchestrationSettings.mediaPools,
+        ),
       })),
       archiveLegacyCinemaDocument: (legacyDocument, archivedAt) => set(current => ({
         cinema2Workspace: archiveLegacyCinemaDocument(current.cinema2Workspace, legacyDocument, archivedAt),
@@ -7301,6 +7308,7 @@ export const useReactStore = create<ReactStoreState>()(
         }
         return {
           canvasOrchestrationSettings,
+          cinema2Workspace: reconcileCinema2PoolReferences(state.cinema2Workspace, canvasOrchestrationSettings.mediaPools),
           selectedCanvasLayerId: canvasOrchestrationSettings.authoredLayers.some(layer => layer.id === state.selectedCanvasLayerId)
             ? state.selectedCanvasLayerId
             : null,
@@ -7953,6 +7961,7 @@ export const useReactStore = create<ReactStoreState>()(
           if (!removed) return {}
           result = { ok: true, pool: removed }
           return {
+            cinema2Workspace: reconcileCinema2PoolReferences(state.cinema2Workspace, current.filter(pool => pool.id !== poolId)),
             canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings({
               ...state.canvasOrchestrationSettings,
               mediaPools: current.filter(pool => pool.id !== poolId),
@@ -8253,6 +8262,7 @@ export const useReactStore = create<ReactStoreState>()(
           selectedCanvasPresetId: DEFAULT_CANVAS_PRESET_ID,
           canvasPresetSettings: { ...DEFAULT_CANVAS_PRESET_SETTINGS },
           canvasPresetOverride: DEFAULT_CANVAS_PRESET_OVERRIDE_STATE,
+          cinema2Workspace: reconcileCinema2PoolReferences(state.cinema2Workspace, DEFAULT_CANVAS_ORCHESTRATION_SETTINGS.mediaPools),
           canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings(DEFAULT_CANVAS_ORCHESTRATION_SETTINGS),
           selectedCanvasLayerId: null,
           canvasControlScope: { kind: 'canvas' },
@@ -13001,6 +13011,7 @@ export const useReactStore = create<ReactStoreState>()(
               selectedCanvasPresetId: DEFAULT_CANVAS_PRESET_ID,
               canvasPresetSettings: { ...DEFAULT_CANVAS_PRESET_SETTINGS },
               canvasPresetOverride: DEFAULT_CANVAS_PRESET_OVERRIDE_STATE,
+              cinema2Workspace: reconcileCinema2PoolReferences(s.cinema2Workspace, DEFAULT_CANVAS_ORCHESTRATION_SETTINGS.mediaPools),
               canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings(DEFAULT_CANVAS_ORCHESTRATION_SETTINGS),
               selectedCanvasLayerId: null,
               canvasControlScope: { kind: 'canvas' },

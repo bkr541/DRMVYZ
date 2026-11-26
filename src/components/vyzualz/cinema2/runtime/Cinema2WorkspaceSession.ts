@@ -27,11 +27,9 @@ export function captureCinema2WorkspacePresetState(
   const presetId = runtime.getCompiledPresetPlan().presetId
   const mediaSlots = runtime.getMediaSlotRuntimeSnapshot().slots
     .flatMap(slot => {
-      // Everywhere may retain the last good image while a new one decodes.
-      // Never serialize an uncommitted candidate (including a failed first load).
-      const committed = slot.id === 'everywhere-screen-media'
-        ? runtime.getMediaSlotRuntime().getCommittedSource(slot.id)
-        : slot.source ? { source: slot.source, presentation: slot.presentation } : null
+      // All slots retain their last good resource while a candidate decodes.
+      // Do not persist an uncommitted or failed candidate.
+      const committed = runtime.getMediaSlotRuntime().getCommittedSource(slot.id)
       return committed ? [Object.freeze({ slotId: slot.id, ...committed })] : []
     })
 

@@ -14,6 +14,8 @@ import {
   type Cinema2RuntimeSnapshot,
   type Cinema2WorkspacePresetState,
 } from '../cinema2'
+import { useReactStore } from '../../../stores/reactStore'
+import { subscribeCinema2MediaDeletion } from '../../../stores/cinema2MediaDeletion'
 import { notify } from '../../../stores/notificationStore'
 import { Cinema2ModelRuntimeNotices } from './Cinema2ModelRuntimeNotices'
 import { DrawerNotice } from '../shared/DrawerNotice'
@@ -118,6 +120,8 @@ export function Cinema2Stage({
     let resizeObserver: ResizeObserver | null = null
     let lastResolution: CanvasResolution | null = null
     let retired = false
+    let unsubscribeMediaDeletion: (() => void) | undefined
+    let restoringMedia: Readonly<Cinema2WorkspacePresetState> | null | undefined
     const analyserFramePump = new MusicIntelligenceAnalyserFramePump({ publisherId: 'react:cinema2' })
 
     const reportSnapshot = (snapshot: Cinema2RuntimeSnapshot) => {
@@ -154,10 +158,24 @@ export function Cinema2Stage({
     const retireOwnedResources = () => {
       if (retired) return
       retired = true
+      unsubscribeMediaDeletion?.()
       resizeObserver?.disconnect()
       window.removeEventListener('resize', resize)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
-      if (runtime) onRuntimeRetiringRef.current?.(captureCinema2WorkspacePresetState(runtime))
+      if (runtime) {
+        const captured = captureCinema2WorkspacePresetState(runtime)
+        // StrictMode/healing may retire during the initial decode. Preserve an
+        // existing saved assignment only if that exact restore is still in
+        // progress and has not been removed from the authoritative document.
+        const canonical = useReactStore.getState().cinema2Workspace.presets.find(preset => preset.presetId === captured.presetId)
+        const retained = (restoringMedia?.mediaSlots ?? []).filter(saved => {
+          if (captured.mediaSlots.some(slot => slot.slotId === saved.slotId)) return false
+          if (canonical && !canonical.mediaSlots.some(slot => slot.slotId === saved.slotId && slot.source.id === saved.source.id)) return false
+          const slot = runtime?.getMediaSlotRuntime().getSlotSnapshot(saved.slotId)
+          return slot?.status === 'loading' && slot.source?.id === saved.source.id && slot.source?.revision === saved.source.revision
+        })
+        onRuntimeRetiringRef.current?.({ ...captured, mediaSlots: [...captured.mediaSlots, ...retained] })
+      }
       onRuntimeReadyRef.current?.(null)
       onRuntimeSnapshotRef.current?.(null)
       setActiveRuntime(null)
@@ -233,10 +251,14 @@ export function Cinema2Stage({
       }
 
       runtime = created.runtime
+      unsubscribeMediaDeletion = subscribeCinema2MediaDeletion(id => runtime?.getMediaSlotRuntime().removeSourceById(id))
       setActiveRuntime(runtime)
       onRuntimeReadyRef.current?.(runtime)
-      const restoreMedia = restoreState?.poolId ? { ...restoreState, mediaSlots: restoreState.mediaSlots.filter(slot => !cinema2SlotSupportsPool(slot.slotId)) } : restoreState
+      const savedMedia = useReactStore.getState().cinema2Workspace.presets.find(preset => preset.presetId === runtime?.getCompiledPresetPlan().presetId) ?? restoreState
+      const restoreMedia = savedMedia?.poolId ? { ...savedMedia, mediaSlots: savedMedia.mediaSlots.filter(slot => !cinema2SlotSupportsPool(slot.slotId)) } : savedMedia
+      restoringMedia = restoreMedia
       void restoreCinema2WorkspaceMedia(runtime, restoreMedia).catch(error => {
+        if (retired) return
         notify('react', {
           tone: 'warning',
           title: 'Saved media not restored',

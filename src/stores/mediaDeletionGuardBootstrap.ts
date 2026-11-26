@@ -2,6 +2,7 @@ import { createCanvasAuthoringMediaDeletionGuard } from '../components/vyzualz/r
 import { createPixGridDeckMediaDeletionGuard } from '../components/vyzualz/react/pixGrid/PixGridDeckMediaDeletion'
 import { createCanvasShowManagerMediaDeletionGuard } from '../components/vyzualz/showManager/CanvasShowManagerMediaDeletion'
 import { registerMediaDeletionGuard } from './mediaStore'
+import { cinema2MediaDeletionGuard } from './cinema2MediaDeletion'
 import { composeMediaDeletionGuards } from './mediaDeletionGuards'
 import { useReactStore } from './reactStore'
 
@@ -16,4 +17,5 @@ registerMediaDeletionGuard(composeMediaDeletionGuards(
   canvasAuthoringGuard,
   canvasShowGuard,
   pixGridDeckGuard,
+  cinema2MediaDeletionGuard,
 ))

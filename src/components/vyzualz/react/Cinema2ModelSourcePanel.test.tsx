@@ -14,7 +14,8 @@ vi.mock('../media/ModelLibraryCards', () => ({
 
 import { WithNotificationDrawer, drawerText } from '../../../test/WithNotificationDrawer'
 import { Cinema2ModelRuntimeNotices } from './Cinema2ModelRuntimeNotices'
-import { Cinema2ModelSourcePanel, findCinema2UserModelParameter } from './Cinema2ModelSourcePanel'
+import { Cinema2ModelSourcePanel, findCinema2UserModelParameter, resolveCinema2SourcePanels } from './Cinema2ModelSourcePanel'
+import { CINEMA2_EVERYWHERE_PRESET_MANIFEST } from '../cinema2/presets/Cinema2EverywherePreset'
 import { CINEMA2_BASS_SIGIL_PRESET_MANIFEST } from '../cinema2/presets/Cinema2BassSigilPreset'
 import { useModelEditorStore } from '../../../features/models/state/modelEditorStore'
 import { CINEMA2_MONUMENT_PRESET_MANIFEST } from '../cinema2/presets/Cinema2MonumentPreset'
@@ -52,6 +53,13 @@ const render = async (initial: string, diagnostics: { code: string; message: str
 }
 
 describe('model slot detection', () => {
+  it('composes independently declared source kinds without changing single-kind presets', () => {
+    expect(resolveCinema2SourcePanels(CINEMA2_EVERYWHERE_PRESET_MANIFEST)).toEqual({ modelParameter: null, media: true })
+    expect(resolveCinema2SourcePanels(CINEMA2_MONUMENT_PRESET_MANIFEST)).toEqual({ modelParameter: 'monument-model', media: false })
+    const fixture = { ...CINEMA2_COLOSSUS_PRESET_MANIFEST, mediaSlots: CINEMA2_EVERYWHERE_PRESET_MANIFEST.mediaSlots }
+    expect(resolveCinema2SourcePanels(fixture)).toEqual({ modelParameter: 'colossus-model', media: true })
+  })
+
   it('finds the model parameter of Bass Sigil, Chamber and the 3D preview presets, and none on a preset without a slot', () => {
     expect(findCinema2UserModelParameter(CINEMA2_BASS_SIGIL_PRESET_MANIFEST)).toBe('bass-sigil-model')
     expect(findCinema2UserModelParameter(CINEMA2_CHAMBER_PRESET_MANIFEST)).toBe('chamber-model')
