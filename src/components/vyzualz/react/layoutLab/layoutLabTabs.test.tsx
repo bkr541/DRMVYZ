@@ -171,7 +171,7 @@ describe('persistent Layout Lab tabs', () => {
     const panel = host.querySelector<HTMLElement>('#layout-lab-tab-16-panel')!
     expect(panel.hidden).toBe(false)
     const studies = [...panel.querySelectorAll('[data-preset-filter-study]')]
-    expect(studies.map(study => study.getAttribute('data-preset-filter-study'))).toEqual(['dropdowns', 'smart-search', 'facet-ribbon', 'field-search', 'facet-navigator', 'rule-builder', 'match-index'])
+    expect(studies.map(study => study.getAttribute('data-preset-filter-study'))).toEqual(['dropdowns', 'smart-search', 'filter-menu', 'filter-checklist', 'grouped-search', 'metadata-suggestions', 'visual-search'])
     const study = studies[0]!
     const trigger = study.querySelector<HTMLButtonElement>('button.ll-pf-filter-trigger')!
     expect(trigger.textContent).toBe('')
@@ -264,62 +264,114 @@ describe('persistent Layout Lab tabs', () => {
       expect(study.querySelector('[aria-label="Select Afterhours"]')).toBeNull()
       await act(async () => scopeKey.click())
       expect(study.querySelector('[aria-label="Select Afterhours"]')).not.toBeNull()
-      // All five alternatives must honor the same ownership and operate independently.
-      const alternative = (id: string) => host.querySelector<HTMLElement>(`[data-preset-filter-study="${id}"]`)!
-      const clickButton = async (element: HTMLElement, label: string) => {
-        const button = [...element.querySelectorAll('button')].find(item => item.textContent === label || item.getAttribute('aria-label') === label)!
-        expect(button).toBeDefined()
-        await act(async () => button.click())
-      }
-      const enter = async (element: HTMLInputElement, text: string) => {
-        await act(async () => {
-          Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(element, text)
-          element.dispatchEvent(new Event('input', { bubbles: true }))
-        })
-      }
-      const ids = ['facet-ribbon', 'field-search', 'facet-navigator', 'rule-builder', 'match-index']
-      for (const id of ids) {
-        const preview = alternative(id)
-        expect(preview.querySelector('[aria-label="Select Afterhours"]')).toBeNull()
-        await clickButton(preview, 'User presets')
-        expect(preview.querySelector('[role="status"]')?.textContent).toBe('1 preset')
-      }
-      const ribbon = alternative('facet-ribbon')
-      await clickButton(ribbon, 'Add Afterhours to favorites')
-      await clickButton(ribbon, 'Favorites')
-      expect(ribbon.querySelector('[role="status"]')?.textContent).toBe('1 preset')
-      const fieldSearch = alternative('field-search')
-      await enter(fieldSearch.querySelector<HTMLInputElement>('[aria-label="Field Search search"]')!, 'TestCollection')
-      await clickButton(fieldSearch, 'Name')
-      expect(fieldSearch.querySelector('[role="status"]')?.textContent).toBe('0 presets')
-      await clickButton(fieldSearch, 'Collections')
-      expect(fieldSearch.querySelector('[role="status"]')?.textContent).toBe('1 preset')
-      const navigator = alternative('facet-navigator')
-      await clickButton(navigator, 'Tags')
-      await enter(navigator.querySelector<HTMLInputElement>('[aria-label="Find filter values"]')!, 'TestTagUnique')
-      const tag = navigator.querySelector<HTMLInputElement>('.ll-pfa-value-list input')!
-      await act(async () => tag.click())
-      expect(navigator.querySelector('[aria-label="Remove TestTagUnique"]')).not.toBeNull()
-      const builder = alternative('rule-builder')
-      const setSelect = async (label: string, value: string) => {
-        const control = builder.querySelector<HTMLSelectElement>(`[aria-label="${label}"]`)!
-        await act(async () => { control.value = value; control.dispatchEvent(new Event('change', { bubbles: true })) })
-      }
-      await setSelect('Rule field', 'collection')
-      await setSelect('Rule value', 'test-collection')
-      await clickButton(builder, 'Add filter rule')
-      expect(builder.querySelector('[aria-label="Remove TestCollectionUnique"]')).not.toBeNull()
-      const index = alternative('match-index')
-      await clickButton(index, 'Collections')
-      await enter(index.querySelector<HTMLInputElement>('[aria-label="Match Index search"]')!, 'TestCollection')
-      expect(index.querySelector('.ll-pfa-index-values mark')?.textContent).toBe('TestCollection')
-      await act(async () => index.querySelector<HTMLButtonElement>('.ll-pfa-index-values button')!.click())
-      expect(index.querySelector('[aria-label="Remove TestCollectionUnique"]')).not.toBeNull()
-      expect(fieldSearch.querySelector('[aria-label="Remove TestCollectionUnique"]')).toBeNull()
       await act(async () => usePresetCatalogStore.setState({ heldPresetIds: [] }))
       expect(study.querySelector('[aria-label="Select Afterhours"]')).toBeNull()
-      for (const id of ids) expect(alternative(id).querySelector('[aria-label="Select Afterhours"]')).toBeNull()
       expect(original.querySelector('[aria-label="Select Afterhours"]')).not.toBeNull()
+    } finally {
+      await act(async () => {
+        usePresetCatalogStore.setState(catalog)
+        usePresetOrganizationStore.setState(organization)
+        useMediaStore.setState(media)
+      })
+    }
+  })
+
+  it('keeps new filter and search interactions inside anchored popovers', async () => {
+    const catalog = usePresetCatalogStore.getState()
+    const organization = usePresetOrganizationStore.getState()
+    const media = useMediaStore.getState()
+    try {
+      await render()
+      await act(async () => tab(16).click())
+      const presetKey = 'drmvyz.cinema2.afterhours'
+      await act(async () => {
+        usePresetCatalogStore.setState({ status: 'ready', entries: [{ id: 'owned', engine_id: 'cinema2', preset_key: presetKey, scope: 'user' }], heldPresetIds: ['owned'] })
+        usePresetOrganizationStore.setState({ status: 'ready', records: { [`cinema2:${presetKey}`]: { tags: ['TestTagUnique'], collectionIds: ['test-collection'] } } })
+        useMediaStore.setState({ collections: [{ id: 'test-collection', name: 'TestCollectionUnique' }] })
+      })
+      const study = (id: string) => host.querySelector<HTMLElement>(`[data-preset-filter-study="${id}"]`)!
+      const enter = async (input: HTMLInputElement, value: string) => {
+        await act(async () => {
+          Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value)
+          input.dispatchEvent(new Event('input', { bubbles: true }))
+        })
+      }
+      const click = async (element: HTMLElement) => { await act(async () => element.click()) }
+      const key = async (element: HTMLElement, value: string) => {
+        await act(async () => element.dispatchEvent(new KeyboardEvent('keydown', { key: value, bubbles: true })))
+      }
+      const result = (element: HTMLElement) => element.querySelector('[role="status"]')?.textContent
+      const button = (element: HTMLElement, label: string) => [...element.querySelectorAll('button')].find(b => b.textContent === label)!
+      for (const id of ['filter-menu', 'filter-checklist', 'grouped-search', 'metadata-suggestions', 'visual-search']) {
+        const element = study(id)
+        expect(element.querySelector('.ll-pf-controls')?.children).toHaveLength(1)
+        expect(element.querySelector('.ll-pf-smart-anchor')?.children).toHaveLength(1)
+        expect(element.querySelector('.ll-pf-smart-popover')).toBeNull()
+        expect(element.querySelector('[data-preset-grid]')).not.toBeNull()
+      }
+      const menu = study('filter-menu')
+      const initial = result(menu)
+      const menuTrigger = menu.querySelector<HTMLButtonElement>('[aria-label="Filters"]')!
+      await click(menuTrigger)
+      await click(menu.querySelector<HTMLButtonElement>('[data-pfp-group="collection"]')!)
+      const menuOption = menu.querySelector<HTMLInputElement>('[role="group"][aria-label="Collections"] input')!
+      await click(menuOption)
+      expect(result(menu)).toBe('1 preset')
+      await click(menu.querySelector<HTMLButtonElement>('[aria-label="Back to filters"]')!)
+      await click(button(menu, 'Done'))
+      expect(menu.querySelector('[role="dialog"]')).toBeNull()
+      expect(menuTrigger.dataset.hasFilters).toBe('true')
+      await click(menuTrigger)
+      await click(button(menu, 'Clear all'))
+      expect(result(menu)).toBe(initial)
+      await key(menu.querySelector<HTMLButtonElement>('[data-pfp-group="name"]')!, 'Escape')
+      expect(menu.querySelector('[role="dialog"]')).toBeNull()
+      expect(document.activeElement).toBe(menuTrigger)
+      const checklist = study('filter-checklist')
+      const checklistInitial = result(checklist)
+      const checklistTrigger = checklist.querySelector<HTMLButtonElement>('[aria-label="Filters"]')!
+      await click(checklistTrigger)
+      await enter(checklist.querySelector<HTMLInputElement>('[aria-label="Find filter options"]')!, 'TestTagUnique')
+      await click(checklist.querySelector<HTMLInputElement>('[role="group"][aria-label="Tags"] input')!)
+      expect(result(checklist)).toBe(checklistInitial)
+      await click(button(checklist, 'Cancel'))
+      expect(result(checklist)).toBe(checklistInitial)
+      await click(checklistTrigger)
+      await enter(checklist.querySelector<HTMLInputElement>('[aria-label="Find filter options"]')!, 'TestTagUnique')
+      await click(checklist.querySelector<HTMLInputElement>('[role="group"][aria-label="Tags"] input')!)
+      await click(button(checklist, 'Apply'))
+      expect(result(checklist)).toBe('1 preset')
+      expect(result(menu)).toBe(initial)
+      const grouped = study('grouped-search')
+      const suggestions = study('metadata-suggestions')
+      const visual = study('visual-search')
+      for (const element of [grouped, suggestions, visual]) {
+        await click(element.querySelector<HTMLButtonElement>('[aria-label="User presets"]')!)
+        expect(element.querySelector('.dv-library-view-toggle')?.getAttribute('data-preset-scope')).toBe('user')
+      }
+      const groupedInput = grouped.querySelector<HTMLInputElement>('[role="combobox"]')!
+      await enter(groupedInput, 'TestTag')
+      expect(grouped.querySelector('[role="group"][aria-label="Metadata matches"] [role="option"] mark')?.textContent).toBe('TestTag')
+      await key(groupedInput, 'ArrowDown')
+      expect(groupedInput.getAttribute('aria-activedescendant')).toBe(grouped.querySelector('[role="option"]')?.id)
+      await key(groupedInput, 'Enter')
+      expect(groupedInput.value).toBe('Afterhours')
+      expect(groupedInput.getAttribute('aria-expanded')).toBe('false')
+      const suggestionInput = suggestions.querySelector<HTMLInputElement>('[role="combobox"]')!
+      await enter(suggestionInput, 'TestCollection')
+      const suggestion = suggestions.querySelector<HTMLElement>('[role="group"][aria-label="Collections"] [role="option"]')!
+      expect(suggestion.querySelector('mark')?.textContent).toBe('TestCollection')
+      await click(suggestion)
+      expect(suggestionInput.value).toBe('TestCollectionUnique')
+      expect(result(suggestions)).toBe('1 preset')
+      expect(suggestions.querySelector('[aria-label="Select Afterhours"]')).not.toBeNull()
+      const visualInput = visual.querySelector<HTMLInputElement>('[role="combobox"]')!
+      await enter(visualInput, 'afterh')
+      expect(visual.querySelector('[role="option"] .rv-preset-spotlight-thumb--frame')).not.toBeNull()
+      await key(visualInput, 'Escape')
+      expect(visualInput.getAttribute('aria-expanded')).toBe('false')
+      expect(result(menu)).toBe(initial)
+      expect(result(checklist)).toBe('1 preset')
     } finally {
       await act(async () => {
         usePresetCatalogStore.setState(catalog)
