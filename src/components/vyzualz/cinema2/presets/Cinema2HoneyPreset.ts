@@ -49,8 +49,8 @@ const motionParameters:Cinema2ParameterManifest[]=[
   slider('motion','Motion Amount','master-controls','Motion',1,d.motion,0,1),
   {...base('bpm-sync','BPM Sync','master-controls','Motion',2),type:'boolean',defaultValue:true},
   {...base('auto-performance','Auto Performance','master-controls','Motion',3),type:'boolean',defaultValue:false},
-  {...base('camera-motion','Camera Motion','master-controls','Camera',4),type:'boolean',defaultValue:true},
-  {...slider('camera-sway','Camera Motion Intensity','master-controls','Camera',5,.55,0,1),visibleWhen:[{kind:'parameter-equals',parameterId:honeyParameterId('camera-motion'),value:true}]},
+  {...base('camera-motion','Camera Motion','design','Camera',4),type:'boolean',defaultValue:true},
+  {...slider('camera-sway','Camera Motion Intensity','design','Camera',5,.55,0,1),visibleWhen:[{kind:'parameter-equals',parameterId:honeyParameterId('camera-motion'),value:true}]},
   {...base('pattern','Pattern','design','Pattern',1),type:'enum',defaultValue:'cascade',options:HONEY_PATTERNS},
   {...base('pattern-change','Pattern Change','design','Pattern',2),type:'boolean',defaultValue:false},
   {...base('trigger','Trigger','design','Pattern',3),type:'enum',defaultValue:'bar4',options:CINEMA2_AFTERHOURS_TRIGGER_OPTIONS,visibleWhen:[{kind:'parameter-equals',parameterId:honeyParameterId('pattern-change'),value:true}]},
@@ -100,16 +100,16 @@ function honeyMoodDrives():Cinema2MoodDrive[]{
     for(const [source,value] of pairs)drives.push({id:`${id}-${source.slice(5)}`,target,source,operation:'multiply',value})
   }
   const module=(key:string,...pairs:Pair[])=>add(key.toLowerCase(),cinema2AutoTargets.module(CINEMA2_HONEY_MODULE_ID,key),...pairs)
-  module('motion',['mood.activity',1.3],['mood.calm',.65],['mood.silence',.65])
+  module('motion',['mood.activity',1.38],['mood.calm',.58],['mood.silence',.65])
   module('coverage',['mood.activity',1.25],['mood.calm',.72],['mood.silence',.6])
-  module('rate',['mood.drive',1.32],['mood.calm',.7])
+  module('rate',['mood.drive',1.2],['mood.calm',.68])
   module('attack',['mood.shock',.65],['mood.calm',1.4])
-  module('release',['mood.calm',1.45],['mood.drive',.72])
-  module('elevation',['mood.calm',.62],['mood.peak',1.12])
+  module('release',['mood.calm',1.45],['mood.drive',.6])
+  module('elevation',['mood.calm',.52],['mood.peak',1.18])
   module('rotation',['mood.complexity',1.22],['mood.calm',.7])
   module('tilt',['mood.tense',1.28],['mood.calm',.68])
   module('separation',['mood.peak',1.3],['mood.calm',.7])
-  module('width',['mood.build',.7],['mood.peak',1.25])
+  module('width',['mood.build',.85],['mood.peak',1.15])
   module('delay',['mood.build',1.35],['mood.drive',.72])
   module('masterIntensity',['mood.peak',1.16],['mood.calm',.8])
   module('audioReactivity',['mood.activity',1.18],['mood.calm',.75])
@@ -118,8 +118,8 @@ function honeyMoodDrives():Cinema2MoodDrive[]{
   module('underGain',['mood.build',1.22],['mood.shock',1.18],['mood.calm',.72])
   module('lightSpill',['mood.peak',1.18],['mood.calm',.78])
   add('ambient',{kind:'light',ref:cinema2Ref(cinema2StableId<Cinema2LightId>('honey-ambient')),property:'intensity'},['mood.calm',1.15],['mood.peak',.85])
-  add('bloom',cinema2AutoTargets.effect('honey-bloom','intensity'),['mood.peak',1.3],['mood.calm',.7])
-  add('ao',cinema2AutoTargets.effect('honey-ao','intensity'),['mood.build',1.18],['mood.peak',.82])
+  add('bloom',cinema2AutoTargets.effect('honey-bloom','intensity'),['mood.peak',1.15],['mood.calm',.7])
+  add('ao',cinema2AutoTargets.effect('honey-ao','intensity'),['mood.build',1.18],['mood.peak',1.12])
   add('camera-sway',cinema2AutoTargets.camera(camera,'control.motionAmount'),['mood.activity',1.15],['mood.calm',.68])
   module('particleAmount',['mood.brightness',1.3],['mood.calm',.7])
   add('haze',cinema2AutoTargets.effect('honey-atmosphere','density'),['mood.build',1.3],['mood.calm',.75])

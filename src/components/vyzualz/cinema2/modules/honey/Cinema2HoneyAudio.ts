@@ -73,7 +73,7 @@ export class Cinema2HoneyAudio {
     const low=cluster(211),bass=cluster(223),regional=cluster(227),fine=cell(229),side=(q+r)%2===0?1:-1
     // Independent spatial masks: sustained axial pressure, clustered offsets, regional coverage, and fine light detail.
     const {tension,concentration}=honeyBuildPerformance(c.tension,this.director.directorBuild,regional)
-    let z=c.sub*.18*(.35+.65*low)+c.bass*.24*(bass>.52?1:-.45)+c.lowMid*.13*(regional>.48?1:0)-tension*.13*(.3+.7*concentration)
+    let z=c.sub*.32*(.35+.65*low)+c.bass*.48*(bass>.52?1:-.45)+c.lowMid*.18*(regional>.48?1:0)-tension*.42*(.3+.7*concentration)
     let tilt=c.mid*.36*side*(.3+.7*fine), lateral=c.bass*.008*(bass>.52?1:-1)
     let outer=c.lowMid*.26*(regional>.48?1:0)+c.energy*.18*smooth((.4+.5*c.energy-cell(233))*3)+c.flux*.21*(fine>.7?1:0)
     let inner=c.mid*.27*(side>0?1:.12)+c.high*.20*(cell(239)>.7?1:0)+c.air*.15*(cell(241)>.83?1:0)
@@ -81,15 +81,15 @@ export class Cinema2HoneyAudio {
     for(const e of this.envelopes){
       const v=envelope(e)*e.weight,region=cluster(e.salt),local=cell(e.salt),selected=region>.57-e.coverage,opposite=region<.38
       switch(e.kind){
-        case 'kick':if(selected&&side>0){z+=v*.28;under+=v*.48}break
-        case 'snare':if(region<.38+e.coverage*.5&&side<0){z-=v*.20;inner+=v*.62}break
+        case 'kick':if(selected&&side>0){z+=v*.62;under+=v*.48}break
+        case 'snare':if(region<.38+e.coverage*.5&&side<0){z-=v*.36;inner+=v*.62}break
         case 'beat':if(local>.83){outer+=v*.28;z+=v*.035}break
-        case 'downbeat':if(region>.43-e.coverage*.5){z+=v*.21;outer+=v*.25;under+=v*.18}break
+        case 'downbeat':if(region>.43-e.coverage*.5){z+=v*.42;outer+=v*.25;under+=v*.18}break
         case 'bar':if(selected){tilt+=v*.19*side;outer+=v*.22}break
-        case 'phrase':if(region>.55){z+=v*.16;under+=v*.29}else if(opposite){z-=v*.10}break
+        case 'phrase':if(region>.48-e.coverage){z+=v*.48;under+=v*.29}else if(opposite){z-=v*.32}break
         case 'section':if(selected){tilt-=v*.24*side;inner+=v*.31}break
-        case 'build':if(selected){z-=v*.15;under+=v*.24}break
-        case 'drop':if(region>.48-e.coverage){z+=v*.34;outer+=v*.34;under+=v*.38}else if(opposite){z-=v*.12;inner+=v*.18}break
+        case 'build':if(selected){z-=v*.48;under+=v*.38}break
+        case 'drop':if(region>.42-e.coverage){z+=v*.85;outer+=v*.34;under+=v*.58}else if(opposite){z-=v*.45;inner+=v*.18}break
       }
     }
     const kinetic=g*k.motion*(1-c.vocal*.55), coverage=clamp((k.coverage-cell(247))*5+.3)

@@ -515,3 +515,24 @@ node scripts/run-cinema2-honey-browser.mjs --p06
 ```
 
 Exact P07 changes: `src/components/vyzualz/cinema2/modules/honey/Cinema2HoneyOrchestration.ts`, `src/components/vyzualz/cinema2/__tests__/Cinema2HoneyPatterns.test.ts`, `src/components/vyzualz/cinema2/__tests__/Cinema2HoneyControls.test.ts`, and `docs/cinema2-honey.md`. No shared file, catalog role, other preset, test harness, dependency or generated artifact changed. Packaging uses a staged full-index binary unified diff against the supplied P06 baseline; clean application and staged-tree comparison are verified separately at handoff. P07 is the final numbered phase, but release itself remains blocked.
+
+## HON-01 — kinetic choreography (after HON-02)
+
+All eight saved IDs and displayed labels remain unchanged. The new native programs use the same shared phase and safe pose projection as before:
+
+| ID / existing label | Geometry program |
+|---|---|
+| `cascade` / Cascade | Diagonal descending staircase with trailing retraction |
+| `shockwave` / Shockwave | Radial pressure crest and compression trough |
+| `fracture` / Fracture | Staggered axial islands, dark fault lines, release and shear |
+| `alternating` / Alternating | Center-first hive blooms with alternating districts |
+| `convergence` / Convergence | Inward reconstruction, alignment, return to authored home |
+| `current` / Current | Two rotating spiral arms and opposing recessed troughs |
+| `submerge` / Submerge | Gravity-driven tiered settling and slower reload |
+| `overdrive` / Overdrive | Central eruption and staggered satellite vents |
+
+No new parameters, persistence migration, musical detector, clock, renderer, shadow pass or asset dependency. Pattern/Pattern Change/Trigger, saved values, no-source preview and Auto locks retain their existing ownership. The existing camera toggle (default true) and motion intensity (default .55, normalized 0–1, step .01) are grouped under Design > Camera without changing bindings or motion. Wave Width and Spread Delay retain the existing units/ranges and also shape the vortex. Attack/release still control the shared native pose damping; transitions retain the selected beat length. Fixed cell coefficients are weakly cached, and pose blending avoids intermediate tuple allocation.
+
+The existing shared cue and continuous routes are unchanged. Low-frequency depth pressure, kick impact, phrase-scale clusters, build compression and drop release now use more of the HON-02 travel range. High/air remain light-only. Native depth audio contribution is bounded to [-.72, +.90] world units before the existing audio, motion and travel multipliers and safety clamp. Shared Mood multipliers now favor restrained calm, quicker active release, stronger peak depth and AO rather than excessive bloom; saved defaults and the Auto toggle default are unchanged. The existing key shadow and compact local spill give exposed side faces more weight without adding draw calls or changing palette/material identities.
+
+Verification in the patch-authoring environment (Node 22.16): a matched CPU-only 625-cell / 120-frame target-and-damping loop reported baseline 2.55/2.28/2.23 ms per frame and candidate 2.39/2.08/2.17 ms per frame (three passes, no GPU, not a production FPS benchmark). At default controls the visible-cell matched beat sweep produced eight distinct safe geometry signatures; gravity-settle peak forward displacement rose from 1.52 to 2.22 world units. The three new kinetic-program test bodies passed using a temporary TypeScript transpilation + Node assertion adapter; all three failed on the unchanged baseline. This is not a Vitest run. Full typecheck/build were blocked by absent `vite/client`, offline Vitest by `ENOTCACHED`, and the existing production browser harness by absent `@playwright/test`. Registry DNS failed. No original review recording/document was supplied with this issue; no before/after production captures, actual shader compilation, Electron playback, GPU timing, visual approval or casting verification was obtained. Existing catalog thumbnail is unchanged pending real capture. Keep reference status until production checks pass.

@@ -233,11 +233,16 @@ void main(){
   float G=nl/(nl*(1.0-k)+k)*nv/(nv*(1.0-k)+k);
   vec3 F0=mix(vec3(.04),base,mat.x),F=F0+(1.0-F0)*pow(1.0-max(dot(H,V),0.0),5.0);
   vec3 spec=min(D*G*F/max(4.0*nl*nv,.01),vec3(.65));
-  float contact=v_role==2?mix(.34,.75,smoothstep(-.1,.42,v_world.z)):1.0;
+  // The sleeve floor remains dark; exposed piston walls and released cap sides
+  // receive grazing light. This uses the existing normal and world position,
+  // with no new passes, shadow maps or screen-space halo.
+  float exposed=smoothstep(.42,1.65,v_world.z);
+  float side=(1.0-abs(N.z))*exposed;
+  float contact=v_role==2?mix(.32,.92,smoothstep(-.1,1.25,v_world.z)):1.0;
   vec3 ambient=base*u_ambient*contact*(1.0-mat.x*.3);
   // Restrained cool environment reflection, with finish-specific roughness and metallic response.
   ambient+=F0*u_ambient*(.06+.16*mat.x)*(1.0-rough)*contact;
-  vec3 direct=(base*(1.0-mat.x*.55)+spec)*nl*u_key*shadowVisibility(N)*contact;
-  vec3 lit=ambient+direct+localSpill(N)*(base*1.1+vec3(.20))+emissive;
+  vec3 direct=(base*(1.0-mat.x*.55)+spec)*nl*u_key*shadowVisibility(N)*contact*(1.0+.38*side);
+  vec3 lit=ambient+direct+localSpill(N)*(base*1.1+vec3(.20))*(1.0+.30*side)+emissive;
   outColor=vec4(pow(max(lit,vec3(0.0)),vec3(1.0/2.2)),1.0);
 }`

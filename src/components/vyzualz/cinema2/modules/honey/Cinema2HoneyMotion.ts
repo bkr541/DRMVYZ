@@ -11,7 +11,10 @@ const lerp=(a:number,b:number,t:number)=>a+(b-a)*t
 const clamp=(v:number)=>Math.max(0,Math.min(1,v))
 export function staticHoneyCell(cell:HoneyCell):HoneyVisualCell{return {...cell,pose:{elevation:cell.elevation,rotation:0,tiltX:0,tiltY:0,x:0,y:0}}}
 export function blendHoneyCell(a:HoneyVisualCell,b:HoneyVisualCell,t:number):HoneyVisualCell{
-  const pose=constrainHoneyPose(Object.fromEntries(keys.map(k=>[k,lerp(a.pose[k],b.pose[k],t)])) as unknown as HoneyPose)
+  const p=a.pose,q=b.pose
+  // This runs for each instanced cell on every frame. Avoid creating six
+  // temporary tuples plus an intermediate mapped array before safety clipping.
+  const pose=constrainHoneyPose({elevation:lerp(p.elevation,q.elevation,t),rotation:lerp(p.rotation,q.rotation,t),tiltX:lerp(p.tiltX,q.tiltX,t),tiltY:lerp(p.tiltY,q.tiltY,t),x:lerp(p.x,q.x,t),y:lerp(p.y,q.y,t)})
   return {...b,pose,elevation:pose.elevation,channels:[lerp(a.channels[0],b.channels[0],t),lerp(a.channels[1],b.channels[1],t),lerp(a.channels[2],b.channels[2],t)]}
 }
 export function targetHoneyCell(c:HoneyCell,s:HoneyPatternSample,k:HoneyMotionControls):HoneyVisualCell{
@@ -44,7 +47,7 @@ export function advanceHoneyCell(state:HoneyCellState,target:HoneyVisualCell,dt:
 /** Audio-only pose contribution, kept out of authored pattern state and transition snapshots. */
 export function honeyAudioPose(base:HoneyVisualCell,k:HoneyMotionControls,kinetic:number,z:number,tilt:number,lateral:number):HoneyPose{
   if(k.motion===0||kinetic===0||(!z&&!tilt&&!lateral))return base.pose
-  const elevation=Math.max(HONEY_MIN_ELEVATION,Math.min(HONEY_MAX_ELEVATION,base.pose.elevation+Math.max(-.35,Math.min(.38,z))*kinetic*k.elevation))
+  const elevation=Math.max(HONEY_MIN_ELEVATION,Math.min(HONEY_MAX_ELEVATION,base.pose.elevation+Math.max(-.72,Math.min(.90,z))*kinetic*k.elevation))
   const raised=honeyFloatingAuthority(elevation)
   return constrainHoneyPose({...base.pose,elevation,tiltX:base.pose.tiltX+Math.max(-.5,Math.min(.5,tilt))*kinetic*k.tilt*HONEY_MAX_TILT*raised,x:base.pose.x+lateral*kinetic*k.separation*raised})
 }
