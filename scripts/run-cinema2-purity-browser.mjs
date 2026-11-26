@@ -41,6 +41,26 @@ try {
   await api('set',{'bpm-sync':false});assert.equal(inspect(await api('status')).beatLocked,false)
   const pauseTravel=inspect(await api('status')).travel;await api('advance',.5,{paused:true});assert.equal(inspect(await api('status')).travel,pauseTravel)
   await api('advance',.1,{paused:false});await api('music',{energy:.5,timeSec:2});assert(inspect(await api('status')).travel<.1,'Seek must reset runtime travel')
+  // Multi-wrap flight on the actual production path, including drop, pause,
+  // motion safety and a subsequent seek. Store timed frames and diagnostics.
+  await api('reset');await api('set',{'auto-performance':false,'camera-motion':false,'pattern-change':false,pattern:'monolith','travel-speed':2,'motion-amount':1,'tunnel-depth':.75})
+  await api('music',{energy:.35,bass:.2,timeSec:20,bpm:180})
+  const flight=[];let last=inspect(await api('status'))
+  const firstCycle=last.travelCycle
+  for(let i=0;i<24;i++){
+    if(i===8)await api('music',{energy:.95,bass:.9,event:'drop',eventId:80,bpm:180})
+    await api('advance',.125)
+    const current=inspect(await api('status'))
+    assert(current.travel>=last.travel,'Flight must never reverse during playback')
+    assert(current.travelVelocity>=0&&Number.isFinite(current.travelVelocity),'Invalid flight velocity')
+    flight.push({frame:i,travel:current.travel,velocity:current.travelVelocity,cycle:current.travelCycle})
+    await capture(`flight-${String(i).padStart(2,'0')}`);last=current
+  }
+  assert(last.travelCycle>=firstCycle+3,'Flight must cover multiple recycling boundaries')
+  const paused=inspect(await api('advance',.25,{paused:true}));assert.equal(paused.travel,last.travel);assert.equal(paused.travelVelocity,0)
+  await api('set',{'motion-safety':'lockoff'});await api('advance',.25);assert.equal(inspect(await api('status')).travel,paused.travel)
+  await api('set',{'motion-safety':'full'});await api('music',{energy:.3,timeSec:2,bpm:120});assert(inspect(await api('status')).travel<.1)
+  await writeFile(path.join(output,'flight.json'),JSON.stringify(flight,null,2))
   const triggerCases=[['beat','beat'],['kick','kick'],['snare','snare'],['downbeat','downbeat'],['beat2','beat'],['beat4','beat'],['bar','bar'],['bar4','bar'],['bar8','bar'],['phrase','phrase'],['drop','drop']]
   let eventId=100,time=2.2
   for(const [trigger,event] of triggerCases){

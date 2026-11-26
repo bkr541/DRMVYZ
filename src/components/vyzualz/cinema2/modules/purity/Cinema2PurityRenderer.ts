@@ -17,6 +17,7 @@ export interface PurityVisualState {
 export class PurityGeometry {
   readonly data = new Float32Array(PURITY_MAX_INSTANCES*STRIDE)
   count=0
+  farFadeEnd=0; farFadeStart=0
   pattern=0; previous=0; transition=1; chase=0; density=.65; contrast=.8; blackout=.75
   private box(x:number,y:number,z:number,angle:number,w:number,h:number,d:number,role:number,light:number,spill:number,detail=0,group=0) {
     if(this.count>=PURITY_MAX_INSTANCES) throw new Error('PURITY instance budget exceeded')
@@ -36,13 +37,18 @@ export class PurityGeometry {
     const floor=-2.4, top=2.6
     // Stable recycled world bays; housing stays dark while the addressable skin changes independently.
     const segments=Math.min(22,Math.max(1,Math.floor(s.segments)))
-    const offset=wrap(s.travel,spacing)
-    for(let j=0;j<segments;j++) {
+    const offset=wrap(s.travel,spacing), cycle=Math.floor(s.travel/spacing)
+    // A complete bay extends a spacing behind its gate. Keep two guard bays
+    // behind the camera (max camera z=.8, min spacing=2.625); the outgoing
+    // bay is entirely behind the eye when its slot is recycled. The new far
+    // bay starts beyond the fixed fade plane, including its front trim.
+    this.farFadeEnd=-1.2-(segments-1)*spacing+.7
+    this.farFadeStart=this.farFadeEnd+3*spacing
+    for(let j=-2;j<segments;j++) {
       const z=-1.2-j*spacing+offset
-      if(z>.7) continue
-      const id=j+Math.floor(s.travel/spacing), fade=clamp((segments-j)/3)
+      const id=j+cycle
       const phase=id*.43+s.chase
-      const halo=base*(.7+.19*energy+.13*n('subAmount'))*fade
+      const halo=base*(.7+.19*energy+.13*n('subAmount'))
       const spill=n('lightSpill')*halo*(.12+.16*n('midAmount')+.17*bass+.18*s.flash*hit)
       // Industrial sidewalls and overhead slabs with recessed ribs; floor is shared SSR, not an opaque slab.
       for(const sign of [-1,1]) {
@@ -83,7 +89,7 @@ export class PurityGeometry {
       }
       // Angled peripheral bars provide the first reference's alternating diagonal/X vocabulary.
       if(s.enabled('perimeterLighting')) for(const sign of [-1,1]) {
-        const direction=id%2===0?1:-1, x=sign*(W-.32), wobble=s.motion*n('depthWave')*.20*Math.sin(s.wave+id*.8)
+        const direction=id%2===0?1:-1, x=sign*(W-.32), wobble=s.motion*n('depthWave')*.20*Math.sin(s.wave-id*.8)
         this.line(x-sign*.43,floor+.12,x+sign*direction*.24,top-.21,z-spacing*.48,thick*.35,4,halo*rail*(.55+.17*n('phraseAccent')+.14*n('bassPressure')),id*3+1)
         this.line(x-sign*.45+wobble,top-.16,x+sign*.14,floor+.35,z-spacing*.7,thick*.23,4,halo*rail*.65,id*3+2)
       }
@@ -104,7 +110,8 @@ void main(){float c=cos(i_pose.w),s=sin(i_pose.w);mat2 r=mat2(c,s,-s,c);vec3 loc
 const FRAG=`#version 300 es
 precision highp float;
 in vec3 v_world; in vec3 v_normal; in vec2 v_uv; flat in vec4 v_light; flat in float v_role;
-uniform vec3 u_cameraPosition,u_metal,u_panel,u_perimeter,u_geometry,u_accent;
+uniform vec3 u_cameraPosition,u_metal,u_panel,u_perimeter,u_geometry,u_accent,u_background;
+uniform float u_farFadeStart,u_farFadeEnd;
 uniform float u_roughness,u_reflections,u_falloff,u_visibility;
 uniform float u_pattern,u_previous,u_transition,u_chase,u_density,u_contrast,u_blackout;
 float hash21(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
@@ -149,12 +156,16 @@ void main(){
   float depth=length(v_world-u_cameraPosition),fade=exp(-depth*u_falloff*.034);
   float edge=1.-smoothstep(.0,.10,min(min(v_uv.x,1.-v_uv.x),min(v_uv.y,1.-v_uv.y)));
   vec3 tint=v_role<2.?mix(u_metal,u_panel,step(.5,v_role)):v_role<2.5?u_perimeter:v_role<3.5?u_geometry:u_accent;
+  // All surfaces, including dormant housings, fade by world depth rather
+  // than recycled slot index. No new geometry contributes color at birth.
+  if(v_world.z<=u_farFadeEnd) discard;
+  float farWeight=smoothstep(u_farFadeEnd,u_farFadeStart,v_world.z);
   if(v_role>1.5){
     float m=mix(lightMask(u_previous),lightMask(u_pattern),u_transition);
     float lit=mix(m*.55+.25,m,u_contrast);
     if(u_pattern>10.5 && u_previous>10.5)lit=m;
     vec3 dormant=u_metal*.10*u_visibility;
-    outColor=vec4((dormant+tint*v_light.x*lit*(2.6+.7*(1.-edge)))*fade,1.);return;
+    outColor=vec4(mix(u_background,(dormant+tint*v_light.x*lit*(2.6+.7*(1.-edge)))*fade,farWeight),1.);return;
   }
   float diffuse=.2+.42*abs(dot(N,normalize(vec3(.25,.5,1.))));
   float fresnel=pow(1.-abs(dot(N,V)),3.);
@@ -165,12 +176,12 @@ void main(){
   vec3 spill=u_perimeter*v_light.y*(.25+.45*diffuse);
   vec3 reflected=mix(u_perimeter,u_geometry,.13)*v_light.y*u_reflections*(spec*.8+fresnel*.35+edge*.28);
   vec3 color=tint*material*(diffuse+edge*.24)+spill+reflected;
-  outColor=vec4(color*fade*u_visibility,1.);
+  outColor=vec4(mix(u_background,color*fade*u_visibility,farWeight),1.);
 }`
 export interface PurityDrawState {
   viewProjection:readonly number[]; cameraPosition:readonly [number,number,number];
   colors:readonly (readonly [number,number,number,number])[];
-  roughness:number; reflections:number; falloff:number; visibility:number; geometry:PurityGeometry;
+  background:readonly [number,number,number,number]; roughness:number; reflections:number; falloff:number; visibility:number; geometry:PurityGeometry;
 }
 export class Cinema2PurityRenderer {
   private readonly program:ShaderProgram
@@ -180,7 +191,7 @@ export class Cinema2PurityRenderer {
   private readonly matrix=new Float32Array(16)
   private disposed=false
   constructor(private readonly gl:WebGL2RenderingContext){
-    const result=ShaderProgram.create(gl,new ShaderCompiler(gl),{label:'Cinema2/PURITY/World',vertSrc:VERT,fragSrc:FRAG,requiredUniforms:['u_viewProjection','u_cameraPosition','u_metal','u_panel','u_perimeter','u_geometry','u_accent','u_roughness','u_reflections','u_falloff','u_visibility','u_pattern','u_previous','u_transition','u_chase','u_density','u_contrast','u_blackout']})
+    const result=ShaderProgram.create(gl,new ShaderCompiler(gl),{label:'Cinema2/PURITY/World',vertSrc:VERT,fragSrc:FRAG,requiredUniforms:['u_viewProjection','u_cameraPosition','u_metal','u_panel','u_perimeter','u_geometry','u_accent','u_roughness','u_reflections','u_falloff','u_visibility','u_pattern','u_previous','u_transition','u_chase','u_density','u_contrast','u_blackout','u_background','u_farFadeStart','u_farFadeEnd']})
     if(!result.program)throw new Error(`PURITY shader: ${result.error.log}`)
     this.program=result.program
     const vao=gl.createVertexArray();if(!vao){this.program.dispose();throw new Error('PURITY VAO allocation failed')};this.vao=vao
@@ -200,7 +211,7 @@ export class Cinema2PurityRenderer {
   draw(s:PurityDrawState){if(this.disposed)return;const {gl,program}=this;program.activate();this.matrix.set(s.viewProjection);program.setMat4('u_viewProjection',this.matrix);program.setVec3('u_cameraPosition',...s.cameraPosition)
     const names=['u_metal','u_panel','u_perimeter','u_geometry','u_accent'];for(let i=0;i<names.length;i++){const c=s.colors[i]!;program.setVec3(names[i]!,c[0],c[1],c[2])}
     program.setFloat('u_roughness',s.roughness);program.setFloat('u_reflections',s.reflections);program.setFloat('u_falloff',s.falloff);program.setFloat('u_visibility',s.visibility)
-    const g=s.geometry; for(const [name,value] of [['u_pattern',g.pattern],['u_previous',g.previous],['u_transition',g.transition],['u_chase',g.chase],['u_density',g.density],['u_contrast',g.contrast],['u_blackout',g.blackout]] as const)program.setFloat(name,value)
+    const g=s.geometry; program.setVec3('u_background',s.background[0],s.background[1],s.background[2]);program.setFloat('u_farFadeStart',g.farFadeStart);program.setFloat('u_farFadeEnd',g.farFadeEnd); for(const [name,value] of [['u_pattern',g.pattern],['u_previous',g.previous],['u_transition',g.transition],['u_chase',g.chase],['u_density',g.density],['u_contrast',g.contrast],['u_blackout',g.blackout]] as const)program.setFloat(name,value)
     gl.bindVertexArray(this.vao);gl.bindBuffer(gl.ARRAY_BUFFER,this.instances);gl.bufferSubData(gl.ARRAY_BUFFER,0,s.geometry.data,0,s.geometry.count*STRIDE)
     gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);gl.depthMask(true);gl.disable(gl.BLEND);gl.disable(gl.CULL_FACE);gl.colorMask(true,true,true,true)
     gl.drawElementsInstanced(gl.TRIANGLES,36,gl.UNSIGNED_SHORT,0,s.geometry.count);gl.bindVertexArray(null);gl.bindBuffer(gl.ARRAY_BUFFER,null);assertCinema2NoGlErrors(gl,'PURITY draw')

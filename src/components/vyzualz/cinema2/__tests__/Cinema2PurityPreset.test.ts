@@ -9,6 +9,7 @@ import { withCinema2AutoCoverage } from '../presets/Cinema2AutoCoverage'
 import { CINEMA2_AUTO_COVERAGE_EXEMPT } from '../presets/Cinema2AutoCoverageExemptions'
 import { PURITY_PATTERNS, PuritySelection, type PuritySelectionInput } from '../modules/purity/Cinema2PurityPatterns'
 import { PurityGeometry, PURITY_MAX_INSTANCES, type PurityVisualState } from '../modules/purity/Cinema2PurityRenderer'
+import { PurityFlight } from '../modules/purity/Cinema2PurityFlight'
 import { CINEMA2_AFTERHOURS_TRIGGER_IDS } from '../modules/Cinema2AfterhoursNativeModule'
 
 const defaults=manifest.modules![0]!.parameters!
@@ -57,6 +58,49 @@ describe('PURITY native review preset',()=>{
     g.update({...state,number,flash:0});const off=values(g)
     g.update({...state,number,flash:1});expect(values(g)).not.toEqual(off)
     g.update({...state,number,flash:0});expect(values(g)).toEqual(off)
+  })
+  it('keeps all surviving bay positions and lighting identities continuous across recycling',()=>{
+    const g=new PurityGeometry(), epsilon=.0001
+    for(const segments of [10,16,22])for(const depth of [.75,1,1.5])for(const thick of [.08,.32]){
+      const spacing=3.5*depth
+      const number=(key:string)=>key==='tunnelDepth'?depth:key==='frameThickness'?thick:state.number(key)
+      for(const cycle of [1,2,12]){
+        g.update({...state,number,segments,travel:cycle*spacing-epsilon})
+        const before=values(g), stride=before.length/(segments+2)
+        expect(Number.isInteger(stride/12)).toBe(true)
+        g.update({...state,number,segments,travel:cycle*spacing+epsilon})
+        const after=values(g)
+        expect(after.length).toBe(before.length)
+        // Every survivor shifts by exactly the traveled distance, preserving
+        // its pattern identity, diagonal direction and illumination phase.
+        for(let i=0;i<after.length-stride;i++){
+          const expected=before[i+stride]!+(i%12===2?2*epsilon:0)
+          expect(Math.abs(after[i]!-expected)).toBeLessThan(.00003)
+        }
+        for(let i=0;i<stride;i+=12)expect(before[i+2]!-before[i+6]!/2).toBeGreaterThan(.8)
+        for(let i=after.length-stride;i<after.length;i+=12)expect(after[i+2]!+after[i+6]!/2).toBeLessThan(g.farFadeEnd)
+      }
+    }
+  })
+  it('eases forward velocity through build and drop, holds on pause/lockoff and resets deterministically',()=>{
+    const flight=new PurityFlight(), dt=1/60
+    let previous=0
+    const run=(speed:number, frames:number)=>{
+      for(let i=0;i<frames;i++){
+        flight.advance(dt,2*dt,speed,true)
+        expect(flight.travel).toBeGreaterThanOrEqual(previous)
+        previous=flight.travel
+      }
+    }
+    run(.7,180);const cruise=flight.velocity
+    run(1.4,1);expect(flight.velocity).toBeGreaterThan(cruise);expect(flight.velocity).toBeLessThan(2.8)
+    run(1.4,180);const drop=flight.velocity
+    run(.7,1);expect(flight.velocity).toBeLessThan(drop);expect(flight.velocity).toBeGreaterThan(cruise)
+    const hold=flight.travel
+    flight.advance(dt,2*dt,1,false);expect(flight.travel).toBe(hold);expect(flight.velocity).toBe(0)
+    flight.advance(dt,2*dt,0,true);expect(flight.travel).toBe(hold)
+    flight.reset();expect(flight.travel).toBe(0);expect(flight.velocity).toBe(0)
+    const first=flight.advance(dt,2*dt,.7,true);flight.reset();expect(flight.advance(dt,2*dt,.7,true)).toBe(first)
   })
   it('deduplicates all eleven event IDs, preserves manual pattern change, and resets to authored pattern',()=>{
     for(const trigger of CINEMA2_AFTERHOURS_TRIGGER_IDS){
