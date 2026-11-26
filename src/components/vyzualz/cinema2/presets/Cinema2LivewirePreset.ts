@@ -157,7 +157,8 @@ const manifest: Cinema2NativePresetManifest = {
     // composition constraint. Retain a safe fallback aim for manifest-only use.
     targetNode: undefined, target: [0, -0.50, 0],
     transform: { position: [0, 0.19, 6.9] }, fovDegrees: 35.5, minAspect: 1.6,
-    motion: { tempo: { referenceBpm: 120, weave: 0.38, bob: 0, flightSpeed: true },
+    // Static rigs support beat-synced weave, but flight-speed scaling requires a path or fly rig.
+    motion: { tempo: { referenceBpm: 120, weave: 0.38, bob: 0, flightSpeed: false },
       drift: { position: 0.24, target: 0, rollDegrees: 0, fovDegrees: 0, speed: 0.10, seed: 718 },
       fovRateLimitDegreesPerSecond: 5 },
     controls: { motionEnabled: ref('camera-motion'), masterMotionAmount: ref('camera-amount'),

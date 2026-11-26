@@ -40,6 +40,14 @@ describe('LIVEWIRE', () => {
     expect(manifest.parameters!.filter(item => item.designParentGroup === 'palette' && item.type === 'color')).toHaveLength(4)
   })
 
+  it('keeps beat-synced camera motion compatible with the static rig', () => {
+    const camera = manifest.cameras![0]!
+    expect(camera.rig?.kind).toBe('static')
+    expect(camera.motion?.tempo).toMatchObject({ flightSpeed: false, weave: 0.38 })
+    expect(camera.controls?.tempoSync?.$ref).toBe('livewire-bpm-sync')
+    expect(cinema2NativePresetRegistry.compile(CINEMA2_LIVEWIRE_PRESET_ID).ok).toBe(true)
+  })
+
   it('takes its initial Auto Performance from the shared system preference', () => {
     const result = cinema2NativePresetRegistry.compile(CINEMA2_LIVEWIRE_PRESET_ID)
     if (!result.ok) throw new Error(JSON.stringify(result.diagnostics))
