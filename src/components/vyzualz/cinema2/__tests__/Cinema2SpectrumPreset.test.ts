@@ -1,4 +1,9 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import * as THREE from 'three'
+import { SpectrumScene, type SpectrumLook } from '../modules/spectrum/SpectrumScene'
+import { setCinema2ThreeLibraryLoaderForTests, type Cinema2ThreeLibrary } from '../modules/three/Cinema2ThreeLibrary'
+import { SPECTRUM_COLORS } from '../modules/spectrum/SpectrumDomain'
+import type { Cinema2ModuleCreateContext, Cinema2ModuleRenderExecutionContext } from '../modules/Cinema2ModuleContracts'
 import { CINEMA2_SPECTRUM_PRESET_MANIFEST as manifest } from '../presets/Cinema2SpectrumPreset'
 import { compileCinema2NativePreset } from '../presets/Cinema2PresetCompiler'
 import { validateCinema2PresetAuthoringConventions } from '../presets/Cinema2PresetAuthoring'
@@ -7,7 +12,7 @@ import { CINEMA2_AUTO_COVERAGE_EXEMPT } from '../presets/Cinema2AutoCoverageExem
 import { CINEMA2_AFTERHOURS_TRIGGER_OPTIONS } from '../presets/Cinema2AfterhoursPreset'
 import { CANVAS_POOL_AUTOMATION_TRIGGER_OPTIONS } from '../../react/canvasPerformance/CanvasPerformanceTypes'
 import { SPECTRUM_PATTERNS, bayAngle, spectrumPose, spectrumUv, floorPulse, type SpectrumMotion } from '../modules/spectrum/SpectrumDomain'
-import { SpectrumPerformance } from '../modules/Cinema2SpectrumNativeModule'
+import { SpectrumPerformance, cinema2SpectrumNativeModuleDefinition } from '../modules/Cinema2SpectrumNativeModule'
 import type { Cinema2ModuleUpdateContext } from '../modules/Cinema2ModuleContracts'
 const parameter=(name:string)=>manifest.parameters!.find(p=>p.id===`spectrum-${name}`)!
 const motion:SpectrumMotion={pattern:'orbit',phase:1.8,opening:.35,tilt:8,floorRelay:.55,sweep:.55,overhead:.35,intensity:.75,safe:true,readability:true,vocal:0,kick:0,snare:0,drop:0,bass:0,mid:0,build:0,downbeat:0,phrase:0,impact:0,high:0,energy:0,beat:0}
@@ -52,5 +57,58 @@ describe('SPECTRUM native arena',()=>{
     const perf=new SpectrumPerformance(i=>(i%7)/7),controls:Record<string,unknown>={pattern:'orbit','pattern-change':false,'bpm-sync':true,'auto-performance':false}
     const update=(t:number,revision:number)=>perf.update({parameters:{get:(key:string)=>controls[key]},frame:{contextGeneration:1,elapsedTimeSec:t,deltaTimeSec:.05,transport:{trackId:'track',timeSec:t,playing:true,paused:false,animationActive:true,bpmSync:true,bpm:120,sourcePresent:true},audio:{upstream:{sourceId:'track',publisherId:'test',analysisRevision:1,timelineRevision:revision},rhythm:{fixedClocks:{4:{boundary:null}}},structure:{section:{value:null},semanticMoments:{available:false,value:null},analyzedPhrases:{available:false,value:null}},discontinuity:{generation:0}}}} as unknown as Cinema2ModuleUpdateContext)
     update(0,1);update(.05,1);expect(perf.look?.phase).toBeGreaterThan(0);controls.pattern='circumference-relay';update(.1,1);expect(perf.look?.pattern).toBe('circumference-relay');update(.15,2);expect(perf.look?.phase).toBe(0);expect(controls.pattern).toBe('circumference-relay');expect(perf.inspect().patternControlsAutomatic).toBe(false)
+  })
+})
+
+const library = { THREE } as unknown as Cinema2ThreeLibrary
+const look:SpectrumLook={...motion,count:12,radius:7,height:3.65,gap:.025,coverage:'wide-arc',locked:false,mode:'auto',visible:true,fit:'contain',layout:'continuous',grouping:'left-center-right',scale:1,offsetX:0,offsetY:0,angle:0,opacity:1,brightness:1,transition:.35,reflection:.25,spill:.3,colors:SPECTRUM_COLORS,dt:1/60,paused:false}
+
+describe('SPE-01 native scene regression',()=>{
+  it('writes finite transforms for every bay on the first procedural draw and after quality/count changes',()=>{
+    const root=new THREE.Group(),scene=new SpectrumScene(library,root)
+    try{
+      for(const [count,quality] of [[12,'high'],[8,'low'],[16,'medium']] as const){
+        expect(()=>scene.apply({...look,count},[null],0,quality)).not.toThrow()
+        const meshes:THREE.InstancedMesh[]=[]
+        root.traverse(object=>{if((object as THREE.InstancedMesh).isInstancedMesh)meshes.push(object as THREE.InstancedMesh)})
+        expect(meshes).toHaveLength(7)
+        const matrix=new THREE.Matrix4()
+        for(const mesh of meshes){
+          expect(mesh.count).toBe(count)
+          for(let i=0;i<count;i++){
+            mesh.getMatrixAt(i,matrix)
+            expect(matrix.elements.every(Number.isFinite)).toBe(true)
+            expect(Math.abs(matrix.determinant())).toBeGreaterThan(0)
+          }
+        }
+        const display=meshes.find(mesh=>mesh.geometry.hasAttribute('aCrop'))!
+        expect(display.geometry.getAttribute('aCrop').getZ(0)).toBeGreaterThan(0)
+      }
+    }finally{scene.dispose();scene.dispose()}
+    expect(root.children).toHaveLength(0)
+  })
+  it('does not retry a rejected lazy load every frame, retries on reactivation, and ignores retired loads',async()=>{
+    const acquire=vi.fn(()=>({ready:false,getDiagnostics:()=>[]}))
+    const context={module:manifest.modules![0],randomness:{sample:()=>.5},resources:{acquire},media:{get:()=>null}} as unknown as Cinema2ModuleCreateContext
+    const execution={} as Cinema2ModuleRenderExecutionContext
+    const create=()=>cinema2SpectrumNativeModuleDefinition.create(context)
+    const draw=(instance:ReturnType<typeof create>)=>instance.render!.providers[0]!.execute(execution)
+    const settle=async()=>{for(let i=0;i<6;i++)await Promise.resolve()}
+    const load=vi.fn<()=>Promise<Cinema2ThreeLibrary>>()
+      .mockRejectedValueOnce(new Error('test chunk failure')).mockResolvedValueOnce(library)
+    setCinema2ThreeLibraryLoaderForTests(load)
+    try{
+      const failed=create();draw(failed);await settle();draw(failed);draw(failed)
+      expect(load).toHaveBeenCalledTimes(1)
+      expect(failed.getDiagnostics?.()).toEqual([expect.objectContaining({code:'CINEMA2_SPECTRUM_FAILED',message:expect.stringContaining('test chunk failure')})])
+      expect(acquire).not.toHaveBeenCalled();failed.lifecycle.dispose()
+      const recovered=create();draw(recovered);await settle();draw(recovered)
+      expect(load).toHaveBeenCalledTimes(2);expect(acquire).toHaveBeenCalledTimes(1)
+      recovered.lifecycle.dispose()
+      let resolve!:(value:Cinema2ThreeLibrary)=>void
+      setCinema2ThreeLibraryLoaderForTests(()=>new Promise(done=>{resolve=done}))
+      const retired=create();draw(retired);retired.lifecycle.dispose();resolve(library);await settle();draw(retired)
+      expect(acquire).toHaveBeenCalledTimes(1);expect(retired.getDiagnostics?.()).toEqual([])
+    }finally{setCinema2ThreeLibraryLoaderForTests(null)}
   })
 })

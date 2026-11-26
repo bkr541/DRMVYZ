@@ -49,22 +49,23 @@ export class SpectrumScene {
   private readonly pylons:Three.InstancedMesh;private readonly seams:Three.InstancedMesh;private readonly upper:Three.InstancedMesh
   private readonly structure:Three.MeshStandardMaterial;private readonly floor:Three.MeshStandardMaterial;private readonly energy:Three.MeshBasicMaterial;private readonly accent:Three.MeshBasicMaterial;private readonly upperEnergy:Three.MeshBasicMaterial
   private readonly shader:Three.ShaderMaterial;private readonly crop:Three.InstancedBufferAttribute;private readonly channel:Three.InstancedBufferAttribute
-  private readonly textures:Three.Texture[];private readonly feeds:(Readonly<Cinema2ManagedMediaResource>|null)[]=[null,null,null];private readonly ages=[0,0,0];private lastStep=-1
+  private readonly textures:Three.Texture[]=[];private readonly feeds:(Readonly<Cinema2ManagedMediaResource>|null)[]=[null,null,null];private readonly ages=[0,0,0];private lastStep=-1
   private readonly dummy:Three.Object3D;private readonly local:Three.Matrix4;private readonly matrix:Three.Matrix4;private readonly scale:Three.Vector3;private readonly color:Three.Color;private readonly light:Three.PointLight
   private readonly rings:Three.Mesh<Three.BufferGeometry,Three.MeshBasicMaterial>[]=[];private readonly trusses:Three.Mesh[]=[];private readonly ground:Three.Mesh
-  private renderer:Three.WebGLRenderer|null=null;private lastGeometry='';private readonly poses=new Float32Array(CAPACITY*2)
+  private renderer:Three.WebGLRenderer|null=null;private disposed=false;private lastGeometry='';private readonly poses=new Float32Array(CAPACITY*2)
   constructor(private readonly library:Cinema2ThreeLibrary,root:Three.Object3D){
-    const T=library.THREE;this.group=new T.Group();root.add(this.group)
+    const T=library.THREE;this.group=new T.Group()
+    try {
     this.dummy=new T.Object3D();this.local=new T.Matrix4();this.matrix=new T.Matrix4();this.scale=new T.Vector3();this.color=new T.Color()
     const geometry=<G extends Three.BufferGeometry>(g:G)=>{this.geometries.push(g);return g};const material=<M extends Three.Material>(m:M)=>{this.materials.push(m);return m}
     this.structure=material(new T.MeshStandardMaterial({metalness:.65,roughness:.37,side:T.DoubleSide}));this.floor=material(new T.MeshStandardMaterial({color:0x151d27,metalness:.7,roughness:.3}));this.energy=material(new T.MeshBasicMaterial({color:0xffffff,side:T.DoubleSide}));this.accent=material(new T.MeshBasicMaterial({color:0xffffff}));this.upperEnergy=material(new T.MeshBasicMaterial({color:0xffffff,side:T.DoubleSide}))
-    const box=geometry(new T.BoxGeometry(1,1,1)),panel=()=>curvedPatch(T,Math.PI/12,10)
+    const box=geometry(new T.BoxGeometry(1,1,1)),panel=()=>geometry(curvedPatch(T,Math.PI/12,10))
     const mesh=(g:Three.BufferGeometry,m:Three.Material)=>{const v=new T.InstancedMesh(g,m,CAPACITY);v.frustumCulled=false;v.instanceMatrix.setUsage(T.DynamicDrawUsage);this.group.add(v);return v}
     this.body=mesh(panel(),this.structure);this.body.castShadow=true;this.body.receiveShadow=true
     this.header=mesh(panel(),this.structure);this.sill=mesh(panel(),this.energy);this.upper=mesh(panel(),this.upperEnergy)
     this.pylons=mesh(box,this.structure);this.pylons.castShadow=true;this.pylons.receiveShadow=true;this.seams=mesh(box,this.accent)
     const screen=panel();this.crop=new T.InstancedBufferAttribute(new Float32Array(CAPACITY*4),4);this.channel=new T.InstancedBufferAttribute(new Float32Array(CAPACITY*2),2);screen.setAttribute('aCrop',this.crop);screen.setAttribute('aChannel',this.channel)
-    this.textures=Array.from({length:3},()=>new T.Texture());this.shader=material(new T.ShaderMaterial({vertexShader:vertex,fragmentShader:fragment,toneMapped:false,uniforms:{uFeed0:{value:this.textures[0]},uFeed1:{value:this.textures[1]},uFeed2:{value:this.textures[2]},uAspect:{value:new T.Vector3()},uFade:{value:new T.Vector3()},uFit:{value:0},uScale:{value:1},uAngle:{value:0},uOffset:{value:new T.Vector2()},uOpacity:{value:1},uBrightness:{value:1},uVisible:{value:1},uPrimary:{value:new T.Color()},uSecondary:{value:new T.Color()}}}))
+    for(let i=0;i<3;i++)this.textures.push(new T.Texture());this.shader=material(new T.ShaderMaterial({vertexShader:vertex,fragmentShader:fragment,toneMapped:false,uniforms:{uFeed0:{value:this.textures[0]},uFeed1:{value:this.textures[1]},uFeed2:{value:this.textures[2]},uAspect:{value:new T.Vector3()},uFade:{value:new T.Vector3()},uFit:{value:0},uScale:{value:1},uAngle:{value:0},uOffset:{value:new T.Vector2()},uOpacity:{value:1},uBrightness:{value:1},uVisible:{value:1},uPrimary:{value:new T.Color()},uSecondary:{value:new T.Color()}}}))
     this.display=mesh(screen,this.shader);this.display.onBeforeRender=renderer=>{this.renderer=renderer;this.textures.forEach((texture,i)=>{const properties=renderer.properties.get(texture) as {__webglTexture?:WebGLTexture;__version?:number};const resource=this.feeds[i];if(resource){properties.__webglTexture=resource.texture;properties.__version=texture.version}else{delete properties.__webglTexture;delete properties.__version}})}
     const cylinder=geometry(new T.CylinderGeometry(1,1,1,64)),torus=geometry(new T.TorusGeometry(1,.009,6,96)),beam=geometry(new T.TorusGeometry(1,.025,8,96))
     const staticMesh=(g:Three.BufferGeometry,m:Three.Material,y:number)=>{const v=new T.Mesh(g,m);v.position.y=y;v.receiveShadow=true;this.group.add(v);return v}
@@ -74,13 +75,21 @@ export class SpectrumScene {
     for(let i=0;i<5;i++){const mat=material(new T.MeshBasicMaterial({color:0xffffff}));const ring=staticMesh(torus,mat,-2.89);ring.rotation.x=-Math.PI/2;this.rings.push(ring)}
     for(let i=0;i<3;i++){const ring=staticMesh(beam,this.structure,3.1+i*.28);ring.rotation.x=-Math.PI/2;this.trusses.push(ring)}
     this.light=new T.PointLight(0xffffff,1,15,2);this.light.position.set(0,1.5,0);this.group.add(this.light)
+    root.add(this.group)
+    } catch(error) {
+      this.dispose()
+      throw error
+    }
   }
   private updateGeometry(look:SpectrumLook,quality:Cinema2RenderQualityLevel){
     const segments=quality==='low'?6:12,key=`${look.count}:${look.gap}:${segments}`
     if(key===this.lastGeometry)return false
     this.lastGeometry=key;const T=this.library.THREE,half=Math.PI/look.count*(1-look.gap)
     for(const mesh of [this.body,this.header,this.sill,this.upper,this.display]){
-      const old=mesh.geometry;mesh.geometry=curvedPatch(T,mesh===this.display?half*.97:half,segments,mesh===this.body?.04:mesh===this.header?.025:0);old.dispose()
+      const old=mesh.geometry;const next=curvedPatch(T,mesh===this.display?half*.97:half,segments,mesh===this.body?.04:mesh===this.header?.025:0)
+      this.geometries.push(next);mesh.geometry=next
+      const index=this.geometries.indexOf(old);if(index>=0)this.geometries.splice(index,1)
+      old.dispose()
       if(mesh===this.display){mesh.geometry.setAttribute('aCrop',this.crop);mesh.geometry.setAttribute('aChannel',this.channel)}
     }return true
   }
@@ -96,7 +105,7 @@ export class SpectrumScene {
     this.trusses.forEach((ring,i)=>{const radius=r+.35-i*.32;ring.scale.set(radius,radius,2);ring.position.y=baseY+h/2+.6+i*.27})
     const place=(mesh:Three.InstancedMesh,index:number,x:number,y:number,z:number,sx:number,sy:number,sz:number)=>{this.local.makeTranslation(x,y,z);this.local.scale(this.scale.set(sx,sy,sz));mesh.setMatrixAt(index,this.matrix.multiplyMatrices(this.dummy.matrix,this.local))}
     for(let i=0;i<look.count;i++){
-      const a=bayAngle(i,look.count),p=spectrumPose(i,look),s=Math.sin(a),c=Math.cos(a),offset=i*2
+      const a=bayAngle(i,look.count),p=spectrumPose(i,look.count,look),s=Math.sin(a),c=Math.cos(a),offset=i*2
       const smooth=(j:number,v:number)=>{const old=this.poses[offset+j]!;const next=old+((look.locked?0:v)-old)*blend;this.poses[offset+j]=next;return next}
       const radial=r+smooth(0,p.radial)*.9,tilt=smooth(1,p.tilt)
       // Rear axis faces +Z; radial outward travel and local hinge tilt are real transforms.
@@ -113,5 +122,19 @@ export class SpectrumScene {
     for(const mesh of [this.body,this.display,this.header,this.sill,this.pylons,this.seams,this.upper]){mesh.count=look.count;mesh.instanceMatrix.needsUpdate=true}
     this.display.visible=look.visible;this.sill.instanceColor!.needsUpdate=true;this.upper.instanceColor!.needsUpdate=true;this.crop.needsUpdate=true;this.channel.needsUpdate=true
   }
-  dispose(){for(const texture of this.textures){this.renderer?.properties.remove(texture);texture.dispose()}for(const m of [this.body,this.display,this.header,this.sill,this.pylons,this.seams,this.upper]){if(m!==this.pylons&&m!==this.seams)m.geometry.dispose();m.dispose()}this.geometries.forEach(g=>g.dispose());this.materials.forEach(m=>m.dispose());this.light.dispose();this.group.removeFromParent()}
+  dispose(){
+    if(this.disposed)return
+    this.disposed=true
+    // The media runtime owns the external WebGL textures. Never let Three delete them.
+    for(const texture of this.textures){this.renderer?.properties.remove(texture);texture.dispose()}
+    this.group.traverse(object=>{
+      const mesh=object as Three.InstancedMesh
+      if(mesh.isInstancedMesh)mesh.dispose()
+      const light=object as Three.PointLight
+      if(light.isPointLight)light.dispose()
+    })
+    this.geometries.forEach(g=>g.dispose());this.geometries.length=0
+    this.materials.forEach(m=>m.dispose());this.materials.length=0
+    this.feeds.fill(null);this.renderer=null;this.group.removeFromParent();this.group.clear()
+  }
 }

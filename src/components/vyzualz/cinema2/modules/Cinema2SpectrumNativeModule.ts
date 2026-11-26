@@ -67,14 +67,68 @@ export const cinema2SpectrumNativeModuleDefinition:Readonly<Cinema2ModuleTypeDef
     const source=context.mediaPoolSource
     // Existing named-pool channels are runtime-local, not authored or persisted slots.
     const pool=source?context.resources.acquire('spectrum:pool','SpectrumMediaPool',gl=>new Cinema2EverywherePool({getSelection:()=>{const l=performance.look;return l?.visible&&(l.mode==='auto'||l.mode==='pool')?source.getSelection():null},resolve:id=>source.resolve(id)},new Cinema2MediaSlotRuntime(gl,EVERYWHERE_POOL_SLOTS)),p=>p.dispose()):null
-    let library:Cinema2ThreeLibrary|null=null,scene:SpectrumScene|null=null,bridge:Cinema2ThreeSceneBridge|null=null,starting=false,disposed=false,reported=-1
+    type RenderState = 'idle'|'loading'|'warming'|'ready'|'recoverable-failure'|'fatal'|'disposed'
+    let library:Cinema2ThreeLibrary|null=null,scene:SpectrumScene|null=null,bridge:Cinema2ThreeSceneBridge|null=null,reported=-1
+    let renderState:RenderState='idle'
     const diagnostics:Cinema2ModuleDiagnostic[]=[]
-    const report=(e:unknown)=>diagnostics.push({code:'CINEMA2_SPECTRUM_FAILED',message:e instanceof Error?e.message:String(e),path:'$.modules'})
-    return {lifecycle:{update(update:Cinema2ModuleUpdateContext){performance.update(update);const f=performance.poolFrame;pool?.update(f.identity,f.event,f.reset,f.paused,f.suppress)},dispose(){disposed=true}},render:{providers:[{id:`${context.module.id}:arena`,moduleId:context.module.id,intent:'world' as const,execute(execution){
-      if(disposed||diagnostics.length)return
-      if(!starting){starting=true;void loadCinema2ThreeLibrary().then(value=>{if(!disposed)library=value}).catch(e=>{if(!disposed)report(e)})}
-      if(library&&!bridge){const lib=library,root=new lib.THREE.Group();try{bridge=context.resources.acquire('spectrum:scene','SpectrumArena',gl=>new Cinema2ThreeSceneBridge(gl,lib,[{asset:{id:'spectrum-arena',scene:root,animations:[],triangleCount:0,gpuBytes:0,metadata:describeCinema2LoadedModel(root)},node:null,preserveMaterials:true}],{hdr:true,modelController:{attach:r=>{scene=new SpectrumScene(lib,r)},beforeDraw:quality=>{const l=performance.look;if(!l)return;const usePool=l.mode==='pool'||(l.mode==='auto'&&source?.getSelection()!=null);const direct=l.mode==='procedural'||!l.visible?null:context.media.get('arenaMedia');const resources=usePool&&l.visible?(pool?.getResources()??[]).slice(0,Math.min(3,pool?.count??0)):[direct];scene?.apply(l,resources,pool&&usePool?pool.step:0,quality)},dispose:()=>scene?.dispose()}}),v=>v.dispose())}catch(e){scene?.dispose();scene=null;report(e);return}}
-      if(bridge&&performance.look){bridge.draw(execution,{...CINEMA2_THREE_DEFAULT_OVERRIDES,environmentIntensity:performance.look.reflection});if(bridge.ready){const bytes=bridge.estimateGpuBytes()+(pool?.getResources().reduce((sum,r)=>sum+(r?r.width*r.height*4:0),0)??0);if(bytes!==reported){reported=bytes;context.resources.reportGpuBytes(bytes)}}}}
-    }]},getDiagnostics:()=>diagnostics,inspect:()=>({...performance.inspect(),renderReady:bridge?.ready===true,poolReady:pool?.getResources().filter(Boolean).length??0,userMedia:context.media.get('arenaMedia')!=null})}
+    const report=(stage:string,e:unknown)=>diagnostics.push({code:'CINEMA2_SPECTRUM_FAILED',message:`Spectrum ${stage}: ${e instanceof Error?e.message:String(e)}`,path:'$.modules'})
+    return {
+      lifecycle:{
+        update(update:Cinema2ModuleUpdateContext){performance.update(update);const f=performance.poolFrame;pool?.update(f.identity,f.event,f.reset,f.paused,f.suppress)},
+        dispose(){renderState='disposed';library=null},
+      },
+      render:{providers:[{id:`${context.module.id}:arena`,moduleId:context.module.id,intent:'world' as const,execute(execution){
+        if(renderState==='disposed'||renderState==='recoverable-failure'||renderState==='fatal')return
+        if(renderState==='idle'){
+          renderState='loading'
+          // The shared loader clears rejected promises. Reactivation or context restoration
+          // creates a fresh module; do not initiate a new download every animation frame.
+          void loadCinema2ThreeLibrary().then(value=>{
+            if(renderState!=='loading')return
+            library=value;renderState='warming'
+          }).catch(error=>{
+            if(renderState!=='loading')return
+            renderState='recoverable-failure';report('Three library load failed; reselect Spectrum to retry',error)
+          })
+        }
+        try{
+          if(library&&!bridge){
+            const lib=library,root=new lib.THREE.Group()
+            bridge=context.resources.acquire('spectrum:scene','SpectrumArena',gl=>new Cinema2ThreeSceneBridge(gl,lib,[{asset:{id:'spectrum-arena',scene:root,animations:[],triangleCount:0,gpuBytes:0,metadata:describeCinema2LoadedModel(root)},node:null,preserveMaterials:true}],{
+              hdr:true,modelController:{
+                attach:r=>{scene=new SpectrumScene(lib,r)},
+                beforeDraw:quality=>{
+                  const l=performance.look;if(!l)return
+                  const usePool=l.mode==='pool'||(l.mode==='auto'&&source?.getSelection()!=null)
+                  const direct=l.mode==='procedural'||!l.visible?null:context.media.get('arenaMedia')
+                  const resources=usePool&&l.visible?(pool?.getResources()??[]).slice(0,Math.min(3,pool?.count??0)):[direct]
+                  scene?.apply(l,resources,pool&&usePool?pool.step:0,quality)
+                },
+                dispose:()=>{scene?.dispose();scene=null},
+              },
+            }),v=>v.dispose())
+          }
+          if(bridge&&performance.look){
+            bridge.draw(execution,{...CINEMA2_THREE_DEFAULT_OVERRIDES,environmentIntensity:performance.look.reflection})
+            if(bridge.ready){
+              renderState='ready'
+              const bytes=bridge.estimateGpuBytes()+(pool?.getResources().reduce((sum,r)=>sum+(r?r.width*r.height*4:0),0)??0)
+              if(bytes!==reported){reported=bytes;context.resources.reportGpuBytes(bytes)}
+            }
+          }
+        }catch(error){
+          renderState='fatal'
+          const stage=bridge?'arena draw':'arena construction'
+          report(stage,error)
+          // A failed factory is not leased by the resource scope. The scene may already
+          // have attached; release it here. For a leased bridge, the host retires the
+          // module and disposes every resource when this original exception propagates.
+          if(!bridge){scene?.dispose();scene=null}
+          throw error
+        }
+      }}]},
+      getDiagnostics:()=>[...diagnostics,...(bridge?.getDiagnostics().map(d=>({...d,path:'$.modules'}))??[])],
+      inspect:()=>({...performance.inspect(),renderState,renderReady:renderState==='ready',poolReady:pool?.getResources().filter(Boolean).length??0,userMedia:context.media.get('arenaMedia')!=null}),
+    }
   },
 }
