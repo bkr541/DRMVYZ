@@ -167,14 +167,26 @@ describe('persistent Layout Lab tabs', () => {
       expect(action(study, 'Start Recording').classList.contains('dv-icon-chip')).toBe(true)
       expect(action(study, 'Start Recording').getAttribute('aria-pressed')).toBe('false')
       expect(getComputedStyle(action(study, 'Start Recording')).color).toBe('rgb(255, 96, 111)')
-      for (const label of ['Start Recording', 'Export PNG frame']) {
-        expect(action(study, label).textContent?.trim()).toBe('')
-        expect(action(study, label).title).toBe(label)
+      const isHeader = study.dataset.outputStudy === 'media-header'
+      for (const label of ['Start Recording', isHeader ? 'Screenshot' : 'Export PNG frame']) {
+        expect(action(study, label).textContent?.trim()).toBe(isHeader ? label : '')
+        expect(action(study, label).title).toBe(label === 'Screenshot' ? 'Screenshot (export PNG)' : label)
         expect(action(study, label).querySelector('svg')).not.toBeNull()
       }
     }
     const [header, transform, summary, nested, command, dock, viewfinder, direct] = studies
-    expect(header.querySelector('.rw-window-header-actions [aria-label="Capture actions"]')).not.toBeNull()
+    expect(header.querySelector('.rw-window-header-actions')).toBeNull()
+    expect(header.querySelector('.ll-out-capture-state, .ll-out-audio')).toBeNull()
+    const headerBody = header.querySelector('.ll-out-media-body')!
+    const headerActions = headerBody.lastElementChild!
+    expect(headerActions.classList.contains('ll-out-header-actions')).toBe(true)
+    expect([...headerActions.querySelectorAll('button')].map(button => button.textContent?.trim())).toEqual(['Start Recording', 'Screenshot'])
+    expect(headerActions.previousElementSibling?.textContent).toContain('Video Settings')
+    expect(action(header, 'Start Recording').classList.contains('dv-icon-chip--danger')).toBe(true)
+    expect(action(header, 'Screenshot').classList.contains('dv-icon-chip--danger')).toBe(false)
+    expect(getComputedStyle(headerActions).display).toBe('grid')
+    expect(getComputedStyle(action(header, 'Start Recording')).width).toBe('100%')
+    expect(getComputedStyle(action(header, 'Screenshot')).width).toBe('100%')
     expect(transform.querySelector('.ll-out-media-transform-toolbar [aria-label="Capture actions"]')).not.toBeNull()
     expect(summary.querySelector('.ll-out-media-dock [aria-label="Capture actions"]')).not.toBeNull()
     expect(nested.querySelectorAll('.drc-group[data-drc-depth="1"]')).toHaveLength(2)
@@ -198,6 +210,10 @@ describe('persistent Layout Lab tabs', () => {
       expect(study.querySelector('[aria-label="Output dimensions"]')?.textContent).toBe('1080 × 1920')
       await act(async () => action(study, 'Start Recording').click())
       expect(action(study, 'Stop & Save').getAttribute('aria-pressed')).toBe('true')
+      if (study === header) {
+        expect(action(study, 'Stop & Save').textContent?.trim()).toBe('Stop & Save')
+        expect(study.querySelector('.ll-out-capture-state, .ll-out-audio')).toBeNull()
+      }
       expect(action(study, 'Stop & Save').querySelector('[data-app-icon="stop"]')).not.toBeNull()
       expect(getComputedStyle(action(study, 'Stop & Save')).color).toBe('rgb(255, 96, 111)')
       expect(select(study, 'Frame Rate').disabled).toBe(true)
@@ -206,7 +222,7 @@ describe('persistent Layout Lab tabs', () => {
       expect(findButton(study, '9:16').disabled).toBe(true)
       await act(async () => action(study, 'Stop & Save').click())
       expect(select(study, 'Frame Rate').disabled).toBe(false)
-      await act(async () => action(study, 'Export PNG frame').click())
+      await act(async () => action(study, study === header ? 'Screenshot' : 'Export PNG frame').click())
       expect(study.querySelector('[aria-live="polite"]')?.textContent).toContain('PNG frame exported (simulation)')
     }
     expect(summary.querySelector('[role="img"][aria-label="Output framing: 9:16"]')).not.toBeNull()

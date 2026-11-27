@@ -33,7 +33,7 @@ const STUDIES = [
   { id: 'dock', name: '02 · Capture Dock', description: 'Framing and compact aligned settings above a fixed, always-visible capture toolbar.' },
   { id: 'viewfinder', name: '03 · Viewfinder', description: 'A proportional framing preview with a compact aspect rail and adjacent capture tools.' },
   { id: 'direct', name: '04 · Direct Controls', description: 'Casting-style choice rails for framing, frame rate and format; one compact action row.' },
-  { id: 'media-header', name: '05 · Header Tools', description: 'Window-header capture keys with Media Manager-style framing and video groups.' },
+  { id: 'media-header', name: '05 · Header Tools', description: 'Media Manager-style framing and video groups with full-width capture actions below.' },
   { id: 'media-transform', name: '06 · Capture & Transform', description: 'A compact transform-style capture row, followed by the frame and video settings.' },
   { id: 'media-summary', name: '07 · Output Details', description: 'A live composition summary with a fixed capture row; settings use collapsible details.' },
   { id: 'media-nested', name: '08 · Recording Editor', description: 'One recording group with nested, independently collapsible framing and encoding controls.' },
@@ -87,6 +87,11 @@ function OutputStudy({ study }: { study: Study }) {
     </div>
   </fieldset>
   const actionLabel = recording ? 'Stop & Save' : 'Start Recording'
+  const toggleRecording = () => {
+    setRecording(!recording)
+    setFeedback(recording ? 'Recording saved (simulation)' : 'Recording started (simulation)')
+  }
+  const exportPng = () => setFeedback('PNG frame exported (simulation)')
   const status = <div className="ll-out-capture-state" role="status" aria-label="Recording status">
     {recording ? <Badge tone="#ff6575" label="Recording" /> : <StatusBadge tone="loaded">Ready</StatusBadge>}
     <span className="ll-out-audio" title="Simulated program audio available"><AppIcon kind="volume" size={13} /> Audio ready</span>
@@ -94,12 +99,9 @@ function OutputStudy({ study }: { study: Study }) {
   const tools = <span className="ll-out-actions" role="group" aria-label="Capture actions">
     <IconChipButton className={`ll-out-record${recording ? ' is-recording' : ''}`}
       icon={<AppIcon kind={recording ? 'stop' : 'record'} size={16} />}
-      aria-label={actionLabel} aria-pressed={recording} title={actionLabel} onClick={() => {
-        setRecording(!recording)
-        setFeedback(recording ? 'Recording saved (simulation)' : 'Recording started (simulation)')
-      }} />
+      aria-label={actionLabel} aria-pressed={recording} title={actionLabel} onClick={toggleRecording} />
     <IconChipButton icon={<AppIcon kind="camera" size={16} />} aria-label="Export PNG frame" title="Export PNG frame"
-      onClick={() => setFeedback('PNG frame exported (simulation)')} />
+      onClick={exportPng} />
   </span>
   const actions = <div className="ll-out-capture" data-recording={recording}>{status}{tools}</div>
   const mediaActions = <div className="ll-out-media-actions" data-recording={recording}>{tools}{status}</div>
@@ -125,7 +127,7 @@ function OutputStudy({ study }: { study: Study }) {
     <h2 id={`${id}-title`}>{study.name}</h2>
     <p className="ll-out-description">{study.description}</p>
     <div className={`ll-out-inspector${mediaInspired ? ' ll-out-media-inspector' : ''}`} data-output-variant={study.id}>
-      <RailWindowHeader side="right" icon={<AppIcon kind="settings" size={15} />} label="Inspector" actions={study.id === 'media-header' ? tools : undefined} />
+      <RailWindowHeader side="right" icon={<AppIcon kind="settings" size={15} />} label="Inspector" />
       <div className="dv-underline-tabs ll-out-tabs" aria-label="Inspector tabs (preview)">
         {['Presets', 'Design', 'React', 'Output'].map(tab => <span key={tab} className={`dv-underline-tab${tab === 'Output' ? ' is-active' : ''}`} aria-current={tab === 'Output' ? 'page' : undefined}>{tab}</span>)}
       </div>
@@ -149,9 +151,19 @@ function OutputStudy({ study }: { study: Study }) {
           <Section title="Encoding">{options('format')}{options('fps')}{select('bitrate')}</Section>
         </>}
         {study.id === 'media-header' && <>
-          <div className="ll-out-media-status">{status}</div>
           {group('Framing', 'crop', frameSettings)}
           {group('Video Settings', 'image', encodingSettings)}
+          <div className="ll-out-header-actions" role="group" aria-label="Capture actions">
+            <IconChipButton className={`dv-icon-chip--danger ll-out-record${recording ? ' is-recording' : ''}`}
+              icon={<AppIcon kind={recording ? 'stop' : 'record'} size={16} />}
+              aria-label={actionLabel} aria-pressed={recording} title={actionLabel} onClick={toggleRecording}>
+              {actionLabel}
+            </IconChipButton>
+            <IconChipButton icon={<AppIcon kind="camera" size={16} />} aria-label="Screenshot"
+              title="Screenshot (export PNG)" onClick={exportPng}>
+              Screenshot
+            </IconChipButton>
+          </div>
         </>}
         {study.id === 'media-transform' && <>
           <div className="ll-out-media-transform-toolbar">{mediaActions}</div>

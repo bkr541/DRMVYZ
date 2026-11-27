@@ -152,26 +152,25 @@
   --app-icon-accent: currentColor;
 }
 .ll-out-inspector .ll-out-actions .dv-icon-chip__icon { width: 16px; height: 16px; }
-.ll-out-inspector .rw-window-header-actions .ll-out-actions > .dv-icon-chip { width: 26px; height: 26px; flex-basis: 26px; }
 /* Red is the capture action's semantic color in both idle and active states.
-   Keep the glyph red on hover/focus, including in the canonical rail header. */
-.ll-out-inspector .ll-out-actions > .ll-out-record {
+   Keep the glyph red on hover/focus for icon-only and full-width actions. */
+.ll-out-inspector :is(.ll-out-actions, .ll-out-header-actions) > .ll-out-record {
   color: #ff606f;
   border-color: rgba(255,96,111,.33);
   background: rgba(255,72,92,.08);
 }
-.ll-out-inspector .ll-out-actions > .ll-out-record:hover:not(:disabled),
-.ll-out-inspector .ll-out-actions > .ll-out-record:focus-visible {
+.ll-out-inspector :is(.ll-out-actions, .ll-out-header-actions) > .ll-out-record:hover:not(:disabled),
+.ll-out-inspector :is(.ll-out-actions, .ll-out-header-actions) > .ll-out-record:focus-visible {
   color: #ff7582;
   border-color: rgba(255,96,111,.65);
   background: rgba(255,72,92,.16);
 }
-.ll-out-inspector .ll-out-actions > .ll-out-record.is-recording {
+.ll-out-inspector :is(.ll-out-actions, .ll-out-header-actions) > .ll-out-record.is-recording {
   color: #ff606f;
   border-color: rgba(255,96,111,.68);
   background: rgba(255,72,92,.19);
 }
-.ll-out-inspector .ll-out-actions > .ll-out-record.is-recording:hover:not(:disabled) {
+.ll-out-inspector :is(.ll-out-actions, .ll-out-header-actions) > .ll-out-record.is-recording:hover:not(:disabled) {
   color: #ff7582;
   background: rgba(255,72,92,.27);
 }
@@ -227,7 +226,21 @@
   --drc-group-follow: 18px;
 }
 .ll-out-media-inspector .drc-body[hidden] { display: none; }
-.ll-out-media-status { padding: 2px 2px 5px; }
+/* Study 05 only: full-width canonical action buttons below the settings groups. */
+.ll-out-header-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+  padding-top: 6px;
+}
+.ll-out-inspector .ll-out-header-actions > .dv-icon-chip {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 32px;
+  justify-content: center;
+  --app-icon-accent: currentColor;
+}
+.ll-out-header-actions .dv-icon-chip__icon { width: 16px; height: 16px; }
 .ll-out-media-actions { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .ll-out-media-actions .ll-out-capture-state { justify-content: flex-end; gap: 5px 8px; }
 .ll-out-media-transform-toolbar { padding: 0 2px 8px; border-bottom: 1px solid rgba(154,178,188,.16); }
