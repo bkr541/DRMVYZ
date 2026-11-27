@@ -1,38 +1,5 @@
-/* Layout Lab only. Cast rail and action styles below mirror reactView.css;
+/* Layout Lab only. Cast rail styles below mirror reactView.css;
    scoped because Layout Lab lives in its own popup document. */
-.ll-out-inspector .rv-cast-icon-btn {
-  flex-shrink: 0;
-  width: 26px;
-  min-width: 26px;
-  height: 26px;
-  padding: 0;
-  display: grid;
-  place-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.025);
-  color: rgba(232, 244, 248, 0.62);
-  cursor: pointer;
-}
-
-.ll-out-inspector .rv-cast-icon-btn:hover,
-.ll-out-inspector .rv-cast-icon-btn:focus-visible {
-  color: #67f7ff;
-  border-color: rgba(103, 247, 255, 0.36);
-  background: rgba(74, 199, 219, 0.08);
-  outline: none;
-}
-
-.ll-out-inspector .rv-cast-icon-btn svg {
-  width: 14px;
-  height: 14px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
 .ll-out-inspector .rv-cast-rail-section {
   display: flex;
   flex-direction: column;
@@ -173,11 +140,41 @@
 .ll-out-audio { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; color: var(--out-muted); font: var(--type-field-value, 400 11px/1.2 system-ui); }
 .ll-out-audio svg { color: #61d6aa; flex: none; }
 .ll-out-actions { display: flex; align-items: center; flex: none; gap: 5px; }
-.ll-out-inspector .ll-out-actions .rv-cast-icon-btn { width: 30px; min-width: 30px; height: 30px; }
-.ll-out-inspector .ll-out-actions .rv-cast-icon-btn svg { width: 16px; height: 16px; }
-.ll-out-inspector .ll-out-record { border-color: rgba(74,199,219,.4); background: rgba(74,199,219,.12); color: #8ef4ff; }
-.ll-out-inspector .ll-out-record.is-recording { border-color: rgba(255,139,148,.45); background: rgba(255,72,92,.12); color: #ff8b94; }
-.ll-out-inspector .ll-out-record.is-recording:hover { background: rgba(255,72,92,.2); }
+/* Media Manager Edit > Transform icon-chip sizes, shared by every study. */
+.ll-out-inspector .ll-out-actions > .dv-icon-chip {
+  display: grid;
+  place-items: center;
+  flex: 0 0 32px;
+  box-sizing: border-box;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  --app-icon-accent: currentColor;
+}
+.ll-out-inspector .ll-out-actions .dv-icon-chip__icon { width: 16px; height: 16px; }
+.ll-out-inspector .rw-window-header-actions .ll-out-actions > .dv-icon-chip { width: 26px; height: 26px; flex-basis: 26px; }
+/* Red is the capture action's semantic color in both idle and active states.
+   Keep the glyph red on hover/focus, including in the canonical rail header. */
+.ll-out-inspector .ll-out-actions > .ll-out-record {
+  color: #ff606f;
+  border-color: rgba(255,96,111,.33);
+  background: rgba(255,72,92,.08);
+}
+.ll-out-inspector .ll-out-actions > .ll-out-record:hover:not(:disabled),
+.ll-out-inspector .ll-out-actions > .ll-out-record:focus-visible {
+  color: #ff7582;
+  border-color: rgba(255,96,111,.65);
+  background: rgba(255,72,92,.16);
+}
+.ll-out-inspector .ll-out-actions > .ll-out-record.is-recording {
+  color: #ff606f;
+  border-color: rgba(255,96,111,.68);
+  background: rgba(255,72,92,.19);
+}
+.ll-out-inspector .ll-out-actions > .ll-out-record.is-recording:hover:not(:disabled) {
+  color: #ff7582;
+  background: rgba(255,72,92,.27);
+}
 .ll-out-dock { padding: 8px 14px 0; border-top: 1px solid rgba(154,178,188,.12); flex: none; }
 .ll-out-inspector .rv-ctrl-row { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
 .ll-out-inspector .rv-ctrl-label { color: var(--ui-text-secondary); font: var(--type-field-label, 400 11px/1.2 system-ui); }
@@ -201,3 +198,44 @@
   .ll-out-inspector .rv-cast-rail-group--aspect { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .ll-out-framing-split { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Media Manager right rail: mmi-body spacing, production DualRailCollapsible
+   headings and indented bodies, no extra bordered cards around the controls. */
+.ll-out-gallery-heading {
+  margin: 0 0 14px;
+  color: var(--out-muted);
+  font: var(--type-window-heading, 700 12px/1.2 system-ui);
+  letter-spacing: var(--type-window-heading-tracking, .08em);
+  text-transform: uppercase;
+}
+.ll-out-studies + .ll-out-gallery-heading { margin-top: 30px; }
+.ll-out-media-inspector {
+  height: 500px;
+  --workspace-group-top: 8px;
+  --workspace-group-gap: 10px;
+  --workspace-group-body-top: 6px;
+  --workspace-group-body-padding: 8px 8px 10px 12px;
+  background: var(--color-panel-alt, var(--out-panel));
+}
+.ll-out-media-body { display: flex; flex-direction: column; gap: 6px; padding: 10px; }
+.ll-out-media-body > * { flex-shrink: 0; }
+.ll-out-media-inspector .drc-header { padding-bottom: 8px; }
+.ll-out-media-inspector .drc-body {
+  min-width: 0;
+  --drc-nested-inset: calc(var(--drc-parent-label-inset) - 12px);
+  --drc-group-lead: 16px;
+  --drc-group-follow: 18px;
+}
+.ll-out-media-inspector .drc-body[hidden] { display: none; }
+.ll-out-media-status { padding: 2px 2px 5px; }
+.ll-out-media-actions { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.ll-out-media-actions .ll-out-capture-state { justify-content: flex-end; gap: 5px 8px; }
+.ll-out-media-transform-toolbar { padding: 0 2px 8px; border-bottom: 1px solid rgba(154,178,188,.16); }
+.ll-out-media-summary { display: grid; grid-template-columns: minmax(0, .92fr) minmax(0, 1.08fr); gap: 12px; align-items: center; }
+.ll-out-media-summary .ll-out-viewfinder { min-height: 86px; }
+.ll-out-media-summary-copy { display: flex; flex-direction: column; gap: 4px; min-width: 0; color: var(--out-muted); font: var(--type-field-value, 400 11px/1.2 system-ui); font-variant-numeric: tabular-nums; }
+.ll-out-media-summary-copy strong { color: var(--out-ink); font-weight: 600; font-size: 13px; }
+.ll-out-summary-caption { color: var(--ui-text-secondary); font: var(--type-field-label, 400 11px/1.2 system-ui); }
+.ll-out-media-dock { flex: none; padding: 8px 12px; border-top: 1px solid rgba(154,178,188,.16); background: rgba(255,255,255,.025); }
+.ll-out-media-inspector[data-output-variant='media-nested'] .drc-group[data-drc-depth='1'] .rv-cast-rail-group--aspect { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.ll-out-media-inspector .ll-out-feedback { padding-inline: 12px; }

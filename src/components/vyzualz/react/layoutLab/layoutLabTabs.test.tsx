@@ -135,7 +135,7 @@ describe('persistent Layout Lab tabs', () => {
     expect(tab(17).textContent).toBe('Geometry')
   })
 
-  it('adds four independent Output studies to existing saved Layout Lab workspaces', async () => {
+  it('adds eight independent Output studies to existing saved Layout Lab workspaces', async () => {
     window.localStorage.setItem(LAYOUT_LAB_STORAGE_KEY, JSON.stringify({
       version: 1, activeTabId: 'layout-lab-tab-16', tabs: [{ id: 'layout-lab-tab-16', name: 'My filters' }],
     }))
@@ -146,7 +146,7 @@ describe('persistent Layout Lab tabs', () => {
     const panel = host.querySelector<HTMLElement>('#layout-lab-tab-17-panel')!
     expect(panel.hidden).toBe(false)
     const studies = [...panel.querySelectorAll<HTMLElement>('[data-output-study]')]
-    expect(studies.map(study => study.dataset.outputStudy)).toEqual(['command', 'dock', 'viewfinder', 'direct'])
+    expect(studies.map(study => study.dataset.outputStudy)).toEqual(['media-header', 'media-transform', 'media-summary', 'media-nested', 'command', 'dock', 'viewfinder', 'direct'])
     const ratios = ['16:9', '16:10', '4:3', '3:2', '1:1', '9:16']
     const ratioIcons = ['ratio16x9', 'ratio16x10', 'ratio4x3', 'ratio3x2', 'ratio1x1', 'ratio9x16']
     const findButton = (study: HTMLElement, label: string) => [...study.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent?.trim() === label)!
@@ -163,13 +163,22 @@ describe('persistent Layout Lab tabs', () => {
       expect(study.querySelector('[aria-label="Output dimensions"]')?.textContent).toBe('1920 × 1080')
       expect(select(study, 'Video Bitrate').textContent).toContain('8 Mbps')
       expect(study.querySelectorAll('[aria-label="Capture actions"] button')).toHaveLength(2)
+      expect(action(study, 'Start Recording').classList.contains('ll-out-record')).toBe(true)
+      expect(action(study, 'Start Recording').classList.contains('dv-icon-chip')).toBe(true)
+      expect(action(study, 'Start Recording').getAttribute('aria-pressed')).toBe('false')
+      expect(getComputedStyle(action(study, 'Start Recording')).color).toBe('rgb(255, 96, 111)')
       for (const label of ['Start Recording', 'Export PNG frame']) {
         expect(action(study, label).textContent?.trim()).toBe('')
         expect(action(study, label).title).toBe(label)
         expect(action(study, label).querySelector('svg')).not.toBeNull()
       }
     }
-    const [command, dock, viewfinder, direct] = studies
+    const [header, transform, summary, nested, command, dock, viewfinder, direct] = studies
+    expect(header.querySelector('.rw-window-header-actions [aria-label="Capture actions"]')).not.toBeNull()
+    expect(transform.querySelector('.ll-out-media-transform-toolbar [aria-label="Capture actions"]')).not.toBeNull()
+    expect(summary.querySelector('.ll-out-media-dock [aria-label="Capture actions"]')).not.toBeNull()
+    expect(nested.querySelectorAll('.drc-group[data-drc-depth="1"]')).toHaveLength(2)
+    expect(studies.slice(0, 4).every(study => study.querySelector('.drc-header'))).toBe(true)
     expect(dock.querySelector('.ll-out-dock [aria-label="Capture actions"]')).not.toBeNull()
     expect(viewfinder.querySelector('.ll-out-framing-split [data-output-field="aspect"]')).not.toBeNull()
     const choose = async (study: HTMLElement, label: string, value: string) => {
@@ -180,6 +189,36 @@ describe('persistent Layout Lab tabs', () => {
       await act(async () => option.click())
       expect(select(study, label).textContent).toContain(value)
     }
+    // Exercise each new design independently, including active and idle red capture keys.
+    for (const study of studies.slice(0, 4)) {
+      await choose(study, 'Frame Rate', '60 fps')
+      await choose(study, 'Video Bitrate', '24 Mbps')
+      await choose(study, 'Video Format', 'MP4')
+      await act(async () => findButton(study, '9:16').click())
+      expect(study.querySelector('[aria-label="Output dimensions"]')?.textContent).toBe('1080 × 1920')
+      await act(async () => action(study, 'Start Recording').click())
+      expect(action(study, 'Stop & Save').getAttribute('aria-pressed')).toBe('true')
+      expect(action(study, 'Stop & Save').querySelector('[data-app-icon="stop"]')).not.toBeNull()
+      expect(getComputedStyle(action(study, 'Stop & Save')).color).toBe('rgb(255, 96, 111)')
+      expect(select(study, 'Frame Rate').disabled).toBe(true)
+      expect(select(study, 'Video Format').disabled).toBe(true)
+      expect(select(study, 'Video Bitrate').disabled).toBe(true)
+      expect(findButton(study, '9:16').disabled).toBe(true)
+      await act(async () => action(study, 'Stop & Save').click())
+      expect(select(study, 'Frame Rate').disabled).toBe(false)
+      await act(async () => action(study, 'Export PNG frame').click())
+      expect(study.querySelector('[aria-live="polite"]')?.textContent).toContain('PNG frame exported (simulation)')
+    }
+    expect(summary.querySelector('[role="img"][aria-label="Output framing: 9:16"]')).not.toBeNull()
+    expect(summary.querySelector('.ll-out-media-summary-copy')?.textContent).toContain('MP4 · 60 fps')
+    const parent = nested.querySelector<HTMLButtonElement>('.drc-group[data-drc-depth="0"] > .drc-header')!
+    await act(async () => parent.click())
+    expect(parent.getAttribute('aria-expanded')).toBe('false')
+    expect(nested.querySelector('.drc-group[data-drc-depth="0"] > .drc-body')?.hasAttribute('hidden')).toBe(true)
+    expect(action(nested, 'Start Recording').closest('[hidden]')).toBeNull()
+    await act(async () => parent.click())
+    expect(select(nested, 'Video Bitrate').textContent).toContain('24 Mbps')
+    expect(select(command, 'Frame Rate').textContent).toContain('30 fps')
     await choose(command, 'Frame Rate', '60 fps')
     await choose(command, 'Video Bitrate', '24 Mbps')
     await choose(command, 'Video Format', 'MP4')
