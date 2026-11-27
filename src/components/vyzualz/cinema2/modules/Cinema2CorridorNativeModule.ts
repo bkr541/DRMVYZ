@@ -5,8 +5,10 @@ import { Cinema2MediaSlotRuntime } from '../media/Cinema2MediaSlotRuntime'
 import { Cinema2EverywherePool, EVERYWHERE_POOL_SLOTS } from './everywhere/Cinema2EverywherePool'
 import { Cinema2BeatClock } from './Cinema2BeatClock'
 import type { Cinema2ModuleCreateContext, Cinema2ModuleRenderExecutionContext, Cinema2ModuleTypeDefinition, Cinema2ModuleUpdateContext } from './Cinema2ModuleContracts'
-import { Cinema2CorridorRenderer, CORRIDOR_PATTERNS, type CorridorLook, type CorridorPattern } from './corridor/Cinema2CorridorRenderer'
+import { Cinema2CorridorRenderer, CORRIDOR_PATTERNS, GOONZ_CORRIDOR_PATTERNS, type CorridorLook, type CorridorPattern, type GoonzCorridorPattern } from './corridor/Cinema2CorridorRenderer'
 import { Cinema2MainframePatternController, createCinema2MainframePatternCycle } from './mainframe/Cinema2MainframePatternController'
+
+import { goonzPoolTrigger, goonzRoutineBeat } from './corridor/Cinema2GoonzCorridorChoreography'
 
 export const CINEMA2_CORRIDOR_MODULE_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('corridor-native')
 export const CINEMA2_GOONZ_CORRIDOR_MODULE_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('goonz-corridor-native')
@@ -38,20 +40,22 @@ export function corridorPoolTrigger(_pattern: CorridorPattern): Cinema2Afterhour
 export class Cinema2CorridorPerformance {
   private readonly clock = new Cinema2BeatClock()
   private readonly policy = new Cinema2PatternControlResolver<Cinema2AfterhoursTriggerId>()
-  private readonly patterns: Cinema2MainframePatternController<CorridorPattern>
+  private readonly patterns: Cinema2MainframePatternController<GoonzCorridorPattern>
   private identity = ''
   private previousTime: number | null = null
   private lastBeat: number | null = null
   private distance = 0
   private phase = 0
-  private authored: CorridorPattern = 'night-transit'
+  private authored: GoonzCorridorPattern = 'night-transit'
   private look: Readonly<CorridorLook> = DEFAULT_LOOK
   private lastMediaTrigger: Cinema2AfterhoursTriggerId | null = null
   poolFrame = { identity: '', reset: false, paused: true, event: null as string | null, patternChanged: false }
 
-  constructor(sample: (index: number) => number) {
+  private routineStart = 0
+  private routineBeat = 0
+  constructor(sample: (index: number) => number, private readonly goonz = false) {
     this.patterns = new Cinema2MainframePatternController(createCinema2MainframePatternCycle(
-      sample, CORRIDOR_PATTERNS.map(pattern => pattern.value),
+      sample, (goonz ? GOONZ_CORRIDOR_PATTERNS : CORRIDOR_PATTERNS).map(pattern => pattern.value),
     ), 'night-transit')
   }
 
@@ -92,7 +96,7 @@ export class Cinema2CorridorPerformance {
     }
     const beat = this.clock.update(frame, parameters.get('bpmSync') !== false && frame.transport?.bpmSync !== false).beats
     const delta = this.lastBeat == null ? 0 : Math.max(0, Math.min(1, beat - this.lastBeat))
-    const desired = CORRIDOR_PATTERNS.find(pattern => pattern.value === parameters.get('pattern'))?.value ?? 'night-transit'
+    const desired = (this.goonz ? GOONZ_CORRIDOR_PATTERNS : CORRIDOR_PATTERNS).find(pattern => pattern.value === parameters.get('pattern'))?.value ?? 'night-transit'
     const savedTrigger = CINEMA2_AFTERHOURS_TRIGGER_IDS.find(trigger => trigger === parameters.get('trigger')) ?? 'bar4'
     const controls = this.policy.update({
       saved: { patternChange: parameters.get('patternChange') === true, trigger: savedTrigger },
@@ -107,6 +111,11 @@ export class Cinema2CorridorPerformance {
       absoluteBeat: beat, reset,
     })
     if (selection?.changed) this.phase = 0
+    if (this.goonz) {
+      if (reset || selection?.changed) this.routineStart = selection?.patternStartBeat ?? beat
+      if (reset || selection?.changed) this.routineBeat = 0
+      else if (playing && motion > 0) this.routineBeat = goonzRoutineBeat(this.routineBeat + delta + this.routineStart, this.routineStart)
+    }
     const build = signal('build', this.look.build)
     const kick = reset ? 0 : signal('kick', this.look.kick)
     const bass = reset ? 0 : signal('bass', this.look.bass)
@@ -131,14 +140,24 @@ export class Cinema2CorridorPerformance {
       sway: Math.sin(this.phase * 0.46) * (0.079 * motion),
       width: read('width', 2.35, 1.8, 3.3),
       density: paused && auto ? this.look.density : Math.max(0.05, Math.min(0.85, density + signal('energy', 0) * 0.12 - signal('vocal', 0) * 0.10)),
-      intensity: read('intensity', 0.86, 0, 1.45),
+      intensity: read('intensity', this.goonz ? 1.15 : .86, 0, this.goonz ? 2.5 : 1.45),
       haze: read('haze', 0.23, 0, 1),
       pattern: selection?.activePattern ?? this.look.pattern,
       kick, bass, extensionBuild, transient: signal('transient', this.look.transient), build, drop,
+      ...(this.goonz ? { goonz: {
+        beat: this.routineBeat, snare: signal('snare', this.look.goonz?.snare ?? 0),
+        downbeat: signal('downbeat', this.look.goonz?.downbeat ?? 0), phrase: signal('phrase', this.look.goonz?.phrase ?? 0),
+        section: signal('section', this.look.goonz?.section ?? 0), build: !auto || motion === 0 ? 0 : paused ? this.look.goonz?.build ?? 0 : playing ? read('build',0,0,1) : 0, vocal: signal('vocal', this.look.goonz?.vocal ?? 0),
+        silence: auto ? (paused ? this.look.goonz?.silence ?? 0 : frame.mood?.silence ?? 0) : 0,
+        perimeter: read('perimeter',1.25,0,2.5), rail: read('rail',1.1,0,2.5), complexity: read('complexity',.85,0,1),
+        spill: read('spill',1,0,2), reach: read('reach',.65,.08,1.5), reflection: read('reflection',.85,0,2),
+        screenPower: parameters.get('screenPower') === false ? 0 : 1, readability: parameters.get('readability') === false ? 0 : 1,
+        contentMotion: read('contentMotion',.75,0,1)*motion, crt: read('crt',.25,0,1),
+      } } : {}),
       voidColor: color('voidColor'), wall: color('wall'), amber: color('amber'), hot: color('hot'), markings: color('markings'),
     }
     const mediaTrigger = CINEMA2_AFTERHOURS_TRIGGER_IDS.find(trigger => trigger === parameters.get('poolTrigger'))
-      ?? corridorPoolTrigger(this.look.pattern)
+      ?? (this.goonz ? goonzPoolTrigger(this.look.pattern) : corridorPoolTrigger(this.look.pattern as CorridorPattern))
     this.poolFrame = { identity, reset, paused: !playing,
       // Only a cadence change re-arms the shared pool. A simultaneous pattern
       // change must not swallow a fresh phrase event.
@@ -169,7 +188,7 @@ function createCorridorModuleDefinition(squareCassettes: boolean): Readonly<Cine
     typeId: squareCassettes ? CINEMA2_GOONZ_CORRIDOR_MODULE_TYPE_ID : CINEMA2_CORRIDOR_MODULE_TYPE_ID,
     version: 1,
     create(context: Cinema2ModuleCreateContext) {
-      const performance = new Cinema2CorridorPerformance(index => context.randomness.sample('corridor-pattern-cycle', index))
+      const performance = new Cinema2CorridorPerformance(index => context.randomness.sample('corridor-pattern-cycle', index), squareCassettes)
       const renderer = context.resources.acquire(squareCassettes ? 'goonz-corridor:cassettes' : 'corridor:cassettes', 'CorridorRenderer', gl => new Cinema2CorridorRenderer(gl, squareCassettes), value => value.dispose())
       const source = context.mediaPoolSource
       // Reuse the existing three-channel named-pool runtime in an isolated lease.

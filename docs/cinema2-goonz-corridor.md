@@ -1,19 +1,36 @@
-# GOONZ CORRIDOR
+# GOONZ CORRIDOR: fixture performance and media programming
 
-A private Cinema 2.0 variant of Corridor, with its own preset ID `drmvyz.cinema2.goonz-corridor` and native module type. The original Corridor retains its four-lane cassette mesh and non-CRT panel shader branch; both variants share the faster transit and four corner rails. The variant inherits the original camera, six patterns, media slot and pool cadence, all four Inspector groups, BPM Sync, Auto Performance, audio/Director choreography and post effects. The standard workspace keys saved values and media assignments by preset ID.
+The existing GOONZ user-preset ID, media slot, geometry, camera, native module and local parameter IDs remain unchanged. The system Corridor keeps its original six patterns and phrase-based pool cadence. No catalog or database changes are required by this patch.
 
-## Layout and material
+## Programming
 
-The variant keeps the original 12 recycled depth bays and continuous four-sided backing. Each bank/bay has either one independently offset square or two unequal, independently staggered squares, determined by world bay and bank, never by playback time. Complementary pair sides range from 0.64–0.86 of the corridor half-width and sum to 1.50 before the axial cap; the pair has an additional 0.055 half-width gap. Single sides range from 0.64–1.44. All sides are capped at 2.60 world units and offset only inside the existing corner gutter. Both axes use the same physical side length. The minimum casing, face and lit aperture remain more than twice the original theoretical minimum. At default width 2.35, outer casing sides range from 1.504 to 2.60 units.
+The shared Cinema2BeatClock and pattern controller supply beat progress and selection; GOONZ interprets beat progress in four eight-beat movements, with directional variations over a longer cycle. Pause holds the routine; source/seek or pattern entry resets it. Auto Performance gates canonical kick, snare, downbeat, phrase, section, build and drop contributions; it does not own saved parameter values. Motion zero holds routine progress. No new audio analyzer or event detector is introduced.
 
-Every cassette has a telescoping mount, rigid body, wide machined steel shoulder, beveled lip, recessed LED strip and square diffuser/media opening. Corner and depth gaps remain clear at maximum extension. The native media fitting remains contain, with a 1:1 physical aspect. The mesh allocates at most 96 cassette slots rather than 192, using a single draw call and the same post graph.
+| Pattern | Movement vocabulary | Program pool cadence |
+| --- | --- | --- |
+| Night Transit | Isolated distant islands, alternating banks, sweep, darkness | Phrase |
+| Relay | Forward/reverse packet, wider packet, double chase | 2 beats |
+| Counterflow | Opposing packets, crossing accent, reversal | 4 beats |
+| Shaft | Ceiling/floor alternation, quicker response, sidewall impact | Bar |
+| Signal Fault | Stable islands, controlled interruptions, stagger, restoration | 2 beats |
+| Gate | Moving ring, double ring, compression and release | Bar |
+| Ricochet | Sequential bank hops and trailing responses | 2 beats |
+| Helix | Rotating spiral, compression and reverse | Bar |
+| Pressure Chamber | Converging fronts, suspension, expansion | 4 bars |
+| Impact Matrix | Alternating groups and subdivisions | Bar |
+| Afterimage | Moving front, diminishing trail and release | Phrase |
+| Overload | Quarter/eighth/sixteenth subdivisions and sparse blackout | 2 beats |
 
-## CRT screen programming
+Explicit Pool Trigger overrides program cadence. The same existing pool leases up to three feeds. Channel assignments can change independently of media reloads; unavailable channels fall back to a ready feed, and a wholly unavailable pool falls back to fixture rendering. Screen power, hero hold, contained content motion and CRT interference do not change underlying source assets. The media-protection alpha convention and postprocessing remain intact.
 
-GOONZ adapts EVERYWHERE’s analog glass treatment to its square media/diffuser faces: subtle curvature and wobble, anti-aliased phosphor scanlines, rolling tracking, edge falloff, glass glare, and pattern-specific exposure, tint and interference. Night Transit breathes, Relay uses tracking sweeps, Counterflow alternates color channels, Shaft has a warmer monochrome treatment, Signal Fault introduces bounded snow and channel ghosts, and Gate swells exposure with the existing drop ring. Effects are baked into the native shader before media protection; original media alpha and contained framing remain authoritative, and the metal casing is not distorted. Unassigned illuminated faces also receive the treatment. No extra media decoders, clocks, pattern IDs, render passes or persistent controls are introduced. The original Corridor media shader remains unchanged.
+## Lighting and controls
 
-## Installation and acceptance
+The rectangular perimeter approximation uses the same deterministic fixture shape as the vertex shader. It samples the current and adjacent bays and neighboring banks, computes falloff in physical corridor coordinates, and shades backing, casing and rail spill separately. This is a local analytic light approximation, not a global illumination or ray-traced shadow solution. No extra render pass or decoder is allocated. The existing inspector exposes all controls under its four canonical parent groups. Existing saved brightness values are not overwritten; Reset restores the updated authored defaults.
 
-1. Apply the patch from the repository root. Apply Supabase migration `0062_goonz_corridor_user_preset.sql` to the configured project (`supabase db push` for a linked project, or execute the migration SQL in the project's SQL Editor). It follows the existing oldest-profile owner convention from 0040 and 0041; verify the owner profile is correct before applying. The user-scope catalog row and holding are required for the USER tab. Missing catalog data fails closed for this preset. This follows the existing bundled user-preset model, not an independently downloadable or encrypted asset.
-2. Restart Studio, sign in as the owner, open Cinema 2.0 > Presets > USER and load GOONZ CORRIDOR. Search for GOONZ in that tab. Confirm the original Corridor is still under SYSTEM (unless its catalog scope was independently changed).
-3. Run `npx vitest run src/components/vyzualz/cinema2/__tests__/Cinema2GoonzCorridorPreset.test.ts src/components/vyzualz/cinema2/__tests__/Cinema2CorridorPreset.test.ts src/features/presetCatalog/presetScope.test.ts`. Review all six patterns, minimum/default/maximum width, idle and drop states, pause/seek, media fitting and cast output in Studio. Confirm the new preset does not appear under SYSTEM or under USER for a non-holder. Capture a new production thumbnail after visual review; do not reuse Corridor artwork as if it depicted the new geometry.
+## Production acceptance checklist (pending on target hardware)
+
+- With an isolated active fixture, verify visible localized wall illumination above/below/beside the housing; inactive areas stay dark. Toggle Wall Spill to compare. Verify casing reflection on inactive adjacent panels and rail illumination at each corner.
+- Record all twelve patterns for at least 16 bars at 120 and 150 BPM; confirm each has perceptible movement and direction changes, including pause, seek, manual selection and automatic pattern change.
+- Validate build subdivisions, suspension and drop release with real analyzed music. Inspect snare, downbeat, phrase and section accents; Auto Performance off must remove these contributions.
+- Exercise no source, single PNG/SVG/video, and 1/2/3+ pool items, delayed decode and explicit pool cadence. Verify contain behavior and dark logo readability, including cast output.
+- Compare original Corridor captures and controls before/after. Check HDR and RGBA8 fallback at target resolution and quality, GPU frame time, dropped frames, resource cleanup, and long-running transport. Tune spill strength/reach, exposure and brightness against reference screenshots on actual hardware; avoid large-field flashing.

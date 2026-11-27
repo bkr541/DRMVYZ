@@ -5,6 +5,10 @@ import type { Cinema2Color } from '../../contracts/Cinema2NativePresetManifest'
 import type { Cinema2ModuleRenderExecutionContext } from '../Cinema2ModuleContracts'
 import { Cinema2GlStateGuard } from '../three/Cinema2GlStateGuard'
 
+import { GOONZ_EXTRA_PATTERNS, GOONZ_CHOREOGRAPHY_GLSL, type GoonzExtraPattern } from './Cinema2GoonzCorridorChoreography'
+import { GOONZ_LIGHTING_GLSL } from './Cinema2GoonzCorridorLighting'
+import { GOONZ_MEDIA_GLSL } from './Cinema2GoonzCorridorMediaMotion'
+
 export const CORRIDOR_BAY_LENGTH = 2.8
 const BAY_COUNT = 12
 const LANES = 4
@@ -32,6 +36,13 @@ export const CORRIDOR_PATTERNS = [
 ] as const
 export type CorridorPattern = typeof CORRIDOR_PATTERNS[number]['value']
 
+export const GOONZ_CORRIDOR_PATTERNS = [...CORRIDOR_PATTERNS, ...GOONZ_EXTRA_PATTERNS] as const
+export type GoonzCorridorPattern = CorridorPattern | GoonzExtraPattern
+export interface GoonzLook {
+  beat: number; snare: number; downbeat: number; phrase: number; section: number; build: number; silence: number; vocal: number
+  perimeter: number; rail: number; complexity: number; spill: number; reach: number; reflection: number
+  screenPower: number; readability: number; contentMotion: number; crt: number
+}
 export interface CorridorLook {
   travel: number
   phase: number
@@ -41,7 +52,8 @@ export interface CorridorLook {
   density: number
   intensity: number
   haze: number
-  pattern: CorridorPattern
+  pattern: GoonzCorridorPattern
+  goonz?: GoonzLook
   kick: number
   bass: number
   extensionBuild: number
@@ -72,6 +84,24 @@ float goonzSide(float row, float bank, float lane, float width) {
     : (lane < .5 ? first : ${GOONZ_PAIR_SPAN}-first);
   return min(side*width,${GOONZ_MAX_AXIAL_SIDE});
 }
+vec3 goonzShape(float row,float bank,float lane,float width) {
+  float count=goonzLaneCount(row,bank);
+  vec2 id=vec2(row,bank*13.5+lane);
+  float side = goonzSide(row,bank,lane,width);
+  float first = goonzSide(row,bank,0.0,width)/width;
+  float second = goonzSide(row,bank,1.0,width)/width;
+  float pairSpan = first+second+${GOONZ_PAIR_GAP};
+  float free = count < 1.5 ? ${CORRIDOR_BANK_SPAN}-side/(2.0*width)
+  : ${CORRIDOR_BANK_SPAN}-pairSpan*.5;
+  float offset = (hash(vec2(row,bank)+17.9)*2.0-1.0)*max(0.0,free)*.85;
+  float center = offset + (count < 1.5 ? 0.0 :
+  (lane < .5 ? -pairSpan*.5+first*.5 : pairSpan*.5-second*.5));
+  // Stagger the modules within the free space, preserving the corner gutter
+  // at maximum piston extension and a gap between consecutive depth bays.
+  float margin = max(0.0,(${CORRIDOR_BAY_LENGTH}-side)*.5-.055);
+  float stagger = (hash(id+92.1)*2.0-1.0)*margin*.85;
+  return vec3(center,stagger,side);
+}
 #endif
 `
 
@@ -86,6 +116,9 @@ uniform mat4 uProjection;
 uniform vec4 uPose; // wrapped axial travel, roll, lateral sway, width
 out vec2 vUV;
 out vec3 vPosition;
+#ifdef GOONZ_LAYOUT
+out vec3 vGoonzPosition;
+#endif
 out float vDepth;
 flat out vec3 vCell;
 flat out vec2 vPart;
@@ -134,21 +167,13 @@ void main() {
       gl_Position = vec4(2.0,2.0,2.0,1.0);
       vUV = aUV; vPosition = vec3(0.0); vDepth = 0.0;
       vCell = aCell; vPart = aPart;
+      vGoonzPosition=vec3(0.0);
       return;
     }
-    float side = goonzSide(row,bank,aCell.z,uPose.w);
-    float first = goonzSide(row,bank,0.0,uPose.w)/uPose.w;
-    float second = goonzSide(row,bank,1.0,uPose.w)/uPose.w;
-    float pairSpan = first+second+${GOONZ_PAIR_GAP};
-    float free = count < 1.5 ? ${CORRIDOR_BANK_SPAN}-side/(2.0*uPose.w)
-      : ${CORRIDOR_BANK_SPAN}-pairSpan*.5;
-    float offset = (hash(vec2(row,bank)+17.9)*2.0-1.0)*max(0.0,free)*.85;
-    float center = offset + (count < 1.5 ? 0.0 :
-      (aCell.z < .5 ? -pairSpan*.5+first*.5 : pairSpan*.5-second*.5));
-    // Stagger the modules within the free space, preserving the corner gutter
-    // at maximum piston extension and a gap between consecutive depth bays.
-    float margin = max(0.0,(${CORRIDOR_BAY_LENGTH}-side)*.5-.055);
-    float stagger = (hash(id+92.1)*2.0-1.0)*margin*.85;
+    vec3 shape = goonzShape(row,bank,aCell.z,uPose.w);
+    float side = shape.z;
+    float center = shape.x;
+    float stagger = shape.y;
     // Both dimensions use the same physical length. .95 is the outer foot's
     // UV extent; inner lips, strips and face inherit exactly the same scale.
     across = center + (aUV.x-.5)*side/(.95*uPose.w);
@@ -167,6 +192,9 @@ void main() {
   else if (bank < 2.5) p = vec2(p.y, -p.x);
   else p = vec2(-p.x, -p.y);
   p *= uPose.w;
+#ifdef GOONZ_LAYOUT
+  vGoonzPosition=vec3(p,(aCell.y+axial)*${CORRIDOR_BAY_LENGTH});
+#endif
   float s = sin(uPose.y), c = cos(uPose.y);
   p = mat2(c, s, -s, c) * (p - vec2(uPose.z, 0.0));
   vPosition = vec3(p, -(aCell.y + axial) * ${CORRIDOR_BAY_LENGTH} + uPose.x);
@@ -181,6 +209,9 @@ const FRAGMENT = `#version 300 es
 precision highp float;
 in vec2 vUV;
 in vec3 vPosition;
+#ifdef GOONZ_LAYOUT
+in vec3 vGoonzPosition;
+#endif
 in float vDepth;
 flat in vec3 vCell;
 flat in vec2 vPart;
@@ -209,6 +240,10 @@ float hash(vec2 p) {
   return fract((q.x + q.y) * q.z);
 }
 ${GOONZ_LAYOUT_GLSL}
+#ifdef GOONZ_LAYOUT
+${GOONZ_CHOREOGRAPHY_GLSL}
+${GOONZ_MEDIA_GLSL}
+#endif
 
 float boxSdf(vec2 p, vec2 size, float corner) {
   vec2 d = abs(p) - size + corner;
@@ -267,6 +302,11 @@ float mediaRole(float row, float bank, float lane) {
   if (uPattern == 3) return mod(bank,2.0)==1.0 ? (lane==selected ? 2.0 : 1.0) : 0.0;
   if (uPattern == 4) return mod(bank,2.0)==parity ? (lane==selected ? 2.0 : 1.0) : 0.0;
   if (uPattern == 5) return parity==1.0 ? (lane==selected ? 2.0 : 1.0) : 0.0;
+  if (uPattern>=6) {
+    float z=(vCell.y+.5)-uTravel/2.8;
+    float drive=gLevel(z,bank,lane,hash(vec2(row,bank*13.5+lane)+1.3),false);
+    return lane==selected ? 2.0 : (drive>.52 ? 1.0 : 0.0);
+  }
   return lane == selected && mod(row+bank,3.0)!=0.0 ? 2.0-mod(row+bank,2.0) : 0.0;
 #else
   if (uPattern == 1) { // diagonal relay, full display heads / hybrid tails
@@ -366,7 +406,8 @@ vec4 mediaPicture(float bank, float random, float detail, int channel, float ape
   else if (bank < 2.5) { uv = vec2(1.0-uv.y,uv.x); screenAspect = 1.0/screenAspect; }
   else uv = vec2(1.0-uv.x,1.0-uv.y);
 #ifdef GOONZ_LAYOUT
-  uv = crtUV(uv,detail);
+  uv = mix(uv,crtUV(uv,detail),uGoonzMedia.w);
+  uv = gContentUV(uv,bank,detail);
 #endif
   // Contain rather than crop logos, SVGs and portrait/landscape video.
   vec2 fit = max(vec2(screenAspect/aspect,aspect/screenAspect),vec2(1.0));
@@ -400,6 +441,9 @@ float motif(vec2 p, float kind) {
 
 // Use the same pattern and musical accents for the diffuser and nearby reflected light.
 float panelLevel(float row, float bank, float lane, float random, float distanceIn, float bayCenter) {
+#ifdef GOONZ_LAYOUT
+  return gLevel(bayCenter/${CORRIDOR_BAY_LENGTH},bank,lane,random,false);
+#else
   float level = selection(row,bank,lane,random,uLook.z);
   float guide = step(.90,random)*smoothstep(9.0,22.0,distanceIn)*.16;
   float bassHit = uAccents.x * (bank < .5 || bank > 2.5 ? .66 : .24) * exp(-distanceIn*.20);
@@ -407,11 +451,15 @@ float panelLevel(float row, float bank, float lane, float random, float distance
   float ringDepth = mix(1.55,4.25,clamp(uAccents.w,0.0,1.0));
   float ring = uAccents.w * exp(-pow((bayCenter / ${CORRIDOR_BAY_LENGTH} - ringDepth) / .54,2.0));
   return max(guide,max(level + bassHit + nearbyBuild,ring*1.28));
+#endif
 }
 vec3 panelColor(float detail, float ring) {
   float warm = mix(.16,.88,smoothstep(.57,.94,detail));
   return mix(uAmber,uHot,warm + (1.0-warm)*min(1.0,ring*.75));
 }
+#ifdef GOONZ_LAYOUT
+${GOONZ_LIGHTING_GLSL}
+#endif
 vec3 neighborLight(float row, float bank, float lane, float edgeIndex, float bayCenter) {
   // Edges 0/2 face adjacent bays; edges 1/3 face adjacent lanes (wrapping across corners).
   if (edgeIndex < .5) { row -= 1.0; bayCenter -= ${CORRIDOR_BAY_LENGTH}; }
@@ -461,12 +509,18 @@ void main() {
     float a = panelLevel(row,bank,railLane,hash(vec2(row,bank)+19.4),distanceIn,bayCenter);
     float b = panelLevel(nextRow,bank,railLane,hash(vec2(nextRow,bank)+19.4),distanceIn,nextCenter);
     float drive = mix(a,b,abs(offset));
+#ifdef GOONZ_LAYOUT
+    drive=mix(gLevel(bayCenter/2.8,bank,0.0,.72,true),gLevel(nextCenter/2.8,bank,0.0,.72,true),abs(offset))*uGoonzDesign.y;
+#endif
     float core = 1.0-smoothstep(.19,.29,abs(vUV.x-.5));
     float lip = 1.0-smoothstep(.34,.46,abs(vUV.x-.5));
     // Physical housing, luminous diffuser, and warm shoulder spill. The
     // shared palette, intensity, kick, build and drop govern the same rail.
     vec3 tint = mix(uAmber,uHot,clamp(drive*.63+uAccents.w*.24,0.0,1.0));
     float light = (.055+2.9*pow(clamp(drive,0.0,1.5),1.25))*uLook.w;
+#ifdef GOONZ_LAYOUT
+    light=3.8*pow(clamp(drive,0.0,2.5),1.15)*uLook.w;
+#endif
     vec3 rgb = uWall*(.19+.20*lip)+tint*light*(core+.12*lip);
     float fade = exp(-pow(distanceIn*(.034+uHaze*.13),1.34))*(1.0-smoothstep(24.0,33.0,distanceIn));
     outColor = vec4(mix(uVoid,rgb,fade),1.0);
@@ -496,7 +550,11 @@ void main() {
   if (vPart.x < .5) {
     // Continuous graphite backing stays behind the independently moving modules.
     metal = uWall * (.18 + .10*brushed) * gasket;
+#ifdef GOONZ_LAYOUT
+    metal = uWall*(.035+.045*brushed)*gasket + gSpill(vGoonzPosition,bank,vCell.y,uGoonzSpill.y,false)*uGoonzSpill.x*(.74+.26*brushed);
+#else
     metal += lampColor * fixture * uLook.w * .045 * exp(-max(lamp,0.0)*6.0);
+#endif
   } else if (vPart.x < 2.5 || vPart.x > 4.5) {
     // Physical sidewalls and chamfered metal catch the neighbouring panels' colors.
     // This is bounded local spill, not an additional emissive face or global light pass.
@@ -512,12 +570,19 @@ void main() {
     float machining = .5+.5*sin(vUV.x*480.0+vUV.y*35.0);
     metal = steel * (.25+.16*brushed+.12*machining+.23*shoulder+.70*bevel) * facing;
 #endif
+#ifdef GOONZ_LAYOUT
+    metal += gSpill(vGoonzPosition,bank,vCell.y,uGoonzSpill.y,true)*uGoonzSpill.z*(.25+.45*bevel+.20*shoulder)*facing;
+#else
     metal += (neighbor * (.22+.17*bevel) + lampColor * fixture * (.09+.11*bevel))
       * uLook.w * (.40+.60*shoulder) * facing;
+#endif
   } else if (vPart.x < 3.5) {
     // Secondary source sits below the outer lip and below the main face.
     metal = uWall * (.12 + .13*brushed);
     emission = lampColor * fixture * min(1.6,(.26+.68*level)*uLook.w);
+#ifdef GOONZ_LAYOUT
+    emission=lampColor*level*uLook.w*uGoonzDesign.x*2.4;
+#endif
   } else {
     float edge = exp(-abs(lamp-.016)*42.0) * fixture;
     metal = uWall * (.28 + .12*brushed + .18*spill);
@@ -532,12 +597,16 @@ void main() {
     emission = lampColor * diffuser * fixture * min(5.5,(.50+2.95*level)*uLook.w) * warmGrain;
 #ifdef GOONZ_LAYOUT
     // Even an unassigned panel is a live phosphor display, not a flat lamp.
-    emission = mix(emission,crtSurface(emission,vUV,id,detail,level)*diffuser,fixture);
+    emission=lampColor*diffuser*fixture*min(9.0,(.35+3.7*level)*uLook.w)*warmGrain;
+    emission = mix(emission,crtSurface(emission,vUV,id,detail,level)*diffuser,fixture*uGoonzMedia.w);
 #endif
     if (uFeedCount > 0 && diffuser > .001) {
       float role = mediaRole(row,bank,lane);
       if (role > .5) {
         int channel = int(mod(row + bank*2.0 + uPoolStep,float(uFeedCount)));
+#ifdef GOONZ_LAYOUT
+        channel=gChannel(row,bank,lane,bayCenter/2.8);
+#endif
         // The drop brings forward a cluster of existing hybrid screens without
         // swapping their identity, decoder or image. Dedicated screens hold.
         float hero = clamp(uAccents.w,0.0,1.0) * (1.0-smoothstep(5.0,12.0,bayCenter));
@@ -556,7 +625,8 @@ void main() {
           // pixels and missing channels reveal the original fixture and mask.
 #ifdef GOONZ_LAYOUT
           vec2 screenUV = local/(2.0*aperture)+.5;
-          picture.rgb = crtSurface(picture.rgb,screenUV,id,detail,level);
+          picture.rgb = mix(picture.rgb,crtSurface(picture.rgb,screenUV,id,detail,level),uGoonzMedia.w);
+          picture.rgb *= gScreenPower(level,role,bank,bayCenter/2.8);
 #endif
           mediaOverlay = vec4(picture.rgb,picture.a*mediaMask);
         }
@@ -664,7 +734,7 @@ export class Cinema2CorridorRenderer {
       this.emptyFeed = emptyFeed
       const compiled = ShaderProgram.create(gl, new ShaderCompiler(gl), {
         vertSrc: corridorShaderVariant(VERTEX, squareCassettes), fragSrc: corridorShaderVariant(FRAGMENT, squareCassettes), label: squareCassettes ? 'cinema2/goonz-corridor' : 'cinema2/corridor',
-        requiredUniforms: ['uView', 'uProjection', 'uPose', 'uLook', 'uAccents', 'uMechanical', 'uTravel', 'uPattern', 'uHaze', 'uVoid', 'uWall', 'uAmber', 'uHot', 'uMarkings', 'uFeed0', 'uFeed1', 'uFeed2', 'uFeedAspect', 'uFeedCount', 'uPoolStep', ...(squareCassettes ? [] : ['uCorridorWidth'])],
+        requiredUniforms: ['uView', 'uProjection', 'uPose', 'uLook', 'uAccents', 'uMechanical', 'uTravel', 'uPattern', 'uHaze', 'uVoid', 'uWall', 'uAmber', 'uHot', 'uMarkings', 'uFeed0', 'uFeed1', 'uFeed2', 'uFeedAspect', 'uFeedCount', 'uPoolStep', 'uCorridorWidth', ...(squareCassettes ? ['uGoonzTime','uGoonzDesign','uGoonzSpill','uGoonzMedia','uGoonzSection'] : [])],
       })
       if (!compiled.program) throw new Error(compiled.error.log)
       this.program = compiled.program
@@ -710,7 +780,7 @@ export class Cinema2CorridorRenderer {
       program.setVec4('uAccents',look.kick,look.transient,look.build,look.drop)
       program.setVec2('uMechanical',look.bass,look.extensionBuild)
       program.setFloat('uTravel',look.travel - bay * CORRIDOR_BAY_LENGTH)
-      program.setInt('uPattern',CORRIDOR_PATTERNS.findIndex(pattern => pattern.value === look.pattern))
+      program.setInt('uPattern',(this.squareCassettes ? GOONZ_CORRIDOR_PATTERNS : CORRIDOR_PATTERNS).findIndex(pattern => pattern.value === look.pattern))
       program.setFloat('uHaze',look.haze)
       for (const [name,value] of [['uVoid',look.voidColor],['uWall',look.wall],['uAmber',look.amber],['uHot',look.hot],['uMarkings',look.markings]] as const) {
         program.setVec3(name,value[0],value[1],value[2])
@@ -722,7 +792,15 @@ export class Cinema2CorridorRenderer {
       program.setVec3('uFeedAspect',aspect(0),aspect(1),aspect(2))
       program.setInt('uFeedCount',Math.min(3,feeds.length))
       program.setFloat('uPoolStep',poolStep)
-      if (!this.squareCassettes) program.setFloat('uCorridorWidth',look.width)
+      program.setFloat('uCorridorWidth',look.width)
+      if (this.squareCassettes) {
+        const g=look.goonz ?? { beat:0,snare:0,downbeat:0,phrase:0,section:0,build:0,silence:0,vocal:0,perimeter:1.25,rail:1.1,complexity:.85,spill:1,reach:.65,reflection:.85,screenPower:1,readability:1,contentMotion:.75,crt:.25 }
+        program.setVec4('uGoonzTime',g.beat,g.snare,g.downbeat,g.phrase)
+        program.setVec4('uGoonzDesign',g.perimeter,g.rail,g.complexity,g.silence)
+        program.setVec4('uGoonzSpill',g.spill,g.reach,g.reflection,g.vocal)
+        program.setVec4('uGoonzMedia',g.screenPower,g.readability,g.contentMotion,g.crt)
+        program.setVec2('uGoonzSection',g.section,g.build)
+      }
       for (let index = 0; index < 3; index++) {
         gl.activeTexture(gl.TEXTURE0 + index)
         gl.bindTexture(gl.TEXTURE_2D,feeds[index]?.texture ?? this.emptyFeed)
