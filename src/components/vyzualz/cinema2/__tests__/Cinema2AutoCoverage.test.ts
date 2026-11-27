@@ -78,6 +78,7 @@ describe('what Auto Performance does not move, and why', () => {
     }
     expect(left).toEqual({
       afterhours: ['Laser Count (structural)'],
+      ...(userFacing.some(d=>slugOf(d.manifest.id)==='arc-angel') ? {'arc-angel':['Flash Accents (exempt)','Model Scale (exempt)','Music Reactivity (exempt)']} : {}),
       'atl-hoe': ['City Atmosphere (exempt)', 'Flicker (authority)'],
       blockshift: ['Block Size (exempt)', 'Depth (exempt)', 'Rotation Range (exempt)', 'Spread (exempt)'],
       canopy: ['Column Spacing (exempt)', 'Columns (structural)', 'Length Variation (exempt)', 'Rod Length (exempt)', 'Row Spacing (exempt)', 'Rows (structural)'],

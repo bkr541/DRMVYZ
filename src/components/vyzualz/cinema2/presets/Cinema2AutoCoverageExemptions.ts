@@ -13,6 +13,11 @@ const MAPPED_BY_RULE = 'The preset maps this saved value to its targets through 
 const NEVER_ZOOMS = 'Open Decks never zooms or turns: its only camera movement is the slight left and right sway authored in the preset.'
 
 export const CINEMA2_AUTO_COVERAGE_EXEMPT: Readonly<Record<string, Readonly<Record<string, string>>>> = Object.freeze({
+  'arc-angel': Object.freeze({
+    'arc-angel-reactivity':'User-owned strength of all musical contributions.',
+    'arc-angel-model-scale':'User-owned framing within the safe animated model envelope.',
+    'arc-angel-flash-accents':'User-owned flash safety limit.',
+  }),
   spectrum: Object.freeze({
     'spectrum-reactivity': 'User-owned alignment, media presentation or modulation authority.',
     'spectrum-arena-radius': 'User-owned alignment, media presentation or modulation authority.',

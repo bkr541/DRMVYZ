@@ -1,3 +1,5 @@
+import { CINEMA2_ARC_ANGEL_PRESET_MANIFEST } from './Cinema2ArcAngelPreset'
+import { ARC_ANGEL_AVAILABLE } from '../modules/Cinema2ArcAngelNativeModule'
 import { CINEMA2_SPECTRUM_PRESET_MANIFEST } from './Cinema2SpectrumPreset'
 import { CINEMA2_FRACTURE_PRESET_MANIFEST } from './Cinema2FracturePreset'
 import { CINEMA2_REFRACTION_PRESET_MANIFEST } from './Cinema2RefractionPreset'
@@ -80,6 +82,8 @@ import { CINEMA2_TRIPPY_BRO_PRESET_MANIFEST } from './Cinema2TrippyBroPreset'
  * the runtime and schema-driven Inspector remain preset-agnostic.
  */
 const AUTHORED_PRESET_DECLARATIONS = Object.freeze([
+  // Local review until the supplied model clears the shipped-asset gate.
+  ...(ARC_ANGEL_AVAILABLE ? [defineCinema2FirstPartyPreset({role:'reference',manifest:CINEMA2_ARC_ANGEL_PRESET_MANIFEST})] : []),
   defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_COLOSSUS_PRESET_MANIFEST }),
   defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_EXOSKELETON_PRESET_MANIFEST }),
   defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_MONUMENT_PRESET_MANIFEST }),

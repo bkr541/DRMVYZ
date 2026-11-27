@@ -1,3 +1,4 @@
+import { cinema2ArcAngelNativeModuleDefinition } from './Cinema2ArcAngelNativeModule'
 import { cinema2SpectrumNativeModuleDefinition } from './Cinema2SpectrumNativeModule'
 import { cinema2FractureNativeModuleDefinition } from './Cinema2FractureNativeModule'
 import { cinema2RefractionNativeModuleDefinition } from './Cinema2RefractionNativeModule'
@@ -360,6 +361,8 @@ if (!mosaicRegistration.ok) throw new Error('Cinema 2.0 MOSAIC module registrati
 const overdriveRegistration = cinema2NativeModuleRegistry.register(cinema2OverdriveNativeModuleDefinition)
 if (!overdriveRegistration.ok) throw new Error('Cinema 2.0 OVERDRIVE module registration failed.')
 
+const arcAngelRegistration = cinema2NativeModuleRegistry.register(cinema2ArcAngelNativeModuleDefinition)
+if (!arcAngelRegistration.ok) throw new Error('Cinema 2.0 ARC ANGEL module registration failed.')
 const colossusRegistration = cinema2NativeModuleRegistry.register(cinema2ColossusNativeModuleDefinition)
 if (!colossusRegistration.ok) throw new Error('Cinema 2.0 COLOSSUS module registration failed.')
 const exoskeletonRegistration = cinema2NativeModuleRegistry.register(cinema2ExoskeletonNativeModuleDefinition)

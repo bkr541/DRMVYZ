@@ -2,6 +2,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { fileURLToPath } from 'node:url'
+import { arcAngelPreviewPlugin } from './src/dev/arcAngelPreviewPlugin.ts'
 import { reviewNotesPlugin } from './src/dev/reviewNotes/reviewNotesPlugin.ts'
 
 export default defineConfig({
@@ -10,7 +11,8 @@ export default defineConfig({
   // (see electron/main.cjs) instead of the dev server's HTTP origin.
   base: './',
   // Development only: the review notes endpoints (see docs/review-notes.md). `apply: 'serve'` keeps them out of every build.
-  plugins: [react(), reviewNotesPlugin()],
+  plugins: [react(), reviewNotesPlugin(), arcAngelPreviewPlugin()],
+  server: { fs: { deny: ['.env', '.env.*', '*.{crt,pem}', '**/.git/**', '**/.asset-sources/**'] } },
   // Standalone generation engine: Phase 03 can import it lazily without adding
   // tracing or WASM to the app's initial renderer bundle.
   build: {
