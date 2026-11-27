@@ -84,8 +84,8 @@ describe('persistent Layout Lab tabs', () => {
 
   it('keeps content identity through renaming, switching tabs and reopening', async () => {
     await render()
-    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(10)
-    expect(host.querySelectorAll('[role="tabpanel"]')).toHaveLength(10)
+    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(11)
+    expect(host.querySelectorAll('[role="tabpanel"]')).toHaveLength(11)
     const panel = host.querySelector<HTMLElement>('#layout-lab-tab-01-panel')!
     const studies = panel.querySelector('.ll-pad-studies')
     const rows = [...panel.querySelectorAll('[data-pad-study]')]
@@ -128,11 +128,66 @@ describe('persistent Layout Lab tabs', () => {
     await key('Enter')
     expect(tab(1).textContent).toBe('Tab 1')
     await act(async () => tab(1).dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true })))
-    expect(tab(16).getAttribute('aria-selected')).toBe('true')
-    await act(async () => tab(16).dispatchEvent(new KeyboardEvent('keydown', { key: 'F2', bubbles: true })))
+    expect(tab(17).getAttribute('aria-selected')).toBe('true')
+    await act(async () => tab(17).dispatchEvent(new KeyboardEvent('keydown', { key: 'F2', bubbles: true })))
     await type('Geometry')
     await act(async () => input().blur())
-    expect(tab(16).textContent).toBe('Geometry')
+    expect(tab(17).textContent).toBe('Geometry')
+  })
+
+  it('adds four independent Output studies to existing saved Layout Lab workspaces', async () => {
+    window.localStorage.setItem(LAYOUT_LAB_STORAGE_KEY, JSON.stringify({
+      version: 1, activeTabId: 'layout-lab-tab-16', tabs: [{ id: 'layout-lab-tab-16', name: 'My filters' }],
+    }))
+    await render()
+    expect(tab(16).textContent).toBe('My filters')
+    expect(tab(17).textContent).toBe('Output')
+    await act(async () => tab(17).click())
+    const panel = host.querySelector<HTMLElement>('#layout-lab-tab-17-panel')!
+    expect(panel.hidden).toBe(false)
+    const studies = [...panel.querySelectorAll<HTMLElement>('[data-output-study]')]
+    expect(studies.map(study => study.dataset.outputStudy)).toEqual(['classic', 'paired', 'quick', 'framing'])
+    for (const study of studies) {
+      expect(study.querySelector('.dv-underline-tab.is-active')?.textContent).toBe('Output')
+      expect([...study.querySelectorAll<HTMLElement>('[data-output-field]')].map(field => field.dataset.outputField).sort()).toEqual(['aspect', 'bitrate', 'format', 'fps'])
+      expect(study.querySelector('[aria-label="Aspect Ratio"]')?.textContent).toContain('16:9')
+      expect(study.querySelector('[aria-label="Video Bitrate"]')?.textContent).toContain('8 Mbps')
+    }
+    const [classic, paired, quick, framing] = studies
+    const select = (study: HTMLElement, label: string) => study.querySelector<HTMLButtonElement>(`[role="combobox"][aria-label="${label}"]`)!
+    const choose = async (study: HTMLElement, label: string, value: string) => {
+      await act(async () => select(study, label).click())
+      const menu = document.getElementById(select(study, label).getAttribute('aria-controls')!)!
+      const option = [...menu.querySelectorAll<HTMLElement>('[role="option"]')].find(item => item.textContent?.trim() === value)!
+      expect(option).toBeDefined()
+      await act(async () => option.click())
+      expect(select(study, label).textContent).toContain(value)
+    }
+    await choose(classic, 'Frame Rate', '60 fps')
+    await choose(classic, 'Video Bitrate', '24 Mbps')
+    await choose(classic, 'Video Format', 'MP4')
+    await choose(framing, 'Aspect Ratio', '9:16')
+    expect(framing.querySelector('[role="img"][aria-label="Output framing: 9:16"]')).not.toBeNull()
+    expect(select(paired, 'Frame Rate').textContent).toContain('30 fps')
+    expect(select(paired, 'Video Format').textContent).toContain('WebM')
+    const findButton = (study: HTMLElement, label: string) => [...study.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent?.trim() === label)!
+    await act(async () => findButton(quick, '60 fps').click())
+    await act(async () => findButton(quick, 'MOV').click())
+    expect(findButton(quick, '60 fps').getAttribute('aria-pressed')).toBe('true')
+    expect(findButton(quick, 'MOV').getAttribute('aria-pressed')).toBe('true')
+    await act(async () => findButton(quick, 'Start Recording').click())
+    expect(select(quick, 'Video Bitrate').disabled).toBe(true)
+    expect(findButton(quick, 'MOV').disabled).toBe(true)
+    expect(select(classic, 'Video Bitrate').disabled).toBe(false)
+    await act(async () => findButton(quick, 'Stop & Save').click())
+    expect(select(quick, 'Video Bitrate').disabled).toBe(false)
+    expect(quick.querySelector('[aria-live="polite"]')?.textContent).toContain('simulation')
+    await act(async () => findButton(paired, 'PNG Frame').click())
+    expect(paired.querySelector('[aria-live="polite"]')?.textContent).toContain('simulation')
+    await act(async () => tab(16).click())
+    await act(async () => tab(17).click())
+    expect(select(classic, 'Video Bitrate').textContent).toContain('24 Mbps')
+    expect(JSON.parse(window.localStorage.getItem(LAYOUT_LAB_STORAGE_KEY)!).activeTabId).toBe('layout-lab-tab-17')
   })
 
   it('adds the UI Preview tab, with its own permanent id and one window frame', async () => {
@@ -423,7 +478,7 @@ describe('persistent Layout Lab tabs', () => {
     expect([...host.querySelectorAll('[role="tab"]')].map(item => item.textContent)).not.toContain('PixGrid Deck')
     expect(host.querySelector('#layout-lab-tab-10')).toBeNull()
     expect(host.querySelector('[aria-label="PixGrid Deck popover studies"]')).toBeNull()
-    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(10)
+    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(11)
     expect(tab(1).getAttribute('aria-selected')).toBe('true')
   })
 
@@ -449,7 +504,7 @@ describe('persistent Layout Lab tabs', () => {
     window.localStorage.setItem(LAYOUT_LAB_STORAGE_KEY, 'broken json')
     vi.spyOn(window.localStorage, 'setItem').mockImplementation(() => { throw new Error('Storage blocked') })
     await render()
-    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(10)
+    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(11)
     expect(host.querySelector('[role="status"]')?.textContent).toContain('could not be saved')
     await act(async () => tab(3).click())
     expect(tab(3).getAttribute('aria-selected')).toBe('true')

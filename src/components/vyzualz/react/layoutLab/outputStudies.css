@@ -1,0 +1,110 @@
+/* Scoped Layout Lab presentation only. The actual Inspector is unchanged. */
+.ll-out-gallery {
+  --out-ink: #e0e8ec;
+  --out-muted: #a0aeb4;
+  --out-panel: #151a1d;
+  --out-line: #344046;
+  --out-accent: #8ef4ff;
+  color: var(--out-ink);
+  padding: 12px 0 24px;
+}
+.ll-out-intro, .ll-out-description {
+  color: var(--out-muted);
+  font: var(--type-field-value, 400 12px/1.4 system-ui);
+  line-height: 1.45;
+}
+.ll-out-intro { margin: 0 0 18px; max-width: 880px; }
+.ll-out-studies {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  max-width: 1380px;
+  gap: 24px 18px;
+  align-items: start;
+}
+.ll-out-study { min-width: 0; max-width: 380px; }
+.ll-out-study h2 {
+  margin: 0;
+  font: var(--type-window-heading, 700 12px/1.2 system-ui);
+  letter-spacing: var(--type-window-heading-tracking, .15em);
+  text-transform: uppercase;
+}
+.ll-out-description { margin: 6px 0 12px; min-height: 2.9em; }
+.ll-out-inspector {
+  --color-primary: #4ac7db;
+  --color-text-strong: var(--out-ink);
+  --color-border-subtle: var(--out-line);
+  --ui-text-secondary: #a0aeb4;
+  --radius-group: 6px;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  height: 665px;
+  border: 1px solid var(--out-line);
+  border-radius: 6px;
+  overflow: hidden;
+  color-scheme: dark;
+  background: var(--out-panel);
+  font-family: var(--font-ui, 'STAGELESS Sans', system-ui, sans-serif);
+}
+.ll-out-inspector .rw-window-header { font: var(--type-window-heading); }
+.ll-out-inspector .ll-out-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+  margin: 0 12px;
+  padding-top: var(--workspace-tab-top-gap, 25px);
+  flex: none;
+}
+.ll-out-tabs .dv-underline-tab { text-align: center; padding-inline: 0; cursor: default; }
+.ll-out-subtab {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex: none;
+  padding: 25px 0 20px;
+  color: #4ac7db;
+  font: var(--type-tab, 700 11px/1 system-ui);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.ll-out-subtab span { display: inline-flex; align-items: center; gap: 6px; }
+.ll-out-subtab span::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.ll-out-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #3e535c transparent;
+  padding: 0 18px 14px;
+}
+.ll-out-group { display: flex; flex-direction: column; align-items: stretch; gap: 11px; padding-bottom: 11px; }
+.ll-out-group > .rv-ctrl-section-label {
+  position: static;
+  border-top: 1px solid rgba(255,255,255,.065);
+  padding: 9px 0 3px;
+  background: transparent;
+  box-shadow: none;
+  color: #838e92;
+  font: var(--type-group-heading, 700 10px/1.2 system-ui);
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+.ll-out-inspector .rv-ctrl-row, .ll-out-choice-field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.ll-out-inspector .rv-ctrl-label { color: var(--ui-text-secondary); font: var(--type-field-label, 400 11px/1.2 system-ui); }
+.ll-out-field, .ll-out-inspector .rv-ctrl-label-cluster { min-width: 0; }
+.ll-out-status { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+.ll-out-group > .dv-icon-chip { align-self: flex-start; }
+.ll-out-group > .ll-out-record { min-height: 28px; }
+.ll-out-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.ll-out-choices { display: flex; gap: 5px; }
+.ll-out-choices .dv-icon-chip { flex: 1; min-width: 0; justify-content: center; padding-inline: 4px; }
+.ll-out-inspector[data-output-variant='framing'] .rv-ctrl-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); align-items: center; gap: 9px; }
+.ll-out-aspect-preview { display: grid; place-items: center; height: 100px; background: #101619; border: 1px solid rgba(154,178,188,.15); border-radius: 4px; }
+.ll-out-aspect-frame { display: grid; place-items: center; box-sizing: border-box; background: rgba(74,199,219,.07); border: 1px solid rgba(74,199,219,.6); color: var(--out-accent); font: var(--type-field-value); font-variant-numeric: tabular-nums; }
+.ll-out-feedback { color: var(--out-muted); font: var(--type-field-value); line-height: 1.4; min-height: 1.4em; }
+.ll-out-inspector :is(button, [role='combobox']):focus-visible { outline: 1px solid #8ef4ff; outline-offset: 2px; }
+/* The shared dropdown menu is portaled into the Layout Lab popup body. */
+.ll-out-menu.drm-dropdown__menu { --radius-group: 6px; border-radius: 6px; background: #0d1417; border: 1px solid rgba(154,178,188,.18); }
+.ll-out-menu .drm-dropdown__option { position: relative; padding: 9px 12px 9px 16px; color: #a0aeb4; background: transparent; border-color: transparent; }
+.ll-out-menu .drm-dropdown__option--selected { color: #8ef4ff; }
+.ll-out-menu .drm-dropdown__option--selected::before { content: ''; position: absolute; left: 0; top: 3px; bottom: 3px; width: 2px; background: #4ac7db; }
