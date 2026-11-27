@@ -9,8 +9,7 @@ import { reviewedEntries } from './cinema2-assets/reviewed-release-inventory.mjs
 const baseUrl = process.env.DRMVYZ_ARTWORK_BASE_URL ?? 'http://127.0.0.1:5173'
 const output = new URL('../public/preset-artwork/', import.meta.url)
 await mkdir(output, { recursive: true })
-const chromaverseOnly = process.argv.includes('--chromaverse')
-const cinemaOnly = process.argv.includes('--cinema') || chromaverseOnly
+const cinemaOnly = process.argv.includes('--cinema')
 const browser = await chromium.launch({ headless: true })
 try {
   const page = await browser.newPage({ viewport: { width: 480, height: 270 } })
@@ -43,10 +42,9 @@ try {
     ]
   }, cinemaOnly)
   const missingOnly = process.argv.includes('--missing')
-  const requested = new Set(process.argv.slice(2).filter(arg => arg !== '--missing' && arg !== '--cinema' && arg !== '--chromaverse'))
-  if (chromaverseOnly && !requested.size && catalog.filter(item => item.id.startsWith('drmvyz.cinema2.chromaverse-')).length !== 10) throw new Error('Expected ten CHROMAVERSE system presets in the native registry')
+  const requested = new Set(process.argv.slice(2).filter(arg => arg !== '--missing' && arg !== '--cinema'))
   const failures = []
-  for (const item of catalog.filter(item => (!cinemaOnly || item.kind === 'cinema') && (!chromaverseOnly || item.id.startsWith('drmvyz.cinema2.chromaverse-')) && (!requested.size || requested.has(item.id)))) {
+  for (const item of catalog.filter(item => (!cinemaOnly || item.kind === 'cinema') && (!requested.size || requested.has(item.id)))) {
     if (reviewedEntries.some(entry=>entry.id===item.id)) {
       console.log(`Preserved ${item.id}: VIS-01 approval required`)
       if(requested.has(item.id)) failures.push(item.id)

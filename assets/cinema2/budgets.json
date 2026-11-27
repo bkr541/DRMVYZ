@@ -1,5 +1,5 @@
 {
-  "installerBytes": 314572800,
+  "installerBytes": 167772160,
   "maxFileBytes": 16777216,
   "maxTrianglesPerAsset": 250000,
   "maxTextureDimension": 4096,
@@ -9,9 +9,5 @@
     "low": 33554432,
     "medium": 50331648,
     "high": 83886080
-  },
-  "maxFileBytesByAsset": {
-    "cinema2-chromaverse-alter-ego": 67108864,
-    "cinema2-chromaverse-magic-warp": 26214400
   }
 }

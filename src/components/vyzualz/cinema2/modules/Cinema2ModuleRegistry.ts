@@ -1,4 +1,3 @@
-import { chromaverseModuleDefinitions } from './Cinema2ChromaverseNativeModule'
 import { cinema2SpectrumNativeModuleDefinition } from './Cinema2SpectrumNativeModule'
 import { cinema2FractureNativeModuleDefinition } from './Cinema2FractureNativeModule'
 import { cinema2RefractionNativeModuleDefinition } from './Cinema2RefractionNativeModule'
@@ -213,10 +212,6 @@ for (const definition of cinema2CratePresentationModules) {
 }
 const orbitalRegistration = cinema2NativeModuleRegistry.register(cinema2OrbitalNativeModuleDefinition)
 if (!orbitalRegistration.ok) throw new Error('Cinema 2.0 ORBITAL module registration failed.')
-for (const definition of chromaverseModuleDefinitions) {
-  const result = cinema2NativeModuleRegistry.register(definition)
-  if (!result.ok) throw new Error(`Cinema 2.0 CHROMAVERSE module registration failed for ${definition.typeId}.`)
-}
 const pulseCubedRegistration = cinema2NativeModuleRegistry.register(cinema2PulseCubedNativeModuleDefinition)
 if (!pulseCubedRegistration.ok) throw new Error('Cinema 2.0 PULSE CUBED module registration failed.')
 const submergeRegistration = cinema2NativeModuleRegistry.register(cinema2SubmergeNativeModuleDefinition)

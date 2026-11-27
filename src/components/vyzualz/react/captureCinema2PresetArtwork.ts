@@ -6,7 +6,6 @@ import { Cinema2AudioIntelligenceBridge, Cinema2Runtime, cinema2NativePresetRegi
 export async function captureCinema2PresetArtwork(id: string): Promise<string> {
   const presetId = id as Cinema2PresetId
   if (!cinema2NativePresetRegistry.has(presetId)) throw new Error(`Unknown Cinema 2.0 preset: ${id}`)
-  const requiresModelReady = id.startsWith('drmvyz.cinema2.chromaverse-')
   const width = 480, height = 270
   const scene = document.createElement('canvas')
   const output = document.createElement('canvas')
@@ -42,7 +41,7 @@ export async function captureCinema2PresetArtwork(id: string): Promise<string> {
   })
   let callback: FrameRequestCallback | null = null
   const result = Cinema2Runtime.create(scene, {
-    presetId, renderQuality: requiresModelReady ? 'medium' : 'low', audioIntelligenceBridge: bridge,
+    presetId, renderQuality: 'low', audioIntelligenceBridge: bridge,
     randomness: { mode: 'deterministic', seed: 42 },
     requestAnimationFrame: next => { callback = next; return 1 },
     cancelAnimationFrame: () => { callback = null },
@@ -53,9 +52,7 @@ export async function captureCinema2PresetArtwork(id: string): Promise<string> {
     runtime.resize({ width, height, dpr: 1 })
     runtime.start()
     let bestScore = -1
-    let readyFrames = 0
-    const deadline = performance.now() + 45_000
-    for (let frame = 0; requiresModelReady ? readyFrames < 60 && performance.now() < deadline : frame < 100; frame++) {
+    for (let frame = 0; frame < 100; frame++) {
       index = frame + 1
       // Yield between frames for asset imports and normal UI work. Read the
       // WebGL canvas immediately after rendering, before its buffer clears.
@@ -64,19 +61,6 @@ export async function captureCinema2PresetArtwork(id: string): Promise<string> {
       callback = null
       if (!next) continue
       next(frame * 1000 / 30)
-      if (requiresModelReady) {
-        const modules = runtime.getModuleRuntimeSnapshot()
-        const model = modules.modules.find(module => {
-          const inspection = module.inspection as { assetId?: string; failed?: boolean } | undefined
-          return inspection?.assetId?.startsWith('cinema2-chromaverse-') || inspection?.failed === true
-        })
-        const inspection = model?.inspection as { ready?: boolean; failed?: boolean; activeSurfaces?: number } | undefined
-        if (modules.failedModuleCount || inspection?.failed) {
-          throw new Error(modules.modules.flatMap(module => module.diagnostics.map(diagnostic => diagnostic.message)).join('; ') || `Cinema 2.0 scene failed for ${id}`)
-        }
-        if (!inspection?.ready || !inspection.activeSurfaces) continue
-        readyFrames++
-      }
       sampleContext.drawImage(scene, 0, 0, 48, 27)
       const pixels = sampleContext.getImageData(0, 0, 48, 27).data
       let lit = 0, score = 0, min = 255, max = 0
@@ -87,7 +71,7 @@ export async function captureCinema2PresetArtwork(id: string): Promise<string> {
         min = Math.min(min, value); max = Math.max(max, value)
       }
       // Reject blank and flat-color startup frames; retain the most legible scene.
-      if ((requiresModelReady ? readyFrames > 2 : frame > 8) && lit >= 6 && max - min > 20 && score > bestScore) {
+      if (frame > 8 && lit >= 6 && max - min > 20 && score > bestScore) {
         bestScore = score
         ctx.drawImage(scene, 0, 0, width, height)
       }

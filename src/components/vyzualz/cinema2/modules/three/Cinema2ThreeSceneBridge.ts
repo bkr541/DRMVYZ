@@ -216,8 +216,6 @@ export const CINEMA2_THREE_DEFAULT_OVERRIDES: Readonly<Cinema2ThreeMaterialOverr
 
 export interface Cinema2ThreeSceneInstance {
   asset: Cinema2ThreeLoadedAsset
-  /** Optional instance-owned, skeleton-safe clone prepared asynchronously before bridge construction. Never pass the asset template. */
-  preparedScene?: ThreeNamespace.Object3D
   /** Dedicated dynamic slot; shipped instances retain their original semantics. */
   userModel?: boolean
   preserveMaterials?: boolean
@@ -473,7 +471,7 @@ export class Cinema2ThreeSceneBridge {
   private addInstance(instance: Readonly<Cinema2ThreeSceneInstance>): void {
     const root = new this.library.THREE.Group()
     root.matrixAutoUpdate = false
-    const model = instance.preparedScene ?? instance.asset.scene.clone(true)
+    const model = instance.asset.scene.clone(true)
     const materials: OwnedMaterial[] = []
     const otherMaterials: ThreeNamespace.Material[] = []
     model.traverse(object => {

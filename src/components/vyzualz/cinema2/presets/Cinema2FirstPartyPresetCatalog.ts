@@ -1,4 +1,3 @@
-import { CHROMAVERSE_PRESET_MANIFESTS } from './Cinema2ChromaversePresets'
 import { CINEMA2_SPECTRUM_PRESET_MANIFEST } from './Cinema2SpectrumPreset'
 import { CINEMA2_FRACTURE_PRESET_MANIFEST } from './Cinema2FracturePreset'
 import { CINEMA2_REFRACTION_PRESET_MANIFEST } from './Cinema2RefractionPreset'
@@ -118,7 +117,6 @@ const AUTHORED_PRESET_DECLARATIONS = Object.freeze([
   defineCinema2FirstPartyPreset({ role: 'keeper', manifest: CINEMA2_ORBITAL_PRESET_MANIFEST }),
   // Selectable native review preset; keeper promotion follows production visual acceptance.
   defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_PULSE_CUBED_PRESET_MANIFEST }),
-  ...CHROMAVERSE_PRESET_MANIFESTS.map(manifest => defineCinema2FirstPartyPreset({ role: 'reference', manifest })),
   // Complete native implementation; human visual acceptance pending.
   defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_NEON_FOREST_PRESET_MANIFEST }),
   // Final PSYLO acceptance granted by the user on 2026-11-02.
