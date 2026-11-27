@@ -146,15 +146,32 @@ describe('persistent Layout Lab tabs', () => {
     const panel = host.querySelector<HTMLElement>('#layout-lab-tab-17-panel')!
     expect(panel.hidden).toBe(false)
     const studies = [...panel.querySelectorAll<HTMLElement>('[data-output-study]')]
-    expect(studies.map(study => study.dataset.outputStudy)).toEqual(['classic', 'paired', 'quick', 'framing'])
+    expect(studies.map(study => study.dataset.outputStudy)).toEqual(['command', 'dock', 'viewfinder', 'direct'])
+    const ratios = ['16:9', '16:10', '4:3', '3:2', '1:1', '9:16']
+    const ratioIcons = ['ratio16x9', 'ratio16x10', 'ratio4x3', 'ratio3x2', 'ratio1x1', 'ratio9x16']
+    const findButton = (study: HTMLElement, label: string) => [...study.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent?.trim() === label)!
+    const action = (study: HTMLElement, label: string) => study.querySelector<HTMLButtonElement>(`[role="group"][aria-label="Capture actions"] button[aria-label="${label}"]`)!
+    const select = (study: HTMLElement, label: string) => study.querySelector<HTMLButtonElement>(`[role="combobox"][aria-label="${label}"]`)!
     for (const study of studies) {
       expect(study.querySelector('.dv-underline-tab.is-active')?.textContent).toBe('Output')
       expect([...study.querySelectorAll<HTMLElement>('[data-output-field]')].map(field => field.dataset.outputField).sort()).toEqual(['aspect', 'bitrate', 'format', 'fps'])
-      expect(study.querySelector('[aria-label="Aspect Ratio"]')?.textContent).toContain('16:9')
-      expect(study.querySelector('[aria-label="Video Bitrate"]')?.textContent).toContain('8 Mbps')
+      const rail = study.querySelector('[data-output-field="aspect"]')!
+      const buttons = [...rail.querySelectorAll('button')]
+      expect(buttons.map(button => button.textContent?.trim())).toEqual(ratios)
+      expect(buttons.map(button => button.querySelector('[data-app-icon]')?.getAttribute('data-app-icon'))).toEqual(ratioIcons)
+      expect(buttons.filter(button => button.getAttribute('aria-pressed') === 'true')).toEqual([buttons[0]])
+      expect(study.querySelector('[aria-label="Output dimensions"]')?.textContent).toBe('1920 × 1080')
+      expect(select(study, 'Video Bitrate').textContent).toContain('8 Mbps')
+      expect(study.querySelectorAll('[aria-label="Capture actions"] button')).toHaveLength(2)
+      for (const label of ['Start Recording', 'Export PNG frame']) {
+        expect(action(study, label).textContent?.trim()).toBe('')
+        expect(action(study, label).title).toBe(label)
+        expect(action(study, label).querySelector('svg')).not.toBeNull()
+      }
     }
-    const [classic, paired, quick, framing] = studies
-    const select = (study: HTMLElement, label: string) => study.querySelector<HTMLButtonElement>(`[role="combobox"][aria-label="${label}"]`)!
+    const [command, dock, viewfinder, direct] = studies
+    expect(dock.querySelector('.ll-out-dock [aria-label="Capture actions"]')).not.toBeNull()
+    expect(viewfinder.querySelector('.ll-out-framing-split [data-output-field="aspect"]')).not.toBeNull()
     const choose = async (study: HTMLElement, label: string, value: string) => {
       await act(async () => select(study, label).click())
       const menu = document.getElementById(select(study, label).getAttribute('aria-controls')!)!
@@ -163,30 +180,34 @@ describe('persistent Layout Lab tabs', () => {
       await act(async () => option.click())
       expect(select(study, label).textContent).toContain(value)
     }
-    await choose(classic, 'Frame Rate', '60 fps')
-    await choose(classic, 'Video Bitrate', '24 Mbps')
-    await choose(classic, 'Video Format', 'MP4')
-    await choose(framing, 'Aspect Ratio', '9:16')
-    expect(framing.querySelector('[role="img"][aria-label="Output framing: 9:16"]')).not.toBeNull()
-    expect(select(paired, 'Frame Rate').textContent).toContain('30 fps')
-    expect(select(paired, 'Video Format').textContent).toContain('WebM')
-    const findButton = (study: HTMLElement, label: string) => [...study.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent?.trim() === label)!
-    await act(async () => findButton(quick, '60 fps').click())
-    await act(async () => findButton(quick, 'MOV').click())
-    expect(findButton(quick, '60 fps').getAttribute('aria-pressed')).toBe('true')
-    expect(findButton(quick, 'MOV').getAttribute('aria-pressed')).toBe('true')
-    await act(async () => findButton(quick, 'Start Recording').click())
-    expect(select(quick, 'Video Bitrate').disabled).toBe(true)
-    expect(findButton(quick, 'MOV').disabled).toBe(true)
-    expect(select(classic, 'Video Bitrate').disabled).toBe(false)
-    await act(async () => findButton(quick, 'Stop & Save').click())
-    expect(select(quick, 'Video Bitrate').disabled).toBe(false)
-    expect(quick.querySelector('[aria-live="polite"]')?.textContent).toContain('simulation')
-    await act(async () => findButton(paired, 'PNG Frame').click())
-    expect(paired.querySelector('[aria-live="polite"]')?.textContent).toContain('simulation')
+    await choose(command, 'Frame Rate', '60 fps')
+    await choose(command, 'Video Bitrate', '24 Mbps')
+    await choose(command, 'Video Format', 'MP4')
+    await act(async () => findButton(viewfinder, '9:16').click())
+    expect(viewfinder.querySelector('[role="img"][aria-label="Output framing: 9:16"]')).not.toBeNull()
+    expect(viewfinder.querySelector('[aria-label="Output dimensions"]')?.textContent).toBe('1080 × 1920')
+    expect(command.querySelector('[aria-label="Output dimensions"]')?.textContent).toBe('1920 × 1080')
+    expect(select(dock, 'Frame Rate').textContent).toContain('30 fps')
+    expect(select(dock, 'Video Format').textContent).toContain('WebM')
+    await act(async () => findButton(direct, '60 fps').click())
+    await act(async () => findButton(direct, 'MOV').click())
+    expect(findButton(direct, '60 fps').getAttribute('aria-pressed')).toBe('true')
+    expect(findButton(direct, 'MOV').getAttribute('aria-pressed')).toBe('true')
+    await act(async () => action(direct, 'Start Recording').click())
+    expect(action(direct, 'Stop & Save').querySelector('[data-app-icon="stop"]')).not.toBeNull()
+    expect(select(direct, 'Video Bitrate').disabled).toBe(true)
+    expect(findButton(direct, 'MOV').disabled).toBe(true)
+    expect(findButton(direct, '9:16').disabled).toBe(true)
+    expect(select(command, 'Video Bitrate').disabled).toBe(false)
+    await act(async () => action(direct, 'Stop & Save').click())
+    expect(select(direct, 'Video Bitrate').disabled).toBe(false)
+    expect(findButton(direct, '9:16').disabled).toBe(false)
+    expect(direct.querySelector('[aria-live="polite"]')?.textContent).toContain('simulation')
+    await act(async () => action(dock, 'Export PNG frame').click())
+    expect(dock.querySelector('[aria-live="polite"]')?.textContent).toContain('simulation')
     await act(async () => tab(16).click())
     await act(async () => tab(17).click())
-    expect(select(classic, 'Video Bitrate').textContent).toContain('24 Mbps')
+    expect(select(command, 'Video Bitrate').textContent).toContain('24 Mbps')
     expect(JSON.parse(window.localStorage.getItem(LAYOUT_LAB_STORAGE_KEY)!).activeTabId).toBe('layout-lab-tab-17')
   })
 
