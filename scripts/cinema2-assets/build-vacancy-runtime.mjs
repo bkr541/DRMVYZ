@@ -1,4 +1,4 @@
-// VACANCY runtime asset: the brick room and six televisions from the owner-supplied source GLBs in docs/Vacancy, merged into one shipped model.
+// VACANCY runtime asset: the brick room and six televisions from the owner-supplied source GLBs in asset-sources/vacancy, merged into one shipped model.
 // Original sources are never modified. Each television becomes a `vacancy.tv.<id>` node normalised to a real-world width, standing on y = 0
 // with its pivot at the bottom centre and its front facing +Z. Textures are re-sized per role and quality tier to fit the Cinema 2.0 budgets.
 //
@@ -6,6 +6,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { optionalSourceDirectory, requiredSource } from './optional-source.mjs'
 import { Document } from '@gltf-transform/core'
 import { EXTTextureWebP } from '@gltf-transform/extensions'
 import { dedup, getBounds, listTextureSlots, mergeDocuments, prune, unpartition } from '@gltf-transform/functions'
@@ -13,7 +14,7 @@ import sharp from 'sharp'
 import { readAsset, writeGlb } from './asset-tools/io.mjs'
 
 const root = resolve(import.meta.dirname, '../..')
-const sourceDir = resolve(root, 'docs/Vacancy')
+const sourceDir = optionalSourceDirectory(root, 'vacancy', 'asset-sources/vacancy')
 const outDir = resolve(root, 'public/cinema2/models')
 
 /**
@@ -87,7 +88,7 @@ async function build(tier) {
   const scene = document.createScene('VACANCY set')
 
   // Room: used as authored, but rendered lit so the screens' light reaches the walls and floor. The unlit extension is dropped.
-  const room = await readAsset(resolve(sourceDir, 'abandoned_brick_room.glb'))
+  const room = await readAsset(requiredSource(sourceDir, 'abandoned_brick_room.glb'))
   const roomNode = document.createNode('vacancy.room')
   scene.addChild(roomNode)
   for (const node of mergeSource(document, room.document)) roomNode.addChild(node)
@@ -102,7 +103,7 @@ async function build(tier) {
 
   const report = []
   for (const tv of VACANCY_TVS) {
-    const source = await readAsset(resolve(sourceDir, `${tv.file}.glb`))
+    const source = await readAsset(requiredSource(sourceDir, `${tv.file}.glb`))
     const wrapper = document.createNode(`vacancy.tv.${tv.id}`)
     for (const node of mergeSource(document, source.document)) wrapper.addChild(node)
     const yaw = (tv.yaw * Math.PI) / 180

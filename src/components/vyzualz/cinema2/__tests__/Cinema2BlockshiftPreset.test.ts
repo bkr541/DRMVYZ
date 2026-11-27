@@ -1,5 +1,7 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { readFile } from 'node:fs/promises'
+import { createHash } from 'node:crypto'
+import { BLOCKSHIFT_MODEL_SHA256 } from './Cinema2ApprovedModelHashes'
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import type { Cinema2ThreeLibrary } from '../modules/three/Cinema2ThreeLibrary'
@@ -24,8 +26,8 @@ import { Cinema2CameraRuntime } from '../spatial/Cinema2CameraRuntime'
 let models: Cinema2BlockshiftModel[]
 beforeAll(async () => {
   models = await Promise.all(['hallow', 'impossible'].map(async (name, index) => {
-    const source = await readFile(`docs/BLOCKSHIFT/${name}_cube.glb`)
-    expect(source.equals(await readFile(`public/cinema2/models/blockshift-${name}-cube.glb`))).toBe(true)
+    const source = await readFile(`public/cinema2/models/blockshift-${name}-cube.glb`)
+    expect(createHash('sha256').update(source).digest('hex')).toBe(BLOCKSHIFT_MODEL_SHA256[name])
     const gltf = await new GLTFLoader().parseAsync(source.buffer.slice(source.byteOffset, source.byteOffset + source.byteLength) as ArrayBuffer, '')
     return bakeCinema2BlockshiftModel({ THREE } as Cinema2ThreeLibrary, { id: CINEMA2_BLOCKSHIFT_MODEL_IDS[index]!, scene: gltf.scene })
   }))

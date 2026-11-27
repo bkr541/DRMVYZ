@@ -12,7 +12,7 @@ contract, is implemented. **NIGHTSHIFT (Preview)** remains available under Cinem
 Revision 2 is retained so adding the Music Response control does not discard saved
 Step 2 edits; sessions missing that value receive its authored default.
 
-![Energetic passage on the native production canvas](NIGHTSHIFT-step3-groove.png)
+Energetic passage on the native production canvas (historical capture retired; regenerate in `artifacts/`)
 
 ## Connected behavior
 

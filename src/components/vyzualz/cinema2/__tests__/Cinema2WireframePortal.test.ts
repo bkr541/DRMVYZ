@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
+import { CRATE_MODEL_SHA256 } from './Cinema2ApprovedModelHashes'
 import { expect, it } from 'vitest'
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
@@ -79,7 +80,7 @@ it('keeps the original preset identity and asset, and compiles with the full con
   expect(manifest.cameras![0]!.rig).toMatchObject({ kind: 'path' })
   expect(manifest.modules![0]!.parameters).toMatchObject({ flash: 0, blast: 0 })
   const hash = (path: string) => createHash('sha256').update(readFileSync(path)).digest('hex')
-  expect(hash(source)).toBe(hash('3D Cinema 2.0 Crate/lightweight.glb'))
+  expect(hash(source)).toBe(CRATE_MODEL_SHA256['lightweight.glb'])
 })
 
 it('uses wide exterior orbits and elevated travel lanes, looking at the structure throughout', () => {

@@ -1,5 +1,6 @@
 import {readFileSync} from 'node:fs'
-import {createHash} from 'node:crypto'
+import { createHash } from 'node:crypto'
+import { CRATE_MODEL_SHA256 } from './Cinema2ApprovedModelHashes'
 import {expect,it} from 'vitest'
 import * as THREE from 'three'
 import {GLTFLoader} from 'three/examples/jsm/loaders/GLTFLoader.js'
@@ -26,7 +27,7 @@ async function setup(){
 it('registers under the original preset identity, preserving the original source and six real programs',()=>{
  const compiled=cinema2NativePresetRegistry.compile(manifest.id);expect(compiled.ok,JSON.stringify(compiled)).toBe(true)
  const hash=(path:string)=>createHash('sha256').update(readFileSync(path)).digest('hex')
- expect(hash(source)).toBe(hash('3D Cinema 2.0 Crate/geometry_texture_effect_spheres.glb'))
+ expect(hash(source)).toBe(CRATE_MODEL_SHA256['geometry_texture_effect_spheres.glb'])
  expect(manifest.parameters!.filter(p=>p.designParentGroup==='palette')).toHaveLength(5)
  expect(new Set(MOIRE_ORB_PATTERN_IDS.map(id=>JSON.stringify([0,.7,1.8].flatMap(phase=>[0,7,23,44].map(i=>reactorPattern(id,phase,i)))))).size).toBe(6)
 })

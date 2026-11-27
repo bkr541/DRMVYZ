@@ -10,7 +10,7 @@ remains a reference preset. The accepted larger room, camera, geometry, palette
 controls and user authority are retained. Revision 2 is retained to preserve
 existing saved edits; this phase adds only internal transient delivery targets.
 
-![Automatic pattern crossfade at its midpoint](NIGHTSHIFT-step4-transition.png)
+Automatic pattern crossfade at its midpoint (historical capture retired; regenerate in `artifacts/`)
 
 ## Shared choreography
 

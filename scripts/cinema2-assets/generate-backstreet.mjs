@@ -2,7 +2,7 @@
 //   node scripts/cinema2-assets/generate-backstreet.mjs [out.glb] [textureSize=1024]
 //   (default: public/cinema2/models/backstreet.glb; the preset's low tier ships a 512 px build of the same file)
 //
-// Neon: every contour of the owner's wordmark master (sources/dvydrm-wordmark-master.svg: nine filled shapes, the outer ring contributing its
+// Neon: every contour of the owner's wordmark master (src/assets/dvydrm_wordmark_clean_master.svg: nine filled shapes, the outer ring contributing its
 // outer and inner contour, ten closed contours in all) is traced by one glass tube of constant radius, so the sign is an outline exactly as the
 // production reference shows. The contours are sampled from the cubic Beziers, resampled evenly and lightly smoothed (a neon tube cannot make a
 // sharper turn than its own radius), then a circular section is swept round each closed loop. The sign is planar, so a fixed frame (the sign's
@@ -32,7 +32,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const outputPath = process.argv[2] ? resolve(process.argv[2]) : join(root, 'public/cinema2/models/backstreet.glb')
 const TEXTURE_SIZE = Number(process.argv[3] ?? 1024)
 mkdirSync(dirname(outputPath), { recursive: true })
-const SVG_PATH = join(root, 'scripts/cinema2-assets/sources/dvydrm-wordmark-master.svg')
+const SVG_PATH = join(root, 'scripts/cinema2-assets/src/assets/dvydrm_wordmark_clean_master.svg')
 
 // ── Layout ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 /** Width of the whole sign (ring included), in world units; the preset's camera frames it at about 87% of the picture width. */

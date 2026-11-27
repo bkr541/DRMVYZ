@@ -34,7 +34,7 @@ ball-crown crop and the initial camera/fixture coordinates.
 - No new geometry families, textures, effects or musical behavior were added.
   Model triangle count and texture dimensions remain unchanged.
 
-Latest capture: [larger room framing](NIGHTSHIFT-larger-room.png). The initial
+Latest capture: larger room framing (historical capture retired; regenerate in `artifacts/`). The initial
 reference and earlier phase captures are preserved as historical checkpoints.
 
 ### Step 2 implementation decisions

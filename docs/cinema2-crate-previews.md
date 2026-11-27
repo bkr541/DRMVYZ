@@ -1,6 +1,6 @@
 # Cinema 2.0 crate previews
 
-The Cinema 2.0 crate presets use the owner’s `3D Cinema 2.0 Crate` files. The source GLBs live in `public/cinema2/models/crate/`. Glyph Sphere and Wireframe Portal each have their own performance, described below. Paradox Weave’s Parallax Cipher uses an authored camera move. Beam Lattice, Bass Sigil and Moire Orb have their own performances described below.
+The Cinema 2.0 crate presets use the owner’s `3D Cinema 2.0 Crate` files. The canonical shipped GLBs (historical duplicate source copies removed) live in `public/cinema2/models/crate/`. Glyph Sphere and Wireframe Portal each have their own performance, described below. Paradox Weave’s Parallax Cipher uses an authored camera move. Beam Lattice, Bass Sigil and Moire Orb have their own performances described below.
 
 | Preset | Source GLB | Appearance |
 | --- | --- | --- |

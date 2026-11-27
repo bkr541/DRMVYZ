@@ -4,7 +4,7 @@ Status: **phases 3–6 implemented; final human visual review pending.** The use
 
 - Preset id `drmvyz.cinema2.vacancy`, label **VACANCY**, native module `vacancy-native-render` v1.
 - Reference: the user's CRT pyramid images: a centred 4-3-2-1 stack of vintage televisions in a dark empty room, every screen glowing white-grey static above a glossy floor.
-- Source assets: `docs/Vacancy/*.glb` (one room, six televisions). Originals are never modified; a build script writes the shipped runtime asset.
+- Source assets: `asset-sources/vacancy/*.glb` (one room, six televisions). Originals are never modified; a build script writes the shipped runtime asset.
 
 ## 1. Visual specification
 

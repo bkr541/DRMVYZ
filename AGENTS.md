@@ -33,3 +33,7 @@ If a clean handoff cannot be reached because of a blocker or usage constraint, s
 ## Communication
 
 Keep progress updates concise. Lead with completed outcomes and concrete blockers rather than lengthy process narration.
+
+## Asset hygiene
+
+Follow `docs/repository-asset-governance.md` and the final Production Finalization & Asset Hygiene gate in the Cinema 2.0 contract. Keep temporary visual evidence in ignored `artifacts/` or `.development/`, not documentation or runtime folders. Before completing asset work, run `npm run audit:assets -- --check` and report net storage impact; never remove unique originals without verified preservation or change visual quality to save space.

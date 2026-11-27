@@ -4,7 +4,7 @@ This step changes only the SVG-to-GLB wordmark geometry and its reproducible aud
 
 ## Authority and method
 
-The supplied `wordmark_clean_master.svg` and the repository's `scripts/cinema2-assets/sources/dvydrm-wordmark-master.svg` have the same SHA-256: `0ac33e757c07ed5e13b04b72d8c5f90403628531adb4632973729fd05df566f9`. The master was not redrawn or replaced.
+The supplied `wordmark_clean_master.svg` and the repository's `src/assets/dvydrm_wordmark_clean_master.svg` have the same SHA-256: `0ac33e757c07ed5e13b04b72d8c5f90403628531adb4632973729fd05df566f9`. The master was not redrawn or replaced.
 
 `scripts/cinema2-assets/audit-conduit-wordmark.mjs` projects the **shipped GLB's actual indexed triangles** straight onto the master's native 2006 × 585 canvas. It renders the eight master body paths and even-odd outer ring as browser `Path2D` masks, separately from the GLB letter faces, letter sidewalls, and frame. This is an unlit, orthographic, front-on geometry comparison: no perspective, shadows, environment, emission, bloom, or color grade. The overlay is gray where masks agree, magenta where only the SVG exists, and cyan where only the model exists. It also compares the flattened cubic curves path by path, so a Bézier sampling problem can be distinguished from a bevel/mesh problem.
 

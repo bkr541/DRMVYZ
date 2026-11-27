@@ -15,7 +15,7 @@ addressed floor and dark separation. The smaller, higher ball and larger room
 follow the user's subsequently approved framing changes. The native result is
 more restrained in glow than the original illustration.
 
-![Final default](NIGHTSHIFT-final.png)
+Final default (historical capture retired; regenerate in `artifacts/`)
 
 ## Validation
 
@@ -58,7 +58,7 @@ been independently measured in this final phase. Ground reflections remain a
 subtle perimeter treatment rather than a full reflected hero image.
 
 [Saved assertions and telemetry](NIGHTSHIFT-final-acceptance.json),
-[square capture](NIGHTSHIFT-final-square.png),
-[portrait capture](NIGHTSHIFT-final-portrait.png).
+square capture (historical capture retired; regenerate in `artifacts/`),
+portrait capture (historical capture retired; regenerate in `artifacts/`).
 Run `node scripts/cinema2-assets/accept-nightshift-final.mjs` for a fresh full run.
 Historical phase scripts retain their phase-specific expectations.

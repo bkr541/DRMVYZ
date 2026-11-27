@@ -11,7 +11,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const option = name => process.argv.find(value => value.startsWith(`--${name}=`))?.slice(name.length + 3)
 const assertMatch = process.argv.includes('--assert')
 const masterSha256 = '0ac33e757c07ed5e13b04b72d8c5f90403628531adb4632973729fd05df566f9'
-const masterPath = resolve(option('master') ?? join(root, 'scripts/cinema2-assets/sources/dvydrm-wordmark-master.svg'))
+const masterPath = resolve(option('master') ?? join(root, 'src/assets/dvydrm_wordmark_clean_master.svg'))
 const modelPath = resolve(option('model') ?? join(root, 'public/cinema2/models/conduit-wordmark.glb'))
 const artifactRoot = join(root, 'artifacts/cinema2-conduit-wordmark-audit')
 const bodyIds = ['left-primary-body', 'central-interlock-body', 'left-inner-body', 'right-primary-body', 'right-interlock-and-sweep', 'left-lower-sweep', 'center-lower-sweep', 'four-point-symbol']

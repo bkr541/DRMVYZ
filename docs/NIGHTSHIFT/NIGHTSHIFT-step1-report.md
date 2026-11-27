@@ -5,7 +5,7 @@ by default. This checkpoint implements the static visual core from Section 23,
 Step 1 of the supplied creation contract. It is a visible reference preview,
 not a completed first-party keeper.
 
-![Static production canvas](NIGHTSHIFT-static-core.png)
+Static production canvas (historical capture retired; regenerate in `artifacts/`)
 
 ## Implemented
 

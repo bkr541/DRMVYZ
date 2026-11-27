@@ -9,7 +9,7 @@ Update after user review: the controls/motion were accepted. The requested large
 room framing is now applied: slight camera pullback/wider FOV, ball higher/farther
 back, ceiling wider/deeper, and expanded floor footprint. See the
 [current spatial specification](NIGHTSHIFT-behavior-spec.md#spatial-revision-after-step-2-review)
-and [latest production capture](NIGHTSHIFT-larger-room.png). Camera coordinates
+and latest production capture (historical capture retired; regenerate in `artifacts/`). Camera coordinates
 below document the original Step 2 checkpoint; the specification records the new values.
 
 Focused validation of the spatial revision: five NIGHTSHIFT tests, scoped lint,
@@ -22,7 +22,7 @@ for this geometry/camera-only edit.
 October 23, 2026. Available as **NIGHTSHIFT (Preview)** under Cinema 2.0 > Presets >
 SYSTEM. Revision 2 remains a reference preview, not a finished keeper.
 
-![Manual default program](NIGHTSHIFT-step2-default.png)
+Manual default program (historical capture retired; regenerate in `artifacts/`)
 
 ## Implemented scope
 

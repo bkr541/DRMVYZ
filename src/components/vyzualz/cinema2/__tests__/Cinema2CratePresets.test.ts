@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { CRATE_MODEL_SHA256 } from './Cinema2ApprovedModelHashes'
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import * as THREE from 'three'
@@ -27,7 +28,7 @@ describe('Cinema 2.0 crate reference presets', () => {
   it('ships byte-for-byte copies of the supplied artifacts', () => {
     for (const artifact of CINEMA2_CRATE_ARTIFACTS) {
       const hash = (path: string) => createHash('sha256').update(readFileSync(path)).digest('hex')
-      expect(hash(`public/cinema2/models/crate/${artifact.file}`)).toBe(hash(`3D Cinema 2.0 Crate/${artifact.file}`))
+      expect(hash(`public/cinema2/models/crate/${artifact.file}`)).toBe(CRATE_MODEL_SHA256[artifact.file])
     }
   })
   it('projects separated Parallax Cipher glyphs onto the typeset line at the reveal camera', () => {
@@ -61,7 +62,7 @@ describe('Cinema 2.0 crate reference presets', () => {
     expect(Math.abs(oblique.x - unshifted.x)).toBeGreaterThan(.06)
   })
   it('preserves the legacy Paradox diffuse colors and gloss instead of silently importing white materials', async () => {
-    const bytes = readFileSync('3D Cinema 2.0 Crate/paradox_abstract_art_of_python.glb')
+    const bytes = readFileSync('public/cinema2/models/crate/paradox_abstract_art_of_python.glb')
     const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
     const loader = new GLTFLoader()
     loader.register(parser => createCinema2LegacyMaterialPlugin(parser, { THREE } as Cinema2ThreeLibrary))

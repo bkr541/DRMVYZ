@@ -3,6 +3,7 @@
 import { createHash } from 'node:crypto'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
+import { optionalSourceDirectory, requiredSource } from './optional-source.mjs'
 import { Document } from '@gltf-transform/core'
 import { dedup, prune, quantize, weld } from '@gltf-transform/functions'
 import { EXTMeshoptCompression } from '@gltf-transform/extensions'
@@ -14,7 +15,7 @@ import { readAsset, writeGlb } from './asset-tools/io.mjs'
 import { inspectDocument } from './asset-tools/inspect.mjs'
 import { validateFile } from './asset-tools/validate.mjs'
 const root = resolve(import.meta.dirname, '../..'), out = resolve(root, 'public/cinema2/models')
-const sourcePath = resolve(root, 'scripts/cinema2-assets/sources/neon-forest/neon_stage.glb')
+const sourcePath = requiredSource(optionalSourceDirectory(root, 'neon-forest', 'scripts/cinema2-assets/sources/neon-forest'), 'neon_stage.glb')
 const bytes = await readFile(sourcePath), sha256 = createHash('sha256').update(bytes).digest('hex')
 if (sha256 !== 'a8ca9b80117027adb23db5c4d80e00fa42e7b6071291f295484a77099563e4bb') throw new Error('NEON FOREST source hash changed')
 const { document: source } = await readAsset(sourcePath)
@@ -111,6 +112,7 @@ const validation=await validateFile(resolve(out,'neon-forest-static.glb'))
 if(validation.numErrors)throw new Error(JSON.stringify(validation))
 const inspection=inspectDocument(doc,{name:'neon-forest-static',fileBytes:output.length})
 if(!inspection.ok||inspection.memory.totalBytes>33554432)throw new Error(JSON.stringify(inspection.issues))
+await mkdir(resolve(root, 'docs/NEON_FOREST'), { recursive: true })
 await writeFile(resolve(root,'docs/NEON_FOREST/NEON_FOREST-asset-report.json'),JSON.stringify({sha256,inspection,validation,removedForCorridor:removed,clusters},null,2)+'\n')
 await writeFile(resolve(root,'scripts/cinema2-assets/sources/neon-forest/source.json'),JSON.stringify({file:'neon_stage.glb',sha256,...source.getRoot().getAsset().extras},null,2)+'\n')
 console.log(JSON.stringify({bytes:output.length,triangles:inspection.geometry.triangles,gpuMiB:inspection.memory.totalBytes/1048576,clusters:clusters.length,removedForCorridor:removed,validationErrors:validation.numErrors}))

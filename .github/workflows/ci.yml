@@ -35,6 +35,9 @@ jobs:
       - name: Repository hygiene
         run: npm run repo:hygiene
 
+      - name: Asset governance
+        run: npm run audit:assets -- --check && npm run test:asset-governance
+
       - name: Lint
         run: npm run lint
 

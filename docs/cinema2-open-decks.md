@@ -44,7 +44,7 @@ Production browser captures exercise high/low quality, wide/narrow Stages, the l
 
 ## Height reference
 
-The requested Downloads path was absent; the matching `cdj_player.glb` is present in the project crate. Its source hash, transformed bounds and derived ratio are saved in `scripts/cinema2-assets/sources/open-decks-height-reference.json`, so regeneration does not require a file in Downloads. Only proportions are used; reference geometry/textures are not copied into the shipped model. Existing width, length, illustration, table and camera composition remain intact.
+The requested Downloads path was absent; the matching `cdj_player.glb` is preserved at `asset-sources/crate/cdj_player.glb`. Its source hash, transformed bounds and derived ratio are saved in `scripts/cinema2-assets/sources/open-decks-height-reference.json`, so regeneration does not require a file in Downloads. Only proportions are used; reference geometry/textures are not copied into the shipped model. Existing width, length, illustration, table and camera composition remain intact.
 
 Height validation includes production renders of the booth and a close side view, with no failed modules/passes/effects and clean disposal. The current production preset now uses the close camera target and distance directly. Captures: ignored `artifacts/cinema2-open-decks/height-reference/booth.png` and `close.png`.
 

@@ -11,7 +11,7 @@ const layout = JSON.parse(readFileSync(join(root, 'scripts/cinema2-assets/condui
 const bodyIds = ['left-primary-body', 'central-interlock-body', 'left-inner-body', 'right-primary-body', 'right-interlock-and-sweep', 'left-lower-sweep', 'center-lower-sweep', 'four-point-symbol']
 
 test('the generated geometry is traced from the approved master SVG with bounded curve sampling', () => {
-  const source = readFileSync(join(root, 'scripts/cinema2-assets/sources/dvydrm-wordmark-master.svg'), 'utf8')
+  const source = readFileSync(join(root, 'src/assets/dvydrm_wordmark_clean_master.svg'), 'utf8')
   assert.equal(createHash('sha256').update(source).digest('hex'), '0ac33e757c07ed5e13b04b72d8c5f90403628531adb4632973729fd05df566f9')
   assert.ok(layout.curveMaxErrorSvg > 0 && layout.curveMaxErrorSvg <= 0.5)
   const ring = contoursOfAdaptive(pathData(source, 'outer-outline-ring'), layout.curveMaxErrorSvg)

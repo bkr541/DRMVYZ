@@ -65,7 +65,7 @@ try {
   const P = await page.evaluate(() => globalThis.__nightshiftProduction.ids)
   await set({ [P.motion]: 0, [P.musicResponse]: 0 })
   const baseline = await shot('approved-composition')
-  const approved = await sharp(resolve(root, 'docs/NIGHTSHIFT/NIGHTSHIFT-step7-default.png')).removeAlpha().raw().toBuffer({ resolveWithObject: true })
+  const approved = await sharp(resolve(root, 'src/test/fixtures/cinema2/nightshift-approved.png')).removeAlpha().raw().toBuffer({ resolveWithObject: true })
   metrics.approvedDifference = diff(baseline, approved, regions.full)
   assert(metrics.approvedDifference < .1, 'Final assembled preset preserves the user-approved Step 7 composition')
   assert(lit(baseline, regions.ceiling, 120) > .1 && lit(baseline, regions.floor, 100) > .25, 'Actual cyan ceiling and addressed floor remain visible')

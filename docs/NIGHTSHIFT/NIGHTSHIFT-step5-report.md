@@ -11,7 +11,7 @@ geometry, palette controls and user authority remain intact. Revision 2 is
 retained to preserve existing edits; the new channels are internal transient
 targets. No additional Inspector control or shared-engine change was needed.
 
-![Qualified major-impact accent on the native canvas](NIGHTSHIFT-step5-impact.png)
+Qualified major-impact accent on the native canvas (historical capture retired; regenerate in `artifacts/`)
 
 ## Connected meaning and bounds
 

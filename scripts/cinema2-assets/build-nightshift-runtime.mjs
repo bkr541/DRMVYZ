@@ -2,6 +2,7 @@
 // Discards the sources' invalid animation buffers: motion will be owned by Cinema 2.0.
 import { mkdir, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
+import { optionalSourceDirectory, requiredSource } from './optional-source.mjs'
 import { Document } from '@gltf-transform/core'
 import { KHRMaterialsEmissiveStrength } from '@gltf-transform/extensions'
 import sharp from 'sharp'
@@ -10,6 +11,7 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 import { readAsset, writeGlb } from './asset-tools/io.mjs'
 
 const root = resolve(import.meta.dirname, '../..')
+const sourceDir = optionalSourceDirectory(root, 'nightshift', 'asset-sources/nightshift')
 const doc = new Document()
 const buffer = doc.createBuffer()
 const scene = doc.createScene('NIGHTSHIFT static installation')
@@ -61,7 +63,7 @@ function place(name, mesh, position, extras = {}) {
 }
 
 // Preserve both source mirror and dark backing meshes, with a clean center pivot.
-const ballSource = await readAsset(resolve(root, 'docs/NIGHTSHIFT/pretty_simple_discoball.glb'))
+const ballSource = await readAsset(requiredSource(sourceDir, 'pretty_simple_discoball.glb'))
 const ball = doc.createNode('nightshift.ball').setTranslation([0, 5.7, -2.3]).setScale([2, 2, 2])
 scene.addChild(ball)
 for (const source of ballSource.document.getRoot().listNodes().filter(n => n.getMesh())) {
@@ -73,7 +75,7 @@ for (const source of ballSource.document.getRoot().listNodes().filter(n => n.get
 
 // Retain the supplied floor's structural chassis. Its ten animated color groups
 // overlap complete layouts, so use addressable inserts rather than playing those clips.
-const floorSource = await readAsset(resolve(root, 'docs/NIGHTSHIFT/animated_dance_floor_neon_lights.glb'))
+const floorSource = await readAsset(requiredSource(sourceDir, 'animated_dance_floor_neon_lights.glb'))
 const chassisSource = floorSource.document.getRoot().listNodes().find(n => n.getMesh()?.listPrimitives()[0].getMaterial()?.getName() === 'base')
 if (!chassisSource) throw new Error('NIGHTSHIFT floor source is missing its base.')
 const housing = material('floor.housing', '#060713', 0.15, 0.4)

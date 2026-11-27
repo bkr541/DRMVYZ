@@ -36,7 +36,7 @@ import {
 import { writeGlb } from './cinema2-tube-kit.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
-const svg = readFileSync(join(root, 'scripts/cinema2-assets/sources/dvydrm-wordmark-master.svg'), 'utf8')
+const svg = readFileSync(join(root, 'src/assets/dvydrm_wordmark_clean_master.svg'), 'utf8')
 const outputPath = process.argv[2] ? resolve(process.argv[2]) : join(root, 'public/cinema2/models/conduit-wordmark.glb')
 /** Shared layout read by generate-conduit-tubes.mjs (written next to the generators; only when generating the shipped model). */
 const layoutPath = join(root, 'scripts/cinema2-assets/conduit-layout.json')

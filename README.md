@@ -217,3 +217,7 @@ See [`docs/source-packaging.md`](docs/source-packaging.md).
 Start with [`docs/documentation-index.md`](docs/documentation-index.md). It separates canonical current documentation from historical patch and acceptance records.
 
 _Last touched: a lava lamp is basically a slow-motion GPU fluid sim._
+
+### Lightweight development exports and asset governance
+
+`npm run export:development` creates the working-tree development ZIP under `artifacts/development-export/`. Use `-- --source-only` for code-focused analysis (not runnable), `-- --full-assets` for retained reference media, or `-- --dry-run` to inspect selection. Run `npm run audit:assets -- --check` to enforce repository asset policy. See [repository asset governance](docs/repository-asset-governance.md) for optional source restoration, test fixtures, and cleanup requirements.

@@ -14,7 +14,7 @@ CONDUIT is a new Cinema 2.0 preset built around the owner's **DVYDRM wordmark**,
 
 | Reference | What it shows |
 |---|---|
-| `wordmark_clean_master.svg` | The master wordmark. Saved as `scripts/cinema2-assets/sources/dvydrm-wordmark-master.svg`. |
+| `wordmark_clean_master.svg` | The master wordmark. Saved as `src/assets/dvydrm_wordmark_clean_master.svg`. |
 | Mockups 1-4 | The production look in four lighting states. |
 | Wall image | The back wall on its own, without the logo or tubes. |
 | Tube image | The four tubes on their own. |

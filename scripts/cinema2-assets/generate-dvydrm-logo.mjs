@@ -29,7 +29,7 @@ import {
 } from './cinema2-svg-relief-kit.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
-const sourcePath = join(root, 'scripts/cinema2-assets/sources/dvydrm-logo-master.svg')
+const sourcePath = join(root, 'src/assets/dvydrm_cloud_logo_clean_master.svg')
 /**
  * `--faceted` builds the cut-crystal variant (RELIQUARY's clear crystal logo, used by no other preset) instead of the smooth pearl: a thick
  * glass ribbon like the owner's production mockup - a flat table on top, three flat cut bands round every edge (each band catches the light on

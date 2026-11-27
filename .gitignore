@@ -57,3 +57,20 @@ android-tv-receiver/**/build/
 
 # Supabase CLI linked-project metadata (local only)
 supabase/.temp/
+
+# Local asset workspaces and generated development evidence (never runtime assets)
+/.asset-sources/
+/.development/
+/output/
+/user-media/
+/user-recordings/
+/user-screenshots/
+/.secrets/
+.env.*
+!.env.example
+# Generated exports are written under artifacts/; prevent root copies too.
+/STAGELESS-Studio-Development*.zip
+/.envrc
+/.ssh/
+/.aws/
+/local.properties

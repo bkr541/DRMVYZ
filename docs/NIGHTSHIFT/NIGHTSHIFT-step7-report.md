@@ -7,7 +7,7 @@ reflections are implemented. All three controls appear under **Effects → Club
 Finish** in the Design Inspector. NIGHTSHIFT remains **NIGHTSHIFT (Preview)**,
 revision 2, with final acceptance and human review reserved for Step 8.
 
-![Default finishing on the native production canvas](NIGHTSHIFT-step7-default.png)
+![Default finishing on the native production canvas](../../src/test/fixtures/cinema2/nightshift-approved.png)
 
 ## Controls and rendering
 
@@ -75,9 +75,9 @@ conversion.
 
 Run `node scripts/cinema2-assets/accept-nightshift-step7.mjs` to reproduce this
 checkpoint. The [saved acceptance report](NIGHTSHIFT-step7-acceptance.json) records
-the assertions and measurements. Compare [all effects OFF](NIGHTSHIFT-step7-off.png),
-[default finishing](NIGHTSHIFT-step7-default.png), and
-[combined maximum](NIGHTSHIFT-step7-max.png). Other captures are in ignored
+the assertions and measurements. Compare all effects OFF (historical capture retired; regenerate in `artifacts/`),
+[default finishing](../../src/test/fixtures/cinema2/nightshift-approved.png), and
+combined maximum (historical capture retired; regenerate in `artifacts/`). Other captures are in ignored
 `artifacts/cinema2-nightshift-step7/`.
 
 ## Remaining checkpoint

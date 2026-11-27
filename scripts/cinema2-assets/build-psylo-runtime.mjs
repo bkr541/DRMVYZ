@@ -3,6 +3,7 @@
 import { createHash } from 'node:crypto'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
+import { optionalSourceDirectory, requiredSource } from './optional-source.mjs'
 import { Document } from '@gltf-transform/core'
 import { cloneDocument, copyToDocument, dedup, listTextureSlots, prune, quantize, simplify, weld } from '@gltf-transform/functions'
 import { EXTMeshoptCompression, EXTTextureWebP, KHRMaterialsEmissiveStrength } from '@gltf-transform/extensions'
@@ -15,14 +16,14 @@ import { inspectDocument } from './asset-tools/inspect.mjs'
 import { resolveAssetBudgets } from './assets-core.mjs'
 
 const root = resolve(import.meta.dirname, '../..')
-const sourceDir = resolve(root, 'scripts/cinema2-assets/sources/psylo')
+const sourceDir = optionalSourceDirectory(root, 'psylo', 'scripts/cinema2-assets/sources/psylo')
 const reportDir = resolve(root, 'docs/PSYLO')
 const doc = new Document(), buffer = doc.createBuffer(), scene = doc.createScene('PSYLO static forest')
 const emission = doc.createExtension(KHRMaterialsEmissiveStrength)
 const batches = new Map(), species = [], sources = [], instances = []
 const budgets = resolveAssetBudgets(JSON.parse(await readFile(resolve(root, 'assets/cinema2/budgets.json'), 'utf8')))
 const files = ['stylized_mushrooms.glb', 'stylized_mushrooms_-_low_poly.glb', 'mushrooms (1).glb', 'mushrooms.glb', 'mushroom_magic.glb']
-const sourceContractPath = resolve(sourceDir, 'sources.json')
+const sourceContractPath = resolve(root, 'scripts/cinema2-assets/sources/psylo/sources.json')
 let sourceContract
 try { sourceContract = JSON.parse(await readFile(sourceContractPath, 'utf8')) } catch (error) { if (error.code !== 'ENOENT') throw error }
 await Promise.all([MeshoptSimplifier.ready, MeshoptEncoder.ready])
@@ -41,10 +42,10 @@ function worldGeometry(node, p) {
   return g
 }
 for (let index = 0; index < files.length; index++) {
-  const file = files[index], bytes = await readFile(resolve(sourceDir, file))
+  const file = files[index], bytes = await readFile(requiredSource(sourceDir, file))
   const hash = createHash('sha256').update(bytes).digest('hex')
   if (sourceContract && sourceContract.sources.find(s => s.file === file)?.sha256 !== hash) throw new Error(`Immutable source changed: ${file}`)
-  const { document: source } = await readAsset(resolve(sourceDir, file))
+  const { document: source } = await readAsset(requiredSource(sourceDir, file))
   const metadata = source.getRoot().getAsset().extras
   sources.push({ file, sha256: hash, bytes: bytes.length, ...metadata })
   // Discard source presentation surfaces/cards before simplification and copying.
@@ -225,5 +226,6 @@ const lowBytes = await writeGlb(low)
 const lowInspection = inspectDocument(low, { name: 'psylo-static-low', container: 'glb', fileBytes: lowBytes.length, budgets })
 if (!lowInspection.ok || lowInspection.memory.totalBytes > budgets.assetGpuBytes.low) throw new Error('PSYLO low tier exceeds budget: ' + JSON.stringify(lowInspection.issues))
 await writeFile(resolve(root, 'public/cinema2/models/psylo-static-low.glb'), lowBytes)
+await mkdir(reportDir, { recursive: true })
 await writeFile(resolve(reportDir, 'PSYLO-asset-report.json'), JSON.stringify({ phase: 1, sources, inspection, lowInspection, instances, species: species.map(({ id, source, sourceNodes }) => ({ id, source, sourceNodes })), sourcePresentationRemoved: true, sourceAnimations: 0 }, null, 2) + '\n')
 console.log(JSON.stringify({ file: 'psylo-static.glb', bytes: bytes.length, triangles: inspection.geometry.triangles, materials: inspection.counts.materials, gpuMiB: inspection.memory.totalBytes / 1048576, instances: instances.length, lowBytes: lowBytes.length, lowGpuMiB: lowInspection.memory.totalBytes / 1048576, issues: inspection.issues }))

@@ -8,7 +8,7 @@ a reference preview. Revision 2 is retained so the new parameter receives its
 authored default without discarding earlier edits. Camera, geometry and assets
 were not changed; fog and finishing remain for Step 7.
 
-![Temporary drop performance on the native canvas](NIGHTSHIFT-step6-drop.png)
+Temporary drop performance on the native canvas (historical capture retired; regenerate in `artifacts/`)
 
 ## Ownership and behavior
 
