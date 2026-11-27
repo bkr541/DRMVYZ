@@ -188,6 +188,8 @@ It is responsible for the actual visual vocabulary:
 - local simulation
 - pattern construction
 
+**Single rendering authority.** A new preset or preset pack must not create a separate renderer, framebuffer bridge, rendering host, camera/light rig, or shader-preparation lifecycle where the engine already provides the capability. GLB-based native modules must use the existing `Cinema2ThreeSceneBridge` and shared Three.js utilities. Preset-specific code may author scene content, animation/choreography, surface behavior and material values through standard engine hooks, but must not execute a parallel draw pipeline. Extend an existing shared capability only when a genuine gap is demonstrated, with focused regression coverage. A pack is catalog metadata, never a rendering architecture.
+
 The module must consume resolved Cinema 2.0 values. It must not silently cache authored defaults and ignore later user or choreography changes.
 
 ---

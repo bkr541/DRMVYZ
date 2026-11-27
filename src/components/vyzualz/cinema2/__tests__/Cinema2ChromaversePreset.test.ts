@@ -5,7 +5,12 @@ import { validateCinema2PresetAuthoringConventions } from '../presets/Cinema2Pre
 import { cinema2NativeModuleRegistry } from '../modules/Cinema2ModuleRegistry'
 import { cinema2NativePresetRegistry } from '../presets/Cinema2PresetRegistry'
 import { chromaverseModuleTypeId, createChromaverseModuleDefinition, type ChromaverseModuleInstance } from '../modules/Cinema2ChromaverseNativeModule'
-import { PROFILES, patterns, patternPose } from '../modules/chromaverse/ChromaverseDomain'
+import * as THREE from 'three'
+import { ChromaverseChoreography } from '../modules/chromaverse/ChromaverseChoreography'
+import type { Cinema2ThreeLibrary } from '../modules/three/Cinema2ThreeLibrary'
+import type { Cinema2ThreeLoadedAsset } from '../modules/three/Cinema2ThreeAssetCache'
+import type { Cinema2CameraFrame } from '../spatial/Cinema2CameraRuntime'
+import { PROFILES, patterns, patternPose, defaults, palette, type ChromaverseState } from '../modules/chromaverse/ChromaverseDomain'
 import { CINEMA2_AFTERHOURS_TRIGGER_OPTIONS } from '../presets/Cinema2AfterhoursPreset'
 import type { Cinema2ModuleCreateContext, Cinema2ModuleUpdateContext } from '../modules/Cinema2ModuleContracts'
 import { cinema2ThreeAssetRegistry } from '../modules/three/Cinema2ThreeAssetManifest'
@@ -50,6 +55,35 @@ describe('Cinema 2.0 CHROMAVERSE', () => {
    }
    expect(update(null).performingPattern).toBe(patterns(p)[0]);const next=update('kick-1');expect(next.performingPattern).toBe(patterns(p)[1]);expect(update('kick-1').performingPattern).toBe(next.performingPattern);const held=update(null);expect(update('kick-2',true).phase).toBe(held.phase)
    expect(values.get('pattern')).toBe(patterns(p)[0]);values.set('pattern',patterns(p)[7]!);expect(update(null).performingPattern).toBe(patterns(p)[7]);instance.lifecycle.dispose()
+  }
+ })
+})
+
+// These tests exercise artistic model content without a WebGL context. Only the shared
+// bridge is allowed to turn that content into pixels; the artwork generator exercises it.
+describe('CHROMAVERSE shared bridge choreography', () => {
+ it('authors finite, repeatable poses across all profiles without owning a renderer', () => {
+  const library = { THREE } as unknown as Cinema2ThreeLibrary
+  for (const profile of PROFILES) {
+   const container = new THREE.Group(), source = new THREE.Group()
+   const geometry = new THREE.BoxGeometry(.5,.5,.5), material = new THREE.MeshStandardMaterial({color:0xffffff})
+   const a = new THREE.Mesh(geometry,material.clone()), b = new THREE.Mesh(geometry,material.clone())
+   a.name='plane-a';b.name='plane-b';a.position.x=-1;b.position.x=1;source.add(a,b);container.add(source)
+   const asset = {id:`cinema2-chromaverse-${profile.key}`,scene:source,animations:[],gpuBytes:0} as unknown as Cinema2ThreeLoadedAsset
+   const art = new ChromaverseChoreography(library,asset,container,profile)
+   const camera = {position:profile.camera,projectionMatrix:new THREE.PerspectiveCamera(42,16/9,.12,60).projectionMatrix.elements} as unknown as Cinema2CameraFrame
+   const state:ChromaverseState={values:defaults(profile),palette:palette(profile),pattern:patterns(profile)[0]!,previous:patterns(profile)[0]!,transition:1,phase:.37,clipTime:0,motion:1,flash:.2,silence:0,cameraMode:'float'}
+   expect('draw' in art).toBe(false)
+   for (const pattern of patterns(profile)) {
+    state.pattern=state.previous=pattern
+    art.pose(state,'high',0,camera)
+    const first=a.matrixWorld.elements.slice()
+    expect(first.every(Number.isFinite)).toBe(true)
+    expect(art.inspect().activeSurfaces).toBeGreaterThan(0)
+    art.pose(state,'high',0,camera)
+    expect(a.matrixWorld.elements).toEqual(first)
+   }
+   art.dispose();art.dispose();a.material.dispose();b.material.dispose();material.dispose();geometry.dispose()
   }
  })
 })

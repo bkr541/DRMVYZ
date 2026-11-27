@@ -1,3 +1,4 @@
+import type { Cinema2CameraFrame } from '../spatial/Cinema2CameraRuntime'
 import { Cinema2PatternControlResolver } from '../conductor/Cinema2PatternControls'
 import { cinema2StableId, type Cinema2ModuleTypeId } from '../contracts/Cinema2NativePresetManifest'
 import { Cinema2BeatClock } from './Cinema2BeatClock'
@@ -5,7 +6,8 @@ import { CINEMA2_AFTERHOURS_TRIGGER_IDS, resolveCinema2AfterhoursTriggerEventIde
 import type { Cinema2ModuleDiagnostic, Cinema2ModuleInstance, Cinema2ModuleTypeDefinition } from './Cinema2ModuleContracts'
 import { Cinema2MainframePatternController } from './mainframe/Cinema2MainframePatternController'
 import { PROFILES, patterns, controls as authoredControls, palette, defaults as makeDefaults, SIGNALS, clamp, blendedPose, type Profile, type ChromaverseState, type Palette, type Color } from './chromaverse/ChromaverseDomain'
-import { ChromaverseRenderer } from './chromaverse/ChromaverseRenderer'
+import { ChromaverseChoreography } from './chromaverse/ChromaverseChoreography'
+import { Cinema2ThreeSceneBridge, CINEMA2_THREE_DEFAULT_OVERRIDES } from './three/Cinema2ThreeSceneBridge'
 import { Cinema2ThreeAssetCache, type Cinema2ThreeLoadedAsset } from './three/Cinema2ThreeAssetCache'
 import { cinema2ThreeAssetRegistry } from './three/Cinema2ThreeAssetManifest'
 import { loadCinema2ThreeLibrary, type Cinema2ThreeLibrary } from './three/Cinema2ThreeLibrary'
@@ -19,12 +21,14 @@ export function createChromaverseModuleDefinition(profile:Profile):Readonly<Cine
  return {typeId:chromaverseModuleTypeId(profile),version:1,create(context):ChromaverseModuleInstance{
   const clock=new Cinema2BeatClock(),controller=new Cinema2MainframePatternController<string>(PULSE_PATTERNS,first),controls=new Cinema2PatternControlResolver<Cinema2AfterhoursTriggerId>()
   const state:ChromaverseState={values:{...defaults},palette:{...PALETTE},pattern:first,previous:first,transition:1,phase:0,clipTime:0,motion:1,flash:.2,silence:0,cameraMode:'float'}
-  let library:Cinema2ThreeLibrary|null=null,asset:Cinema2ThreeLoadedAsset|null=null,root:Awaited<ReturnType<typeof cloneCinema2AssetScene>>|null=null,renderer:ChromaverseRenderer|null=null
-  let disposed=false,loading=false,failed=false,rendererOwnsLease=false,identity='',priorTime:number|null=null,priorBeat=0,priorTimestamp:number|null=null,priorPlaying=false,priorPublication:number|null=null,priorRevision:number|null=null,priorAuto:boolean|null=null,base:string=first,epoch=0
+  let library:Cinema2ThreeLibrary|null=null,asset:Cinema2ThreeLoadedAsset|null=null,root:Awaited<ReturnType<typeof cloneCinema2AssetScene>>|null=null,bridge:Cinema2ThreeSceneBridge|null=null,art:ChromaverseChoreography|null=null
+  let drawCamera:Readonly<Cinema2CameraFrame>|null=null
+  let reportedGpuBytes=false
+  let disposed=false,loading=false,failed=false,bridgeOwnsLease=false,identity='',priorTime:number|null=null,priorBeat=0,priorTimestamp:number|null=null,priorPlaying=false,priorPublication:number|null=null,priorRevision:number|null=null,priorAuto:boolean|null=null,base:string=first,epoch=0
   let priorAuthored:string|null=null;const seen=new Map<Cinema2AfterhoursTriggerId,string>()
   let override:{kind:'build'|'drop';pattern:string;until:number}|null=null,lastBuild:string|null=null,lastDrop:string|null=null,transitionStart=0,transitionClock=0
   const diagnostics:Cinema2ModuleDiagnostic[]=[]
-  const report=(error:unknown)=>{failed=true;diagnostics.push({code:'CHROMAVERSE_RENDER_FAILED',message:error instanceof Error?error.message:String(error),path:`$.modules.${profile.key}`,moduleId:context.module.id})}
+  const report=(error:unknown)=>{failed=true;diagnostics.push({code:'CHROMAVERSE_SCENE_FAILED',message:error instanceof Error?error.message:String(error),path:`$.modules.${profile.key}`,moduleId:context.module.id})}
   const release=()=>{if(asset)cache.release(asset);asset=null;root=null}
   const reset=()=>{clock.reset();controller.reset();controls.reset();seen.clear();priorBeat=state.phase=transitionClock=0;state.clipTime=0;priorTime=null;priorPublication=null;priorPlaying=false;override=null;lastBuild=lastDrop=null;state.transition=1;epoch++}
   return {lifecycle:{update({frame,parameters}){
@@ -75,23 +79,39 @@ export function createChromaverseModuleDefinition(profile:Profile):Readonly<Cine
    const pose=blendedPose(profile,state,.5), clipDuration=asset?.animations[0]?.duration??1
    state.clipTime+= (beatState.locked?step*clipDuration/profile.cycles:dt)*motion*(pose.rate/profile.weights[5])*(.5+.5*v.flowSpeed!)
    priorTime=time;priorPlaying=playing;priorPublication=publication
-  },dispose(){disposed=true;if(!rendererOwnsLease)release();renderer=null}},render:{providers:[{id:`${context.module.id}:world`,moduleId:context.module.id,intent:'world',execute(exec){
+  },dispose(){disposed=true;if(!bridgeOwnsLease){art?.dispose();art=null;release()}bridge=null}},render:{providers:[{id:`${context.module.id}:world`,moduleId:context.module.id,intent:'world',execute(exec){
    if(disposed||failed)return
    if(!asset||!root||!library){
     if(!loading){loading=true;void (async()=>{try{
      const lib=await loadCinema2ThreeLibrary();if(disposed)return
      const loaded=await cache.acquire(lib,assetId,exec.lightingEnvironment?.quality??'high')
-     if(disposed){cache.release(loaded);return}asset=loaded
-     const cloned=await cloneCinema2AssetScene(loaded.scene);if(disposed)return
-     root=cloned;library=lib
+     if(disposed){cache.release(loaded);return}
+     let cloned:Awaited<ReturnType<typeof cloneCinema2AssetScene>>
+     try{cloned=await cloneCinema2AssetScene(loaded.scene)}catch(error){cache.release(loaded);throw error}
+     if(disposed){cache.release(loaded);return}
+     asset=loaded;root=cloned;library=lib
     }catch(error){release();if(!disposed)report(error)}})()}
     return
    }
    try{
-    if(!renderer){const owned=asset;renderer=context.resources.acquire(`chromaverse:${profile.key}:world:v1`,'ChromaverseRenderer',gl=>new ChromaverseRenderer(gl,library!,owned,root!,profile),r=>{try{r.dispose()}finally{release()}});rendererOwnsLease=true}
-    renderer.draw(exec,state,epoch);context.resources.reportGpuBytes(renderer.estimateGpuBytes())
-   }catch(error){if(!rendererOwnsLease)release();report(error)}
-  }}]},getDiagnostics:()=>diagnostics,inspect:()=>({...controls.inspect(),basePattern:base,performingPattern:state.pattern,previousPattern:state.previous,transition:state.transition,phase:state.phase,clipTime:state.clipTime,beatLocked:clock.getState().locked,overridden:override!==null,ready:!!renderer,...renderer?.inspect()})}
+    if(!exec.target||!exec.camera||!exec.lightingEnvironment||!exec.depthAvailable)throw Error('Cinema 2.0 world pass requires target, depth, camera and lighting')
+    if(!bridge){
+     const owned=asset, prepared=new library.THREE.Group();prepared.add(root)
+     bridge=context.resources.acquire(`chromaverse:${profile.key}:world:v2`,'ThreeSceneBridge',gl=>new Cinema2ThreeSceneBridge(gl,library!,[{asset:owned,node:null,preparedScene:prepared,preserveMaterials:true}],{
+      hdr:true,strictShaderPreparation:true,modelController:{afterVisibility:true,
+       attach(model){art=new ChromaverseChoreography(library!,owned,model,profile)},
+       beforeDraw(quality){if(drawCamera)art?.pose(state,quality,epoch,drawCamera)},
+       estimateAdditionalGpuBytes:()=>art?.estimateAdditionalGpuBytes()??0,
+       dispose(){art?.dispose();art=null},
+      },
+     }),value=>{try{value.dispose()}finally{release()}})
+     bridgeOwnsLease=true
+    }
+    drawCamera=exec.camera
+    try{bridge.draw(exec,{...CINEMA2_THREE_DEFAULT_OVERRIDES,environmentIntensity:state.values.reflection!})}finally{drawCamera=null}
+    if(!reportedGpuBytes&&bridge.ready){context.resources.reportGpuBytes(bridge.estimateGpuBytes());reportedGpuBytes=true}
+   }catch(error){if(!bridgeOwnsLease){art?.dispose();art=null;release()}report(error)}
+  }}]},getDiagnostics:()=>[...diagnostics,...(bridge?.getDiagnostics()??[]).map(d=>({...d,path:`$.modules.${profile.key}`,moduleId:context.module.id}))],inspect:()=>({...controls.inspect(),basePattern:base,performingPattern:state.pattern,previousPattern:state.previous,transition:state.transition,phase:state.phase,clipTime:state.clipTime,beatLocked:clock.getState().locked,overridden:override!==null,ready:bridge?.ready===true&&!failed,failed,...art?.inspect()})}
  }}
 }
 export const chromaverseModuleDefinitions=PROFILES.map(createChromaverseModuleDefinition)
