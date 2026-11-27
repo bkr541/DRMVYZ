@@ -6,13 +6,12 @@ import speakerUrl from './speaker.glb?url'
 export const OVERDRIVE_SPEAKER_DIAMETER = 1.34
 export const OVERDRIVE_SPEAKER_FACE_Z = .43
 
-/** The replacement driver's open cone faces native -Z after the GLB node
- * transforms. Turn it toward the camera while keeping the authored proportions. */
+/** The imported driver already faces +Z after its authored GLB node transforms.
+ * Keep that orientation: a half-turn exposes the rear motor and basket instead. */
 export function normalizeOverdriveSpeaker(T: typeof Three, source: Three.Object3D): Three.Group {
   const mount = new T.Group()
   mount.name = 'overdrive-speaker'
   const oriented = new T.Group()
-  oriented.rotation.y = Math.PI
   oriented.add(source)
   mount.add(oriented)
   const bounds = new T.Box3().setFromObject(oriented, true)

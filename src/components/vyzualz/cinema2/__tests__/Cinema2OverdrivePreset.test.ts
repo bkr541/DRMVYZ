@@ -53,11 +53,11 @@ describe('OVERDRIVE',()=>{
     expect(manifest.lighting?.lights[0]?.config?.threeShadow).toBe(true)
     expect(manifest.cameras?.[0]?.fovDegrees).toBe(46)
   })
-  it('turns the native -Z driver face toward +Z and fits the circular mounting envelope',async()=>{
+  it('preserves the native +Z driver face and fits the circular mounting envelope',async()=>{
     const T=await import('three')
     const g=new T.CylinderGeometry(2,1,1,32)
-    // The larger face is initially +Y; rotate it to native -Z like the new GLB.
-    g.rotateX(-Math.PI/2)
+    // The larger face is initially +Y; rotate it to native +Z like the bundled GLB.
+    g.rotateX(Math.PI/2)
     const mesh=new T.Mesh(g,new T.MeshStandardMaterial());mesh.position.set(3,-2,4)
     const model=normalizeOverdriveSpeaker(T,mesh)
     const bounds=new T.Box3().setFromObject(model,true),size=bounds.getSize(new T.Vector3()),center=bounds.getCenter(new T.Vector3())
@@ -66,9 +66,35 @@ describe('OVERDRIVE',()=>{
     expect(center.x).toBeCloseTo(0);expect(center.y).toBeCloseTo(0)
     expect(bounds.max.z).toBeCloseTo(OVERDRIVE_SPEAKER_FACE_Z)
     // Outside the narrow rear cap, the ray must strike the broad front cap.
+    model.updateMatrixWorld(true)
     const hit=new T.Raycaster(new T.Vector3(.5,0,2),new T.Vector3(0,0,-1)).intersectObject(model,true)[0]!
     expect(hit.point.z).toBeCloseTo(OVERDRIVE_SPEAKER_FACE_Z)
     g.dispose();mesh.material.dispose()
+  })
+  it('presents the real bundled speaker diaphragm, not its copper rear basket',async()=>{
+    const T=await import('three')
+    const {GLTFLoader}=await import('three/examples/jsm/loaders/GLTFLoader.js')
+    const {readFileSync}=await import('node:fs')
+    const {resolve}=await import('node:path')
+    const {disposeObject}=await import('../modules/three/Cinema2ThreeAssetCache')
+    const bytes=readFileSync(resolve(process.cwd(),'src/components/vyzualz/cinema2/modules/overdrive/speaker.glb'))
+    const {scene}=await new GLTFLoader().parseAsync(Uint8Array.from(bytes).buffer,'')
+    try{
+      const model=normalizeOverdriveSpeaker(T,scene)
+      model.updateMatrixWorld(true)
+      const frontMaterial=(x:number)=>{
+        const hit=new T.Raycaster(new T.Vector3(x,0,2),new T.Vector3(0,0,-1)).intersectObject(model,true)[0]
+        expect(hit).toBeDefined()
+        const material=(hit!.object as import('three').Mesh).material
+        return (Array.isArray(material)?material[hit!.face?.materialIndex??0]:material)?.name
+      }
+      // These two rays strike the authored black dust cap and grey diaphragm.
+      // Reversing the driver exposes the copper motor/basket in front of them.
+      expect(frontMaterial(.2)).toBe('Black')
+      expect(frontMaterial(.3)).toBe('Grey')
+      const bounds=new T.Box3().setFromObject(model,true)
+      expect(bounds.max.z).toBeCloseTo(OVERDRIVE_SPEAKER_FACE_Z)
+    }finally{disposeObject(scene)}
   })
   it('uses the same model in all ten driver instances, shares resources, retains pulse motion and keeps the core stable',async()=>{
     const THREE=await import('three')
@@ -76,7 +102,7 @@ describe('OVERDRIVE',()=>{
     const root=new THREE.Group()
     const scene=new OverdriveScene({THREE} as unknown as Cinema2ThreeLibrary,mergeGeometries,root)
     const material=new THREE.MeshStandardMaterial({color:0x999999})
-    const g=new THREE.CylinderGeometry(1,1,.3,16).rotateX(-Math.PI/2)
+    const g=new THREE.CylinderGeometry(1,1,.3,16).rotateX(Math.PI/2)
     const source=new THREE.Group();source.add(new THREE.Mesh(g,material))
     let disposals=0;g.addEventListener('dispose',()=>disposals++)
     try{
