@@ -35,7 +35,7 @@ try {
     await api('prepare')
     await expect.poll(async () => {
       const state = inspection(await api('advanceBy', .05))
-      return state.renderReady && state.eyeReady && state.screens === 306
+      return state.renderReady && state.eyeReady && state.screens === 92
     }).toBe(true)
     assert.equal(JSON.parse((await api('status')).authored).values['everywhere-auto-performance'], auto)
   }
@@ -58,8 +58,9 @@ try {
   await open(false)
   const baseline = await capture('everywhere')
   assert(baseline.some(value => value > 180), 'The picture should contain luminous CRTs.')
-  // Use an unmistakable alternate environment color to detect exposed wall edges.
-  // The geometry itself should conceal it at every preview/cast aspect ratio.
+  // The new installation has deliberate dark gaps between individual CRTs.
+  // Use an alternate environment color to distinguish those gaps from the
+  // television geometry, and detect an excessively empty composition.
   await change({motion:0})
   for (const [width,height] of [[1024,576],[768,768],[450,800],[1536,432]]) {
     await page.setViewportSize({width,height})
@@ -71,7 +72,8 @@ try {
     for (let i=0;i<normal.length;i+=3) {
       if (Math.max(Math.abs(normal[i]-sentinel[i]),Math.abs(normal[i+1]-sentinel[i+1]),Math.abs(normal[i+2]-sentinel[i+2]))>30) exposed++
     }
-    assert(exposed/(normal.length/3)<.005, `Exposed background at ${width}x${height}: ${exposed} pixels`)
+    assert(exposed/(normal.length/3)<.60, `Excessive background at ${width}x${height}: ${exposed} pixels`)
+    if(width===1024) assert(exposed/(normal.length/3)>.02, 'The wide wall should retain intentional negative space.')
     await change({background:[.012,.018,.023,1]})
   }
   await page.setViewportSize({width:1024,height:576})

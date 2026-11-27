@@ -52,63 +52,74 @@ export interface EverywhereLook {
 
 export interface EverywhereCabinet {
   x: number; y: number; z: number; scale: number; roll: number; yaw: number; seed: number
+  pitch: number; width: number; height: number; depth: number; style: 0 | 1 | 2
 }
-// Five reference silhouettes, then irregular medium cabinets, then a continuous
-// rear mosaic. All coordinates are in world space; the camera never sees a wall edge.
-const MAIN: readonly EverywhereCabinet[] = [
-  {x:0,y:-.08,z:1.12,scale:2.65,roll:-.035,yaw:0,seed:.34},
-  {x:-4.68,y:2.42,z:.58,scale:1.98,roll:-.37,yaw:.13,seed:.22},
-  {x:4.75,y:2.38,z:.48,scale:1.99,roll:.35,yaw:-.15,seed:.78},
-  {x:-4.96,y:-2.70,z:.64,scale:1.83,roll:-.39,yaw:.18,seed:.41},
-  {x:4.97,y:-2.60,z:.55,scale:1.87,roll:.36,yaw:-.17,seed:.84},
-  {x:-7.9,y:0,z:.32,scale:1.38,roll:.20,yaw:.20,seed:.16},
-  {x:7.9,y:0,z:.35,scale:1.42,roll:-.18,yaw:-.20,seed:.68},
-  {x:0,y:5.0,z:.15,scale:1.35,roll:.10,yaw:.02,seed:.53},
-  {x:0,y:-5.1,z:.18,scale:1.42,roll:-.12,yaw:-.03,seed:.92},
-]
-const MID: readonly (readonly [number,number,number,number,number,number])[] = [
-  // x, y, depth, size, roll, yaw. Fill pockets rather than repeat a flat grid.
-  [-6.9,3.2,-.60,.91,-.20,.21],[-2.83,3.55,-.53,.90,-.22,.08],
-  [-.95,3.48,-.48,.84,-.10,.03],[.88,3.65,-.76,.83,.13,-.04],
-  [2.65,3.49,-.38,.97,.19,-.12],[6.92,3.2,-.67,.88,.23,-.24],
-  [-6.8,.83,-.56,.92,-.21,.22],[-3.54,.65,-.75,.79,.21,.09],
-  [3.61,.70,-.46,.91,-.16,-.11],[6.77,.67,-.69,.98,.25,-.23],
-  [-6.52,-.94,-.55,.96,.18,.23],[-3.62,-.77,-.43,.83,.16,.13],
-  [3.72,-.72,-.57,.87,-.18,-.15],[6.61,-.87,-.49,.91,-.13,-.23],
-  [-2.93,-3.26,-.33,.99,-.18,.10],[-1.06,-3.64,-.62,.85,.17,.03],
-  [.97,-3.22,-.36,1.04,-.14,-.05],[2.89,-3.52,-.55,.91,.21,-.12],
-  [-7.10,-3.58,-.75,.87,-.18,.23],[7.16,-3.55,-.76,.92,.17,-.22],
-]
-export const EVERYWHERE_REAR_SCALE = .96
-export const EVERYWHERE_REAR_DEPTH = -2.25
 export const EVERYWHERE_WIDE_ASPECT = 1.9
+const REFERENCE_CAMERA_Z = 14
+const random = (i: number) => { const n=Math.sin(i*127.1+17.7)*43758.5453; return n-Math.floor(n) }
 
-/** Cover, not contain: keep vertical framing on narrow previews; on unusually
- * wide outputs enlarge both transverse axes equally, preserving screen shape.
- * Depth is left alone, so even extreme widths cannot push the hero into the lens. */
+/** Keep the vertical composition on narrow outputs; expand the physical wall
+ * uniformly in X/Y for ultra-wide output, without moving cabinets toward the lens. */
 export function everywhereWallCoverScale(aspect: number): number {
   return Math.max(1, (Number.isFinite(aspect) ? aspect : EVERYWHERE_WIDE_ASPECT) / EVERYWHERE_WIDE_ASPECT)
 }
 
+/** One sculptural CRT installation, not a foreground collage over a tiled wall.
+ * Slots are authored on the reference camera plane, then unprojected onto a
+ * shallow concave shell. This keeps distant TVs from shrinking into wallpaper
+ * while allowing genuine sidewalls, gaps, occlusion and camera parallax. */
 export function buildEverywhereCabinetLayout(): EverywhereCabinet[] {
-  const sets = MAIN.map(item=>({...item}))
-  const random = (i: number) => { const n=Math.sin(i*127.1+17.7)*43758.5453; return n-Math.floor(n) }
-  MID.forEach(([x,y,z,scale,roll,yaw],index)=>sets.push({x,y,z,scale,roll,yaw,seed:random(index+150)}))
-  // Outer mid-depth banks provide parallax without covering the central hero.
-  for (let i=0;i<30;i++) {
-    const side=i<15 ? -1 : 1, j=i%15
-    sets.push({x:side*(8.8+(j%3)*1.72),y:(Math.floor(j/3)-2)*2.05,z:-.90-random(i+400)*.35,scale:.79+random(i+450)*.19,roll:(random(i+500)-.5)*.25,yaw:-side*.12,seed:random(i+600)})
+  const sets: EverywhereCabinet[] = [
+    {x:0,y:-.08,z:1.12,scale:2.65,roll:-.025,yaw:0,pitch:0,seed:.34,width:1.06,height:1,depth:1.20,style:0},
+  ]
+  // Distinct silhouettes: wide living-room set, square portable, deep console.
+  const proportions = [[1.06,.97,1.12],[.91,1.06,.83],[1.00,1.02,1.36]] as const
+  // Each band has its own size, vertical stagger and independently spaced sides.
+  // The two middle bands leave the hero's entire silhouette free.
+  const bands = [
+    {y:1.30,start:3.42,size:1.28}, {y:-1.35,start:3.42,size:1.23},
+    {y:3.82,start:0,size:1.30}, {y:-3.92,start:0,size:1.28},
+    {y:6.45,start:0,size:1.37}, {y:-6.55,start:0,size:1.36},
+    {y:9.18,start:0,size:1.38}, {y:-9.25,start:0,size:1.38},
+  ] as const
+  const add = (px: number,py: number,projectedScale: number,seed: number,style: 0|1|2,roll: number) => {
+    const [width,height,depth]=proportions[style]
+    // Side banks and upper/lower edges wrap toward the viewer. The central
+    // neighbours sit behind the hero, but never form a second overlapping wall.
+    const z=-1.28+Math.min(2.85,Math.abs(px)**1.65*.038+Math.abs(py)*.075)+(seed-.5)*.68
+    const perspective=(REFERENCE_CAMERA_Z-z)/REFERENCE_CAMERA_Z
+    sets.push({x:px*perspective,y:py*perspective,z,scale:projectedScale*perspective,
+      roll,yaw:-Math.atan2(px,REFERENCE_CAMERA_Z)*.73+(seed-.5)*.15,
+      pitch:Math.atan2(py,REFERENCE_CAMERA_Z)*.43+(seed-.5)*.16,
+      seed,width,height,depth:depth*(.91+seed*.18),style})
   }
-  // Constant overlapping pitch at the rear: the narrowest cabinet footprint
-  // exceeds both pitches, including bevel corners and perspective safety margin.
-  // No random holes, even behind the hero: those become visible during cropping.
-  for (let row=0;row<13;row++) {
-    for (let column=0;column<19;column++) {
-      const i=row*19+column
-      sets.push({x:(column-9)*1.65+(row%2 ? .41 : -.41),y:(row-6)*1.23,
-        z:EVERYWHERE_REAR_DEPTH+(i%2)*.045,scale:EVERYWHERE_REAR_SCALE,roll:0,yaw:0,seed:random(i)})
+  bands.forEach((band,row)=>{
+    // Alternate a central cabinet with an off-centre seam; avoid a mirrored grid.
+    let centerHalf=0
+    if (band.start===0 && row%2===0) {
+      const style=(row%3) as 0|1|2
+      const size=band.size*(.95+random(row+88)*.12)
+      const px=(random(row+15)-.5)*.45
+      add(px,band.y,size,random(row+96),style,(random(row+400)-.5)*.26)
+      centerHalf=size*proportions[style][0]*1.10+Math.abs(px)+.20
     }
-  }
+    for (const side of [-1,1]) {
+      let edge=band.start || centerHalf || .12
+      let col=0
+      while (edge<17.8) {
+        const i=100+row*80+(side===1?40:0)+col*3
+        const seed=random(i), style=Math.floor(random(i+1)*3) as 0|1|2
+        const size=band.size*(.80+random(i+2)*.40)
+        const roll=(random(i+2000)-.5)*.56
+        // Reserve the silhouette including tilt and a deliberate dark seam.
+        const half=size*(1.05*proportions[style][0]*Math.cos(roll)+.80*proportions[style][1]*Math.abs(Math.sin(roll)))
+        const px=side*(edge+half), py=band.y+(random(i+3000)-.5)*.68
+        add(px,py,size,seed,style,roll)
+        edge+=half*2+.16+random(i+4000)*.15
+        col++
+      }
+    }
+  })
   return sets
 }
 
@@ -152,6 +163,7 @@ export class Cinema2EverywhereWall {
   private readonly group: Three.Group
   private readonly sets = buildEverywhereCabinetLayout()
   private readonly instances: Three.InstancedMesh[] = []
+  private readonly hardwareBatches: { mesh: Three.InstancedMesh; indices: number[] }[] = []
   private readonly screen: Three.InstancedMesh
   private readonly screenMaterial: Three.ShaderMaterial
   private readonly caseMaterial: Three.MeshStandardMaterial
@@ -194,36 +206,68 @@ export class Cinema2EverywhereWall {
       }
       return new THREE.ExtrudeGeometry(shape,{curveSegments:5,depth,steps:1,bevelEnabled:true,bevelSegments:3,bevelThickness:bevel,bevelSize:bevel})
     }
-    this.caseMaterial = new THREE.MeshStandardMaterial({ roughness:.37, metalness:.42 })
-    const lip = new THREE.MeshStandardMaterial({ color:0x34434a, roughness:.26, metalness:.48 })
+    this.caseMaterial = new THREE.MeshStandardMaterial({ roughness:.62, metalness:.19 })
+    const lip = new THREE.MeshStandardMaterial({ color:0x555657, roughness:.42, metalness:.36 })
     const recess = new THREE.MeshStandardMaterial({ color:0x070a0a, roughness:.60, metalness:.1 })
-    this.trimMaterial = new THREE.MeshStandardMaterial({ color:0xb29c7e, roughness:.28, metalness:.60 })
-    const add = (geometry: Three.BufferGeometry, material: Three.Material) => {
+    this.trimMaterial = new THREE.MeshStandardMaterial({ color:0x938578, roughness:.44, metalness:.55 })
+    const add = (geometry: Three.BufferGeometry, material: Three.Material, shade?: (item: EverywhereCabinet)=>Three.Color) => {
       const mesh = new THREE.InstancedMesh(geometry,material,this.count)
       mesh.frustumCulled = false
+      if (shade) {
+        this.sets.forEach((item,index)=>mesh.setColorAt(index,shade(item)))
+        if (mesh.instanceColor) mesh.instanceColor.needsUpdate=true
+      }
       this.instances.push(mesh)
       this.group.add(mesh)
     }
-    add(extrusion(1.99,1.464,.159,.61,.045).translate(0,0,-.64),this.caseMaterial)
-    add(extrusion(1.98,1.45,.153,.129,.033,true).translate(0,0,.016),lip)
-    add(extrusion(1.898,1.344,.152,.046,.015,true).translate(0,.026,.144),recess)
-    const hardware: Three.BufferGeometry[] = []
-    for (const [x,y,r] of [[.906,.325,.055],[.906,.155,.051],[-.68,-.651,.034],[-.55,-.651,.031],[-.42,-.651,.03]] as const) {
-      hardware.push(new THREE.CylinderGeometry(r*.83,r,.047,12).rotateX(Math.PI/2).translate(x,y,.192))
+    const finish = (item: EverywhereCabinet) => {
+      const c = item.style===0 ? [ .81,.83,.86 ] : item.style===1 ? [.57,.60,.63] : [.91,.76,.61]
+      const value=.77+item.seed*.23
+      return new THREE.Color().setRGB(c[0]!*value,c[1]!*value,c[2]!*value)
     }
-    hardware.push(new THREE.BoxGeometry(.24,.025,.024).translate(.51,-.655,.18))
-    const blueSteel = merge(hardware)!
-    hardware.forEach(geometry=>geometry.dispose())
-    add(blueSteel,this.trimMaterial)
-    const vents = Array.from({length:9},(_, row)=>new THREE.BoxGeometry(.088,.016,.012).translate(.916,-.025-row*.047,.179))
-    const grille = merge(vents)!
-    vents.forEach(geometry=>geometry.dispose())
-    add(grille,recess)
+    // Real CRT backs taper toward the tube neck instead of reading as flat slabs.
+    const body=extrusion(1.99,1.464,.159,.83,.045).translate(0,0,-.86)
+    const bodyVertices=body.getAttribute('position')
+    for(let i=0;i<bodyVertices.count;i++) {
+      const z=bodyVertices.getZ(i), t=THREE.MathUtils.smoothstep(z,-.90,-.03)
+      bodyVertices.setXY(i,bodyVertices.getX(i)*(.76+.24*t),bodyVertices.getY(i)*(.79+.21*t))
+    }
+    bodyVertices.needsUpdate=true; body.computeVertexNormals()
+    add(body,this.caseMaterial,finish)
+    add(extrusion(1.98,1.45,.153,.129,.033,true).translate(0,0,.016),lip,finish)
+    add(extrusion(1.898,1.344,.152,.046,.015,true).translate(0,.026,.144),recess)
+    // Three physical control-panel designs, batched by style. All keep the same
+    // screen aperture and share one screen program/material and one media feed.
+    for(const style of [0,1,2] as const) {
+      const hardware: Three.BufferGeometry[] = []
+      const controls = style===0 ? [[.906,.325,.055],[.906,.155,.051],[-.68,-.651,.034],[-.55,-.651,.031],[-.42,-.651,.03]]
+        : style===1 ? [[.91,.34,.044],[.91,.22,.038],[.91,.10,.026],[-.64,-.65,.022]]
+        : [[.91,.30,.066],[.91,.10,.058],[-.64,-.65,.025],[-.50,-.65,.025]]
+      for (const [x,y,r] of controls) hardware.push(new THREE.CylinderGeometry(r!*.83,r!,.047,12).rotateX(Math.PI/2).translate(x!,y!,.192))
+      hardware.push(new THREE.BoxGeometry(style===1?.36:.24,.025,.024).translate(.51,-.655,.18))
+      for(let row=0;row<(style===1?5:8);row++) hardware.push(new THREE.BoxGeometry(.066,.012,.014).translate(.916,-.035-row*.046,.177))
+      const geometry=merge(hardware)!
+      hardware.forEach(part=>part.dispose())
+      const indices=this.sets.flatMap((item,index)=>item.style===style?[index]:[])
+      const mesh=new THREE.InstancedMesh(geometry,this.trimMaterial,indices.length)
+      mesh.frustumCulled=false
+      indices.forEach((index,slot)=>mesh.setColorAt(slot,finish(this.sets[index]!)))
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate=true
+      this.hardwareBatches.push({mesh,indices}); this.group.add(mesh)
+    }
 
     const { THREE: T } = library
-    const plane = new T.PlaneGeometry(1,1)
+    // Actual convex glass, with a curved image shader on top. The outer edges
+    // stay at the original aperture depth, so the bezel still occludes them.
+    const plane = new T.PlaneGeometry(1,1,12,10)
+    const glassVertices=plane.getAttribute('position')
+    for(let i=0;i<glassVertices.count;i++) {
+      const x=glassVertices.getX(i)*2,y=glassVertices.getY(i)*2
+      glassVertices.setZ(i,.052*(1-x*x)*(1-y*y))
+    }
+    glassVertices.needsUpdate=true; plane.computeVertexNormals()
     const data = new Float32Array(this.count*4)
-    this.sets.forEach((item,index)=>data.set([1,item.seed,1.692/1.186,index===0 ? 1 : 0],index*4))
+    this.sets.forEach((item,index)=>data.set([1,item.seed,1.692*item.width/(1.186*item.height),index===0 ? 1 : 0],index*4))
     this.gains = new T.InstancedBufferAttribute(data,4)
     plane.setAttribute('aProgram',this.gains)
     this.eyePoses = new T.InstancedBufferAttribute(new Float32Array(this.count*4),4)
@@ -256,11 +300,11 @@ export class Cinema2EverywhereWall {
       this.poolTextures.forEach((texture,index)=>this.borrow(renderer,texture,this.poolMedia[index]?.texture ?? null))
     }
     this.group.add(this.screen)
-    this.coolLight = new T.DirectionalLight(0xffffff,3.1)
-    this.coolLight.position.set(-5,4,3.5)
-    this.warmLight = new T.DirectionalLight(0xffffff,3.1)
-    this.warmLight.position.set(6,1.7,1.65)
-    this.group.add(this.coolLight,this.warmLight,new T.HemisphereLight(0xc5d4da,0x100b0c,.37))
+    this.coolLight = new T.DirectionalLight(0xffffff,1.35)
+    this.coolLight.position.set(-7,4,2.2)
+    this.warmLight = new T.DirectionalLight(0xffffff,1.15)
+    this.warmLight.position.set(7,2.3,1.0)
+    this.group.add(this.coolLight,this.warmLight,new T.HemisphereLight(0xc5d4da,0x100b0c,.20))
     this.place(.84)
   }
 
@@ -323,12 +367,16 @@ export class Cinema2EverywhereWall {
     this.sets.forEach((item,index)=>{
       const object=this.placement
       object.position.set(item.x,item.y,item.z)
-      object.scale.setScalar(item.scale)
-      object.rotation.set(item.z <= EVERYWHERE_REAR_DEPTH+.05 ? 0 : (item.seed-.5)*.12*angle,item.yaw*angle,item.roll*angle)
+      object.scale.set(item.scale*item.width,item.scale*item.height,item.scale*item.depth)
+      object.rotation.set(item.pitch*angle,item.yaw*angle,item.roll*angle)
       object.updateMatrix()
       for (const mesh of this.instances) mesh.setMatrixAt(index,object.matrix)
       this.screen.setMatrixAt(index,this.screenMatrix.multiplyMatrices(object.matrix,this.screenLocal))
     })
+    for (const {mesh,indices} of this.hardwareBatches) {
+      indices.forEach((index,slot)=>{ this.instances[0]!.getMatrixAt(index,this.screenMatrix); mesh.setMatrixAt(slot,this.screenMatrix) })
+      mesh.instanceMatrix.needsUpdate=true
+    }
     for (const mesh of [...this.instances,this.screen]) mesh.instanceMatrix.needsUpdate=true
   }
 
@@ -340,7 +388,7 @@ export class Cinema2EverywhereWall {
 
   dispose() {
     const materials=new Set<Three.Material>([this.screenMaterial])
-    for (const mesh of [...this.instances,this.screen]) {
+    for (const mesh of [...this.instances,...this.hardwareBatches.map(batch=>batch.mesh),this.screen]) {
       mesh.geometry.dispose()
       mesh.dispose()
       if (!Array.isArray(mesh.material)) materials.add(mesh.material)

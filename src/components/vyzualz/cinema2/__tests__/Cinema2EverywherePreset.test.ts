@@ -6,7 +6,7 @@ import { Cinema2ParameterState } from '../parameters/Cinema2ParameterState'
 import { CINEMA2_AFTERHOURS_TRIGGER_OPTIONS } from '../presets/Cinema2AfterhoursPreset'
 import { CINEMA2_EVERYWHERE_PRESET_ID, CINEMA2_EVERYWHERE_PRESET_MANIFEST } from '../presets/Cinema2EverywherePreset'
 import { Cinema2EverywherePerformance } from '../modules/Cinema2EverywhereNativeModule'
-import { buildEverywhereCabinetLayout, EVERYWHERE_PATTERNS, EVERYWHERE_REAR_DEPTH, everywhereWallCoverScale, everywhereScreenGain, type EverywhereLook } from '../modules/everywhere/Cinema2EverywhereWall'
+import { buildEverywhereCabinetLayout, EVERYWHERE_PATTERNS, everywhereWallCoverScale, everywhereScreenGain, type EverywhereLook } from '../modules/everywhere/Cinema2EverywhereWall'
 import { everywhereEyePose } from '../modules/everywhere/Cinema2EverywhereEyeMotion'
 import { EVERYWHERE_SCREEN_FRAGMENT } from '../modules/everywhere/Cinema2EverywhereScreens'
 import type { Cinema2ModuleUpdateContext } from '../modules/Cinema2ModuleContracts'
@@ -62,9 +62,9 @@ describe('Everywhere', () => {
     }
   })
 
-  it('builds a dense deterministic wall with a prominent hero and distinct screen programs', () => {
+  it('builds a deterministic spatial wall with a prominent hero and distinct screen programs', () => {
     const wall = buildEverywhereCabinetLayout()
-    expect(wall).toHaveLength(306)
+    expect(wall).toHaveLength(92)
     expect(wall[0]).toMatchObject({ x: 0, scale: 2.65 })
     expect(buildEverywhereCabinetLayout()).toEqual(wall)
     expect(wall.some(screen => screen.x < -6)).toBe(true)
@@ -93,30 +93,48 @@ describe('Everywhere', () => {
     )
   })
 
-  it('covers the entire perspective frustum with rear cabinets in every tested layout', () => {
-    const rear=buildEverywhereCabinetLayout().filter(c=>c.z<=EVERYWHERE_REAR_DEPTH+.05)
-    expect(rear).toHaveLength(247)
+  it('keeps a varied curved installation, deliberate seams and wide framing instead of a rear tile grid', () => {
+    const wall=buildEverywhereCabinetLayout()
+    const surrounding=wall.slice(1)
+    expect(new Set(surrounding.map(c=>c.style)).size).toBe(3)
+    expect(new Set(surrounding.map(c=>c.z.toFixed(2))).size).toBeGreaterThan(65)
+    expect(new Set(surrounding.map(c=>c.scale.toFixed(2))).size).toBeGreaterThan(30)
+    expect(Math.max(...surrounding.map(c=>c.depth))-Math.min(...surrounding.map(c=>c.depth))).toBeGreaterThan(.5)
+    expect(surrounding.every(c=>Math.abs(c.x)<3 || c.x*c.yaw<0)).toBe(true)
+    expect(Math.max(...wall.map(c=>c.z))-Math.min(...wall.map(c=>c.z))).toBeGreaterThan(2.5)
+    expect(Math.max(...wall.map(c=>c.x))).toBeGreaterThan(15)
+    expect(Math.min(...wall.map(c=>c.x))).toBeLessThan(-15)
     expect(manifest.cameras?.[0]?.minAspect).toBeUndefined()
-    // Ray/rounded cabinet front-plane intersection; use the un-beveled lip
-    // footprint, not a loose bounding box. Test the maximum wall roll and push.
-    for (const aspect of [.45,9/16,1,1.2,1.5,16/9,1.9,21/9,32/9,4]) {
+    // Project the actual front corners (XYZ Euler order, default Cabinet Angle).
+    // This is a framing regression, not a pixel-perfect WebGL occlusion test.
+    for (const aspect of [.45,9/16,1,16/9,1.9,21/9,32/9,4]) {
       const cover=everywhereWallCoverScale(aspect)
-      for (const [roll,push,distance] of [[-.01,0,14],[.01,0,17],[0,0,9]] as const) {
-        let missing=0
-        for (let iy=0;iy<=40;iy++) for (let ix=0;ix<=60;ix++) {
-          const rx=(ix/30-1)*Math.tan(Math.PI/9)*aspect
-          const ry=(iy/20-1)*Math.tan(Math.PI/9)
-          const hit=rear.some(c=>{
-            const d=distance-(c.z+.145*c.scale+push)
-            const x=(rx*d*Math.cos(roll)+ry*d*Math.sin(roll))/cover-c.x
-            const y=(-rx*d*Math.sin(roll)+ry*d*Math.cos(roll))/cover-c.y
-            const dx=Math.abs(x)/c.scale-(.99-.153)
-            const dy=Math.abs(y)/c.scale-(.725-.153)
-            return Math.hypot(Math.max(dx,0),Math.max(dy,0))+Math.min(Math.max(dx,dy),0)<=.153
+      for (const distance of [9,14,17]) {
+        const polygons=wall.map(c=>{
+          const [pitch,yaw,roll]=[c.pitch*.84,c.yaw*.84,c.roll*.84]
+          return [[-1.04,-.78],[1.04,-.78],[1.04,.78],[-1.04,.78]].map(([px,py])=>{
+            const x=px!*c.scale*c.width,y=py!*c.scale*c.height,z=.18*c.scale*c.depth
+            const rx=x*Math.cos(roll)-y*Math.sin(roll), ry=x*Math.sin(roll)+y*Math.cos(roll)
+            const yx=rx*Math.cos(yaw)+z*Math.sin(yaw), yz=-rx*Math.sin(yaw)+z*Math.cos(yaw)
+            const wx=yx+c.x, wy=ry*Math.cos(pitch)-yz*Math.sin(pitch)+c.y
+            const wz=ry*Math.sin(pitch)+yz*Math.cos(pitch)+c.z
+            return [wx*cover/(distance-wz),wy*cover/(distance-wz)] as const
           })
-          if (!hit) missing++
+        })
+        const inside=(x:number,y:number,poly:typeof polygons[number])=>poly.every(([ax,ay],i)=>{
+          const [bx,by]=poly[(i+1)%poly.length]!
+          return (bx-ax)*(y-ay)-(by-ay)*(x-ax)>=0
+        })
+        let hits=0
+        const fov=Math.tan(Math.PI/9)
+        for(let iy=0;iy<25;iy++) for(let ix=0;ix<41;ix++) {
+          const x=((ix+.5)/41*2-1)*fov*aspect,y=((iy+.5)/25*2-1)*fov
+          if(polygons.some(poly=>inside(x,y,poly))) hits++
         }
-        expect(missing, `aspect=${aspect}, roll=${roll}, push=${push}`).toBe(0)
+        expect(inside(0,0,polygons[0]!)).toBe(true)
+        expect(hits/(25*41),`aspect=${aspect}, distance=${distance}`).toBeGreaterThan(.55)
+        // At the normal wide view, the installation must not become wallpaper.
+        if(aspect===16/9 && distance===14) expect(hits/(25*41)).toBeLessThan(.90)
       }
     }
   })
