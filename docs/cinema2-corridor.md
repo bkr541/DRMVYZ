@@ -12,6 +12,10 @@ The roughly square interior has four continuous graphite wall planes (left, righ
 
 The camera faces down the passage from near the center line. Keep the vanishing point inside the middle tenth of the frame at 16:9, 1:1, and 9:16. Reframe via the shared world camera. Prefer bounded forward motion and bank parallax over rapid spins. Camera roll is limited to ±7° and lateral travel to 8% of the wall half-width. At Motion Amount zero, the camera and the authored panel pose hold. Stop and resume retain the appropriate pose. Recycle bays behind the near plane so a seam never crosses the viewport.
 
+## Corner rails and faster flight
+
+Both Corridor variants now multiply the previous axial travel coefficient by 2.5, including existing saved Transit Rate values; the slider maximum is 3.6 (five times the former maximum speed at equal tempo and Motion Amount). Pattern phase, media cadence, pause, BPM Sync and discontinuity handling are unchanged. Four physical diagonal corner diffusers run along the wall/ceiling and wall/floor joins, one per corner in each recycled bay. Their color and brightness use the same pattern selection, palette, density, intensity, kick/build/drop envelopes and depth fade as the cassettes. Interpolated bay-center levels avoid hard seams as the passage recycles; the existing bloom and finish treat the rails as unprotected native lighting. The mesh adds only 288 vertices, no extra draw call or textures.
+
 ## Pattern library
 
 | Pattern | Visible behavior |
@@ -44,7 +48,7 @@ With host and preset BPM Sync enabled, the shared Cinema 2.0 beat clock drives a
 
 | Mood drive | Authored baseline | Contribution at full Motion Amount | Runtime bound |
 | --- | --- | --- | --- |
-| Transit Rate | 1.0 | Activity adds up to 0.45 | 0.2–1.8 |
+| Transit Rate | 1.25 | Activity adds up to 0.45 | 0.2–3.6 |
 | Panel Density | 0.38 | Activity adds up to 0.25. Silence subtracts up to 0.31. | 0.05–0.85 |
 | Bloom | 0.36 | Peak adds up to 0.25. Silence subtracts up to 0.25. | 0–1.2 |
 

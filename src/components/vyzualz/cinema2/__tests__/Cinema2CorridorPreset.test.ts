@@ -2,9 +2,9 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { setAutoPerformanceUserDefault } from '../../../../lib/autoPerformanceDefault'
 import { createCinema2DesignParentGroupModel } from '../parameters/Cinema2InspectorModel'
 import { Cinema2ParameterState } from '../parameters/Cinema2ParameterState'
-import { Cinema2CorridorPerformance, corridorPoolTrigger } from '../modules/Cinema2CorridorNativeModule'
+import { Cinema2CorridorPerformance, corridorPoolTrigger, CORRIDOR_TRANSIT_DEFAULT, CORRIDOR_TRANSIT_MAX, CORRIDOR_TRANSIT_SPEED_SCALE } from '../modules/Cinema2CorridorNativeModule'
 import type { Cinema2ModuleUpdateContext } from '../modules/Cinema2ModuleContracts'
-import { CORRIDOR_PATTERNS, buildCorridorGeometry, CORRIDOR_VERTEX_FLOATS, CORRIDOR_MAX_INSET, CORRIDOR_BANK_SPAN } from '../modules/corridor/Cinema2CorridorRenderer'
+import { CORRIDOR_PATTERNS, buildCorridorGeometry, CORRIDOR_VERTEX_FLOATS, CORRIDOR_MAX_INSET, CORRIDOR_BANK_SPAN, CORRIDOR_RAIL_PART, CORRIDOR_RAIL_VERTEX_COUNT } from '../modules/corridor/Cinema2CorridorRenderer'
 import { CINEMA2_AFTERHOURS_TRIGGER_OPTIONS } from '../presets/Cinema2AfterhoursPreset'
 import { CINEMA2_CORRIDOR_MEDIA_SLOT, CINEMA2_CORRIDOR_PRESET_ID, CINEMA2_CORRIDOR_PRESET_MANIFEST } from '../presets/Cinema2CorridorPreset'
 import { validateCinema2PresetAuthoringConventions } from '../presets/Cinema2PresetAuthoring'
@@ -87,7 +87,13 @@ describe('Corridor', () => {
   it('builds a backing, telescoping mount, rigid body, bevel, recessed strip and face for every cell', () => {
     const geometry = buildCorridorGeometry()
     const cells = new Map<string, Map<number, number[]>>()
+    const rails = new Map<string, number>()
     for (let i = 0; i < geometry.length; i += CORRIDOR_VERTEX_FLOATS) {
+      if (geometry[i+8] === CORRIDOR_RAIL_PART) {
+        const rail = `${geometry[i+5]}:${geometry[i+6]}`
+        rails.set(rail,(rails.get(rail) ?? 0)+1)
+        continue
+      }
       const cell = `${geometry[i+5]}:${geometry[i+6]}:${geometry[i+7]}`
       const parts = cells.get(cell) ?? new Map<number, number[]>()
       const part = geometry[i+8]!
@@ -97,7 +103,9 @@ describe('Corridor', () => {
       cells.set(cell,parts)
     }
     expect(cells.size).toBe(192)
-    expect(geometry.byteLength).toBe(1382400)
+    expect(geometry.byteLength).toBe(1382400 + CORRIDOR_RAIL_VERTEX_COUNT * CORRIDOR_VERTEX_FLOATS * 4)
+    expect(rails.size).toBe(48)
+    expect([...rails.values()]).toEqual(Array(48).fill(6))
     expect(CORRIDOR_BANK_SPAN + CORRIDOR_MAX_INSET).toBeLessThan(1)
     for (const parts of cells.values()) {
       expect([...parts.keys()].sort()).toEqual([0,1,2,3,4,5])
@@ -107,6 +115,28 @@ describe('Corridor', () => {
       expect(Math.max(...parts.get(2)!)).toBe(1)
       expect(Math.max(...parts.get(3)!)).toBeLessThan(Math.min(...parts.get(4)!))
     }
+  })
+
+  it('increases forward distance for existing saved rates and exposes the expanded range', () => {
+    expect(parameter('transit')).toMatchObject({ defaultValue: CORRIDOR_TRANSIT_DEFAULT, min: .2, max: CORRIDOR_TRANSIT_MAX })
+    const run = (transit: number) => {
+      const performance = new Cinema2CorridorPerformance(() => .5)
+      const update = (time: number, paused = false) => performance.update({
+        parameters: { get: (key: string) => ({ transit, motion: .75 } as Record<string, number>)[key] },
+        frame: { contextGeneration: 1, elapsedTimeSec: time, deltaTimeSec: .1, audio: null, director: null, mood: null,
+          transport: { trackId: 'speed', sourcePresent: true, playing: !paused, paused, animationActive: !paused, timeSec: time, bpm: 120 } },
+      } as unknown as Cinema2ModuleUpdateContext)
+      const start = update(0).travel
+      let end = start
+      for (let n = 1; n <= 10; n++) end = update(n*.1).travel
+      expect(update(1,true).travel).toBe(end)
+      return end-start
+    }
+    const formerMaximum = 2*.75*1.8*1.24
+    expect(run(1.8)).toBeCloseTo(formerMaximum*CORRIDOR_TRANSIT_SPEED_SCALE)
+    expect(run(CORRIDOR_TRANSIT_MAX)).toBeCloseTo(formerMaximum*5)
+    expect(run(99)).toBeCloseTo(run(CORRIDOR_TRANSIT_MAX))
+    expect(run(.2)).toBeLessThan(run(CORRIDOR_TRANSIT_DEFAULT))
   })
 
   it('uses the shared routed bass, kick and build with bounded attack, pause, reset and manual authority', () => {

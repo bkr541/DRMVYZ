@@ -12,7 +12,12 @@ const GOONZ_LANES = 2
 // Outer casing side in units of corridor half-width. The original minimum
 // is .95 * .72 * (2 * BANK_SPAN / 4) = .27018; even the lit aperture doubles.
 export const GOONZ_MIN_SIDE = .64
-export const GOONZ_MAX_PAIR_SIDE = .73
+export const GOONZ_MAX_PAIR_SIDE = .86
+export const GOONZ_PAIR_SPAN = 1.50
+export const GOONZ_PAIR_GAP = .055
+export const GOONZ_MAX_SINGLE_SIDE = 1.44
+export const CORRIDOR_RAIL_PART = 6
+export const CORRIDOR_RAIL_VERTEX_COUNT = 4 * BAY_COUNT * 6
 export const GOONZ_MAX_AXIAL_SIDE = 2.60
 export const CORRIDOR_MAX_INSET = 0.19
 export const CORRIDOR_BANK_SPAN = 0.79
@@ -55,12 +60,16 @@ const GOONZ_LAYOUT_GLSL = `
 // Recycled bays use world coordinates, so neither size nor position changes
 // when a bay is recycled or an audio event changes its lighting.
 float goonzLaneCount(float row, float bank) {
-  return hash(vec2(row,bank)+vec2(53.7,21.9)) < .34 ? 1.0 : 2.0;
+  return hash(vec2(row,bank)+vec2(53.7,21.9)) < .48 ? 1.0 : 2.0;
 }
 float goonzSide(float row, float bank, float lane, float width) {
-  float r = hash(vec2(row,bank*13.5+lane)+vec2(74.1,39.2));
+  float r = hash(vec2(row,bank)+vec2(74.1,39.2));
+  // Complementary unequal pairs have a fixed total envelope but independent
+  // axial staggering; singles range from compact to oversized hero displays.
+  float first = mix(${GOONZ_MIN_SIDE},${GOONZ_MAX_PAIR_SIDE},r);
   float side = goonzLaneCount(row,bank) < 1.5
-    ? mix(.96,1.24,r) : mix(${GOONZ_MIN_SIDE},${GOONZ_MAX_PAIR_SIDE},r);
+    ? mix(${GOONZ_MIN_SIDE},${GOONZ_MAX_SINGLE_SIDE},r)
+    : (lane < .5 ? first : ${GOONZ_PAIR_SPAN}-first);
   return min(side*width,${GOONZ_MAX_AXIAL_SIDE});
 }
 #endif
@@ -99,7 +108,12 @@ void main() {
   float depth = 0.0;
   float across = aTile.x;
   float axial = aTile.y;
-  if (aPart.x > .5) {
+  if (aPart.x == ${CORRIDOR_RAIL_PART}.0) {
+    // One continuous diagonal extrusion per corner, not a screen-space line.
+    // Its ends are just inside the two adjacent backing planes.
+    across = mix(.939,.995,aUV.x);
+    depth = mix(.005,.061,aUV.x);
+  } else if (aPart.x > .5) {
     // Stable by world bay, not recycled slot. Adjacent lanes and pairs of bays
     // share a piston response while individual modules retain different thicknesses.
     float random = hash(id + 1.3);
@@ -123,7 +137,14 @@ void main() {
       return;
     }
     float side = goonzSide(row,bank,aCell.z,uPose.w);
-    float center = count < 1.5 ? 0.0 : (aCell.z-.5)*${CORRIDOR_BANK_SPAN};
+    float first = goonzSide(row,bank,0.0,uPose.w)/uPose.w;
+    float second = goonzSide(row,bank,1.0,uPose.w)/uPose.w;
+    float pairSpan = first+second+${GOONZ_PAIR_GAP};
+    float free = count < 1.5 ? ${CORRIDOR_BANK_SPAN}-side/(2.0*uPose.w)
+      : ${CORRIDOR_BANK_SPAN}-pairSpan*.5;
+    float offset = (hash(vec2(row,bank)+17.9)*2.0-1.0)*max(0.0,free)*.85;
+    float center = offset + (count < 1.5 ? 0.0 :
+      (aCell.z < .5 ? -pairSpan*.5+first*.5 : pairSpan*.5-second*.5));
     // Stagger the modules within the free space, preserving the corner gutter
     // at maximum piston extension and a gap between consecutive depth bays.
     float margin = max(0.0,(${CORRIDOR_BAY_LENGTH}-side)*.5-.055);
@@ -274,6 +295,57 @@ float mediaRole(float row, float bank, float lane) {
 #endif
 }
 
+#ifdef GOONZ_LAYOUT
+// CRT treatment adapted from EVERYWHERE's screen shader: glass curvature,
+// rolling tracking, scanlines, interference, chromatic ghost and pulse modes.
+// Use the Corridor's existing musical phase and pattern, never a second clock.
+float crtTracking(vec2 uv, float seed) {
+  return exp(-pow((fract(uv.y-uLook.y*.18+seed*.23)-.5)*11.0,2.0));
+}
+vec2 crtUV(vec2 uv, float seed) {
+  vec2 p = uv*2.0-1.0;
+  float edge = max(0.0,1.0-max(abs(p.x),abs(p.y)));
+  float tracking = crtTracking(uv,seed);
+  float fault = uPattern == 4 ? 1.0 : .15;
+  float wobble = .006*sin(uv.y*24.0-uLook.y*4.0+seed*6.28);
+  float tear = tracking*fault*(.018+.045*uAccents.y)*sin(uv.y*160.0+seed*12.0);
+  // Taper at the boundaries to retain the complete contained source.
+  return uv + edge*(p*dot(p,p)*.035+vec2(wobble+tear,0.0));
+}
+vec3 crtSurface(vec3 rgb, vec2 uv, vec2 id, float seed, float level) {
+  vec2 p = uv*2.0-1.0;
+  float tracking = crtTracking(uv,seed);
+  float scan = (.5+.5*sin(uv.y*540.0))*(1.0-smoothstep(.001,.005,fwidth(uv.y)));
+  float noise = hash(floor(uv*vec2(240.0,150.0))+id*7.0+floor(uLook.y*12.0));
+  float luma = dot(rgb,vec3(.2126,.7152,.0722));
+  float pulse = .5+.5*sin(uLook.y*3.0+id.x*.88+id.y*.31);
+  float power = 1.0;
+  if (uPattern == 0) { // stable broadcast with slow phosphor breathing
+    power = .88+.12*pulse;
+  } else if (uPattern == 1) { // signal relay: moving exposure band
+    power = .77+.23*tracking+.12*min(level,1.0);
+  } else if (uPattern == 2) { // counterflow: alternating warm/cool channels
+    vec3 tint = mix(vec3(.79,1.02,1.16),vec3(1.16,.86,.72),step(.5,seed));
+    rgb = mix(rgb,rgb*tint,.23);
+    power = .85+.15*pulse;
+  } else if (uPattern == 3) { // shaft: retro monochrome phosphor
+    rgb = mix(rgb,luma*vec3(1.15,.92,.67),.30);
+    power = .86+.14*pulse;
+  } else if (uPattern == 4) { // signal fault: bounded static and channel ghost
+    float interference = (.09+.21*uAccents.y)*(.40+.60*tracking);
+    rgb = mix(rgb,vec3(noise*.65),interference);
+    rgb = mix(rgb,rgb.brg,.08+.19*tracking);
+    power = .68+.32*pulse;
+  } else { // gate: screen exposure swells with the existing ring
+    power = .76+.24*min(level,1.0)+.15*uAccents.w;
+  }
+  float edge = 1.0-.12*dot(p*vec2(.82,1.0),p*vec2(.82,1.0));
+  float glare = exp(-pow((p.y-.66+p.x*.28)*7.1,2.0))*exp(-pow((p.x+.48)*2.3,2.0));
+  return max(vec3(0.0),rgb*power*edge*(1.0-.13*scan)*(1.0-.10*tracking)
+    + vec3(.70,.83,1.0)*glare*.045*uLook.w);
+}
+#endif
+
 vec4 mediaPicture(float bank, float random, float detail, int channel, float aperture) {
   float aspect = uFeedAspect[channel];
   if (aspect <= 0.0) return vec4(0.0);
@@ -293,6 +365,9 @@ vec4 mediaPicture(float bank, float random, float detail, int channel, float ape
   else if (bank < 1.5) uv = vec2(uv.x,uv.y);
   else if (bank < 2.5) { uv = vec2(1.0-uv.y,uv.x); screenAspect = 1.0/screenAspect; }
   else uv = vec2(1.0-uv.x,1.0-uv.y);
+#ifdef GOONZ_LAYOUT
+  uv = crtUV(uv,detail);
+#endif
   // Contain rather than crop logos, SVGs and portrait/landscape video.
   vec2 fit = max(vec2(screenAspect/aspect,aspect/screenAspect),vec2(1.0));
   uv = (uv-.5)*fit+.5;
@@ -375,6 +450,28 @@ void main() {
   float level = panelLevel(row,bank,lane,random,distanceIn,bayCenter);
   float ringDepth = mix(1.55,4.25,clamp(uAccents.w,0.0,1.0));
   float ring = uAccents.w * exp(-pow((bayCenter / ${CORRIDOR_BAY_LENGTH} - ringDepth) / .54,2.0));
+  if (vPart.x == ${CORRIDOR_RAIL_PART}.0) {
+    // Interpolate the neighboring bay centers in world coordinates. This
+    // preserves continuous chasing at a recycled boundary without seams.
+    float offset = vUV.y-.5;
+    float neighbor = offset < 0.0 ? -1.0 : 1.0;
+    float nextRow = mod(row+neighbor,4096.0);
+    float nextCenter = bayCenter+neighbor*${CORRIDOR_BAY_LENGTH};
+    float railLane = mod(bank,2.0) < .5 ? 0.0 : 1.0;
+    float a = panelLevel(row,bank,railLane,hash(vec2(row,bank)+19.4),distanceIn,bayCenter);
+    float b = panelLevel(nextRow,bank,railLane,hash(vec2(nextRow,bank)+19.4),distanceIn,nextCenter);
+    float drive = mix(a,b,abs(offset));
+    float core = 1.0-smoothstep(.19,.29,abs(vUV.x-.5));
+    float lip = 1.0-smoothstep(.34,.46,abs(vUV.x-.5));
+    // Physical housing, luminous diffuser, and warm shoulder spill. The
+    // shared palette, intensity, kick, build and drop govern the same rail.
+    vec3 tint = mix(uAmber,uHot,clamp(drive*.63+uAccents.w*.24,0.0,1.0));
+    float light = (.055+2.9*pow(clamp(drive,0.0,1.5),1.25))*uLook.w;
+    vec3 rgb = uWall*(.19+.20*lip)+tint*light*(core+.12*lip);
+    float fade = exp(-pow(distanceIn*(.034+uHaze*.13),1.34))*(1.0-smoothstep(24.0,33.0,distanceIn));
+    outColor = vec4(mix(uVoid,rgb,fade),1.0);
+    return;
+  }
   float fixture = smoothstep(.18,.34,level);
   vec2 local = vUV - .5;
 #ifdef GOONZ_LAYOUT
@@ -433,6 +530,10 @@ void main() {
 #endif
     float warmGrain = (1.0-smoothstep(.21,.48,length(local))) * .14 + stipple;
     emission = lampColor * diffuser * fixture * min(5.5,(.50+2.95*level)*uLook.w) * warmGrain;
+#ifdef GOONZ_LAYOUT
+    // Even an unassigned panel is a live phosphor display, not a flat lamp.
+    emission = mix(emission,crtSurface(emission,vUV,id,detail,level)*diffuser,fixture);
+#endif
     if (uFeedCount > 0 && diffuser > .001) {
       float role = mediaRole(row,bank,lane);
       if (role > .5) {
@@ -453,6 +554,10 @@ void main() {
           vec4 picture = mediaPicture(bank,random,detail,channel,aperture);
           // Keep source exposure independent of the reactive lamp. Transparent
           // pixels and missing channels reveal the original fixture and mask.
+#ifdef GOONZ_LAYOUT
+          vec2 screenUV = local/(2.0*aperture)+.5;
+          picture.rgb = crtSurface(picture.rgb,screenUV,id,detail,level);
+#endif
           mediaOverlay = vec4(picture.rgb,picture.a*mediaMask);
         }
       }
@@ -515,6 +620,11 @@ export function buildCorridorGeometry(squareCassettes = false) {
         band(channelOuter,channelInner,3)
         band(channelInner,face,2)
         quad(face,4)
+      }
+      // Four corner strips, each split only at the existing recycled bay seam.
+      // The vertex shader positions the beveled strip independent of cassettes.
+      for (const [u,v] of [[0,0],[1,0],[1,1],[0,0],[1,1],[0,1]]) {
+        data.push(u!,v!,0,u!,v!,bank,bay,0,CORRIDOR_RAIL_PART,0)
       }
     }
   }

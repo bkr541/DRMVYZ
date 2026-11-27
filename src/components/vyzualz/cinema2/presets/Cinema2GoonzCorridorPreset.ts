@@ -13,7 +13,7 @@ export const CINEMA2_GOONZ_CORRIDOR_PRESET_MANIFEST: Cinema2NativePresetManifest
   metadata: {
     ...CINEMA2_CORRIDOR_PRESET_MANIFEST.metadata,
     name: 'GOONZ CORRIDOR',
-    description: 'An industrial passage with staggered oversized square lighting and media panels, deep machined steel casings, and reactive recessed LEDs on all four surfaces.',
+    description: 'An industrial passage with asymmetrical square CRT lighting and media panels, machined steel casings, and choreographed corner LED rails on all four surfaces.',
   },
   modules: CINEMA2_CORRIDOR_PRESET_MANIFEST.modules?.map(module => ({
     ...module, typeId: CINEMA2_GOONZ_CORRIDOR_MODULE_TYPE_ID,

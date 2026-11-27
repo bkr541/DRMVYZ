@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { CINEMA2_CORRIDOR_MODULE_TYPE_ID, CINEMA2_GOONZ_CORRIDOR_MODULE_TYPE_ID } from '../modules/Cinema2CorridorNativeModule'
-import { buildCorridorGeometry, CORRIDOR_BANK_SPAN, CORRIDOR_BAY_LENGTH, CORRIDOR_MAX_INSET, CORRIDOR_VERTEX_FLOATS, GOONZ_MIN_SIDE, GOONZ_MAX_PAIR_SIDE, GOONZ_MAX_AXIAL_SIDE } from '../modules/corridor/Cinema2CorridorRenderer'
+import { buildCorridorGeometry, CORRIDOR_BANK_SPAN, CORRIDOR_BAY_LENGTH, CORRIDOR_MAX_INSET, CORRIDOR_VERTEX_FLOATS, GOONZ_MIN_SIDE, GOONZ_MAX_PAIR_SIDE, GOONZ_MAX_AXIAL_SIDE, GOONZ_PAIR_SPAN, GOONZ_PAIR_GAP, GOONZ_MAX_SINGLE_SIDE, CORRIDOR_RAIL_PART, CORRIDOR_RAIL_VERTEX_COUNT } from '../modules/corridor/Cinema2CorridorRenderer'
 import { CINEMA2_CORRIDOR_PRESET_ID, CINEMA2_CORRIDOR_PRESET_MANIFEST } from '../presets/Cinema2CorridorPreset'
 import { CINEMA2_GOONZ_CORRIDOR_PRESET_ID, CINEMA2_GOONZ_CORRIDOR_PRESET_MANIFEST } from '../presets/Cinema2GoonzCorridorPreset'
 import { cinema2NativePresetRegistry } from '../presets/Cinema2PresetRegistry'
@@ -30,25 +30,36 @@ describe('GOONZ CORRIDOR', () => {
       expect(minimum * .64 / .95).toBeGreaterThanOrEqual(2 * .73 * originalUnit)
       // Adjacent pairs, single panels, axial staggering and full piston extension
       // must fit without touching any neighboring bank or depth bay.
-      expect(CORRIDOR_BANK_SPAN / 2 + GOONZ_MAX_PAIR_SIDE / 2 + CORRIDOR_MAX_INSET).toBeLessThan(1)
-      expect(1.24 / 2 + CORRIDOR_MAX_INSET).toBeLessThan(1)
+      expect(GOONZ_PAIR_SPAN - GOONZ_MAX_PAIR_SIDE).toBeCloseTo(GOONZ_MIN_SIDE)
+      expect((GOONZ_PAIR_SPAN + GOONZ_PAIR_GAP) / 2).toBeLessThan(CORRIDOR_BANK_SPAN)
+      expect(GOONZ_MAX_SINGLE_SIDE / 2).toBeLessThan(CORRIDOR_BANK_SPAN)
+      expect(CORRIDOR_BANK_SPAN + CORRIDOR_MAX_INSET).toBeLessThan(1)
       expect(GOONZ_MAX_AXIAL_SIDE + .11).toBeLessThan(CORRIDOR_BAY_LENGTH)
     }
   })
 
-  it('preserves the original mesh and uses at most two individually cased squares per bank and bay', () => {
+  it('uses at most two individually cased squares and exactly one corner rail per bank and bay', () => {
     const original = buildCorridorGeometry()
     const variant = buildCorridorGeometry(true)
-    expect(original.byteLength).toBe(1382400)
-    expect(variant.byteLength).toBe(original.byteLength / 2)
+    const railBytes = CORRIDOR_RAIL_VERTEX_COUNT * CORRIDOR_VERTEX_FLOATS * 4
+    expect(original.byteLength).toBe(1382400 + railBytes)
+    expect(variant.byteLength).toBe((original.byteLength-railBytes)/2+railBytes)
+    const rails = new Map<string, number>()
     const cells = new Map<string, Set<number>>()
     for (let i = 0; i < variant.length; i += CORRIDOR_VERTEX_FLOATS) {
+      if (variant[i+8] === CORRIDOR_RAIL_PART) {
+        const key = `${variant[i+5]}:${variant[i+6]}`
+        rails.set(key,(rails.get(key) ?? 0)+1)
+        continue
+      }
       const key = `${variant[i+5]}:${variant[i+6]}:${variant[i+7]}`
       const parts = cells.get(key) ?? new Set<number>()
       parts.add(variant[i+8]!)
       cells.set(key, parts)
     }
     expect(cells.size).toBe(96)
+    expect(rails.size).toBe(48)
+    expect([...rails.values()]).toEqual(Array(48).fill(6))
     for (const parts of cells.values()) expect([...parts].sort()).toEqual([0,1,2,3,4,5])
   })
 })

@@ -18,6 +18,11 @@ export const CORRIDOR_COLORS: Pick<CorridorLook, 'voidColor' | 'wall' | 'amber' 
   markings: [0.85, 0.28, 0.08, 1],
 }
 
+// Keep the authored slider and runtime clamp in agreement for both variants.
+export const CORRIDOR_TRANSIT_DEFAULT = 1.25
+export const CORRIDOR_TRANSIT_MAX = 3.6
+export const CORRIDOR_TRANSIT_SPEED_SCALE = 2.5
+
 const DEFAULT_LOOK: Readonly<CorridorLook> = {
   ...CORRIDOR_COLORS, travel: 0.58, phase: 0.08, roll: 0.032, sway: 0, width: 2.35, density: 0.38, intensity: 0.86,
   haze: 0.23, pattern: 'night-transit', kick: 0, bass: 0, extensionBuild: 0, transient: 0, build: 0, drop: 0,
@@ -116,7 +121,7 @@ export class Cinema2CorridorPerformance {
     const roll = read('roll', 0.54, 0, 1)
     const density = read('density', 0.38, 0.05, 0.85)
     if (playing) {
-      this.distance += delta * motion * read('transit', 1, 0.2, 1.8) * (1.24 + build * 0.42 + read('bass', 0, 0, 1) * (auto ? 0.20 : 0))
+      this.distance += delta * motion * read('transit', CORRIDOR_TRANSIT_DEFAULT, 0.2, CORRIDOR_TRANSIT_MAX) * CORRIDOR_TRANSIT_SPEED_SCALE * (1.24 + build * 0.42 + read('bass', 0, 0, 1) * (auto ? 0.20 : 0))
       this.phase += delta * motion * (0.45 + build * 0.14)
     }
     this.look = {

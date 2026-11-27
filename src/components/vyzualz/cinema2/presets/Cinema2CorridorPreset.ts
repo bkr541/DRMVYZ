@@ -8,7 +8,7 @@ import {
 } from '../contracts/Cinema2NativePresetManifest'
 import { CINEMA2_CINEMATIC_FINISH_EFFECT_TYPE_ID } from '../effects/Cinema2CinematicFinishEffect'
 import { CINEMA2_HDR_BLOOM_EFFECT_TYPE_ID } from '../effects/Cinema2HdrBloomEffect'
-import { CINEMA2_CORRIDOR_MODULE_TYPE_ID, CORRIDOR_COLORS } from '../modules/Cinema2CorridorNativeModule'
+import { CINEMA2_CORRIDOR_MODULE_TYPE_ID, CORRIDOR_COLORS, CORRIDOR_TRANSIT_DEFAULT, CORRIDOR_TRANSIT_MAX } from '../modules/Cinema2CorridorNativeModule'
 import { CORRIDOR_PATTERNS } from '../modules/corridor/Cinema2CorridorRenderer'
 import { CINEMA2_QUALITY_MODE_PARAMETER } from '../parameters/Cinema2PerformanceParameters'
 import { CINEMA2_AFTERHOURS_TRIGGER_OPTIONS } from './Cinema2AfterhoursPreset'
@@ -81,11 +81,11 @@ const parameters: readonly Cinema2ParameterManifest[] = [
     { ...base('bpm-sync','BPM Sync','master-controls','Playback',2,'Use the shared transport tempo for travel and panel chase.'), type: 'boolean', defaultValue: true },
     { ...base('auto-performance','Auto Performance','master-controls','Playback',3,'Use shared music analysis and the System Settings default.'), type: 'boolean', defaultValue: false },
     slider('width','Corridor Width','design','Structure',1,2.35,1.8,3.3,'Half-width of the square passage.'),
-    slider('transit','Transit Rate','design','Structure',2,1,0.2,1.8,'Rate of forward travel during playback.'),
+    slider('transit','Transit Rate','design','Structure',2,CORRIDOR_TRANSIT_DEFAULT,0.2,CORRIDOR_TRANSIT_MAX,'Rate of forward travel during playback, from slow drift to high-speed flight.'),
     slider('roll','Camera Roll','design','Structure',3,0.54,0,1,'Amount of gentle roll around the centered vanishing point.'),
     slider('density','Panel Density','design','Panels',1,0.38,0.05,0.85,'Fraction of tiles recruited by the active pattern.'),
-    slider('intensity','Panel Intensity','design','Panels',2,0.86,0,1.45,'Brightness of the panel diffusers, recessed perimeter LEDs, markings and local spill. User pictures retain independent source exposure.'),
-    { ...base('pattern','Pattern','design','Pattern',1,'Choose the arrangement of light across the cassette banks.'), type: 'enum', defaultValue: 'night-transit', options: CORRIDOR_PATTERNS },
+    slider('intensity','Panel Intensity','design','Panels',2,0.86,0,1.45,'Brightness of the panel diffusers, recessed perimeter and corner LEDs, markings and local spill. User pictures retain independent source exposure.'),
+    { ...base('pattern','Pattern','design','Pattern',1,'Choose the arrangement of light across the cassette banks and four corner LED rails.'), type: 'enum', defaultValue: 'night-transit', options: CORRIDOR_PATTERNS },
     { ...base('pattern-change','Pattern Change','design','Pattern',2,'Advance the active pattern on a fresh event from the selected Trigger.'), type: 'boolean', defaultValue: false },
     { ...base('trigger','Trigger','design','Pattern',3,'Musical event that advances the active pattern.'), type: 'enum',
       defaultValue: 'bar4', options: CINEMA2_AFTERHOURS_TRIGGER_OPTIONS, visibleWhen: [{ kind: 'parameter-equals', parameterId: parameter('pattern-change'), value: true }] },
