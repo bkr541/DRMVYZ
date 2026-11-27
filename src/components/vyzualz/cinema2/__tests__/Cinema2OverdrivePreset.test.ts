@@ -6,7 +6,8 @@ import { validateCinema2PresetAuthoringConventions } from '../presets/Cinema2Pre
 import { withCinema2AutoCoverage } from '../presets/Cinema2AutoCoverage'
 import { Cinema2OverdrivePerformance, OverdrivePool } from '../modules/Cinema2OverdriveNativeModule'
 import { DEFAULT_OVERDRIVE_LOOK, OVERDRIVE_PATTERNS, OVERDRIVE_POSES, overdriveAssemblyPose, overdriveBandRadius, overdriveFullColorGain, overdriveEnvironmentGain, overdriveInnerBankScale, OVERDRIVE_FOREGROUND_Z, OVERDRIVE_RIB_COUNT, OverdriveScene } from '../modules/overdrive/OverdriveScene'
-import { normalizeOverdriveSpeaker, OVERDRIVE_SPEAKER_DIAMETER, OVERDRIVE_SPEAKER_FACE_Z } from '../modules/overdrive/OverdriveSpeakers'
+import { normalizeOverdriveSpeaker, prepareOverdriveDiaphragm, applyOverdriveDiaphragm, OVERDRIVE_SPEAKER_DIAMETER, OVERDRIVE_SPEAKER_FACE_Z } from '../modules/overdrive/OverdriveSpeakers'
+import { OVERDRIVE_LIGHT_ZONES, overdriveLightingLevel, overdriveSpeakerMotion } from '../modules/overdrive/OverdriveLighting'
 import type { Cinema2ThreeLibrary } from '../modules/three/Cinema2ThreeLibrary'
 import type { Cinema2ModuleUpdateContext } from '../modules/Cinema2ModuleContracts'
 import type { Cinema2MediaSlotRuntime, Cinema2MediaSource } from '../media/Cinema2MediaSlotRuntime'
@@ -20,6 +21,7 @@ describe('OVERDRIVE',()=>{
     for(const value of [manifest,withCinema2AutoCoverage(manifest)]){const result=compileCinema2NativePreset(value);expect(result.diagnostics).toEqual([]);expect(result.ok).toBe(true)}
     expect(new Set(manifest.parameters!.map(p=>p.designParentGroup))).toEqual(new Set(['master-controls','design','effects','palette']))
     expect(parameter('pattern').options).toHaveLength(12)
+    for(const name of ['radial-lighting','reactor-lighting','blackout-depth'])expect(parameter(name).designParentGroup).toBe('effects')
     expect(parameter('pattern-change')).toMatchObject({defaultValue:false,metadata:{moodPolicy:'patternChange'}})
     expect(parameter('trigger').options).toEqual(CINEMA2_AFTERHOURS_TRIGGER_OPTIONS)
     expect(parameter('auto-performance').metadata?.moodPolicy).toBe('autoPerformance')
@@ -44,6 +46,27 @@ describe('OVERDRIVE',()=>{
     const base=overdriveAssemblyPose(0,DEFAULT_OVERDRIVE_LOOK)
     expect(overdriveAssemblyPose(0,{...DEFAULT_OVERDRIVE_LOOK,kick:1}).cone).toBeGreaterThan(base.cone)
     expect(overdriveAssemblyPose(0,{...DEFAULT_OVERDRIVE_LOOK,motion:0,kick:1}).cone).toBe(0)
+  })
+  it('authors twelve distinct bounded lighting programs and audio-driven speaker motion',()=>{
+    const programs=new Set<string>()
+    for(const {value} of OVERDRIVE_PATTERNS){
+      const look={...DEFAULT_OVERDRIVE_LOOK,pattern:value,pose:OVERDRIVE_POSES[value],phase:2.13,bass:.8,kick:.7,snare:.5,high:.3}
+      const output=OVERDRIVE_LIGHT_ZONES.flatMap(zone=>Array.from({length:10},(_,i)=>overdriveLightingLevel(zone,i,look)))
+      expect(output.every(v=>Number.isFinite(v)&&v>=0&&v<=2.2)).toBe(true)
+      programs.add(JSON.stringify(output))
+      expect(overdriveLightingLevel('speaker',0,{...look,intensity:0})).toBe(0)
+      expect(overdriveLightingLevel('spoke',0,{...look,radialLighting:0})).toBe(0)
+      expect(overdriveLightingLevel('cavity',0,{...look,reactorLighting:0})).toBe(0)
+      const still=overdriveSpeakerMotion(0,{...look,motion:0})
+      expect(still.diaphragm).toBeCloseTo(0);expect(still.scale).toBe(1)
+      expect(Math.abs(overdriveSpeakerMotion(0,look).diaphragm)).toBeGreaterThan(0)
+    }
+    expect(programs.size).toBe(12)
+    const hot={...DEFAULT_OVERDRIVE_LOOK,bass:1,kick:1,phase:.12}
+    expect(overdriveLightingLevel('speaker',0,hot)).toBeGreaterThan(overdriveLightingLevel('speaker',0,{...hot,bass:0,kick:0}))
+    expect(overdriveLightingLevel('speaker',0,{...hot,pattern:'blackout',pose:OVERDRIVE_POSES.blackout})).toBeLessThan(.04)
+    expect(overdriveSpeakerMotion(0,{...hot,bass:0,kick:0}).diaphragm).toBeCloseTo(0)
+    expect(overdriveSpeakerMotion(0,hot)).not.toEqual(overdriveSpeakerMotion(1,hot))
   })
   it('retains a shadow key and restrained reflections',()=>{
     expect(overdriveEnvironmentGain(DEFAULT_OVERDRIVE_LOOK)).toBeLessThan(.15)
@@ -94,6 +117,18 @@ describe('OVERDRIVE',()=>{
       expect(frontMaterial(.3)).toBe('Grey')
       const bounds=new T.Box3().setFromObject(model,true)
       expect(bounds.max.z).toBeCloseTo(OVERDRIVE_SPEAKER_FACE_Z)
+      prepareOverdriveDiaphragm(T,model)
+      const a=model.clone(true),b=model.clone(true)
+      applyOverdriveDiaphragm(a,.7);applyOverdriveDiaphragm(b,-.4)
+      const meshes=(root:import('three').Object3D)=>{const result:import('three').Mesh[]=[];root.traverse(o=>{if((o as import('three').Mesh).isMesh)result.push(o as import('three').Mesh)});return result}
+      const first=meshes(a),second=meshes(b)
+      expect(first.filter(m=>m.morphTargetDictionary?.['overdrive-bass-excursion']!==undefined)).toHaveLength(2)
+      first.forEach((mesh,i)=>{
+        expect(mesh.geometry).toBe(second[i]!.geometry)
+        const index=mesh.morphTargetDictionary?.['overdrive-bass-excursion']
+        if(index!==undefined){expect(mesh.morphTargetInfluences?.[index]).toBe(.7);expect(second[i]!.morphTargetInfluences?.[index]).toBe(-.4)}
+        else expect((mesh.material as import('three').Material).name).toBe('Copper')
+      })
     }finally{disposeObject(scene)}
   })
   it('uses the same model in all ten driver instances, shares resources, retains pulse motion and keeps the core stable',async()=>{
@@ -111,6 +146,13 @@ describe('OVERDRIVE',()=>{
       const objects=(name:string)=>{const found:import('three').Object3D[]=[];root.traverse(o=>{if(o.name===name)found.push(o)});return found}
       scene.apply(DEFAULT_OVERDRIVE_LOOK,null,'high',16/9)
       root.updateMatrixWorld(true)
+      for(const zone of OVERDRIVE_LIGHT_ZONES){
+        expect(objects(`overdrive-light-${zone}`).length).toBeGreaterThanOrEqual(10)
+        const lights=objects(`overdrive-light-${zone}`) as import('three').Mesh[]
+        expect(new Set(lights.map(m=>m.material)).size).toBe(lights.length)
+        expect(lights.some(m=>(m.material as import('three').MeshStandardMaterial).emissiveIntensity>0)).toBe(true)
+      }
+      expect(objects('overdrive-reactor-spill')).toHaveLength(4)
       const arms=objects('overdrive-acoustic-assembly')
       const pulses=objects('overdrive-speaker-pulse')
       expect(arms).toHaveLength(10);expect(pulses).toHaveLength(10)

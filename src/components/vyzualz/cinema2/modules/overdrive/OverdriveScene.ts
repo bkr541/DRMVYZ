@@ -3,7 +3,8 @@ import type { Cinema2Color } from '../../contracts/Cinema2NativePresetManifest'
 import type { Cinema2ManagedMediaResource } from '../../media/Cinema2MediaSlotRuntime'
 import type { Cinema2ThreeLibrary } from '../three/Cinema2ThreeLibrary'
 import { disposeObject } from '../three/Cinema2ThreeAssetCache'
-import { loadOverdriveSpeakerModel, normalizeOverdriveSpeaker } from './OverdriveSpeakers'
+import { loadOverdriveSpeakerModel, normalizeOverdriveSpeaker, prepareOverdriveDiaphragm, applyOverdriveDiaphragm, OVERDRIVE_SPEAKER_DIAMETER, OVERDRIVE_SPEAKER_FACE_Z } from './OverdriveSpeakers'
+import { overdriveLightingLevel, overdriveSpeakerMotion, type OverdriveLightZone } from './OverdriveLighting'
 
 export const OVERDRIVE_COLORS = {
   background: [.006,.009,.018,1], metal: [.040,.049,.069,1], titanium: [.30,.33,.40,1], carbon: [.035,.041,.056,1],
@@ -31,6 +32,7 @@ export const OVERDRIVE_POSES: Record<OverdrivePattern,OverdrivePose> = {
 export interface OverdriveLook {
   pattern: OverdrivePattern; pose: OverdrivePose; phase: number; motion: number; intensity: number; reactivity: number;
   size: number; separation: number; rotation: number; compression: number; piston: number; speaker: number; aperture: number; relay: number;
+  radialLighting: number; reactorLighting: number; blackoutDepth: number;
   brightness: number; roughness: number; reflection: number; spill: number; key: number; detail: number;
   mode: string; style: string; text: string; mediaScale: number; mediaRotation: number;
   colors: {[K in keyof typeof OVERDRIVE_COLORS]: Cinema2Color};
@@ -39,6 +41,7 @@ export interface OverdriveLook {
 export const DEFAULT_OVERDRIVE_LOOK: OverdriveLook = {
   pattern:'core-lock',pose:OVERDRIVE_POSES['core-lock'],phase:0,motion:.65,intensity:.85,reactivity:.75,
   size:1,separation:.02,rotation:.35,compression:.15,piston:.35,speaker:.45,aperture:.2,relay:.5,
+  radialLighting:1,reactorLighting:1,blackoutDepth:.72,
   brightness:1.1,roughness:.32,reflection:.65,spill:.65,key:.7,detail:1,mode:'auto',style:'led',text:'OVERDRIVE',mediaScale:1,mediaRotation:0,
   colors:OVERDRIVE_COLORS,energy:0,bass:0,mid:0,high:0,vocal:0,kick:0,snare:0,beat:0,build:0,drop:0,phrase:0,
 }
@@ -97,6 +100,8 @@ float curvature=smoothstep(0.,.67,vLocal.z/1.46);
 export class OverdriveScene {
   private readonly group: Three.Group
   private readonly core: Three.Group
+  private readonly lighting: {zone:OverdriveLightZone;sector:number;track:number;material:Three.MeshStandardMaterial}[]=[]
+  private readonly reactorLights: Three.PointLight[]=[]
   private readonly rings: Three.Mesh[]=[]
   private readonly assemblies: {root:Three.Group;rod:Three.Group;cone:Three.Group;shutter:Three.Group;light:Three.MeshStandardMaterial}[]=[]
   private readonly metal: Three.MeshStandardMaterial
@@ -165,6 +170,19 @@ export class OverdriveScene {
     };
     const lathe=(profile:readonly (readonly [number,number])[],segments=48)=>new T.LatheGeometry(profile.map(([r,z])=>new T.Vector2(r,z)),segments).rotateX(Math.PI/2);
     const pipe=(points:readonly (readonly [number,number,number])[],radius=.035)=>new T.TubeGeometry(new T.CatmullRomCurve3(points.map(([x,y,z])=>new T.Vector3(x,y,z))),20,radius,6,false);
+    // Real emissive geometry participates in the existing HDR bloom. Each channel
+    // has its own material; repeated pieces share geometry, not brightness.
+    const fixture=(parent:Three.Object3D,g:Three.BufferGeometry,zone:OverdriveLightZone,sector:number,track=0)=>{
+      const material=mat(0x101017,.18,.42);
+      material.emissive.setHex(0xff22ee);material.emissiveIntensity=0;
+      const mesh=add(parent,g,material,0,0,0,false);mesh.name=`overdrive-light-${zone}`;
+      this.lighting.push({zone,sector,track,material});return mesh;
+    };
+    const arc=(r:number,t:number,z:number,span:number)=>new T.TorusGeometry(r,t,6,24,span).rotateZ(-span/2).translate(0,0,z);
+    const hoop=(parent:Three.Object3D,r:number,z:number,t:number,zone:OverdriveLightZone,track=0)=>{
+      const g=arc(r,t,z,Math.PI/5*.83);
+      for(let i=0;i<10;i++)fixture(parent,g,zone,i,track).rotation.z=i*Math.PI/5+Math.PI/2;
+    };
     this.core=new T.Group();this.group.add(this.core);
     this.mediaTexture=new T.Texture();this.textTexture=new T.DataTexture(new Uint8Array(512*128*4),512,128);this.textTexture.needsUpdate=true;
     this.screen=new T.ShaderMaterial({vertexShader:vertex,fragmentShader:fragment,toneMapped:false,uniforms:{uMedia:{value:this.mediaTexture},uText:{value:this.textTexture},uColor:{value:new T.Color()},uMode:{value:0},uStyle:{value:0},uGain:{value:2},uMediaGain:{value:1},uPhase:{value:0},uAspect:{value:1},uScale:{value:1},uAngle:{value:0},uBass:{value:0}}});this.materials.add(this.screen);
@@ -177,6 +195,7 @@ export class OverdriveScene {
       const rib=add(this.core,new T.TorusGeometry(r,.009,5,96).rotateX(Math.PI/2),this.ribMaterial,0,y,0,false);
       rib.name='overdrive-core-rib';this.rings.push(rib);
     }
+    hoop(this.core,1.49,.28,.025,'core');
     this.rotor=new T.Group();this.rotor.name='overdrive-inner-bank';this.rear=new T.Group();this.rear.name='overdrive-chamber';this.group.add(this.rotor,this.rear);
     // Layered chamber: thick internal hoops are partly occluded by the equipment,
     // not brightly exposed chrome rings in front of a flat wall.
@@ -184,6 +203,13 @@ export class OverdriveScene {
       add(this.rear,tor(r,.18,0,0,z,96),this.dark,0,0,0,false);
       add(this.rear,tor(r+.13,.045,0,0,z+.12,96),this.metal,0,0,0,false);
     }
+    // Narrow segmented light tracks are physically seated on the chamber hoops.
+    hoop(this.rear,2.08,-.35,.048,'ring',0);
+    add(this.rear,tor(2.68,.085,0,0,-.77,96),this.dark,0,0,0,false);
+    hoop(this.rear,2.68,-.68,.065,'ring',1);
+    hoop(this.rear,3.35,-1.42,.062,'ring',2);
+    hoop(this.rear,4.75,-2.57,.055,'ring',3);
+    hoop(this.rear,7.8,1.31,.052,'rear');
     const shell=add(this.rear,new T.CylinderGeometry(8.8,8.8,15,64,1,true).rotateX(Math.PI/2),this.dark,0,0,-1,false);
     // Interior only, so the shell cannot catch the front-facing studio light as a large flat sheet.
     this.shellMaterial=this.dark.clone();this.shellMaterial.side=T.BackSide;this.materials.add(this.shellMaterial);shell.material=this.shellMaterial;
@@ -238,6 +264,18 @@ export class OverdriveScene {
     const bearingCap=combine([cyl(.18,.075,0,0,.14,24),tor(.095,.025,0,0,.19,24)]);
     const shoulder=combine([plate(.65,1.44,.46,0,3.70,-.65),plate(.87,.24,.58,0,3.16,-.54),plate(.81,.26,.61,0,4.19,-.51)]);
     const shoulderTrim=combine([-1,1].flatMap(sign=>[plate(.08,1.40,.15,sign*.32,3.70,-.33,.02),pipe([[sign*.24,3.03,-.5],[sign*.47,3.35,-.25],[sign*.47,4.15,-.29],[sign*.28,4.45,-.61]],.035)]));
+    // Trim follows the actual model dimensions and the existing mounting planes.
+    const speakerRing=tor(OVERDRIVE_SPEAKER_DIAMETER*.5+.035,.021,0,0,OVERDRIVE_SPEAKER_FACE_Z+.012,64);
+    const speakerHalo=tor(OVERDRIVE_SPEAKER_DIAMETER*.5+.035,.030,0,0,OVERDRIVE_SPEAKER_FACE_Z-.19,48);
+    const innerRing=tor(.296,.018,0,0,.212,40);
+    const spokeLights=combine([-1,1].flatMap(sign=>[
+      box(.045,.67,.032,sign*.515,.99,.004),box(.045,.46,.032,sign*.515,1.64,.004),
+      box(.044,.37,.034,sign*.515,-.48,.004)]));
+    const cavityLights=combine([-1,1].map(sign=>box(.055,1.08,.04,sign*.66,1.05,-.27)));
+    const panelLights=combine([-1,1].flatMap(sign=>[box(.075,.72,.055,sign*.53,5.87,3.36),box(.075,.63,.055,sign*.53,6.59,3.36)]));
+    const underPanel=combine([-1,1].map(sign=>box(.06,1.32,.055,sign*.68,6.09,2.98)));
+    const rearRails=combine([-1,1].map(sign=>box(.055,2.65,.05,sign*.69,4.16,-1.60)));
+    const shoulderLights=combine([-1,1].map(sign=>box(.045,1.12,.04,sign*.32,3.70,-.225)));
     for(let i=0;i<10;i++){
       const a=i*Math.PI/5;const unit=new T.Group();unit.rotation.z=a;this.group.add(unit);
       const radial=new T.Group();radial.name='overdrive-acoustic-assembly';unit.add(radial);radial.position.set(0,3.24,OVERDRIVE_FOREGROUND_Z);
@@ -245,16 +283,25 @@ export class OverdriveScene {
       const head=new T.Group();head.rotation.x=.49;radial.add(head);
       add(head,body,this.metal);add(head,rail,this.titanium);add(head,fin,this.carbon);add(head,inset,this.dark);add(head,cableG,this.dark);
       const cone=new T.Group();cone.name='overdrive-speaker-pulse';head.add(cone);
+      fixture(head,speakerRing,'speaker',i);fixture(head,speakerHalo,'rear',i);
+      fixture(head,spokeLights,'spoke',i);fixture(head,cavityLights,'cavity',i);
       const rod=new T.Group();head.add(rod);add(rod,shaft,this.titanium);
       const shutter=new T.Group();head.add(shutter);add(shutter,shutterG,this.metal);
       const glow=mat(0x190b20,.12,.42);glow.emissive.setHex(0xb012c8);add(head,indicators,glow,0,0,0,false);
       this.assemblies.push({root:radial,rod,cone,shutter,light:glow});
-      const mount=new T.Group();unit.add(mount);add(mount,foreMount,this.carbon);add(mount,mountTrim,this.titanium);
-      const rib=new T.Group();rib.rotation.z=a;this.rear.add(rib);add(rib,backing,this.metal);add(rib,backingRails,this.titanium);add(rib,backingFins,this.carbon);
-      const mid=new T.Group();mid.rotation.z=a+Math.PI/10;this.rear.add(mid);add(mid,shoulder,this.carbon);add(mid,shoulderTrim,this.metal);
+      const mount=new T.Group();unit.add(mount);add(mount,foreMount,this.carbon);add(mount,mountTrim,this.titanium);fixture(mount,panelLights,'panel',i);fixture(mount,underPanel,'cavity',i);
+      const rib=new T.Group();rib.rotation.z=a;this.rear.add(rib);add(rib,backing,this.metal);add(rib,backingRails,this.titanium);add(rib,backingFins,this.carbon);fixture(rib,rearRails,'rear',i);
+      const mid=new T.Group();mid.rotation.z=a+Math.PI/10;this.rear.add(mid);add(mid,shoulder,this.carbon);add(mid,shoulderTrim,this.metal);fixture(mid,shoulderLights,'spoke',i);
       const bearing=new T.Group();bearing.rotation.z=a+Math.PI/10;this.rotor.add(bearing);
       const socket=new T.Group();socket.position.set(0,1.79,.12);socket.rotation.x=.20;bearing.add(socket);
-      add(socket,bearingBody,this.metal);add(socket,bearingTrim,this.titanium);add(socket,bearingCap,this.dark);
+      add(socket,bearingBody,this.metal);add(socket,bearingTrim,this.titanium);add(socket,bearingCap,this.dark);fixture(socket,innerRing,'inner',i);
+    }
+    // Four bounded, shadowless sources provide actual grazing illumination, not
+    // just emissive bloom. They are held behind the front speaker bank.
+    for(let i=0;i<4;i++){
+      const angle=i*Math.PI/2+Math.PI/4;
+      const light=new T.PointLight(0xff22ee,0,3.6,2);light.position.set(Math.cos(angle)*3.05,Math.sin(angle)*3.05,1.25);
+      light.name='overdrive-reactor-spill';this.rear.add(light);this.reactorLights.push(light);
     }
     // Selective illumination: rear white glints, lower grazing key, magenta spill from the screen.
     this.key=new T.DirectionalLight(0xe2e8ff,0);this.key.position.set(-2,-5,3);
@@ -268,6 +315,7 @@ export class OverdriveScene {
     if(this.disposed||this.speakerSource){if(source!==this.speakerSource)disposeObject(source);return;}
     try {
       const model=normalizeOverdriveSpeaker(this.library.THREE,source);
+      prepareOverdriveDiaphragm(this.library.THREE,model);
       model.traverse(object=>{
         const mesh=object as Three.Mesh;
         if(!mesh.isMesh)return;
@@ -294,7 +342,7 @@ export class OverdriveScene {
     this.core.scale.setScalar(l.size);this.rotor.scale.setScalar(overdriveInnerBankScale(l.size));this.core.rotation.y=Math.sin(l.phase*.22)*.10*l.rotation*m;
     this.rings.forEach((r,i)=>{const y=-1.425+i*2.85/(OVERDRIVE_RIB_COUNT-1);r.position.y=y*(1+l.separation*.26+p[3]*m*.36+l.drop*.17);r.rotation.y=l.phase*l.rotation*.12*(i%2?1:-1);r.rotation.z=Math.sin(l.phase*.7+i*.26)*p[3]*m*.12});
     this.rotor.rotation.z=l.phase*l.rotation*p[2]*m*.19+Math.sin(l.phase*.7)*l.mid*.12+l.phrase*.09;this.rear.rotation.z=-l.phase*l.rotation*p[2]*m*.06;
-    this.assemblies.forEach((a,i)=>{const v=overdriveAssemblyPose(i,l);a.root.position.y=v.radial;a.root.position.z=OVERDRIVE_FOREGROUND_Z+v.stroke*.40;a.rod.position.y=v.stroke;a.cone.position.z=Math.max(-.045,Math.min(.045,v.cone*.30));a.shutter.rotation.z=v.shutter*(i%2?1:-1);color(a.light.emissive,l.colors.conduit);a.light.emissiveIntensity=v.relay*l.intensity*p[7]*2.7;});
+    this.assemblies.forEach((a,i)=>{const v=overdriveAssemblyPose(i,l);a.root.position.y=v.radial;a.root.position.z=OVERDRIVE_FOREGROUND_Z+v.stroke*.40;a.rod.position.y=v.stroke;const vibration=overdriveSpeakerMotion(i,l);a.cone.position.z=Math.max(-.09,Math.min(.09,v.cone*.18+vibration.axial));a.cone.rotation.set(vibration.tiltX,vibration.tiltY,0);a.cone.scale.set(vibration.scale,vibration.scale,1);applyOverdriveDiaphragm(a.cone,vibration.diaphragm);a.shutter.rotation.z=v.shutter*(i%2?1:-1);color(a.light.emissive,l.colors.conduit);a.light.emissiveIntensity=v.relay*l.intensity*p[7]*2.7;});
     // Palette values stay user editable; distinct finishes keep chrome restricted to trim.
     color(this.metal.color,l.colors.metal);color(this.titanium.color,l.colors.titanium);
     color(this.carbon.color,l.colors.carbon);color(this.dark.color,l.colors.background);this.shellMaterial.color.copy(this.dark.color);
@@ -319,11 +367,23 @@ export class OverdriveScene {
       }
       this.weave.needsUpdate=true;this.lastDetail=detail;
     }
+    const impactColor=color(new this.library.THREE.Color(),l.colors.accent);
+    for(const channel of this.lighting){
+      const concealed=channel.zone==='rear'||channel.zone==='cavity'||channel.zone==='panel';
+      color(channel.material.emissive,channel.zone==='core'?l.colors.core:l.colors.conduit);
+      channel.material.emissive.lerp(impactColor,Math.min(.28,l.snare*.18+l.drop*.10));
+      channel.material.emissiveIntensity=overdriveLightingLevel(channel.zone,channel.sector,l,channel.track)*(concealed?3.4:5.6);
+    }
+    this.reactorLights.forEach((light,i)=>{
+      color(light.color,l.colors.conduit);
+      light.intensity=quality==='low'?0:12*overdriveLightingLevel('rear',Math.floor(i*2.5+1),l)*l.spill;
+    });
     const gain=l.intensity*p[7];
-    this.fill.intensity=.075*gain;this.key.intensity=1.45*l.key*gain;this.rim.intensity=1.85*l.key*gain;
+    const reveal=1-.57*l.blackoutDepth*Math.min(1,l.reactorLighting);
+    this.fill.intensity=.075*gain*reveal;this.key.intensity=1.45*l.key*gain*reveal;this.rim.intensity=1.85*l.key*gain*reveal;
     color(this.rim.color,l.colors.rim);color(this.spill.color,l.colors.core);
-    this.spill.intensity=24*l.spill*gain*(.68+l.bass*.44+l.drop*.55);
-    color(this.accent.color,l.colors.accent);this.accent.intensity=(5+12*l.snare)*l.key*gain;
+    this.spill.intensity=24*l.spill*gain*(.68+l.bass*.44+l.drop*.55)*( .72+.28*reveal);
+    color(this.accent.color,l.colors.accent);this.accent.intensity=(5+12*l.snare)*l.key*gain*reveal;
     this.media=media;const u=this.screen.uniforms;u.uMode.value=l.mode==='text'?2:l.mode==='waveform'?1:(l.mode==='media'||l.mode==='pool')&&media?3:0;u.uStyle.value=l.style==='raster'?1:l.style==='color'?2:0;u.uGain.value=l.brightness*gain*(3.0+l.beat*.65+l.energy*.5+l.vocal*.15);u.uMediaGain.value=overdriveFullColorGain(l);color(u.uColor.value,l.colors.core);u.uPhase.value=l.phase;u.uBass.value=l.bass;u.uAspect.value=media?media.width/Math.max(1,media.height):l.mode==='text'?4:1;u.uScale.value=l.mediaScale;u.uAngle.value=l.mediaRotation*Math.PI/180;if(l.mode==='text')this.updateText(l.text);
   }
   dispose(){if(this.disposed)return;this.disposed=true;this.speakerAbort.abort();if(this.speakerSource)disposeObject(this.speakerSource);this.speakerSource=null;this.speakerMaterials.clear();this.assemblies.forEach(assembly=>assembly.cone.clear());this.renderer?.properties.remove(this.mediaTexture);this.mediaTexture.dispose();this.textTexture.dispose();this.weave.dispose();this.brushed.dispose();this.geometries.forEach(g=>g.dispose());this.materials.forEach(m=>m.dispose());this.group.removeFromParent();}

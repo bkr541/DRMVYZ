@@ -59,7 +59,7 @@ const parameters: readonly Cinema2ParameterManifest[] = [
   slider('rotation','Motion Rate','design','Mechanics',1,.35,0,1.5,'Angular speed of mechanical rings.'),
   slider('compression','Compression','design','Mechanics',2,.15,0,1,'Radial position of the machinery.'),
   slider('piston','Piston Travel','design','Mechanics',3,.35,0,1,'Telescoping shaft movement.'),
-  slider('speaker','Speaker Displacement','design','Mechanics',4,.45,0,1,'Acoustic diaphragm excursion.'),
+  slider('speaker','Speaker Displacement','design','Mechanics',4,.45,0,1,'Bass-driven diaphragm excursion, vibration and housing movement.'),
   slider('aperture','Aperture','design','Mechanics',5,.2,0,1,'Mechanical shutter opening.'),
   slider('relay','Energy Flow','design','Mechanics',6,.5,0,1,'Conduit illumination and traveling energy.'),
   enumParam('mode','Content Mode','Core Display',1,'auto',[{value:'auto',label:'Automatic source'},{value:'procedural',label:'Procedural'},{value:'waveform',label:'Waveform'},{value:'text',label:'Text'},{value:'media',label:'Media'},{value:'pool',label:'Pool'}],'Source for the spherical display.'),
@@ -75,6 +75,9 @@ const parameters: readonly Cinema2ParameterManifest[] = [
   slider('brightness','LED Intensity','effects','Lighting',1,1.1,0,2,'Emission from the pixel matrix. In Full Color media mode this is source exposure (1 = original RGB), independent of reactive machine illumination except Blackout.'),
   slider('key','Key Lighting','effects','Lighting',2,.7,0,2,'Cool key and rim illumination.'),
   slider('spill','Core Light Spill','effects','Lighting',3,.65,0,1.5,'Local point lighting from the core.'),
+  slider('radial-lighting','Radial Overload','effects','Lighting',4,1,0,1.5,'Choreographed speaker rings, radial strips, segmented chamber tracks and core perimeter.'),
+  slider('reactor-lighting','Blackout Reactor','effects','Lighting',5,1,0,1.5,'Concealed speaker halos, mechanical cavity lighting, panel accents and localized light spill.'),
+  slider('blackout-depth','Blackout Depth','effects','Lighting',6,.72,0,1,'Controls selective darkness and reduces broad fill so localized lighting reveals the structure.'),
   slider('roughness','Metal Roughness','effects','Materials',1,.32,.12,.9,'Changes the metallic specular lobe.'),
   slider('reflection','Reflection','effects','Materials',2,.65,0,1.5,'Environment reflection intensity.'),
   slider('detail','Carbon Detail','effects','Materials',3,1,0,1,'Carbon-fiber texture visibility.'),
@@ -87,7 +90,7 @@ const bindings = {
   pattern:ref('pattern'),patternChange:ref('pattern-change'),trigger:ref('trigger'),poolTrigger:ref('pool-trigger'),
   size:ref('size'),separation:ref('separation'),rotation:ref('rotation'),compression:ref('compression'),piston:ref('piston'),speaker:ref('speaker'),aperture:ref('aperture'),relay:ref('relay'),
   mode:ref('mode'),style:ref('style'),text:ref('text'),mediaScale:ref('media-scale'),mediaRotation:ref('media-rotation'),
-  brightness:ref('brightness'),key:ref('key'),spill:ref('spill'),roughness:ref('roughness'),reflection:ref('reflection'),detail:ref('detail'),
+  radialLighting:ref('radial-lighting'),reactorLighting:ref('reactor-lighting'),blackoutDepth:ref('blackout-depth'),brightness:ref('brightness'),key:ref('key'),spill:ref('spill'),roughness:ref('roughness'),reflection:ref('reflection'),detail:ref('detail'),
   background:ref('background'),metal:ref('metal'),titanium:ref('titanium'),carbon:ref('carbon'),core:ref('core'),conduit:ref('conduit'),rim:ref('rim'),accent:ref('accent'),
 }
 const defaults=Object.fromEntries(Object.entries(bindings).map(([key,binding])=>[key,parameters.find(parameter=>parameter.id===binding.$ref)!.defaultValue]))
@@ -111,7 +114,7 @@ const manifest: Cinema2NativePresetManifest = {
   revision: 1,
   metadata: {
     name: 'OVERDRIVE', author: 'STAGELESS', category: 'Architecture',
-    description: 'A colossal radial cybernetic machine with a ribbed LED core, articulated pistons, acoustic drivers and twelve structural performance programs.',
+    description: 'A colossal radial cybernetic machine with a ribbed LED core, articulated pistons, bass-driven acoustic drivers and twelve radial lighting and mechanical performance programs.',
     tags: ['3d','mechanical','industrial','media','audio-reactive'],
   },
   capabilities: [
@@ -191,6 +194,9 @@ export const CINEMA2_OVERDRIVE_PRESET_MANIFEST = withCinema2MoodDrives(manifest,
     {id:'separation-peak',target:cinema2AutoTargets.module(moduleId,'separation'),source:'mood.peak',operation:'add',value:.28},
     {id:'aperture-shock',target:cinema2AutoTargets.module(moduleId,'aperture'),source:'mood.shock',operation:'add',value:.38},
     {id:'intensity-silence',target:cinema2AutoTargets.module(moduleId,'intensity'),source:'mood.silence',operation:'add',value:-.55},
+    {id:'radial-peak',target:cinema2AutoTargets.module(moduleId,'radialLighting'),source:'mood.peak',operation:'add',value:.30},
+    {id:'reactor-tense',target:cinema2AutoTargets.module(moduleId,'reactorLighting'),source:'mood.tense',operation:'add',value:.24},
+    {id:'blackout-calm',target:cinema2AutoTargets.module(moduleId,'blackoutDepth'),source:'mood.calm',operation:'add',value:.20},
     {id:'bloom-peak',target:cinema2AutoTargets.effect(bloom,'intensity'),source:'mood.peak',operation:'add',value:.22},
   ],
 })
