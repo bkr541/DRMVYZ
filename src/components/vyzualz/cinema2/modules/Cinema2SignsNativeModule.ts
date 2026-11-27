@@ -17,6 +17,29 @@ export const CINEMA2_SIGNS_ASSET_ID = 'cinema2-signs'
 const clamp = (n: number, min = 0, max = 1) => Math.max(min, Math.min(max, n))
 const TAU = Math.PI * 2
 
+type SignsFieldSegment = {
+  material: THREE.MeshBasicMaterial
+  angle: number
+  radius: number
+  weight: number
+  color: readonly [number, number, number]
+}
+
+const FIELD_RING_CONFIG = [
+  { radius: 6.2, count: 16, length: 1.05, thickness: 0.16, weight: 0.95 },
+  { radius: 8.6, count: 20, length: 1.2, thickness: 0.17, weight: 0.9 },
+  { radius: 11.0, count: 24, length: 1.35, thickness: 0.18, weight: 0.86 },
+  { radius: 13.7, count: 28, length: 1.45, thickness: 0.19, weight: 0.8 },
+] as const
+const FIELD_BASE_COLORS: readonly (readonly [number, number, number])[] = [
+  [0.18, 0.96, 1],
+  [1, 0.28, 0.82],
+  [1, 0.93, 0.2],
+  [0.32, 1, 0.22],
+  [1, 0.46, 0.16],
+  [0.42, 0.5, 1],
+]
+
 export class Cinema2SignsController {
   readonly afterVisibility = true
   private readonly clock = new Cinema2BeatClock()
@@ -29,8 +52,8 @@ export class Cinema2SignsController {
   private duration = 0
   private neon: THREE.MeshStandardMaterial | null = null
   private backing: THREE.MeshStandardMaterial[] = []
-  private markerGroup: THREE.Group | null = null
-  private markers: THREE.MeshBasicMaterial[] = []
+  private fieldGroup: THREE.Group | null = null
+  private fieldSegments: SignsFieldSegment[] = []
   private geometries: THREE.BufferGeometry[] = []
   private identity: string | null = null
   private previousTime: number | null = null
@@ -50,15 +73,15 @@ export class Cinema2SignsController {
   private readonly u
   constructor(private readonly library: Cinema2ThreeLibrary) {
     this.u = {
-      signsPhase: { value: 0 }, signsDepth: { value: .65 }, signsAccent: { value: .35 },
+      signsPhase: { value: 0 }, signsDepth: { value: .65 }, signsAccent: { value: .35 }, signsThickness: { value: 1.25 },
       signsFrom: { value: 0 }, signsTo: { value: 0 }, signsBlend: { value: 1 },
       signsTint: { value: new library.THREE.Color(1, 1, 1) }, signsAccentColor: { value: new library.THREE.Color(.18, .88, 1) },
     }
   }
   attach(root: THREE.Object3D, _userModel?: boolean, clips: readonly THREE.AnimationClip[] = []) {
     const T = this.library.THREE
-    // Keep the entire authored hierarchy and original material maps. The source is a ~20-unit XY sign.
-    root.scale.setScalar(.1)
+    // Preserve the imported scene but present it closer to the reference: larger in frame, darker backing, and extended crop-circle linework instead of extra decorative staging.
+    root.scale.setScalar(.112)
     root.traverse(object => {
       const mesh = object as THREE.Mesh
       if (!mesh.isMesh) return
@@ -71,10 +94,10 @@ export class Cinema2SignsController {
         m.onBeforeCompile = (shader, renderer) => {
           inherited(shader, renderer)
           Object.assign(shader.uniforms, this.u)
-          shader.fragmentShader = shader.fragmentShader.replace('#include <common>', `#include <common>\nuniform float signsPhase, signsDepth, signsAccent, signsBlend;\nuniform int signsFrom, signsTo;\nuniform vec3 signsTint, signsAccentColor;\n${SIGNS_MASK_GLSL}`)
-            .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\n#ifdef USE_EMISSIVEMAP\nvec2 sp = vEmissiveMapUv*2.-1.;\nfloat sa = atan(sp.y,sp.x);\nfloat sr = length(sp);\nfloat sm = mix(signsMask(signsFrom,sa,sr,signsPhase), signsMask(signsTo,sa,sr,signsPhase),signsBlend);\nvec3 original = totalEmissiveRadiance;\nfloat luminance = max(max(original.r,original.g),original.b);\ntotalEmissiveRadiance = mix(original*signsTint,signsAccentColor*luminance,signsAccent*sm*.65)*mix(1.,.13+.87*sm,signsDepth);\n#endif`)
+          shader.fragmentShader = shader.fragmentShader.replace('#include <common>', `#include <common>\nuniform float signsPhase, signsDepth, signsAccent, signsBlend, signsThickness;\nuniform int signsFrom, signsTo;\nuniform vec3 signsTint, signsAccentColor;\n${SIGNS_MASK_GLSL}`)
+            .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\n#ifdef USE_EMISSIVEMAP\nvec2 suv = vEmissiveMapUv;\nvec2 sp = suv*2.-1.;\nfloat sa = atan(sp.y,sp.x);\nfloat sr = length(sp);\nfloat sm = mix(signsMask(signsFrom,sa,sr,signsPhase), signsMask(signsTo,sa,sr,signsPhase),signsBlend);\nvec2 st = vec2(.0048,.0048)*signsThickness;\nvec3 original = totalEmissiveRadiance*signsTint;\nvec3 thickened = original;\nthickened = max(thickened, texture2D(emissiveMap, clamp(suv + vec2( st.x, 0.), 0., 1.)).rgb*signsTint);\nthickened = max(thickened, texture2D(emissiveMap, clamp(suv + vec2(-st.x, 0.), 0., 1.)).rgb*signsTint);\nthickened = max(thickened, texture2D(emissiveMap, clamp(suv + vec2(0.,  st.y), 0., 1.)).rgb*signsTint);\nthickened = max(thickened, texture2D(emissiveMap, clamp(suv + vec2(0., -st.y), 0., 1.)).rgb*signsTint);\nthickened = max(thickened, texture2D(emissiveMap, clamp(suv + st, 0., 1.)).rgb*signsTint*.92);\nthickened = max(thickened, texture2D(emissiveMap, clamp(suv - st, 0., 1.)).rgb*signsTint*.92);\nfloat luminance = max(max(thickened.r,thickened.g),thickened.b);\nvec3 shaped = mix(thickened, signsAccentColor*luminance, signsAccent*sm*.55);\ntotalEmissiveRadiance = shaped*mix(1.,.24+.76*sm,signsDepth);\n#endif`)
         }
-        m.customProgramCacheKey = () => 'cinema2-signs-score-v1'
+        m.customProgramCacheKey = () => 'cinema2-signs-score-v2'
         m.needsUpdate = true
       }
     })
@@ -82,17 +105,40 @@ export class Cinema2SignsController {
     this.animation = new Cinema2ThreeAnimationController(T, root, clips)
     this.duration = clips[0]!.duration
     this.animation.play(clips[0]!.name, { loop: 'repeat' })
-    // Peripheral, low-density arc markers stay stationary while the original texture rotates behind the mask.
-    this.markerGroup = new T.Group()
-    for (let i = 0; i < 16; i++) {
-      const g = new T.TorusGeometry(10.65, .035, 5, 12, .16)
-      const m = new T.MeshBasicMaterial({ color: 0xffffff, toneMapped: false })
-      const mesh = new T.Mesh(g, m)
-      mesh.rotation.z = i * TAU / 16 - .08
-      mesh.position.z = .8
-      this.markerGroup.add(mesh); this.markers.push(m); this.geometries.push(g)
+    this.buildField(root)
+  }
+  private buildField(root: THREE.Object3D) {
+    const T = this.library.THREE
+    this.fieldGroup = new T.Group()
+    const zBase = -.02
+    for (const [ringIndex, ring] of FIELD_RING_CONFIG.entries()) {
+      for (let i = 0; i < ring.count; i++) {
+        const angle = (i / ring.count) * TAU + ringIndex * .11 + (i % 3) * .017
+        const radius = ring.radius + Math.sin(i * 1.73 + ringIndex) * .18
+        const tangent = angle + Math.PI / 2 + ((i + ringIndex) % 5 === 0 ? .21 : (i % 2 === 0 ? -.08 : .08))
+        const length = ring.length * (1 + ((i + ringIndex) % 4 - 1.5) * .12)
+        const geom = new T.PlaneGeometry(length, ring.thickness)
+        const mat = new T.MeshBasicMaterial({ color: 0xffffff, toneMapped: false, transparent: true, opacity: .92, depthWrite: false })
+        const mesh = new T.Mesh(geom, mat)
+        mesh.position.set(Math.cos(angle) * radius, Math.sin(angle) * radius, zBase - ringIndex * .002)
+        mesh.rotation.z = tangent
+        this.fieldGroup.add(mesh)
+        this.geometries.push(geom)
+        this.fieldSegments.push({ material: mat, angle: ((angle % TAU) + TAU) % TAU / TAU, radius: clamp(radius / 13.9), weight: ring.weight, color: FIELD_BASE_COLORS[(i + ringIndex) % FIELD_BASE_COLORS.length]! })
+
+        if ((i + ringIndex) % 3 === 0) {
+          const nubGeom = new T.PlaneGeometry(ring.thickness * 1.25, ring.length * .42)
+          const nubMat = new T.MeshBasicMaterial({ color: 0xffffff, toneMapped: false, transparent: true, opacity: .88, depthWrite: false })
+          const nub = new T.Mesh(nubGeom, nubMat)
+          nub.position.set(Math.cos(angle) * radius + Math.cos(tangent) * length * .16, Math.sin(angle) * radius + Math.sin(tangent) * length * .16, zBase - ringIndex * .0025)
+          nub.rotation.z = tangent + Math.PI / 2
+          this.fieldGroup.add(nub)
+          this.geometries.push(nubGeom)
+          this.fieldSegments.push({ material: nubMat, angle: ((angle % TAU) + TAU) % TAU / TAU, radius: clamp((radius + .22) / 13.9), weight: ring.weight * .88, color: FIELD_BASE_COLORS[(i + ringIndex + 2) % FIELD_BASE_COLORS.length]! })
+        }
+      }
     }
-    root.add(this.markerGroup)
+    root.add(this.fieldGroup)
   }
   update(context: Cinema2ModuleUpdateContext) {
     this.context = context
@@ -150,23 +196,34 @@ export class Cinema2SignsController {
     this.u.signsPhase.value = this.phase * TAU
     this.u.signsFrom.value = SIGNS_PATTERNS.indexOf(this.oldPattern); this.u.signsTo.value = SIGNS_PATTERNS.indexOf(this.pattern); this.u.signsBlend.value = this.blend
     this.u.signsDepth.value = this.num('chaseDepth', 0, 1); this.u.signsAccent.value = this.num('accentMix', 0, 1)
+    this.u.signsThickness.value = 1.25 + this.num('chaseDepth', 0, 1) * .45
     this.color('signTint', this.u.signsTint.value); this.color('accentColor', this.u.signsAccentColor.value)
     const intensity = this.num('intensity', 0, 2)
-    this.neon.emissiveIntensity = 2.9963853371 * intensity
-    for (const m of this.backing) { this.color('structureColor', m.color); m.roughness = .72; m.metalness = .12 }
-    const level = this.num('markerLevel', 0, 1.5)
-    for (const [i, m] of this.markers.entries()) {
-      const a = i / 16, from = signsMask(this.oldPattern, a, 1, this.phase), to = signsMask(this.pattern, a, 1, this.phase)
-      this.color('orbitColor', m.color).multiplyScalar(level * intensity * (.12 + .88 * (from + (to - from) * this.blend)))
+    this.neon.emissiveIntensity = 3.35 * intensity
+    for (const m of this.backing) {
+      this.color('structureColor', m.color)
+      m.color.multiplyScalar(.22)
+      m.roughness = 1
+      m.metalness = 0
+      m.emissive.setRGB(0, 0, 0)
     }
-    if (this.markerGroup) this.markerGroup.visible = level > 0 && intensity > 0
+    const level = this.num('markerLevel', 0, 1.5)
+    for (const segment of this.fieldSegments) {
+      const from = signsMask(this.oldPattern, segment.angle, segment.radius, this.phase)
+      const to = signsMask(this.pattern, segment.angle, segment.radius, this.phase)
+      const mixValue = from + (to - from) * this.blend
+      const gain = level * intensity * segment.weight * (.18 + .82 * mixValue)
+      segment.material.color.setRGB(segment.color[0], segment.color[1], segment.color[2], this.library.THREE.SRGBColorSpace).multiplyScalar(gain)
+      segment.material.opacity = clamp(.22 + gain * .42, 0, 1)
+    }
+    if (this.fieldGroup) this.fieldGroup.visible = level > 0 && intensity > 0
   }
-  inspect() { return { ...this.policy.inspect(), pattern: this.pattern, overrideReason: this.overrideReason, phase: this.phase, rotation: this.rotation, blend: this.blend, clipDuration: this.duration, markerCount: this.markers.length, neonAttached: !!this.neon } }
+  inspect() { return { ...this.policy.inspect(), pattern: this.pattern, overrideReason: this.overrideReason, phase: this.phase, rotation: this.rotation, blend: this.blend, clipDuration: this.duration, fieldSegmentCount: this.fieldSegments.length, neonAttached: !!this.neon } }
   dispose() {
     this.animation?.dispose(); this.animation = null
-    this.markerGroup?.removeFromParent(); this.markerGroup = null
-    this.geometries.forEach(g => g.dispose()); this.markers.forEach(m => m.dispose())
-    this.geometries = []; this.markers = []; this.backing = []; this.neon = null; this.context = null
+    this.fieldGroup?.removeFromParent(); this.fieldGroup = null
+    this.geometries.forEach(g => g.dispose()); this.fieldSegments.forEach(segment => segment.material.dispose())
+    this.geometries = []; this.fieldSegments = []; this.backing = []; this.neon = null; this.context = null
     this.clock.reset(); this.selection.reset(); this.eventLatch.reset(); this.policy.reset(); this.performance.reset()
   }
 }

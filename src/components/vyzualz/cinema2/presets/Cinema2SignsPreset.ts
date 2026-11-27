@@ -54,7 +54,7 @@ const points = Array.from({ length: 16 }, (_, i) => { const a = i * Math.PI / 8;
 const dolly = [home, [0, .14, 3.55], [0, 0, 3.85], [0, -.14, 4.15]].map(position => ({ position: position as Cinema2Vector3, target: focus }))
 const authored: Readonly<Cinema2NativePresetManifest> = {
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID, schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION, id: CINEMA2_SIGNS_PRESET_ID, revision: 1,
-  metadata: { name: 'SIGNS', description: 'An interwoven neon transmission: original animated crop-circle artwork, eight spatial lighting scores and a restrained cinematic signal field.', tags: ['neon', 'abstract', '3d', 'audio-reactive'] },
+  metadata: { name: 'SIGNS', description: 'An interwoven neon transmission: original animated crop-circle artwork with thicker illuminated paths and an expanded crop-circle field.', tags: ['neon', 'abstract', '3d', 'audio-reactive'] },
   capabilities: [
     { id: 'render.webgl2', requirement: 'required', purpose: 'Native textured sign and light markers.' },
     { id: 'render.depth', requirement: 'required', purpose: 'Original occluding structure and emissive plane.' },
@@ -65,12 +65,12 @@ const authored: Readonly<Cinema2NativePresetManifest> = {
     ...(['audio.transport', 'audio.features', 'audio.bands', 'music.beat', 'music.rhythm-events', 'music.downbeat', 'music.bar', 'music.phrase', 'music.section', 'music.vocal-presence', 'music.build', 'music.drop', 'visual-director.significance'] as const).map(id => ({ id, requirement: 'optional' as const, purpose: 'Shared timing, musical facts and performance meaning.' })),
   ],
   parameters,
-  modules: [{ id: moduleId, typeId: CINEMA2_SIGNS_MODULE_TYPE_ID, version: 1, parameters: { ...Object.fromEntries(bound.map(name => [name, parameters.find(p => p.id === pid(name))!.defaultValue!])), environmentIntensity: .08 }, parameterBindings: Object.fromEntries(bound.map(name => [name, bind(name)])), config: { hdr: true, instances: [{ asset: CINEMA2_SIGNS_ASSET_ID, node: model, preserveMaterials: true, spin: false }] } }],
+  modules: [{ id: moduleId, typeId: CINEMA2_SIGNS_MODULE_TYPE_ID, version: 1, parameters: { ...Object.fromEntries(bound.map(name => [name, parameters.find(p => p.id === pid(name))!.defaultValue!])), environmentIntensity: .03 }, parameterBindings: Object.fromEntries(bound.map(name => [name, bind(name)])), config: { hdr: true, instances: [{ asset: CINEMA2_SIGNS_ASSET_ID, node: model, preserveMaterials: true, spin: false }] } }],
   scene: { nodes: [{ id: root, kind: 'group', coordinateSpace: 'world' }, { id: model, kind: 'module', parent: cinema2Ref(root), module: cinema2Ref(moduleId) }], roots: [cinema2Ref(root)] },
   cameras: [{ id: camera, label: 'SIGNS frontal camera', projection: 'perspective', fovDegrees: 42, minAspect: 1, minAspectAnchor: 0, near: .1, far: 40, transform: { position: home }, target: focus,
     rig: { kind: 'path', points, durationSeconds: 24, loop: true }, rigVariants: { static: { kind: 'static' }, drift: { kind: 'path', points, durationSeconds: 24, loop: true }, dolly: { kind: 'path', points: dolly, durationSeconds: 20, loop: true } }, motion: { idleMotion: true, interpolation: 'spline', constantSpeed: true, tempo: { referenceBpm: 120, flightSpeed: true } }, controls: { rigMode: bind('cameraMode'), motionEnabled: bind('cameraMotion'), motionSpeed: bind('cameraSpeed'), tempoSync: bind('bpmSync') }, safety: { minPosition: [-1, -1, 3.45], maxPosition: [1, 1, 4.5], minFovDegrees: 40, maxFovDegrees: 45 } }],
   defaults: { camera: cinema2Ref(camera) },
-  lighting: { lights: [{ id: cinema2StableId<Cinema2LightId>('signs-fill'), type: 'ambient', color: [.55, .65, .8, 1], intensity: .18 }, { id: cinema2StableId<Cinema2LightId>('signs-key'), type: 'directional', color: [.65, .8, 1, 1], intensity: .48, transform: { position: [3, 4, 5] }, targetNode: cinema2Ref(root) }] },
+  lighting: { lights: [{ id: cinema2StableId<Cinema2LightId>('signs-fill'), type: 'ambient', color: [.55, .65, .8, 1], intensity: .05 }, { id: cinema2StableId<Cinema2LightId>('signs-key'), type: 'directional', color: [.65, .8, 1, 1], intensity: .16, transform: { position: [3, 4, 5] }, targetNode: cinema2Ref(root) }] },
   environment: { backgroundColor: SIGNS_PALETTE.backgroundColor, exposure: 1, controls: { backgroundColor: bind('backgroundColor') } },
   choreography: { tempoSyncParameter: bind('bpmSync'), rules: [
     continuous('bass-depth', 'audio.bands', 'audio.bands.bass', 'chaseDepth', 1.25),
