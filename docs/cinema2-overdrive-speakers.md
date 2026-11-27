@@ -1,0 +1,9 @@
+# OVERDRIVE acoustic driver replacement
+
+The ten foreground acoustic assemblies alternate the two owner-provided binary glTF models in ring order (1, 2, 1, 2, 1, 2, 1, 2, 1, 2). They ship as Vite URL assets beside the Overdrive scene, byte-for-byte with their embedded textures. Neither is fetched from the internet or from a user-local path.
+
+Model 1 has a native +Z face; model 2 has a native -Y face and is rotated -90 degrees around X. Both are uniformly scaled to a 1.34-unit diameter, centered in X/Y, and front-aligned to Z = 0.43 in the existing tilted driver mount. The ten copies share the two decoded geometries/material sets; the original procedural speaker diaphragms, surrounds, rims and motor housing are removed. Mechanical actuators, the ten smaller inner bearings, LED core, media modes, camera, lighting choreography and pattern controls are unchanged. Speaker motion continues through the existing bounded axial pulse parent (the entire imported driver moves, not an independently rigged membrane). Imported surface finishes remain authored; the master intensity and Blackout attenuate their base color/emission without replacing their textures.
+
+Both sources are loaded together when the Overdrive scene activates; readiness requires both. Load failures are reported through the existing module diagnostics. Scene teardown cancels in-flight fetches and disposes source geometry, materials and textures; all late results are discarded. GPU byte accounting remains through the bridge's shared-geometry/texture measurement.
+
+Focused regression: `npx vitest run src/components/vyzualz/cinema2/__tests__/Cinema2OverdrivePreset.test.ts`. In Studio, verify the five copies of each model, front-facing rim alignment, Acoustic Array and Overload motion, Blackout, and switching away from and back to Overdrive. Inspect actual GPU frame time with both models in use before release.

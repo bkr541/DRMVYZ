@@ -2,6 +2,8 @@ import type * as Three from 'three'
 import type { Cinema2Color } from '../../contracts/Cinema2NativePresetManifest'
 import type { Cinema2ManagedMediaResource } from '../../media/Cinema2MediaSlotRuntime'
 import type { Cinema2ThreeLibrary } from '../three/Cinema2ThreeLibrary'
+import { disposeObject } from '../three/Cinema2ThreeAssetCache'
+import { loadOverdriveSpeakerModels, normalizeOverdriveSpeaker, type OverdriveSpeakerModels } from './OverdriveSpeakers'
 
 export const OVERDRIVE_COLORS = {
   background: [.006,.009,.018,1], metal: [.040,.049,.069,1], titanium: [.30,.33,.40,1], carbon: [.035,.041,.056,1],
@@ -55,12 +57,6 @@ export function overdriveInnerBankScale(size:number) { return 1 + .80 * (size - 
 export function overdriveEnvironmentGain(look:Pick<OverdriveLook,'reflection'|'intensity'|'pose'>) {
   return .19 * look.reflection * look.intensity * look.pose[7]
 }
-/** Front-facing lathe profile: start at the outer lip and travel inward to the recessed centre.
- * Reversing this order makes the visible cone back-facing in Three.js. */
-export const OVERDRIVE_CONE_PROFILE = [
-  [.545,.405],[.515,.397],[.480,.36],[.430,.295],[.355,.215],
-  [.270,.143],[.180,.098],[.105,.080],[.055,.102],[0,.110],
-] as const
 export function overdriveAssemblyPose(index:number,look:OverdriveLook) {
   const a=index*Math.PI/5, p=look.pose, phase=look.phase, m=look.motion;
   const wave=Math.sin(phase*1.8-a*2)*p[1]*m;
@@ -97,7 +93,7 @@ float curvature=smoothstep(0.,.67,vLocal.z/1.46);
   a*=curvature;gl_FragColor=vec4(vec3(.006,.008,.013)+rgb*a*uGain,1.);}`
 
 /** Authored world-space machine. Shared geometry and merged static components,
- * independently articulated telescoping rods, acoustic cones, and spherical ribs. */
+ * independently articulated telescoping rods, imported acoustic drivers, and spherical ribs. */
 export class OverdriveScene {
   private readonly group: Three.Group
   private readonly core: Three.Group
@@ -108,7 +104,6 @@ export class OverdriveScene {
   private readonly carbon: Three.MeshStandardMaterial
   private readonly dark: Three.MeshStandardMaterial
   private readonly shellMaterial: Three.MeshStandardMaterial
-  private readonly diaphragm: Three.MeshStandardMaterial
   private readonly ribMaterial: Three.MeshStandardMaterial
   private readonly fill: Three.HemisphereLight
   private readonly brushed: Three.DataTexture
@@ -127,13 +122,17 @@ export class OverdriveScene {
   private media: Readonly<Cinema2ManagedMediaResource>|null=null
   private lastText=''
   private lastDetail=-1
+  private readonly speakerAbort = new AbortController()
+  private speakerSources: OverdriveSpeakerModels|null=null
+  private readonly speakerMaterials = new Map<Three.MeshStandardMaterial,{color:Three.Color;emissiveIntensity:number}>()
+  private disposed=false
+  get speakersReady(){return this.speakerSources!==null}
   private readonly weave: Three.DataTexture
   constructor(private readonly library:Cinema2ThreeLibrary,merge:Merge,root:Three.Object3D) {
     const T=library.THREE; this.group=new T.Group();root.add(this.group);
     const mat=(color:number,metalness:number,roughness:number)=>{const m=new T.MeshStandardMaterial({color,metalness,roughness});this.materials.add(m);return m};
     this.metal=mat(0x30343f,.83,.36);this.titanium=mat(0x9299a6,.91,.30);
     this.carbon=mat(0x14161a,.24,.55);this.dark=mat(0x090b10,.08,.82);
-    this.diaphragm=mat(0x373940,.21,.69);this.diaphragm.vertexColors=true;
     this.ribMaterial=mat(0x11151d,.81,.42);
     // Directional twill, not a checkerboard. Mipmapping suppresses moire on the distant hardware.
     const texture=(pixels:Uint8Array,size:number,repeat:number)=>{
@@ -190,15 +189,14 @@ export class OverdriveScene {
     this.shellMaterial=this.dark.clone();this.shellMaterial.side=T.BackSide;this.materials.add(this.shellMaterial);shell.material=this.shellMaterial;
     const back=add(this.rear,new T.CircleGeometry(8.8,64),this.dark,0,0,-7,false);back.rotation.z=.1;
 
-    // Primary acoustic assembly. Each batch is reused by the ten articulated units.
-    // The voice-coil axis is local Z; the rack/actuator axis is local Y.
+    // Mechanical mounts and actuators remain procedural. The driver itself is
+    // supplied by the GLBs, so no old cone, surround, rim or voice coil remains.
     const bodyParts:Three.BufferGeometry[]=[
       plate(1.10,1.48,.78,0,.68,-.42),plate(1.24,.36,1.04,0,1.24,-.34),
       plate(.83,.50,.88,0,-.48,-.38),plate(1.30,.29,.91,0,.38,-.40),
-      lathe([[0,-.56],[.44,-.56],[.53,-.43],[.62,-.31],[.67,-.15],[.67,.24],[.64,.36],[.57,.43],[.54,.40],[.55,.29],[.55,-.09],[0,-.09]]),
     ];
-    const rails:Three.BufferGeometry[]=[tor(.625,.036,0,0,.32,64),tor(.551,.021,0,0,.407,64)];
-    const recess:Three.BufferGeometry[]=[tor(.572,.031,0,0,.389,64),cyl(.47,.20,0,0,-.37,32),plate(.93,.76,.29,0,1.03,-.02)];
+    const rails:Three.BufferGeometry[]=[];
+    const recess:Three.BufferGeometry[]=[plate(.93,.76,.29,0,1.03,-.02)];
     const fins:Three.BufferGeometry[]=[plate(.76,1.06,.59,0,1.04,-.36)];
     for(const sign of [-1,1]){
       rails.push(plate(.115,2.42,.15,sign*.51,1.12,-.11,.025),plate(.13,2.30,.18,sign*.40,1.12,-.72,.025));
@@ -211,21 +209,7 @@ export class OverdriveScene {
       }
       for(let j=0;j<3;j++)rails.push(cyl(.035,.08,sign*.48,.70+j*.47,.17,6));
     }
-    for(let j=0;j<16;j++){
-      const a=j*Math.PI/8;rails.push(cyl(.027,.055,.612*Math.cos(a),.612*Math.sin(a),.365,6));
-      recess.push(box(.075,.085,.07,0,.62,.235).rotateZ(a));
-    }
     const body=combine(bodyParts),rail=combine(rails),fin=combine(fins),inset=combine(recess);
-    // Recessed diaphragm with physically front-facing normals and a darkening gradient
-    // at the voice coil. The lower lip catches grazing white light; the interior remains dark.
-    const coneG=lathe(OVERDRIVE_CONE_PROFILE,64);
-    const positions=coneG.getAttribute('position'),coneColors=new Float32Array(positions.count*3);
-    for(let i=0;i<positions.count;i++){
-      const radius=Math.hypot(positions.getX(i),positions.getY(i));
-      const ao=.24+.76*Math.pow(Math.min(1,radius/.545),1.65);
-      coneColors.set([ao,ao,ao],i*3);
-    }
-    coneG.setAttribute('color',new T.BufferAttribute(coneColors,3));
     const shaft=combine([
       ...[-1,1].flatMap(sign=>[new T.CylinderGeometry(.068,.068,1.40,16).translate(sign*.38,2.01,-.30),
         plate(.19,.22,.30,sign*.38,2.51,-.30,.03)]),plate(.92,.16,.34,0,2.53,-.30,.03),
@@ -260,7 +244,7 @@ export class OverdriveScene {
       // Inward tilt aims acoustic cones into the chamber/camera rather than along a flat plane.
       const head=new T.Group();head.rotation.x=.49;radial.add(head);
       add(head,body,this.metal);add(head,rail,this.titanium);add(head,fin,this.carbon);add(head,inset,this.dark);add(head,cableG,this.dark);
-      const cone=new T.Group();head.add(cone);const diaphragm=add(cone,coneG,this.diaphragm);diaphragm.name='overdrive-recessed-diaphragm';
+      const cone=new T.Group();cone.name='overdrive-speaker-pulse';head.add(cone);
       const rod=new T.Group();head.add(rod);add(rod,shaft,this.titanium);
       const shutter=new T.Group();head.add(shutter);add(shutter,shutterG,this.metal);
       const glow=mat(0x190b20,.12,.42);glow.emissive.setHex(0xb012c8);add(head,indicators,glow,0,0,0,false);
@@ -279,6 +263,31 @@ export class OverdriveScene {
     this.accent=new T.PointLight(0xffffff,0,7,2);this.accent.position.set(0,-4,4.0);
     this.fill=new T.HemisphereLight(0xbfc8e2,0x11121c,0);this.group.add(this.key,this.rim,this.spill,this.accent,this.fill);
   }
+  /** Ownership of both sources transfers here, including on failure or late completion. */
+  installSpeakers(sources:OverdriveSpeakerModels){
+    if(this.disposed||this.speakerSources){sources.forEach(disposeObject);return;}
+    try {
+      const models=[normalizeOverdriveSpeaker(this.library.THREE,sources[0],0),normalizeOverdriveSpeaker(this.library.THREE,sources[1],1)] as const;
+      for(const model of models)model.traverse(object=>{
+        const mesh=object as Three.Mesh;
+        if(!mesh.isMesh)return;
+        for(const material of Array.isArray(mesh.material)?mesh.material:[mesh.material]){
+          const standard=material as Three.MeshStandardMaterial;
+          if(standard.isMeshStandardMaterial&&!this.speakerMaterials.has(standard))this.speakerMaterials.set(standard,{color:standard.color.clone(),emissiveIntensity:standard.emissiveIntensity});
+        }
+      });
+      // A, B, A, B ... around the full ten-position ring. Clone the hierarchy,
+      // not GPU resources; the existing pulse parent still carries kick/bass motion.
+      this.assemblies.forEach((assembly,index)=>assembly.cone.add(models[index%2===0?0:1].clone(true)));
+      this.speakerSources=sources;
+    } catch(error) {
+      this.assemblies.forEach(assembly=>assembly.cone.clear());this.speakerMaterials.clear();sources.forEach(disposeObject);throw error;
+    }
+  }
+  async loadSpeakers(){
+    try {this.installSpeakers(await loadOverdriveSpeakerModels(this.library,this.speakerAbort.signal));}
+    catch(error){if(!this.disposed)throw error;}
+  }
   private updateText(text:string){if(text===this.lastText)return;this.lastText=text; if(typeof document==='undefined')return;const canvas=document.createElement('canvas');canvas.width=512;canvas.height=128;const c=canvas.getContext('2d');if(!c)return;c.fillStyle='#000';c.fillRect(0,0,512,128);c.font='bold 86px sans-serif';c.textAlign='center';c.textBaseline='middle';c.fillStyle='#fff';c.fillText(text.slice(0,40),256,64,490);const d=c.getImageData(0,0,512,128).data;const out=this.textTexture.image.data as Uint8Array;for(let y=0;y<128;y++)out.set(d.subarray(y*2048,(y+1)*2048),(127-y)*2048);this.textTexture.needsUpdate=true;}
   apply(l:OverdriveLook,media:Readonly<Cinema2ManagedMediaResource>|null,quality:string,_aspect:number){
     const color=(out:Three.Color,c:Cinema2Color)=>out.setRGB(c[0],c[1],c[2]);const p=l.pose,m=l.motion;
@@ -294,7 +303,8 @@ export class OverdriveScene {
     this.metal.color.multiplyScalar(visibility);this.titanium.color.multiplyScalar(visibility);
     this.carbon.color.multiplyScalar(visibility);this.dark.color.multiplyScalar(visibility);this.shellMaterial.color.multiplyScalar(visibility);
     this.ribMaterial.color.copy(this.metal.color).multiplyScalar(.29);
-    this.diaphragm.color.copy(this.carbon.color).multiplyScalar(1.7);
+    // Keep authored GLB finishes and textures; only attenuate for master intensity/blackout.
+    for(const [material,base] of this.speakerMaterials){material.color.copy(base.color).multiplyScalar(visibility);material.emissiveIntensity=base.emissiveIntensity*visibility;}
     this.metal.roughness=l.roughness;this.titanium.roughness=Math.max(.19,l.roughness*.83);
     this.ribMaterial.roughness=Math.max(.35,l.roughness);
     const detail=quality==='low'?0:l.detail;
@@ -316,5 +326,5 @@ export class OverdriveScene {
     color(this.accent.color,l.colors.accent);this.accent.intensity=(5+12*l.snare)*l.key*gain;
     this.media=media;const u=this.screen.uniforms;u.uMode.value=l.mode==='text'?2:l.mode==='waveform'?1:(l.mode==='media'||l.mode==='pool')&&media?3:0;u.uStyle.value=l.style==='raster'?1:l.style==='color'?2:0;u.uGain.value=l.brightness*gain*(3.0+l.beat*.65+l.energy*.5+l.vocal*.15);u.uMediaGain.value=overdriveFullColorGain(l);color(u.uColor.value,l.colors.core);u.uPhase.value=l.phase;u.uBass.value=l.bass;u.uAspect.value=media?media.width/Math.max(1,media.height):l.mode==='text'?4:1;u.uScale.value=l.mediaScale;u.uAngle.value=l.mediaRotation*Math.PI/180;if(l.mode==='text')this.updateText(l.text);
   }
-  dispose(){this.renderer?.properties.remove(this.mediaTexture);this.mediaTexture.dispose();this.textTexture.dispose();this.weave.dispose();this.brushed.dispose();this.geometries.forEach(g=>g.dispose());this.materials.forEach(m=>m.dispose());this.group.removeFromParent();}
+  dispose(){if(this.disposed)return;this.disposed=true;this.speakerAbort.abort();this.speakerSources?.forEach(disposeObject);this.speakerSources=null;this.speakerMaterials.clear();this.assemblies.forEach(assembly=>assembly.cone.clear());this.renderer?.properties.remove(this.mediaTexture);this.mediaTexture.dispose();this.textTexture.dispose();this.weave.dispose();this.brushed.dispose();this.geometries.forEach(g=>g.dispose());this.materials.forEach(m=>m.dispose());this.group.removeFromParent();}
 }
