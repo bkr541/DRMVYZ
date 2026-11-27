@@ -1,0 +1,25 @@
+{
+  "structural_checks": {
+    "editable_surface_front": true,
+    "sign_orientation_front": true,
+    "editable_surface_left": true,
+    "sign_orientation_left": true,
+    "editable_surface_right": true,
+    "sign_orientation_right": true,
+    "canopy_has_true_3d_shell": true,
+    "deep_canopy_ends_in_front_of_sign": true,
+    "roof_portals_at_least_six": true,
+    "volumetric_pleated_curtain": true,
+    "independently_named_light_nodes": true,
+    "doors_six": true,
+    "night_architectural_lighting": true,
+    "geometry_nonempty": true,
+    "all_meshes_finite": true,
+    "all_camera_views_named": true
+  },
+  "passed": 16,
+  "total": 16,
+  "all_passed": true,
+  "preview_status": "VTK GLB renders captured. Not a Blender or Cinema 2.0 canvas render.",
+  "visual_approval": "NOT TESTED; user must approve side-by-side match after runtime material/lighting work."
+}

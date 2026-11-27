@@ -1,0 +1,228 @@
+{
+  "schemaVersion": "1.0",
+  "name": "DVYDRM Theater Cinema 2.0",
+  "sourceBlueprint": "DVYDRM_Cinema2_Theater_Geometry_Blueprint.svg",
+  "meshFormat": "glTF 2.0",
+  "axis": {
+    "handedness": "right-handed",
+    "x": "horizontal facade, +right",
+    "y": "vertical, +up",
+    "z": "projection toward camera/street, +forward",
+    "units": "prototype scene units, not physical meters"
+  },
+  "signFaces": {
+    "front": {
+      "node": "marquee.front.TEXT_SURFACE",
+      "group": "marquee.front",
+      "material": "TEXT_SWAP \u00b7 marquee.front",
+      "initialText": "DVYDRM",
+      "texture": "textures/marquee_front_DVYDRM.png",
+      "textureSize": [
+        2048,
+        440
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "cornersXYZ": [
+        [
+          -2.8608,
+          3.82,
+          4.63
+        ],
+        [
+          2.8608,
+          3.82,
+          4.63
+        ],
+        [
+          2.8608,
+          4.89,
+          4.63
+        ],
+        [
+          -2.8608,
+          4.89,
+          4.63
+        ]
+      ],
+      "updateMethod": "Replace baseColorTexture map per sign surface. Do not modify building mesh. For Three.js, find node by name and clone its own material before modifying map."
+    },
+    "left": {
+      "node": "marquee.left.TEXT_SURFACE",
+      "group": "marquee.left",
+      "material": "TEXT_SWAP \u00b7 marquee.left",
+      "initialText": "SHOWINGS",
+      "texture": "textures/marquee_left_SHOWINGS.png",
+      "textureSize": [
+        2048,
+        440
+      ],
+      "normal": [
+        -0.683,
+        0,
+        0.73
+      ],
+      "cornersXYZ": [
+        [
+          -6.5912,
+          3.82,
+          1.5097
+        ],
+        [
+          -3.48,
+          3.82,
+          4.4197
+        ],
+        [
+          -3.48,
+          4.89,
+          4.4197
+        ],
+        [
+          -6.5912,
+          4.89,
+          1.5097
+        ]
+      ],
+      "updateMethod": "Replace baseColorTexture map per sign surface. Do not modify building mesh. For Three.js, find node by name and clone its own material before modifying map."
+    },
+    "right": {
+      "node": "marquee.right.TEXT_SURFACE",
+      "group": "marquee.right",
+      "material": "TEXT_SWAP \u00b7 marquee.right",
+      "initialText": "SHOWINGS",
+      "texture": "textures/marquee_right_SHOWINGS.png",
+      "textureSize": [
+        2048,
+        440
+      ],
+      "normal": [
+        0.683,
+        0,
+        0.73
+      ],
+      "cornersXYZ": [
+        [
+          3.48,
+          3.82,
+          4.4197
+        ],
+        [
+          6.5912,
+          3.82,
+          1.5097
+        ],
+        [
+          6.5912,
+          4.89,
+          1.5097
+        ],
+        [
+          3.48,
+          4.89,
+          4.4197
+        ]
+      ],
+      "updateMethod": "Replace baseColorTexture map per sign surface. Do not modify building mesh. For Three.js, find node by name and clone its own material before modifying map."
+    }
+  },
+  "materialNames": [
+    "Masonry \u00b7 warm red brick",
+    "Stone \u00b7 sand",
+    "Stone \u00b7 highlights",
+    "Mortar \u00b7 warm grey",
+    "Emerald \u00b7 facade trim",
+    "Forest \u00b7 door frames",
+    "Glass \u00b7 teal",
+    "Glass \u00b7 warm reflection",
+    "Brass \u00b7 handles and trim",
+    "Marquee \u00b7 red shell",
+    "Marquee \u00b7 dark red trim",
+    "Marquee \u00b7 ivory letterboard",
+    "Bulbs \u00b7 warm incandescent",
+    "Bulbs \u00b7 tower ivory",
+    "Bulbs \u00b7 LED amber",
+    "Bulbs \u00b7 LED gold",
+    "Neon \u00b7 red",
+    "Neon \u00b7 amber",
+    "Neon \u00b7 blue",
+    "Curtain \u00b7 velvet",
+    "Curtain \u00b7 dark",
+    "Roof \u00b7 dark bronze",
+    "Canopy \u00b7 soffit",
+    "Road \u00b7 dark asphalt",
+    "Pavement \u00b7 polished stone",
+    "Pavement \u00b7 grout",
+    "Window \u00b7 poster",
+    "Night sky \u00b7 deep green",
+    "TEXT_SWAP \u00b7 marquee.front",
+    "TEXT_SWAP \u00b7 marquee.left",
+    "TEXT_SWAP \u00b7 marquee.right"
+  ],
+  "groups": [
+    "DVYDRM_THEATER_ROOT",
+    "facade",
+    "facade.brickwork",
+    "facade.art_deco",
+    "facade.windows",
+    "entrance",
+    "curtain",
+    "canopy",
+    "marquee",
+    "roof_neon_ornament",
+    "lighting",
+    "bulbs.marquee",
+    "bulbs.canopy",
+    "bulbs.tower",
+    "leds.left",
+    "leds.right",
+    "neon.red",
+    "neon.blue",
+    "neon.amber",
+    "pavement",
+    "marquee.left",
+    "marquee.front",
+    "marquee.right",
+    "lights.punctual_preview_rig"
+  ],
+  "defaultPatterns": [],
+  "audioRoutingHints": {
+    "bulbs.canopy": [
+      "kick",
+      "sub",
+      "drop"
+    ],
+    "bulbs.marquee": [
+      "beat",
+      "bar",
+      "phrase",
+      "drop"
+    ],
+    "bulbs.tower": [
+      "snare",
+      "bar",
+      "drop"
+    ],
+    "neon.red": [
+      "build",
+      "drop"
+    ],
+    "neon.blue": [
+      "mid",
+      "high",
+      "phrase"
+    ],
+    "leds.left": [
+      "transient",
+      "energy"
+    ],
+    "leds.right": [
+      "transient",
+      "energy"
+    ]
+  },
+  "disclaimer": "Prototype-scale reconstruction grounded in supplied image/blueprint; not an exact photogrammetric scan. The scene includes emissive geometry; host renderer is responsible for bloom, shadows and audio-driven modulation."
+}

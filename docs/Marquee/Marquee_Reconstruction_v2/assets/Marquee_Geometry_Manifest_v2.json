@@ -1,0 +1,242 @@
+{
+  "schema": "cinema2.marquee.reconstruction.v2",
+  "file": "DVYDRM_Marquee_HighFidelity_v2.glb",
+  "source": "manually authored procedural reconstruction from cleaned DVYDRM 4:3 reference; not a surveyed/photogrammetry replica",
+  "coordinate_system": {
+    "x": "right",
+    "y": "up",
+    "z": "toward street/audience",
+    "units": "artistic scene units",
+    "facade_plane_z": -1.94
+  },
+  "geometry": {
+    "node_count": 1618,
+    "mesh_count": 1616,
+    "world_bounds_xyz": [
+      [
+        -13.5,
+        -0.34499999761581424,
+        -2.604999988079071
+      ],
+      [
+        13.5,
+        12.680000047683716,
+        13.2
+      ]
+    ],
+    "mesh_triangles": 59532,
+    "fixture_count": 1212,
+    "group_counts": {
+      "facade": 46,
+      "roof": 19,
+      "neon": 11,
+      "window": 24,
+      "entrance": 100,
+      "leds": 344,
+      "curtain": 24,
+      "canopy": 46,
+      "bulbs": 868,
+      "marquee": 39,
+      "crown": 18,
+      "tower": 22,
+      "ground": 55
+    }
+  },
+  "runtime_signage": {
+    "left": {
+      "p0_xz": [
+        -7.48,
+        0.83
+      ],
+      "p1_xz": [
+        -3.61,
+        4.37
+      ],
+      "normal_xz": [
+        -0.6749472112214014,
+        0.7378660190471253
+      ],
+      "text_surface": "marquee.left.TEXT_SURFACE",
+      "letterboard_y": [
+        3.98,
+        5.26
+      ],
+      "text_offset": 0.192,
+      "default_text": "SHOWINGS",
+      "length_units": 5.2449
+    },
+    "front": {
+      "p0_xz": [
+        -3.61,
+        4.37
+      ],
+      "p1_xz": [
+        3.61,
+        4.37
+      ],
+      "normal_xz": [
+        -0.0,
+        1.0
+      ],
+      "text_surface": "marquee.front.TEXT_SURFACE",
+      "letterboard_y": [
+        3.98,
+        5.26
+      ],
+      "text_offset": 0.192,
+      "default_text": "DVYDRM",
+      "length_units": 7.22
+    },
+    "right": {
+      "p0_xz": [
+        3.61,
+        4.37
+      ],
+      "p1_xz": [
+        7.48,
+        0.83
+      ],
+      "normal_xz": [
+        0.6749472112214014,
+        0.7378660190471253
+      ],
+      "text_surface": "marquee.right.TEXT_SURFACE",
+      "letterboard_y": [
+        3.98,
+        5.26
+      ],
+      "text_offset": 0.192,
+      "default_text": "SHOWINGS",
+      "length_units": 5.2449
+    }
+  },
+  "fixtures": {
+    "bulbs.tower": 194,
+    "bulbs.marquee.right": 70,
+    "bulbs.marquee.front": 90,
+    "bulbs.marquee.left": 70,
+    "bulbs.canopy": 444,
+    "leds.right": 172,
+    "leds.left": 172
+  },
+  "camera_presets": {
+    "front_hero": {
+      "eye": [
+        0,
+        1.6,
+        19.0
+      ],
+      "target": [
+        0,
+        5.15,
+        0.3
+      ],
+      "fov_y_degrees": 42,
+      "notes": "Slightly low to expose underside; centered symmetric hero"
+    },
+    "left_three_quarter": {
+      "eye": [
+        -8.0,
+        2.65,
+        24.6
+      ],
+      "target": [
+        0,
+        5.4,
+        0.45
+      ],
+      "fov_y_degrees": 38
+    },
+    "right_three_quarter": {
+      "eye": [
+        8.0,
+        2.65,
+        24.6
+      ],
+      "target": [
+        0,
+        5.4,
+        0.45
+      ],
+      "fov_y_degrees": 38
+    },
+    "marquee_closeup": {
+      "eye": [
+        0,
+        3.0,
+        15.8
+      ],
+      "target": [
+        0,
+        5.4,
+        1.18
+      ],
+      "fov_y_degrees": 40
+    },
+    "low_canopy": {
+      "eye": [
+        0.2,
+        1.15,
+        16.4
+      ],
+      "target": [
+        0,
+        4.43,
+        2.18
+      ],
+      "fov_y_degrees": 45
+    }
+  },
+  "material_names": [
+    "mat.brick_masonry",
+    "mat.stone_cream",
+    "mat.trim_limestone",
+    "mat.brick_cornice",
+    "mat.architecture_deep_green",
+    "mat.green_patina",
+    "mat.recess_black",
+    "mat.glass_smoke_blue",
+    "mat.brass",
+    "mat.metal_oxblood",
+    "mat.red_painted_edge",
+    "mat.marquee_cream_letters",
+    "mat.neon_red",
+    "mat.neon_amber",
+    "mat.neon_blue",
+    "mat.incandescent_glass",
+    "mat.bulb_opaque_base",
+    "mat.interior_warm",
+    "mat.pavement_polished",
+    "mat.grout",
+    "mat.roof_shadow",
+    "mat.poster_red",
+    "mat.brick_textured",
+    "mat.velvet_textured",
+    "mat.poster.-1.0",
+    "mat.poster.-1.1",
+    "mat.poster.-1.2",
+    "mat.poster.-1.3",
+    "mat.poster.1.0",
+    "mat.poster.1.1",
+    "mat.poster.1.2",
+    "mat.poster.1.3",
+    "mat.marquee_left_default_text",
+    "mat.marquee_front_default_text",
+    "mat.marquee_right_default_text"
+  ],
+  "asset_authority": {
+    "reference_image": "art_deco_theater_marquee_at_night.png",
+    "replacement_model": "DVYDRM_Marquee_HighFidelity_v2.glb",
+    "prior_model": "DVYDRM_Cinema2_Theater.glb (superseded blockout)"
+  },
+  "validation": {
+    "automated": "GLB parses, bounds and node identities auditable",
+    "manual_pending": "Final photoreal reference parity and engine rendering require review"
+  },
+  "notes": [
+    "Text surfaces currently contain *separate removable default text textures*; for runtime, replace textures independently without modifying geometry.",
+    "Bulb nodes are independently named, but production renderer should batch or instance their shared shapes.",
+    "Materials contain restrained emission factors; bloom should be set by Cinema 2.0 postprocess instead of baking overexposure.",
+    "Wings, canopy and crown contain physically separate extruded/rounded 3D geometry, not a photograph projected onto a plane."
+  ]
+}

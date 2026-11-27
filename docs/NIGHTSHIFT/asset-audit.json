@@ -1,0 +1,704 @@
+[
+  {
+    "file": "animated_dance_floor_neon_lights.glb",
+    "sha256": "242009912bb811fe3e5ff32f9361a6c2d05d26aca6f3531c2edcf4011947bbe4",
+    "bytes": 2628600,
+    "counts": {
+      "scenes": 1,
+      "nodes": 118,
+      "meshes": 103,
+      "primitives": 103,
+      "materials": 14,
+      "textures": 6,
+      "animations": 1,
+      "skins": 0,
+      "cameras": 0
+    },
+    "triangles": 27730,
+    "gpuBytes": 5113142,
+    "bounds": {
+      "min": [
+        -3.5099875926971436,
+        -0.4999999701976776,
+        -3.5097978115081787
+      ],
+      "max": [
+        3.510012626647949,
+        1.862645149230957e-9,
+        3.510202407836914
+      ]
+    },
+    "issues": [],
+    "materials": [
+      {
+        "name": "base",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "metallic": 1,
+        "roughness": 0.3,
+        "emissive": false,
+        "textureSlots": [],
+        "extensions": []
+      },
+      {
+        "name": "wall-emit",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "metallic": 1,
+        "roughness": 1,
+        "emissive": true,
+        "textureSlots": [
+          "emissiveTexture"
+        ],
+        "extensions": []
+      },
+      {
+        "name": "glass",
+        "alphaMode": "BLEND",
+        "doubleSided": true,
+        "metallic": 1,
+        "roughness": 0.1,
+        "emissive": false,
+        "textureSlots": [],
+        "extensions": []
+      },
+      {
+        "name": "Purple",
+        "alphaMode": "BLEND",
+        "doubleSided": true,
+        "metallic": 1,
+        "roughness": 0.2,
+        "emissive": true,
+        "textureSlots": [
+          "baseColorTexture"
+        ],
+        "extensions": [
+          "KHR_materials_emissive_strength"
+        ]
+      },
+      {
+        "name": "Blue",
+        "alphaMode": "BLEND",
+        "doubleSided": true,
+        "metallic": 1,
+        "roughness": 0.2,
+        "emissive": true,
+        "textureSlots": [
+          "baseColorTexture"
+        ],
+        "extensions": [
+          "KHR_materials_emissive_strength"
+        ]
+      },
+      {
+        "name": "pattern-cyan",
+        "alphaMode": "BLEND",
+        "doubleSided": true,
+        "metallic": 1,
+        "roughness": 0.2,
+        "emissive": true,
+        "textureSlots": [
+          "baseColorTexture",
+          "emissiveTexture"
+        ],
+        "extensions": [
+          "KHR_materials_emissive_strength"
+        ]
+      },
+      {
+        "name": "Green",
+        "alphaMode": "BLEND",
+        "doubleSided": true,
+        "metallic": 1,
+        "roughness": 0.2,
+        "emissive": true,
+        "textureSlots": [
+          "baseColorTexture"
+        ],
+        "extensions": [
+          "KHR_materials_emissive_strength"
+        ]
+      },
+      {
+        "name": "pattern-purple",
+        "alphaMode": "BLEND",
+        "doubleSided": true,
+        "metallic": 1,
+        "roughness": 0.2,
+        "emissive": true,
+        "textureSlots": [
+          "baseColorTexture",
+          "emissiveTexture"
+        ],
+        "extensions": [
+          "KHR_materials_emissive_strength"
+        ]
+      },
+      {
+        "name": "Yellow",
+        "alphaMode": "BLEND",
+        "doubleSided": true,
+        "metallic": 1,
+        "roughness": 0.2,
+        "emissive": true,
+        "textureSlots": [
+          "baseColorTexture"
+        ],
+        "extensions": [
+          "KHR_materials_emissive_strength"
+        ]
+      },
+      {
+        "name": "none-color",
+        "alphaMode": "BLEND",
+        "doubleSided": true,
+        "metallic": 1,
+        "roughness": 0.2,
+        "emissive": false,
+        "textureSlots": [],
+        "extensions": []
+      },
+      {
+        "name": "Cyan",
+        "alphaMode": "BLEND",
+        "doubleSided": true,
+        "metallic": 1,
+        "roughness": 0.2,
+        "emissive": true,
+        "textureSlots": [
+          "baseColorTexture"
+        ],
+        "extensions": [
+          "KHR_materials_emissive_strength"
+        ]
+      },
+      {
+        "name": "material",
+        "alphaMode": "BLEND",
+        "doubleSided": true,
+        "metallic": 1,
+        "roughness": 0.2,
+        "emissive": true,
+        "textureSlots": [
+          "baseColorTexture"
+        ],
+        "extensions": [
+          "KHR_materials_emissive_strength"
+        ]
+      },
+      {
+        "name": "white",
+        "alphaMode": "BLEND",
+        "doubleSided": true,
+        "metallic": 1,
+        "roughness": 0.2,
+        "emissive": true,
+        "textureSlots": [
+          "baseColorTexture"
+        ],
+        "extensions": [
+          "KHR_materials_emissive_strength"
+        ]
+      },
+      {
+        "name": "Blue-img",
+        "alphaMode": "BLEND",
+        "doubleSided": true,
+        "metallic": 1,
+        "roughness": 0.2,
+        "emissive": true,
+        "textureSlots": [
+          "baseColorTexture"
+        ],
+        "extensions": []
+      }
+    ],
+    "animations": [
+      {
+        "name": "Animation",
+        "channels": 10,
+        "samplers": 10,
+        "duration": 10.416657447814941,
+        "targets": [
+          "Color1 -nocollider_1",
+          "Color10 -nocollider_2",
+          "Color2 -nocollider_3",
+          "Color3 -nocollider_4",
+          "Color4 -nocollider_5",
+          "Color5 -nocollider_6",
+          "Color6 -nocollider_7",
+          "Color7 -nocollider_8",
+          "Color8 -nocollider_9",
+          "Color9 -nocollider_10"
+        ],
+        "paths": [
+          "scale"
+        ]
+      }
+    ],
+    "provenance": {
+      "author": "WwWuengy (https://sketchfab.com/wwwuengy)",
+      "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+      "source": "https://sketchfab.com/3d-models/animated-dance-floor-neon-lights-440e71d520d94dccbb397a8a7df9bb47",
+      "title": "Animated Dance Floor neon lights"
+    },
+    "meshNames": [
+      "Object_0",
+      "Object_1",
+      "Object_2",
+      "Object_3",
+      "Object_4",
+      "Object_5",
+      "Object_6",
+      "Object_7",
+      "Object_8",
+      "Object_9",
+      "Object_10",
+      "Object_11",
+      "Object_12",
+      "Object_13",
+      "Object_14",
+      "Object_15",
+      "Object_16",
+      "Object_17",
+      "Object_18",
+      "Object_19",
+      "Object_20",
+      "Object_21",
+      "Object_22",
+      "Object_23",
+      "Object_24",
+      "Object_25",
+      "Object_26",
+      "Object_27",
+      "Object_28",
+      "Object_29",
+      "Object_30",
+      "Object_31",
+      "Object_32",
+      "Object_33",
+      "Object_34",
+      "Object_35",
+      "Object_36",
+      "Object_37",
+      "Object_38",
+      "Object_39",
+      "Object_40",
+      "Object_41",
+      "Object_42",
+      "Object_43",
+      "Object_44",
+      "Object_45",
+      "Object_46",
+      "Object_47",
+      "Object_48",
+      "Object_49",
+      "Object_50",
+      "Object_51",
+      "Object_52",
+      "Object_53",
+      "Object_54",
+      "Object_55",
+      "Object_56",
+      "Object_57",
+      "Object_58",
+      "Object_59",
+      "Object_60",
+      "Object_61",
+      "Object_62",
+      "Object_63",
+      "Object_64",
+      "Object_65",
+      "Object_66",
+      "Object_67",
+      "Object_68",
+      "Object_69",
+      "Object_70",
+      "Object_71",
+      "Object_72",
+      "Object_73",
+      "Object_74",
+      "Object_75",
+      "Object_76",
+      "Object_77",
+      "Object_78",
+      "Object_79",
+      "Object_80",
+      "Object_81",
+      "Object_82",
+      "Object_83",
+      "Object_84",
+      "Object_85",
+      "Object_86",
+      "Object_87",
+      "Object_88",
+      "Object_89",
+      "Object_90",
+      "Object_91",
+      "Object_92",
+      "Object_93",
+      "Object_94",
+      "Object_95",
+      "Object_96",
+      "Object_97",
+      "Object_98",
+      "Object_99",
+      "Object_100",
+      "Object_101",
+      "Object_102"
+    ],
+    "validation": {
+      "validatorVersion": "2.0.0-dev.3.10",
+      "errors": 10,
+      "warnings": 0,
+      "infos": 32,
+      "hints": 0,
+      "issues": [
+        {
+          "severity": "error",
+          "code": "ANIMATION_SAMPLER_ACCESSOR_WITH_BYTESTRIDE",
+          "message": "bufferView.byteStride must not be defined for buffer views used by animation sampler accessors.",
+          "pointer": "/animations/0/samplers/0/output"
+        },
+        {
+          "severity": "error",
+          "code": "ANIMATION_SAMPLER_ACCESSOR_WITH_BYTESTRIDE",
+          "message": "bufferView.byteStride must not be defined for buffer views used by animation sampler accessors.",
+          "pointer": "/animations/0/samplers/1/output"
+        },
+        {
+          "severity": "error",
+          "code": "ANIMATION_SAMPLER_ACCESSOR_WITH_BYTESTRIDE",
+          "message": "bufferView.byteStride must not be defined for buffer views used by animation sampler accessors.",
+          "pointer": "/animations/0/samplers/2/output"
+        },
+        {
+          "severity": "error",
+          "code": "ANIMATION_SAMPLER_ACCESSOR_WITH_BYTESTRIDE",
+          "message": "bufferView.byteStride must not be defined for buffer views used by animation sampler accessors.",
+          "pointer": "/animations/0/samplers/3/output"
+        },
+        {
+          "severity": "error",
+          "code": "ANIMATION_SAMPLER_ACCESSOR_WITH_BYTESTRIDE",
+          "message": "bufferView.byteStride must not be defined for buffer views used by animation sampler accessors.",
+          "pointer": "/animations/0/samplers/4/output"
+        },
+        {
+          "severity": "error",
+          "code": "ANIMATION_SAMPLER_ACCESSOR_WITH_BYTESTRIDE",
+          "message": "bufferView.byteStride must not be defined for buffer views used by animation sampler accessors.",
+          "pointer": "/animations/0/samplers/5/output"
+        },
+        {
+          "severity": "error",
+          "code": "ANIMATION_SAMPLER_ACCESSOR_WITH_BYTESTRIDE",
+          "message": "bufferView.byteStride must not be defined for buffer views used by animation sampler accessors.",
+          "pointer": "/animations/0/samplers/6/output"
+        },
+        {
+          "severity": "error",
+          "code": "ANIMATION_SAMPLER_ACCESSOR_WITH_BYTESTRIDE",
+          "message": "bufferView.byteStride must not be defined for buffer views used by animation sampler accessors.",
+          "pointer": "/animations/0/samplers/7/output"
+        },
+        {
+          "severity": "error",
+          "code": "ANIMATION_SAMPLER_ACCESSOR_WITH_BYTESTRIDE",
+          "message": "bufferView.byteStride must not be defined for buffer views used by animation sampler accessors.",
+          "pointer": "/animations/0/samplers/8/output"
+        },
+        {
+          "severity": "error",
+          "code": "ANIMATION_SAMPLER_ACCESSOR_WITH_BYTESTRIDE",
+          "message": "bufferView.byteStride must not be defined for buffer views used by animation sampler accessors.",
+          "pointer": "/animations/0/samplers/9/output"
+        }
+      ]
+    }
+  },
+  {
+    "file": "disco_ball__dance_floor (1).glb",
+    "sha256": "b5fe0ea81dab3caab433d499e6211b5c97c9fa9df45e4a5786ff6e89c6be0e02",
+    "bytes": 3197156,
+    "counts": {
+      "scenes": 1,
+      "nodes": 8,
+      "meshes": 3,
+      "primitives": 3,
+      "materials": 2,
+      "textures": 3,
+      "animations": 0,
+      "skins": 0,
+      "cameras": 0
+    },
+    "triangles": 41488,
+    "gpuBytes": 19926335,
+    "bounds": {
+      "min": [
+        -2.5,
+        -0.02500040953687233,
+        -2.500000002443777
+      ],
+      "max": [
+        2.5,
+        2.8804655733064326,
+        2.5000000040729846
+      ]
+    },
+    "issues": [
+      {
+        "severity": "warning",
+        "code": "DUPLICATE_NODE_NAMES",
+        "message": "Duplicate node names: Disco Ball_Disco Ball_0. Presets that look a part up by name get the first match."
+      }
+    ],
+    "materials": [
+      {
+        "name": "Dance_Floor",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "metallic": 0,
+        "roughness": 0.8,
+        "emissive": true,
+        "textureSlots": [
+          "baseColorTexture",
+          "emissiveTexture"
+        ],
+        "extensions": []
+      },
+      {
+        "name": "Disco_Ball",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "metallic": 1,
+        "roughness": 0,
+        "emissive": true,
+        "textureSlots": [
+          "baseColorTexture",
+          "metallicRoughnessTexture",
+          "emissiveTexture"
+        ],
+        "extensions": []
+      }
+    ],
+    "animations": [],
+    "provenance": {
+      "author": "DittyDos (https://sketchfab.com/DittyDos)",
+      "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+      "source": "https://sketchfab.com/3d-models/disco-ball-dance-floor-d6a822cc06d54e75bf81e7ef13283613",
+      "title": "Disco Ball & Dance Floor"
+    },
+    "meshNames": [
+      "Dance Floor_Dance Floor_0",
+      "Disco Ball_Disco Ball_0",
+      "Disco Ball_Disco Ball_0"
+    ],
+    "validation": {
+      "validatorVersion": "2.0.0-dev.3.10",
+      "errors": 0,
+      "warnings": 0,
+      "infos": 0,
+      "hints": 0,
+      "issues": []
+    }
+  },
+  {
+    "file": "disco_ball__dance_floor.glb",
+    "sha256": "2bc72683fca30c53c991d993e934345d089b884776322b5bb3ae4ec83da6c031",
+    "bytes": 3175232,
+    "counts": {
+      "scenes": 1,
+      "nodes": 8,
+      "meshes": 3,
+      "primitives": 3,
+      "materials": 2,
+      "textures": 3,
+      "animations": 0,
+      "skins": 0,
+      "cameras": 0
+    },
+    "triangles": 41488,
+    "gpuBytes": 103812415,
+    "bounds": {
+      "min": [
+        -2.5,
+        -0.02500040953687233,
+        -2.500000002443777
+      ],
+      "max": [
+        2.5,
+        2.8804655733064326,
+        2.5000000040729846
+      ]
+    },
+    "issues": [
+      {
+        "severity": "warning",
+        "code": "TEXTURE_TOO_LARGE",
+        "message": "Texture \"(unnamed)\" is 4096x4096, above the 2048px asset limit."
+      },
+      {
+        "severity": "warning",
+        "code": "DUPLICATE_NODE_NAMES",
+        "message": "Duplicate node names: Disco Ball_Disco Ball_0. Presets that look a part up by name get the first match."
+      },
+      {
+        "severity": "warning",
+        "code": "OVER_GPU_BUDGET",
+        "message": "Estimated 99.0 MB of GPU memory exceeds the 19.2 MB low-tier asset budget (a tier variant should be smaller)."
+      },
+      {
+        "severity": "warning",
+        "code": "OVER_GPU_BUDGET",
+        "message": "Estimated 99.0 MB of GPU memory exceeds the 32.0 MB medium-tier asset budget (a tier variant should be smaller)."
+      },
+      {
+        "severity": "warning",
+        "code": "OVER_GPU_BUDGET",
+        "message": "Estimated 99.0 MB of GPU memory exceeds the 51.2 MB high-tier asset budget (a tier variant should be smaller)."
+      }
+    ],
+    "materials": [
+      {
+        "name": "Dance_Floor",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "metallic": 0,
+        "roughness": 0.8,
+        "emissive": true,
+        "textureSlots": [
+          "baseColorTexture",
+          "emissiveTexture"
+        ],
+        "extensions": []
+      },
+      {
+        "name": "Disco_Ball",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "metallic": 1,
+        "roughness": 0,
+        "emissive": true,
+        "textureSlots": [
+          "baseColorTexture",
+          "metallicRoughnessTexture",
+          "emissiveTexture"
+        ],
+        "extensions": []
+      }
+    ],
+    "animations": [],
+    "provenance": {
+      "author": "DittyDos (https://sketchfab.com/DittyDos)",
+      "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+      "source": "https://sketchfab.com/3d-models/disco-ball-dance-floor-d6a822cc06d54e75bf81e7ef13283613",
+      "title": "Disco Ball & Dance Floor"
+    },
+    "meshNames": [
+      "Dance Floor_Dance Floor_0",
+      "Disco Ball_Disco Ball_0",
+      "Disco Ball_Disco Ball_0"
+    ],
+    "validation": {
+      "validatorVersion": "2.0.0-dev.3.10",
+      "errors": 0,
+      "warnings": 0,
+      "infos": 0,
+      "hints": 0,
+      "issues": []
+    }
+  },
+  {
+    "file": "pretty_simple_discoball.glb",
+    "sha256": "b4378a2ac2aaf35e04191f3007257cdb954b99f8a4ee6a0b726e98498b406d0a",
+    "bytes": 2110624,
+    "counts": {
+      "scenes": 1,
+      "nodes": 7,
+      "meshes": 2,
+      "primitives": 2,
+      "materials": 2,
+      "textures": 0,
+      "animations": 1,
+      "skins": 0,
+      "cameras": 0
+    },
+    "triangles": 27520,
+    "gpuBytes": 2096640,
+    "bounds": {
+      "min": [
+        -1.2262714593682145,
+        -1.0110678672790527,
+        -1.2262720243678344
+      ],
+      "max": [
+        1.226501652506337,
+        1.010993480682373,
+        1.2269957439646972
+      ]
+    },
+    "issues": [],
+    "materials": [
+      {
+        "name": "disco_mat",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "metallic": 1,
+        "roughness": 0,
+        "emissive": false,
+        "textureSlots": [],
+        "extensions": []
+      },
+      {
+        "name": "non_disco_mat",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "metallic": 1,
+        "roughness": 0.6692987553311984,
+        "emissive": false,
+        "textureSlots": [],
+        "extensions": []
+      }
+    ],
+    "animations": [
+      {
+        "name": "Take 001",
+        "channels": 1,
+        "samplers": 1,
+        "duration": 16.66666603088379,
+        "targets": [
+          "pSphere3"
+        ],
+        "paths": [
+          "rotation"
+        ]
+      }
+    ],
+    "provenance": {
+      "author": "pan.stasian (https://sketchfab.com/pan_stasian)",
+      "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+      "source": "https://sketchfab.com/3d-models/pretty-simple-discoball-6b1921865be14de982f9483040acaa2d",
+      "title": "Pretty simple discoball"
+    },
+    "meshNames": [
+      "pSphere3_disco_mat_0",
+      "pSphere3_non_disco_mat_0"
+    ],
+    "validation": {
+      "validatorVersion": "2.0.0-dev.3.10",
+      "errors": 1,
+      "warnings": 0,
+      "infos": 2,
+      "hints": 0,
+      "issues": [
+        {
+          "severity": "error",
+          "code": "ANIMATION_SAMPLER_ACCESSOR_WITH_BYTESTRIDE",
+          "message": "bufferView.byteStride must not be defined for buffer views used by animation sampler accessors.",
+          "pointer": "/animations/0/samplers/0/output"
+        }
+      ]
+    }
+  }
+]

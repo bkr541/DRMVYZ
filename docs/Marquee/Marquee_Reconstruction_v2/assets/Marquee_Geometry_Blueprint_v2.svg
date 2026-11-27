@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:xlink="http://www.w3.org/1999/xlink" baseProfile="full" height="1550" version="1.1" viewBox="0 0 2100 1550" width="2100">
+  <defs/>
+  <rect fill="#101a23" height="1550" width="2100" x="0" y="0"/>
+  <text fill="#f6b65f" font-family="DejaVu Sans" font-size="38" font-weight="bold" x="75" y="70">DVYDRM  /  MARQUEE</text>
+  <text fill="#849eaf" font-family="DejaVu Sans" font-size="18" font-weight="normal" x="75" y="107">HIGH-FIDELITY RECONSTRUCTION V2  /  MODEL-ALIGNED GEOMETRY BLUEPRINT</text>
+  <text fill="#def5f4" font-family="DejaVu Sans" font-size="18" font-weight="normal" x="75" y="148">WORLD: X right  ·  Y up  ·  +Z toward street/camera  ·  units are authored scene units, not surveyed meters</text>
+  <text fill="#f6b65f" font-family="DejaVu Sans" font-size="24" font-weight="bold" x="75" y="203">A  /  FRONT ELEVATION</text>
+  <rect fill="none" height="462.3" stroke="#849eaf" stroke-width="2" width="1219.0" x="132.5" y="410.7"/>
+  <line stroke="#849eaf" stroke-width="2" x1="132.5" x2="1351.5" y1="761.22" y2="761.22"/>
+  <line stroke="#849eaf" stroke-width="2" x1="132.5" x2="1351.5" y1="479.7" y2="479.7"/>
+  <line stroke="#849eaf" stroke-width="2" x1="132.5" x2="1351.5" y1="435.08000000000004" y2="435.08000000000004"/>
+  <rect fill="none" height="349.59999999999997" stroke="#f6b65f" stroke-width="2" width="48.760000000000005" x="156.42000000000007" y="413.0"/>
+  <rect fill="none" height="349.59999999999997" stroke="#f6b65f" stroke-width="2" width="48.760000000000005" x="1278.8200000000002" y="413.0"/>
+  <rect fill="none" height="131.1" stroke="#63c8ff" stroke-width="2" width="86.47999999999999" x="266.36" y="540.42"/>
+  <line stroke="#63c8ff" stroke-width="2" x1="309.59999999999997" x2="309.59999999999997" y1="541.8" y2="670.6"/>
+  <rect fill="none" height="266.34" stroke="#f6b65f" stroke-width="2" width="39.56" x="430.12" y="346.30000000000007"/>
+  <circle cx="449.90000000000003" cy="591.02" fill="#f6b65f" r="8"/>
+  <circle cx="449.90000000000003" cy="560.4300000000001" fill="#f6b65f" r="8"/>
+  <circle cx="449.90000000000003" cy="529.8399999999999" fill="#f6b65f" r="8"/>
+  <circle cx="449.90000000000003" cy="499.25" fill="#f6b65f" r="8"/>
+  <circle cx="449.90000000000003" cy="468.66" fill="#f6b65f" r="8"/>
+  <circle cx="449.90000000000003" cy="438.07" fill="#f6b65f" r="8"/>
+  <circle cx="449.90000000000003" cy="407.47999999999996" fill="#f6b65f" r="8"/>
+  <circle cx="449.90000000000003" cy="376.89" fill="#f6b65f" r="8"/>
+  <rect fill="none" height="115.0" stroke="#fd6f68" stroke-width="2" width="57.04" x="491.76" y="755.7"/>
+  <rect fill="none" height="131.1" stroke="#63c8ff" stroke-width="2" width="86.47999999999999" x="1131.16" y="540.42"/>
+  <line stroke="#63c8ff" stroke-width="2" x1="1174.4" x2="1174.4" y1="541.8" y2="670.6"/>
+  <rect fill="none" height="266.34" stroke="#f6b65f" stroke-width="2" width="39.56" x="1014.3199999999999" y="346.30000000000007"/>
+  <circle cx="1034.1" cy="591.02" fill="#f6b65f" r="8"/>
+  <circle cx="1034.1" cy="560.4300000000001" fill="#f6b65f" r="8"/>
+  <circle cx="1034.1" cy="529.8399999999999" fill="#f6b65f" r="8"/>
+  <circle cx="1034.1" cy="499.25" fill="#f6b65f" r="8"/>
+  <circle cx="1034.1" cy="468.66" fill="#f6b65f" r="8"/>
+  <circle cx="1034.1" cy="438.07" fill="#f6b65f" r="8"/>
+  <circle cx="1034.1" cy="407.47999999999996" fill="#f6b65f" r="8"/>
+  <circle cx="1034.1" cy="376.89" fill="#f6b65f" r="8"/>
+  <rect fill="none" height="115.0" stroke="#fd6f68" stroke-width="2" width="57.04" x="935.2" y="755.7"/>
+  <rect fill="none" height="115.0" stroke="#63c8ff" stroke-width="2" width="57.96" x="549.72" y="748.8"/>
+  <rect fill="none" height="115.0" stroke="#63c8ff" stroke-width="2" width="57.96" x="615.04" y="748.8"/>
+  <rect fill="none" height="115.0" stroke="#63c8ff" stroke-width="2" width="57.96" x="680.36" y="748.8"/>
+  <rect fill="none" height="115.0" stroke="#63c8ff" stroke-width="2" width="57.96" x="745.68" y="748.8"/>
+  <rect fill="none" height="115.0" stroke="#63c8ff" stroke-width="2" width="57.96" x="811.0" y="748.8"/>
+  <rect fill="none" height="115.0" stroke="#63c8ff" stroke-width="2" width="57.96" x="876.3199999999999" y="748.8"/>
+  <rect fill="none" height="171.12" stroke="#fd6f68" stroke-width="2" width="478.40000000000003" x="502.79999999999995" y="425.88"/>
+  <rect fill="none" height="80.96" stroke="#f6b65f" stroke-width="2" width="332.12" x="575.94" y="620.46"/>
+  <rect fill="none" height="80.96" stroke="#fd6f68" stroke-width="2" width="178.02000000000004" x="397.91999999999996" y="620.46"/>
+  <rect fill="none" height="80.96" stroke="#fd6f68" stroke-width="2" width="178.02000000000004" x="908.06" y="620.46"/>
+  <polygon fill="none" points="578.7,615.4000000000001 578.7,590.1 589.28,580.9000000000001 894.72,580.9000000000001 905.3,590.1 905.3,615.4000000000001" stroke="#fd6f68" stroke-width="2"/>
+  <polygon fill="none" points="605.84,615.4000000000001 605.84,572.62 616.42,563.4200000000001 867.58,563.4200000000001 878.16,572.62 878.16,615.4000000000001" stroke="#f6b65f" stroke-width="2"/>
+  <polygon fill="none" points="632.98,615.4000000000001 632.98,555.1400000000001 643.56,545.94 840.44,545.94 851.02,555.1400000000001 851.02,615.4000000000001" stroke="#fd6f68" stroke-width="2"/>
+  <polygon fill="none" points="660.12,615.4000000000001 660.12,537.6600000000001 670.7,528.46 813.3,528.46 823.88,537.6600000000001 823.88,615.4000000000001" stroke="#f6b65f" stroke-width="2"/>
+  <polygon fill="none" points="687.26,615.4000000000001 687.26,520.1800000000001 697.84,510.98 786.16,510.98 796.74,520.1800000000001 796.74,615.4000000000001" stroke="#fd6f68" stroke-width="2"/>
+  <polygon fill="none" points="714.4,615.4000000000001 714.4,502.7 724.98,493.5 759.02,493.5 769.6,502.7 769.6,615.4000000000001" stroke="#f6b65f" stroke-width="2"/>
+  <line stroke="#63c8ff" stroke-width="5" x1="726.82" x2="726.82" y1="604.36" y2="466.82"/>
+  <line stroke="#63c8ff" stroke-width="5" x1="736.94" x2="736.94" y1="604.36" y2="466.82"/>
+  <line stroke="#63c8ff" stroke-width="5" x1="747.06" x2="747.06" y1="604.36" y2="466.82"/>
+  <line stroke="#63c8ff" stroke-width="5" x1="757.18" x2="757.18" y1="604.36" y2="466.82"/>
+  <line stroke="#849eaf" stroke-width="2" x1="132.5" x2="1351.5" y1="323.30000000000007" y2="323.30000000000007"/>
+  <line stroke="#849eaf" stroke-width="2" x1="132.5" x2="132.5" y1="314.1" y2="332.5"/>
+  <line stroke="#849eaf" stroke-width="2" x1="1351.5" x2="1351.5" y1="314.1" y2="332.5"/>
+  <text fill="#def5f4" font-family="DejaVu Sans" font-size="18" font-weight="normal" x="650" y="316.4">26.5 facade width</text>
+  <line stroke="#849eaf" stroke-width="1" x1="1381.4" x2="1381.4" y1="873" y2="346.30000000000007"/>
+  <text fill="#849eaf" font-family="DejaVu Sans" font-size="16" font-weight="normal" x="1395.1999999999998" y="390.0">11.45 tower top</text>
+  <text fill="#f6b65f" font-family="DejaVu Sans" font-size="24" font-weight="bold" x="75" y="911">B  /  TOP PLAN: REAL CANOPY PROJECTION + THREE SIGN FACES</text>
+  <polygon fill="#20303b" points="253.8,1293.24 1196.2,1293.24 1196.2,1186.6 953.16,874.74 496.84000000000003,874.74 253.8,1186.6" stroke="#849eaf" stroke-width="2"/>
+  <line stroke="#def5f4" stroke-width="5" x1="-96.5" x2="1546.5" y1="1350.28" y2="1350.28"/>
+  <line stroke="#f6b65f" stroke-width="10" x1="261.23999999999995" x2="501.18" y1="1178.54" y2="959.06"/>
+  <line stroke="#63c8ff" stroke-width="3" x1="381.21" x2="347.7326183234185" y1="1068.8" y2="1032.2018454552626"/>
+  <text fill="#def5f4" font-family="DejaVu Sans" font-size="18" font-weight="bold" x="301.21" y="1046.8">LEFT</text>
+  <line stroke="#fd6f68" stroke-width="10" x1="501.18" x2="948.8199999999999" y1="959.06" y2="959.06"/>
+  <line stroke="#63c8ff" stroke-width="3" x1="725.0" x2="725.0" y1="959.06" y2="909.46"/>
+  <text fill="#def5f4" font-family="DejaVu Sans" font-size="18" font-weight="bold" x="660.0" y="937.06">FRONT</text>
+  <line stroke="#f6b65f" stroke-width="10" x1="948.8199999999999" x2="1188.76" y1="959.06" y2="1178.54"/>
+  <line stroke="#63c8ff" stroke-width="3" x1="1068.79" x2="1102.2673816765814" y1="1068.8" y2="1032.2018454552626"/>
+  <text fill="#def5f4" font-family="DejaVu Sans" font-size="18" font-weight="bold" x="988.79" y="1046.8">RIGHT</text>
+  <line stroke="#f6b65f" stroke-width="2" x1="353" x2="353" y1="1282.7" y2="1064.6447474747474"/>
+  <line stroke="#f6b65f" stroke-width="2" x1="477" x2="477" y1="1282.7" y2="910.2710101010101"/>
+  <line stroke="#f6b65f" stroke-width="2" x1="601" x2="601" y1="1282.7" y2="880.94"/>
+  <line stroke="#f6b65f" stroke-width="2" x1="725" x2="725" y1="1282.7" y2="880.94"/>
+  <line stroke="#f6b65f" stroke-width="2" x1="849" x2="849" y1="1282.7" y2="880.94"/>
+  <line stroke="#f6b65f" stroke-width="2" x1="973" x2="973" y1="1282.7" y2="910.2710101010101"/>
+  <line stroke="#f6b65f" stroke-width="2" x1="1097" x2="1097" y1="1282.7" y2="1064.6447474747474"/>
+  <line stroke="#1e3140" stroke-width="2" x1="75" x2="1950" y1="1398" y2="1398"/>
+  <text fill="#def5f4" font-family="DejaVu Sans" font-size="19" font-weight="normal" x="75" y="1433">FIXTURE INSTANCING: named nodes remain separately addressable  /  runtime renderer should batch emissive updates</text>
+  <text fill="#63c8ff" font-family="DejaVu Sans" font-size="19" font-weight="normal" x="75" y="1470">SIGNAGE: marquee.front.TEXT_SURFACE   ·   marquee.left.TEXT_SURFACE   ·   marquee.right.TEXT_SURFACE</text>
+  <text fill="#849eaf" font-family="DejaVu Sans" font-size="16" font-weight="normal" x="75" y="1510">VALIDATION: placement is reference-derived and subject to human visual approval; blueprint intentionally not dimensioned in meters.</text>
+</svg>
