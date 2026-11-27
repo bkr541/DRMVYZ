@@ -53,55 +53,55 @@ describe('OVERDRIVE',()=>{
     expect(manifest.lighting?.lights[0]?.config?.threeShadow).toBe(true)
     expect(manifest.cameras?.[0]?.fovDegrees).toBe(46)
   })
-  it('normalizes both supplied driver axes to the same forward-facing circular mounting envelope',async()=>{
+  it('turns the native -Z driver face toward +Z and fits the circular mounting envelope',async()=>{
     const T=await import('three')
-    for(const variant of [0,1] as const){
-      const g=new T.CylinderGeometry(2,1,1,16)
-      // Cylinder's larger face is +Y. Model A faces +Z and model B faces -Y.
-      g.rotateX(variant===0?Math.PI/2:Math.PI)
-      const mesh=new T.Mesh(g,new T.MeshStandardMaterial());mesh.position.set(3,-2,4)
-      const model=normalizeOverdriveSpeaker(T,mesh,variant)
-      const bounds=new T.Box3().setFromObject(model,true),size=bounds.getSize(new T.Vector3()),center=bounds.getCenter(new T.Vector3())
-      expect(size.x).toBeCloseTo(OVERDRIVE_SPEAKER_DIAMETER)
-      expect(size.y).toBeCloseTo(OVERDRIVE_SPEAKER_DIAMETER)
-      expect(center.x).toBeCloseTo(0);expect(center.y).toBeCloseTo(0)
-      expect(bounds.max.z).toBeCloseTo(OVERDRIVE_SPEAKER_FACE_Z)
-      const hit=new T.Raycaster(new T.Vector3(0,0,2),new T.Vector3(0,0,-1)).intersectObject(model,true)[0]!
-      expect(hit.point.z).toBeCloseTo(OVERDRIVE_SPEAKER_FACE_Z)
-      g.dispose();mesh.material.dispose()
-    }
+    const g=new T.CylinderGeometry(2,1,1,32)
+    // The larger face is initially +Y; rotate it to native -Z like the new GLB.
+    g.rotateX(-Math.PI/2)
+    const mesh=new T.Mesh(g,new T.MeshStandardMaterial());mesh.position.set(3,-2,4)
+    const model=normalizeOverdriveSpeaker(T,mesh)
+    const bounds=new T.Box3().setFromObject(model,true),size=bounds.getSize(new T.Vector3()),center=bounds.getCenter(new T.Vector3())
+    expect(size.x).toBeCloseTo(OVERDRIVE_SPEAKER_DIAMETER)
+    expect(size.y).toBeCloseTo(OVERDRIVE_SPEAKER_DIAMETER)
+    expect(center.x).toBeCloseTo(0);expect(center.y).toBeCloseTo(0)
+    expect(bounds.max.z).toBeCloseTo(OVERDRIVE_SPEAKER_FACE_Z)
+    // Outside the narrow rear cap, the ray must strike the broad front cap.
+    const hit=new T.Raycaster(new T.Vector3(.5,0,2),new T.Vector3(0,0,-1)).intersectObject(model,true)[0]!
+    expect(hit.point.z).toBeCloseTo(OVERDRIVE_SPEAKER_FACE_Z)
+    g.dispose();mesh.material.dispose()
   })
-  it('alternates ten imported driver instances, shares resources, retains pulse motion and keeps the core stable',async()=>{
+  it('uses the same model in all ten driver instances, shares resources, retains pulse motion and keeps the core stable',async()=>{
     const THREE=await import('three')
     const {mergeGeometries}=await import('three/examples/jsm/utils/BufferGeometryUtils.js')
     const root=new THREE.Group()
     const scene=new OverdriveScene({THREE} as unknown as Cinema2ThreeLibrary,mergeGeometries,root)
-    const material1=new THREE.MeshStandardMaterial({color:0x999999}),material2=new THREE.MeshStandardMaterial({color:0x444444})
-    const g1=new THREE.CylinderGeometry(1,1,.3,16).rotateX(Math.PI/2),g2=new THREE.CylinderGeometry(1,1,.6,16)
-    const source1=new THREE.Group(),source2=new THREE.Group();source1.add(new THREE.Mesh(g1,material1));source2.add(new THREE.Mesh(g2,material2))
-    let disposals=0;g1.addEventListener('dispose',()=>disposals++);g2.addEventListener('dispose',()=>disposals++)
+    const material=new THREE.MeshStandardMaterial({color:0x999999})
+    const g=new THREE.CylinderGeometry(1,1,.3,16).rotateX(-Math.PI/2)
+    const source=new THREE.Group();source.add(new THREE.Mesh(g,material))
+    let disposals=0;g.addEventListener('dispose',()=>disposals++)
     try{
       expect(scene.speakersReady).toBe(false)
-      scene.installSpeakers([source1,source2]);expect(scene.speakersReady).toBe(true)
+      scene.installSpeakers(source);expect(scene.speakersReady).toBe(true)
       const objects=(name:string)=>{const found:import('three').Object3D[]=[];root.traverse(o=>{if(o.name===name)found.push(o)});return found}
       scene.apply(DEFAULT_OVERDRIVE_LOOK,null,'high',16/9)
       root.updateMatrixWorld(true)
       const arms=objects('overdrive-acoustic-assembly')
       const pulses=objects('overdrive-speaker-pulse')
       expect(arms).toHaveLength(10);expect(pulses).toHaveLength(10)
-      expect(pulses.map(p=>p.children[0]!.name)).toEqual(Array.from({length:10},(_,i)=>`overdrive-speaker-${i%2+1}`))
+      expect(pulses.map(p=>p.children[0]!.name)).toEqual(Array(10).fill('overdrive-speaker'))
       expect(objects('overdrive-recessed-diaphragm')).toHaveLength(0)
-      pulses.forEach((pulse,index)=>pulse.traverse(o=>{const mesh=o as import('three').Mesh;if(mesh.isMesh){expect(mesh.geometry).toBe(index%2?g2:g1);expect(mesh.material).toBe(index%2?material2:material1)}}))
+      expect(new Set(pulses.map(p=>p.children[0])).size).toBe(10)
+      pulses.forEach(pulse=>pulse.traverse(o=>{const mesh=o as import('three').Mesh;if(mesh.isMesh){expect(mesh.geometry).toBe(g);expect(mesh.material).toBe(material)}}))
       const rest=pulses[0]!.position.z
       scene.apply({...DEFAULT_OVERDRIVE_LOOK,kick:1},null,'high',16/9)
       expect(pulses[0]!.position.z).toBeGreaterThan(rest)
       scene.apply({...DEFAULT_OVERDRIVE_LOOK,motion:0,kick:1},null,'high',16/9)
       expect(pulses[0]!.position.z).toBe(0)
-      const authored=material1.color.clone()
+      const authored=material.color.clone()
       scene.apply({...DEFAULT_OVERDRIVE_LOOK,pose:OVERDRIVE_POSES.blackout},null,'high',16/9)
-      expect(material1.color.r).toBeLessThan(authored.r)
+      expect(material.color.r).toBeLessThan(authored.r)
       scene.apply(DEFAULT_OVERDRIVE_LOOK,null,'high',16/9)
-      expect(material1.color.toArray()).toEqual(authored.toArray())
+      expect(material.color.toArray()).toEqual(authored.toArray())
       expect(arms[0]!.position.z).toBeCloseTo(OVERDRIVE_FOREGROUND_Z,1)
       expect(objects('overdrive-core-rib')).toHaveLength(OVERDRIVE_RIB_COUNT)
       const core=objects('overdrive-led-surface')[0]!
@@ -109,7 +109,7 @@ describe('OVERDRIVE',()=>{
       scene.apply(DEFAULT_OVERDRIVE_LOOK,null,'low',32/9);root.updateMatrixWorld(true)
       expect(core.getWorldScale(new THREE.Vector3()).toArray()).toEqual(before)
     }finally{scene.dispose()}
-    scene.dispose();expect(disposals).toBe(2);expect(root.children).toHaveLength(0)
+    scene.dispose();expect(disposals).toBe(1);expect(root.children).toHaveLength(0)
   })
   it('honors manual pattern edits and resets phase on timeline revisions',()=>{
     const perf=new Cinema2OverdrivePerformance(i=>(i%7)/7)

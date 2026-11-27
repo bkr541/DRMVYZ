@@ -3,7 +3,7 @@ import type { Cinema2Color } from '../../contracts/Cinema2NativePresetManifest'
 import type { Cinema2ManagedMediaResource } from '../../media/Cinema2MediaSlotRuntime'
 import type { Cinema2ThreeLibrary } from '../three/Cinema2ThreeLibrary'
 import { disposeObject } from '../three/Cinema2ThreeAssetCache'
-import { loadOverdriveSpeakerModels, normalizeOverdriveSpeaker, type OverdriveSpeakerModels } from './OverdriveSpeakers'
+import { loadOverdriveSpeakerModel, normalizeOverdriveSpeaker } from './OverdriveSpeakers'
 
 export const OVERDRIVE_COLORS = {
   background: [.006,.009,.018,1], metal: [.040,.049,.069,1], titanium: [.30,.33,.40,1], carbon: [.035,.041,.056,1],
@@ -123,10 +123,10 @@ export class OverdriveScene {
   private lastText=''
   private lastDetail=-1
   private readonly speakerAbort = new AbortController()
-  private speakerSources: OverdriveSpeakerModels|null=null
+  private speakerSource: Three.Object3D|null=null
   private readonly speakerMaterials = new Map<Three.MeshStandardMaterial,{color:Three.Color;emissiveIntensity:number}>()
   private disposed=false
-  get speakersReady(){return this.speakerSources!==null}
+  get speakersReady(){return this.speakerSource!==null}
   private readonly weave: Three.DataTexture
   constructor(private readonly library:Cinema2ThreeLibrary,merge:Merge,root:Three.Object3D) {
     const T=library.THREE; this.group=new T.Group();root.add(this.group);
@@ -263,12 +263,12 @@ export class OverdriveScene {
     this.accent=new T.PointLight(0xffffff,0,7,2);this.accent.position.set(0,-4,4.0);
     this.fill=new T.HemisphereLight(0xbfc8e2,0x11121c,0);this.group.add(this.key,this.rim,this.spill,this.accent,this.fill);
   }
-  /** Ownership of both sources transfers here, including on failure or late completion. */
-  installSpeakers(sources:OverdriveSpeakerModels){
-    if(this.disposed||this.speakerSources){sources.forEach(disposeObject);return;}
+  /** Ownership of the source transfers here, including on failure or late completion. */
+  installSpeakers(source:Three.Object3D){
+    if(this.disposed||this.speakerSource){if(source!==this.speakerSource)disposeObject(source);return;}
     try {
-      const models=[normalizeOverdriveSpeaker(this.library.THREE,sources[0],0),normalizeOverdriveSpeaker(this.library.THREE,sources[1],1)] as const;
-      for(const model of models)model.traverse(object=>{
+      const model=normalizeOverdriveSpeaker(this.library.THREE,source);
+      model.traverse(object=>{
         const mesh=object as Three.Mesh;
         if(!mesh.isMesh)return;
         for(const material of Array.isArray(mesh.material)?mesh.material:[mesh.material]){
@@ -276,16 +276,16 @@ export class OverdriveScene {
           if(standard.isMeshStandardMaterial&&!this.speakerMaterials.has(standard))this.speakerMaterials.set(standard,{color:standard.color.clone(),emissiveIntensity:standard.emissiveIntensity});
         }
       });
-      // A, B, A, B ... around the full ten-position ring. Clone the hierarchy,
-      // not GPU resources; the existing pulse parent still carries kick/bass motion.
-      this.assemblies.forEach((assembly,index)=>assembly.cone.add(models[index%2===0?0:1].clone(true)));
-      this.speakerSources=sources;
+      // Identical drivers across the complete ring; each retains independent
+      // transform motion but all share the one imported geometry/material set.
+      this.assemblies.forEach(assembly=>assembly.cone.add(model.clone(true)));
+      this.speakerSource=source;
     } catch(error) {
-      this.assemblies.forEach(assembly=>assembly.cone.clear());this.speakerMaterials.clear();sources.forEach(disposeObject);throw error;
+      this.assemblies.forEach(assembly=>assembly.cone.clear());this.speakerMaterials.clear();disposeObject(source);throw error;
     }
   }
   async loadSpeakers(){
-    try {this.installSpeakers(await loadOverdriveSpeakerModels(this.library,this.speakerAbort.signal));}
+    try {this.installSpeakers(await loadOverdriveSpeakerModel(this.library,this.speakerAbort.signal));}
     catch(error){if(!this.disposed)throw error;}
   }
   private updateText(text:string){if(text===this.lastText)return;this.lastText=text; if(typeof document==='undefined')return;const canvas=document.createElement('canvas');canvas.width=512;canvas.height=128;const c=canvas.getContext('2d');if(!c)return;c.fillStyle='#000';c.fillRect(0,0,512,128);c.font='bold 86px sans-serif';c.textAlign='center';c.textBaseline='middle';c.fillStyle='#fff';c.fillText(text.slice(0,40),256,64,490);const d=c.getImageData(0,0,512,128).data;const out=this.textTexture.image.data as Uint8Array;for(let y=0;y<128;y++)out.set(d.subarray(y*2048,(y+1)*2048),(127-y)*2048);this.textTexture.needsUpdate=true;}
@@ -326,5 +326,5 @@ export class OverdriveScene {
     color(this.accent.color,l.colors.accent);this.accent.intensity=(5+12*l.snare)*l.key*gain;
     this.media=media;const u=this.screen.uniforms;u.uMode.value=l.mode==='text'?2:l.mode==='waveform'?1:(l.mode==='media'||l.mode==='pool')&&media?3:0;u.uStyle.value=l.style==='raster'?1:l.style==='color'?2:0;u.uGain.value=l.brightness*gain*(3.0+l.beat*.65+l.energy*.5+l.vocal*.15);u.uMediaGain.value=overdriveFullColorGain(l);color(u.uColor.value,l.colors.core);u.uPhase.value=l.phase;u.uBass.value=l.bass;u.uAspect.value=media?media.width/Math.max(1,media.height):l.mode==='text'?4:1;u.uScale.value=l.mediaScale;u.uAngle.value=l.mediaRotation*Math.PI/180;if(l.mode==='text')this.updateText(l.text);
   }
-  dispose(){if(this.disposed)return;this.disposed=true;this.speakerAbort.abort();this.speakerSources?.forEach(disposeObject);this.speakerSources=null;this.speakerMaterials.clear();this.assemblies.forEach(assembly=>assembly.cone.clear());this.renderer?.properties.remove(this.mediaTexture);this.mediaTexture.dispose();this.textTexture.dispose();this.weave.dispose();this.brushed.dispose();this.geometries.forEach(g=>g.dispose());this.materials.forEach(m=>m.dispose());this.group.removeFromParent();}
+  dispose(){if(this.disposed)return;this.disposed=true;this.speakerAbort.abort();if(this.speakerSource)disposeObject(this.speakerSource);this.speakerSource=null;this.speakerMaterials.clear();this.assemblies.forEach(assembly=>assembly.cone.clear());this.renderer?.properties.remove(this.mediaTexture);this.mediaTexture.dispose();this.textTexture.dispose();this.weave.dispose();this.brushed.dispose();this.geometries.forEach(g=>g.dispose());this.materials.forEach(m=>m.dispose());this.group.removeFromParent();}
 }
