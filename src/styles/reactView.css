@@ -10993,6 +10993,13 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   padding: 10px;
 }
 
+/* Cinema 2.0's fixed-height media listing can extend below the Source rail.
+   At either scroll boundary, let vertical wheel/trackpad scrolling continue
+   into the enclosing workspace so the final rows remain reachable. */
+.rv-canvas-engine-panel[data-cinema2-media-source="slots"] .vz-media-scroll {
+  overscroll-behavior-y: auto;
+}
+
 /* The name/meta/tags stack below the thumbnail carries its own bottom
    padding plus a margin-top on both the meta line and the tag row — three
    stacked gaps that add up to real height per card. Tighten them so cards
