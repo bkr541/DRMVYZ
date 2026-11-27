@@ -21,7 +21,7 @@ import { cinema2NeonForestNativeModuleDefinition } from './Cinema2NeonForestNati
 import { cinema2OrbitalNativeModuleDefinition } from './Cinema2OrbitalNativeModule'
 import { cinema2SubmergeNativeModuleDefinition } from './Cinema2SubmergeNativeModule'
 import { cinema2LivewireNativeModuleDefinition } from './Cinema2LivewireNativeModule'
-import { cinema2CorridorNativeModuleDefinition } from './Cinema2CorridorNativeModule'
+import { cinema2CorridorNativeModuleDefinition, cinema2GoonzCorridorNativeModuleDefinition } from './Cinema2CorridorNativeModule'
 import { cinema2OverdriveNativeModuleDefinition } from './Cinema2OverdriveNativeModule'
 import { cinema2EverywhereNativeModuleDefinition } from './Cinema2EverywhereNativeModule'
 import { cinema2PsyloNativeModuleDefinition } from './Cinema2PsyloNativeModule'
@@ -216,6 +216,8 @@ if (!submergeRegistration.ok) throw new Error('Cinema 2.0 SUBMERGE module regist
 const livewireRegistration = cinema2NativeModuleRegistry.register(cinema2LivewireNativeModuleDefinition)
 const corridorRegistration = cinema2NativeModuleRegistry.register(cinema2CorridorNativeModuleDefinition)
 if (!corridorRegistration.ok) throw new Error('Cinema 2.0 Corridor module registration failed.')
+const goonzCorridorRegistration = cinema2NativeModuleRegistry.register(cinema2GoonzCorridorNativeModuleDefinition)
+if (!goonzCorridorRegistration.ok) throw new Error('Cinema 2.0 GOONZ CORRIDOR module registration failed.')
 const everywhereRegistration = cinema2NativeModuleRegistry.register(cinema2EverywhereNativeModuleDefinition)
 if (!everywhereRegistration.ok) throw new Error('Cinema 2.0 EVERYWHERE module registration failed.')
 if (!livewireRegistration.ok) throw new Error('Cinema 2.0 LIVEWIRE module registration failed.')

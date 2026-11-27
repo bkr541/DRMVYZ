@@ -9,6 +9,7 @@ import { Cinema2CorridorRenderer, CORRIDOR_PATTERNS, type CorridorLook, type Cor
 import { Cinema2MainframePatternController, createCinema2MainframePatternCycle } from './mainframe/Cinema2MainframePatternController'
 
 export const CINEMA2_CORRIDOR_MODULE_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('corridor-native')
+export const CINEMA2_GOONZ_CORRIDOR_MODULE_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('goonz-corridor-native')
 export const CORRIDOR_COLORS: Pick<CorridorLook, 'voidColor' | 'wall' | 'amber' | 'hot' | 'markings'> = {
   voidColor: [0.002, 0.0016, 0.00135, 1],
   wall: [0.106, 0.086, 0.067, 1],
@@ -158,45 +159,50 @@ export class Cinema2CorridorPerformance {
   }
 }
 
-export const cinema2CorridorNativeModuleDefinition: Readonly<Cinema2ModuleTypeDefinition> = {
-  typeId: CINEMA2_CORRIDOR_MODULE_TYPE_ID,
-  version: 1,
-  create(context: Cinema2ModuleCreateContext) {
-    const performance = new Cinema2CorridorPerformance(index => context.randomness.sample('corridor-pattern-cycle', index))
-    const renderer = context.resources.acquire('corridor:cassettes', 'CorridorRenderer', gl => new Cinema2CorridorRenderer(gl), value => value.dispose())
-    const source = context.mediaPoolSource
-    // Reuse the existing three-channel named-pool runtime in an isolated lease.
-    const pool = source ? context.resources.acquire('corridor:pool', 'CorridorMediaPool', gl =>
-      new Cinema2EverywherePool(source, new Cinema2MediaSlotRuntime(gl, EVERYWHERE_POOL_SLOTS)), value => value.dispose()) : null
-    let reportedBytes = renderer.bytes
-    context.resources.reportGpuBytes(reportedBytes)
-    let look = DEFAULT_LOOK
-    return {
-      lifecycle: {
-        update: (frame: Cinema2ModuleUpdateContext) => {
-          look = performance.update(frame)
-          const { identity, event, reset, paused, patternChanged } = performance.poolFrame
-          pool?.update(identity, event, reset, paused, patternChanged)
-        },
-        dispose: () => { /* GPU resources are released by the engine-owned lease. */ },
+function createCorridorModuleDefinition(squareCassettes: boolean): Readonly<Cinema2ModuleTypeDefinition> {
+  return {
+    typeId: squareCassettes ? CINEMA2_GOONZ_CORRIDOR_MODULE_TYPE_ID : CINEMA2_CORRIDOR_MODULE_TYPE_ID,
+    version: 1,
+    create(context: Cinema2ModuleCreateContext) {
+      const performance = new Cinema2CorridorPerformance(index => context.randomness.sample('corridor-pattern-cycle', index))
+      const renderer = context.resources.acquire(squareCassettes ? 'goonz-corridor:cassettes' : 'corridor:cassettes', 'CorridorRenderer', gl => new Cinema2CorridorRenderer(gl, squareCassettes), value => value.dispose())
+      const source = context.mediaPoolSource
+      // Reuse the existing three-channel named-pool runtime in an isolated lease.
+      const pool = source ? context.resources.acquire(squareCassettes ? 'goonz-corridor:pool' : 'corridor:pool', 'CorridorMediaPool', gl =>
+        new Cinema2EverywherePool(source, new Cinema2MediaSlotRuntime(gl, EVERYWHERE_POOL_SLOTS)), value => value.dispose()) : null
+      let reportedBytes = renderer.bytes
+      context.resources.reportGpuBytes(reportedBytes)
+      let look = DEFAULT_LOOK
+      return {
+        lifecycle: {
+          update: (frame: Cinema2ModuleUpdateContext) => {
+            look = performance.update(frame)
+            const { identity, event, reset, paused, patternChanged } = performance.poolFrame
+            pool?.update(identity, event, reset, paused, patternChanged)
+          },
+          dispose: () => { /* GPU resources are released by the engine-owned lease. */ },
 
-      },
-      render: { providers: [{
-        id: `${context.module.id}:passage`,
-        moduleId: context.module.id,
-        intent: 'world' as const,
-        execute: (execution: Cinema2ModuleRenderExecutionContext) => {
-          const poolFeeds = pool?.getResources() ?? []
-          const usePool = source?.getSelection() != null
-          // An active pool takes precedence, including while its feeds load.
-          const feeds = usePool ? poolFeeds.slice(0, Math.min(3, pool?.count ?? 0)) : [context.media.get('panelMedia')]
-          renderer.draw(execution, look, feeds, usePool ? pool?.step ?? 0 : 0)
-          const bytes = renderer.bytes + poolFeeds.reduce((sum, feed) => sum + (feed ? feed.width * feed.height * 4 : 0), 0)
-          if (bytes !== reportedBytes) { context.resources.reportGpuBytes(bytes); reportedBytes = bytes }
         },
-      }] },
-      inspect: () => ({ ...performance.inspect(), userMedia: context.media.get('panelMedia') != null,
-        poolMediaCount: pool?.count ?? 0, poolStep: pool?.step ?? 0, poolReadyChannels: pool?.getResources().filter(Boolean).length ?? 0 }),
-    }
-  },
+        render: { providers: [{
+          id: `${context.module.id}:passage`,
+          moduleId: context.module.id,
+          intent: 'world' as const,
+          execute: (execution: Cinema2ModuleRenderExecutionContext) => {
+            const poolFeeds = pool?.getResources() ?? []
+            const usePool = source?.getSelection() != null
+            // An active pool takes precedence, including while its feeds load.
+            const feeds = usePool ? poolFeeds.slice(0, Math.min(3, pool?.count ?? 0)) : [context.media.get('panelMedia')]
+            renderer.draw(execution, look, feeds, usePool ? pool?.step ?? 0 : 0)
+            const bytes = renderer.bytes + poolFeeds.reduce((sum, feed) => sum + (feed ? feed.width * feed.height * 4 : 0), 0)
+            if (bytes !== reportedBytes) { context.resources.reportGpuBytes(bytes); reportedBytes = bytes }
+          },
+        }] },
+        inspect: () => ({ ...performance.inspect(), userMedia: context.media.get('panelMedia') != null,
+          poolMediaCount: pool?.count ?? 0, poolStep: pool?.step ?? 0, poolReadyChannels: pool?.getResources().filter(Boolean).length ?? 0 }),
+      }
+    },
+  }
 }
+
+export const cinema2CorridorNativeModuleDefinition = createCorridorModuleDefinition(false)
+export const cinema2GoonzCorridorNativeModuleDefinition = createCorridorModuleDefinition(true)

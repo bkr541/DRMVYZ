@@ -33,3 +33,20 @@ describe('preset scope', () => {
     expect(['drmvyz.cinema2.go-to', 'drmvyz.cinema2.reliquary', 'drmvyz.cinema2.afterhours'].map(user)).toEqual([true, false, false])
   })
 })
+
+
+describe('GOONZ CORRIDOR ownership', () => {
+  const key = 'drmvyz.cinema2.goonz-corridor'
+  const entry = { id: 'goonz', engine_id: 'cinema2', preset_key: key, scope: 'user' as const }
+  it('never falls through to SYSTEM when the migration or catalog is missing', () => {
+    expect(resolvePresetScope(EMPTY_PRESET_CATALOG, 'cinema2', key)).toBe('hidden')
+    expect(resolvePresetScope({ entries: [{ ...entry, scope: 'system' }], heldPresetIds: ['goonz'] }, 'cinema2', key)).toBe('hidden')
+  })
+  it('appears only under USER for the holder', () => {
+    const held = { entries: [entry], heldPresetIds: ['goonz'] }
+    expect(createPresetScopeFilter(held, 'cinema2', 'user')(key)).toBe(true)
+    expect(createPresetScopeFilter(held, 'cinema2', 'system')(key)).toBe(false)
+    expect(resolvePresetScope({ ...held, heldPresetIds: [] }, 'cinema2', key)).toBe('hidden')
+    expect(resolvePresetScope(held, 'cinema2', 'drmvyz.cinema2.corridor')).toBe('system')
+  })
+})

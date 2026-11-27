@@ -1,0 +1,15 @@
+# GOONZ CORRIDOR
+
+A private Cinema 2.0 variant of Corridor, with its own preset ID `drmvyz.cinema2.goonz-corridor` and native module type. The original Corridor remains on the original four-lane mesh and shader branch. The variant inherits the original camera, six patterns, media slot and pool cadence, all four Inspector groups, BPM Sync, Auto Performance, audio/Director choreography and post effects. The standard workspace keys saved values and media assignments by preset ID.
+
+## Layout and material
+
+The variant keeps the original 12 recycled depth bays and continuous four-sided backing. Each bank/bay has either one centered large square or two smaller staggered squares, determined by world bay and bank, never by playback time. The physical casing side is 0.64–0.73 of the corridor half-width for pairs and 0.96–1.24 for singles, capped at 2.60 world units to maintain depth gaps. Both axes use the same world-space side length, even when Corridor Width changes. The original theoretical minimum casing width is 0.27018 of the half-width, so the variant minimum is more than twice that; its face and illuminated aperture are also at least twice the original minimum short side. At the default half-width of 2.35, casing sides range from 1.504 to 2.60 units versus an original theoretical minimum of 0.635.
+
+Every cassette has a telescoping mount, rigid body, wide machined steel shoulder, beveled lip, recessed LED strip and square diffuser/media opening. Corner and depth gaps remain clear at maximum extension. The native media fitting remains contain, with a 1:1 physical aspect. The mesh allocates at most 96 cassette slots rather than 192, using a single draw call and the same post graph.
+
+## Installation and acceptance
+
+1. Apply the patch from the repository root. Apply Supabase migration `0062_goonz_corridor_user_preset.sql` to the configured project (`supabase db push` for a linked project, or execute the migration SQL in the project's SQL Editor). It follows the existing oldest-profile owner convention from 0040 and 0041; verify the owner profile is correct before applying. The user-scope catalog row and holding are required for the USER tab. Missing catalog data fails closed for this preset. This follows the existing bundled user-preset model, not an independently downloadable or encrypted asset.
+2. Restart Studio, sign in as the owner, open Cinema 2.0 > Presets > USER and load GOONZ CORRIDOR. Search for GOONZ in that tab. Confirm the original Corridor is still under SYSTEM (unless its catalog scope was independently changed).
+3. Run `npx vitest run src/components/vyzualz/cinema2/__tests__/Cinema2GoonzCorridorPreset.test.ts src/components/vyzualz/cinema2/__tests__/Cinema2CorridorPreset.test.ts src/features/presetCatalog/presetScope.test.ts`. Review all six patterns, minimum/default/maximum width, idle and drop states, pause/seek, media fitting and cast output in Studio. Confirm the new preset does not appear under SYSTEM or under USER for a non-holder. Capture a new production thumbnail after visual review; do not reuse Corridor artwork as if it depicted the new geometry.

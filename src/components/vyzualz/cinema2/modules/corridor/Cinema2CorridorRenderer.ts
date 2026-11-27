@@ -8,6 +8,12 @@ import { Cinema2GlStateGuard } from '../three/Cinema2GlStateGuard'
 export const CORRIDOR_BAY_LENGTH = 2.8
 const BAY_COUNT = 12
 const LANES = 4
+const GOONZ_LANES = 2
+// Outer casing side in units of corridor half-width. The original minimum
+// is .95 * .72 * (2 * BANK_SPAN / 4) = .27018; even the lit aperture doubles.
+export const GOONZ_MIN_SIDE = .64
+export const GOONZ_MAX_PAIR_SIDE = .73
+export const GOONZ_MAX_AXIAL_SIDE = 2.60
 export const CORRIDOR_MAX_INSET = 0.19
 export const CORRIDOR_BANK_SPAN = 0.79
 
@@ -44,6 +50,22 @@ export interface CorridorLook {
   markings: Cinema2Color
 }
 
+const GOONZ_LAYOUT_GLSL = `
+#ifdef GOONZ_LAYOUT
+// Recycled bays use world coordinates, so neither size nor position changes
+// when a bay is recycled or an audio event changes its lighting.
+float goonzLaneCount(float row, float bank) {
+  return hash(vec2(row,bank)+vec2(53.7,21.9)) < .34 ? 1.0 : 2.0;
+}
+float goonzSide(float row, float bank, float lane, float width) {
+  float r = hash(vec2(row,bank*13.5+lane)+vec2(74.1,39.2));
+  float side = goonzLaneCount(row,bank) < 1.5
+    ? mix(.96,1.24,r) : mix(${GOONZ_MIN_SIDE},${GOONZ_MAX_PAIR_SIDE},r);
+  return min(side*width,${GOONZ_MAX_AXIAL_SIDE});
+}
+#endif
+`
+
 const VERTEX = `#version 300 es
 precision highp float;
 layout(location=0) in vec3 aTile; // across the wall, depth along the bay, housing depth fraction
@@ -68,6 +90,8 @@ float hash(vec2 p) {
   return fract((q.x + q.y) * q.z);
 }
 
+${GOONZ_LAYOUT_GLSL}
+
 void main() {
   float bank = aCell.x;
   float row = mod(aCell.y + uLook.x,4096.0);
@@ -89,11 +113,32 @@ void main() {
     float extension = min(${CORRIDOR_MAX_INSET}-thickness,mix(.010,.035,detail)+bass+kick+build);
     // A rigid cassette translates inward; only its narrower mounting piston stretches.
     depth = aPart.x > 4.5 ? aTile.z * extension : extension + aTile.z * thickness;
+#ifdef GOONZ_LAYOUT
+    float count = goonzLaneCount(row,bank);
+    if (aCell.z >= count) {
+      // Keep the continuous backing, but degenerate the unused cassette.
+      gl_Position = vec4(2.0,2.0,2.0,1.0);
+      vUV = aUV; vPosition = vec3(0.0); vDepth = 0.0;
+      vCell = aCell; vPart = aPart;
+      return;
+    }
+    float side = goonzSide(row,bank,aCell.z,uPose.w);
+    float center = count < 1.5 ? 0.0 : (aCell.z-.5)*${CORRIDOR_BANK_SPAN};
+    // Stagger the modules within the free space, preserving the corner gutter
+    // at maximum piston extension and a gap between consecutive depth bays.
+    float margin = max(0.0,(${CORRIDOR_BAY_LENGTH}-side)*.5-.055);
+    float stagger = (hash(id+92.1)*2.0-1.0)*margin*.85;
+    // Both dimensions use the same physical length. .95 is the outer foot's
+    // UV extent; inner lips, strips and face inherit exactly the same scale.
+    across = center + (aUV.x-.5)*side/(.95*uPose.w);
+    axial = .5 + (stagger+(aUV.y-.5)*side/.95)/${CORRIDOR_BAY_LENGTH};
+#else
     // Reserve a corner gutter: at maximum extension adjacent banks cannot intersect.
     // Uniformly space all four lanes within the gutter, varying actual fixture dimensions.
     float center = (aCell.z + .5) * 2.0 / ${LANES}.0 - 1.0;
     across = ${CORRIDOR_BANK_SPAN} * (center + (aTile.x-center)*mix(.72,1.0,random));
     axial = .5 + (aTile.y-.5)*mix(.66,1.0,detail);
+#endif
   }
   vec2 p = vec2(across, 1.0 - depth);
   if (bank < 0.5) p = vec2(-p.y, p.x);
@@ -142,6 +187,8 @@ float hash(vec2 p) {
   q += dot(q, q.yzx + 33.33);
   return fract((q.x + q.y) * q.z);
 }
+${GOONZ_LAYOUT_GLSL}
+
 float boxSdf(vec2 p, vec2 size, float corner) {
   vec2 d = abs(p) - size + corner;
   return min(max(d.x,d.y),0.0) + length(max(d,0.0)) - corner;
@@ -165,7 +212,11 @@ float selection(float row, float bank, float lane, float random, float density) 
   }
   if (uPattern == 3) {
     float overhead = mod(bank,2.0);
+#ifdef GOONZ_LAYOUT
+    float laneLight = 1.0;
+#else
     float laneLight = 1.0 - smoothstep(.47, 1.42, abs(lane - 1.5));
+#endif
     return mix(strength*.24, laneLight*(0.48+.52*cos(row*.83-phase*2.9)*cos(row*.83-phase*2.9)), overhead);
   }
   if (uPattern == 4) {
@@ -186,6 +237,17 @@ float selection(float row, float bank, float lane, float random, float density) 
 // 2 = dedicated display (full diffuser aperture, recessed LED still active).
 float mediaRole(float row, float bank, float lane) {
   float parity = mod(row,2.0);
+#ifdef GOONZ_LAYOUT
+  float count = goonzLaneCount(row,bank);
+  float selected = mod(row+bank,count);
+  // Preserve each pattern's spatial media intent with one or two real lanes.
+  if (uPattern == 1) return lane == selected ? 1.0+mod(row+bank+1.0,2.0) : 0.0;
+  if (uPattern == 2) return bank == parity*2.0 ? (lane == selected ? 2.0 : 1.0) : (mod(bank,2.0)==1.0 && lane==selected ? 1.0 : 0.0);
+  if (uPattern == 3) return mod(bank,2.0)==1.0 ? (lane==selected ? 2.0 : 1.0) : 0.0;
+  if (uPattern == 4) return mod(bank,2.0)==parity ? (lane==selected ? 2.0 : 1.0) : 0.0;
+  if (uPattern == 5) return parity==1.0 ? (lane==selected ? 2.0 : 1.0) : 0.0;
+  return lane == selected && mod(row+bank,3.0)!=0.0 ? 2.0-mod(row+bank,2.0) : 0.0;
+#else
   if (uPattern == 1) { // diagonal relay, full display heads / hybrid tails
     return lane == mod(row+bank,4.0) ? 1.0+mod(row+bank+1.0,2.0) : 0.0;
   }
@@ -209,6 +271,7 @@ float mediaRole(float row, float bank, float lane) {
     return lane == 1.0 ? 2.0 : (lane == 2.0 ? 1.0 : 0.0);
   }
   return lane == mod(row+3.0*bank,4.0) ? 2.0-mod(row+bank,2.0) : 0.0;
+#endif
 }
 
 vec4 mediaPicture(float bank, float random, float detail, int channel, float aperture) {
@@ -217,8 +280,14 @@ vec4 mediaPicture(float bank, float random, float detail, int channel, float ape
   // The four banks have different local orientations. Keep artwork upright
   // relative to the vanishing point, using the actual physical face aspect.
   vec2 uv = (vUV-.5)/(2.0*aperture)+.5;
+#ifdef GOONZ_LAYOUT
+  // Square aperture, regardless of corridor width.
+  float across = 1.0;
+  float axial = 1.0;
+#else
   float across = uCorridorWidth * ${CORRIDOR_BANK_SPAN} * 2.0 / ${LANES}.0 * mix(.72,1.0,random);
   float axial = ${CORRIDOR_BAY_LENGTH} * mix(.66,1.0,detail);
+#endif
   float screenAspect = across / axial;
   if (bank < .5) { uv = vec2(uv.y,1.0-uv.x); screenAspect = 1.0/screenAspect; }
   else if (bank < 1.5) uv = vec2(uv.x,uv.y);
@@ -274,8 +343,19 @@ vec3 neighborLight(float row, float bank, float lane, float edgeIndex, float bay
   else if (edgeIndex < 1.5) { lane += 1.0; }
   else if (edgeIndex < 2.5) { row += 1.0; bayCenter += ${CORRIDOR_BAY_LENGTH}; }
   else { lane -= 1.0; }
+#ifdef GOONZ_LAYOUT
+  row = mod(row,4096.0);
+  if (edgeIndex < .5 || (edgeIndex > 1.5 && edgeIndex < 2.5)) {
+    lane = min(lane,goonzLaneCount(row,bank)-1.0);
+  } else if (lane < 0.0) {
+    bank = mod(bank+3.0,4.0); lane = goonzLaneCount(row,bank)-1.0;
+  } else if (lane >= goonzLaneCount(row,bank)) {
+    lane = 0.0; bank = mod(bank+1.0,4.0);
+  }
+#else
   if (lane < 0.0) { lane = ${LANES-1}.0; bank = mod(bank+3.0,4.0); }
   if (lane >= ${LANES}.0) { lane = 0.0; bank = mod(bank+1.0,4.0); }
+#endif
   vec2 id = vec2(mod(row,4096.0),bank*13.5+lane);
   float level = panelLevel(id.x,bank,lane,hash(id+1.3),max(0.0,bayCenter),bayCenter);
   return panelColor(hash(id+31.5),0.0) * smoothstep(.18,.34,level) * min(1.0,level);
@@ -283,6 +363,9 @@ vec3 neighborLight(float row, float bank, float lane, float edgeIndex, float bay
 
 void main() {
   float bank = vCell.x, row = mod(vCell.y + uLook.x,4096.0), lane = vCell.z;
+#ifdef GOONZ_LAYOUT
+  lane = min(lane,goonzLaneCount(row,bank)-1.0);
+#endif
   vec2 id = vec2(row,bank*13.5+lane);
   float random = hash(id + 1.3);
   float detail = hash(id + 31.5);
@@ -294,7 +377,12 @@ void main() {
   float ring = uAccents.w * exp(-pow((bayCenter / ${CORRIDOR_BAY_LENGTH} - ringDepth) / .54,2.0));
   float fixture = smoothstep(.18,.34,level);
   vec2 local = vUV - .5;
-  vec2 size = vec2(.365,.365);
+#ifdef GOONZ_LAYOUT
+  const float fullAperture = .32;
+#else
+  const float fullAperture = .365;
+#endif
+  vec2 size = vec2(fullAperture);
   float lamp = boxSdf(local,size,.014);
   float aa = max(fwidth(lamp),.0008);
   float diffuser = 1.0-smoothstep(-aa,aa,lamp);
@@ -321,6 +409,12 @@ void main() {
     if (vPart.x > 4.5) facing *= .55;
     float bevel = 1.0-step(.5,abs(vPart.x-2.0));
     metal = uWall * (.24 + .24*brushed + .18*shoulder + .44*bevel) * facing;
+#ifdef GOONZ_LAYOUT
+    // Broad brushed steel shoulders remain legible even with lamps off.
+    vec3 steel = mix(uWall,vec3(.29,.32,.35),.68);
+    float machining = .5+.5*sin(vUV.x*480.0+vUV.y*35.0);
+    metal = steel * (.25+.16*brushed+.12*machining+.23*shoulder+.70*bevel) * facing;
+#endif
     metal += (neighbor * (.22+.17*bevel) + lampColor * fixture * (.09+.11*bevel))
       * uLook.w * (.40+.60*shoulder) * facing;
   } else if (vPart.x < 3.5) {
@@ -331,6 +425,12 @@ void main() {
     float edge = exp(-abs(lamp-.016)*42.0) * fixture;
     metal = uWall * (.28 + .12*brushed + .18*spill);
     metal += lampColor * (edge*.19+spill*.045) * uLook.w;
+#ifdef GOONZ_LAYOUT
+    vec3 steel = mix(uWall,vec3(.29,.32,.35),.68);
+    float border = 1.0-diffuser;
+    float machining = .5+.5*sin(vUV.x*480.0+vUV.y*35.0);
+    metal = mix(metal,steel*(.42+.24*brushed+.12*machining)+lampColor*edge*.12*uLook.w,border);
+#endif
     float warmGrain = (1.0-smoothstep(.21,.48,length(local))) * .14 + stipple;
     emission = lampColor * diffuser * fixture * min(5.5,(.50+2.95*level)*uLook.w) * warmGrain;
     if (uFeedCount > 0 && diffuser > .001) {
@@ -340,12 +440,12 @@ void main() {
         // The drop brings forward a cluster of existing hybrid screens without
         // swapping their identity, decoder or image. Dedicated screens hold.
         float hero = clamp(uAccents.w,0.0,1.0) * (1.0-smoothstep(5.0,12.0,bayCenter));
-        float aperture = role > 1.5 ? .365 : mix(.285,.365,hero);
+        float aperture = role > 1.5 ? fullAperture : mix(fullAperture-.080,fullAperture,hero);
         // Relay opens the hybrid surround in a directional wave. Contain the
         // entire image in the changing aperture rather than crop or dim it.
         if (uPattern == 1 && role < 1.5) {
           float reveal = .5+.5*cos((row+bank*1.8-uLook.y*2.0)*.8976);
-          aperture = mix(aperture,.365,reveal*.75);
+          aperture = mix(aperture,fullAperture,reveal*.75);
         }
         float boundary = boxSdf(local,vec2(aperture),.014);
         float mediaMask = min(diffuser,1.0-smoothstep(-aa,aa,boundary));
@@ -378,11 +478,12 @@ void main() {
 // Static mesh: wall backing, telescoping housing, beveled lip, recessed LED channel,
 // and diffuser. Depth is animated in the vertex shader, with no per-frame buffer uploads.
 export const CORRIDOR_VERTEX_FLOATS = 10
-export function buildCorridorGeometry() {
+export function buildCorridorGeometry(squareCassettes = false) {
+  const lanes = squareCassettes ? GOONZ_LANES : LANES
   const data: number[] = []
   for (let bank = 0; bank < 4; bank++) {
     for (let bay = 0; bay < BAY_COUNT; bay++) {
-      for (let lane = 0; lane < LANES; lane++) {
+      for (let lane = 0; lane < lanes; lane++) {
         const rim = (border: number, depth: number) => [[border,border,depth],[1-border,border,depth],[1-border,1-border,depth],[border,1-border,depth]]
         const wall = rim(0,0)
         const pistonBase = rim(.17,0)
@@ -390,12 +491,12 @@ export function buildCorridorGeometry() {
         const rear = rim(.17,0)
         const foot = rim(.025,0)
         const shoulder = rim(.025,.80)
-        const lip = rim(.045,1)
-        const channelOuter = rim(.058,.84)
-        const channelInner = rim(.080,.84)
-        const face = rim(.098,.94)
+        const lip = rim(squareCassettes ? .085 : .045,1)
+        const channelOuter = rim(squareCassettes ? .105 : .058,.84)
+        const channelInner = rim(squareCassettes ? .130 : .080,.84)
+        const face = rim(squareCassettes ? .150 : .098,.94)
         const vertex = ([u,v,depth]: number[], part: number, side: number) =>
-          data.push((lane+u!)*2/LANES-1,v!,depth!,u!,v!,bank,bay,lane,part,side)
+          data.push((lane+u!)*2/lanes-1,v!,depth!,u!,v!,bank,bay,lane,part,side)
         const quad = (points: number[][], part: number) => {
           for (const index of [0,1,2,0,2,3]) vertex(points[index]!,part,0)
         }
@@ -420,6 +521,11 @@ export function buildCorridorGeometry() {
   return Float32Array.from(data)
 }
 
+// The original shader branch remains the default for the system Corridor.
+function corridorShaderVariant(source: string, squareCassettes: boolean): string {
+  return squareCassettes ? source.replace('#version 300 es', '#version 300 es\n#define GOONZ_LAYOUT 1') : source
+}
+
 export class Cinema2CorridorRenderer {
   private readonly vao: WebGLVertexArrayObject
   private readonly buffer: WebGLBuffer
@@ -429,9 +535,9 @@ export class Cinema2CorridorRenderer {
   private readonly count: number
   readonly bytes: number
 
-  constructor(private readonly gl: WebGL2RenderingContext) {
+  constructor(private readonly gl: WebGL2RenderingContext, private readonly squareCassettes = false) {
     this.guard = new Cinema2GlStateGuard(gl)
-    const data = buildCorridorGeometry()
+    const data = buildCorridorGeometry(squareCassettes)
     this.count = data.length / CORRIDOR_VERTEX_FLOATS
     this.bytes = data.byteLength + 4
     this.guard.capture()
@@ -447,8 +553,8 @@ export class Cinema2CorridorRenderer {
       gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array(4))
       this.emptyFeed = emptyFeed
       const compiled = ShaderProgram.create(gl, new ShaderCompiler(gl), {
-        vertSrc: VERTEX, fragSrc: FRAGMENT, label: 'cinema2/corridor',
-        requiredUniforms: ['uView', 'uProjection', 'uPose', 'uLook', 'uAccents', 'uMechanical', 'uTravel', 'uPattern', 'uHaze', 'uVoid', 'uWall', 'uAmber', 'uHot', 'uMarkings', 'uFeed0', 'uFeed1', 'uFeed2', 'uFeedAspect', 'uFeedCount', 'uPoolStep', 'uCorridorWidth'],
+        vertSrc: corridorShaderVariant(VERTEX, squareCassettes), fragSrc: corridorShaderVariant(FRAGMENT, squareCassettes), label: squareCassettes ? 'cinema2/goonz-corridor' : 'cinema2/corridor',
+        requiredUniforms: ['uView', 'uProjection', 'uPose', 'uLook', 'uAccents', 'uMechanical', 'uTravel', 'uPattern', 'uHaze', 'uVoid', 'uWall', 'uAmber', 'uHot', 'uMarkings', 'uFeed0', 'uFeed1', 'uFeed2', 'uFeedAspect', 'uFeedCount', 'uPoolStep', ...(squareCassettes ? [] : ['uCorridorWidth'])],
       })
       if (!compiled.program) throw new Error(compiled.error.log)
       this.program = compiled.program
@@ -506,7 +612,7 @@ export class Cinema2CorridorRenderer {
       program.setVec3('uFeedAspect',aspect(0),aspect(1),aspect(2))
       program.setInt('uFeedCount',Math.min(3,feeds.length))
       program.setFloat('uPoolStep',poolStep)
-      program.setFloat('uCorridorWidth',look.width)
+      if (!this.squareCassettes) program.setFloat('uCorridorWidth',look.width)
       for (let index = 0; index < 3; index++) {
         gl.activeTexture(gl.TEXTURE0 + index)
         gl.bindTexture(gl.TEXTURE_2D,feeds[index]?.texture ?? this.emptyFeed)

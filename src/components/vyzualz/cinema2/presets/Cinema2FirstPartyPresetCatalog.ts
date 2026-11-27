@@ -23,6 +23,7 @@ import { CINEMA2_ORBITAL_PRESET_MANIFEST } from './Cinema2OrbitalPreset'
 import { CINEMA2_SUBMERGE_PRESET_MANIFEST } from './Cinema2SubmergePreset'
 import { CINEMA2_LIVEWIRE_PRESET_MANIFEST } from './Cinema2LivewirePreset'
 import { CINEMA2_CORRIDOR_PRESET_MANIFEST } from './Cinema2CorridorPreset'
+import { CINEMA2_GOONZ_CORRIDOR_PRESET_MANIFEST } from './Cinema2GoonzCorridorPreset'
 import { CINEMA2_OVERDRIVE_PRESET_MANIFEST } from './Cinema2OverdrivePreset'
 import { CINEMA2_EVERYWHERE_PRESET_MANIFEST } from './Cinema2EverywherePreset'
 import { CINEMA2_PSYLO_PRESET_MANIFEST } from './Cinema2PsyloPreset'
@@ -105,6 +106,7 @@ const AUTHORED_PRESET_DECLARATIONS = Object.freeze([
   // Native production entry pending human visual acceptance.
   defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_LIVEWIRE_PRESET_MANIFEST }),
   defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_CORRIDOR_PRESET_MANIFEST }),
+  defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_GOONZ_CORRIDOR_PRESET_MANIFEST }),
   defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_EVERYWHERE_PRESET_MANIFEST }),
   defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_SPECTRUM_PRESET_MANIFEST }),
   defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_REFRACTION_PRESET_MANIFEST }),

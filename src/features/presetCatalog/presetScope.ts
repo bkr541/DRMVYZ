@@ -2,7 +2,7 @@
 //
 // The catalog (`presets`) only needs a row for a preset that is NOT public. A preset with no row, or a row whose scope is 'system', is a system
 // preset: shown to everyone under SYSTEM. A row with scope 'user' is private: it is shown under USER to the users who hold it (`user_presets`)
-// and is hidden from everyone else, including under SYSTEM. So a new preset added in code is a system preset with no database work.
+// and is hidden from everyone else, including under SYSTEM. Unless explicitly marked private in code, a new preset is a system preset with no database work.
 
 export type PresetScopeTab = 'system' | 'user'
 
@@ -26,6 +26,9 @@ export const EMPTY_PRESET_CATALOG: PresetCatalogSnapshot = { entries: [], heldPr
 
 export function resolvePresetScope(snapshot: PresetCatalogSnapshot, engineId: string, presetKey: string): ResolvedPresetScope {
   const entry = snapshot.entries.find(candidate => candidate.engine_id === engineId && candidate.preset_key === presetKey)
+  // GOONZ CORRIDOR is explicitly private. Do not accidentally expose it as
+  // SYSTEM while the catalog loads, is offline, or its migration is pending.
+  if (engineId === 'cinema2' && presetKey === 'drmvyz.cinema2.goonz-corridor' && entry?.scope !== 'user') return 'hidden'
   if (!entry || entry.scope === 'system') return 'system'
   return snapshot.heldPresetIds.includes(entry.id) ? 'user' : 'hidden'
 }
