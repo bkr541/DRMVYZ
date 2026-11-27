@@ -8,6 +8,7 @@ import { initialize, vectorize_rgba } from '../trace/vendor/vtracer.js'
 import { sanitizeModelSvg } from '../trace/svgSanitize'
 import { createForegroundMask, sniffModelImage } from '../trace/imageInput'
 import { createExtrudedModel } from '../geometry/createExtrudedModel'
+import { extractModelContours } from '../geometry/extractContours'
 import { checkDimensions, MODEL_QUALITY } from '../geometry/modelQualityBudget'
 import { createDefaultModelRecipe, MODEL_MATERIAL_PRESETS } from './createModelArtifact'
 const fixture = (name: string) => readFile(resolve('src/features/models/__tests__/fixtures', name))
@@ -135,6 +136,38 @@ describe('actual extruded geometry and material controls', () => {
     expect(() => createExtrudedModel('<svg xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100"/><rect x="10" y="10" width="20" height="20"/></svg>', recipe)).toThrow(/overlapping/)
     expect(() => createExtrudedModel('<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0L100 80L0 80L100 0L50 100Z"/></svg>', recipe)).toThrow()
     draft.dispose(); high.dispose()
+  })
+  it('preserves a bevel on complex contours above the old 2,000-point cutoff', () => {
+    const points = Array.from({ length: 2200 }, (_, i) => {
+      const angle = i * Math.PI * 2 / 2200, r = i % 2 ? 99.7 : 100
+      return `${(100 + r * Math.cos(angle)).toFixed(5)},${(100 + r * Math.sin(angle)).toFixed(5)}`
+    }).join(' ')
+    const source = `<svg xmlns="http://www.w3.org/2000/svg"><polygon points="${points}"/></svg>`
+    const recipe = createDefaultModelRecipe()
+    expect(extractModelContours(source, 12, recipe.trace.smoothing).pointCount).toBeGreaterThan(2000)
+    const beveled = createExtrudedModel(source, recipe)
+    const sharp = createExtrudedModel(source, { ...recipe, geometry: { ...recipe.geometry, bevelEnabled: false } })
+    expect(beveled.recipe.geometry.bevelEnabled).toBe(true)
+    expect(beveled.stats.triangles).toBeGreaterThan(sharp.stats.triangles)
+    expect(beveled.dimensions[2]).toBeGreaterThan(sharp.dimensions[2])
+    beveled.dispose(); sharp.dispose()
+  })
+  it('reports a disabled bevel explicitly when zero width prevents extrusion', async () => {
+    const recipe = createDefaultModelRecipe(); recipe.geometry.bevelSize = 0
+    const model = createExtrudedModel(await svg('solid.svg'), recipe)
+    expect(model.recipe.geometry.bevelEnabled).toBe(false)
+    expect(model.warnings.some(w => w.code === 'bevel_unavailable')).toBe(true)
+    model.dispose()
+  })
+  it('produces a preview from the sampled extrusion contours, retaining interior holes', async () => {
+    const model = createExtrudedModel(await svg('donut.svg'), createDefaultModelRecipe())
+    const outline = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = reject; reader.readAsText(model.contourPreview)
+    })
+    const contours = extractModelContours(outline, 1, 0)
+    expect(contours.shapes[0].holes).toHaveLength(1)
+    expect(new Raycaster(new Vector3(0, 0, 10), new Vector3(0, 0, -1)).intersectObject(model.group, true)).toHaveLength(0)
+    model.dispose()
   })
   it('rejects empty input/cancellation and disposes generated resources once', async () => {
     const source = await svg('solid.svg')

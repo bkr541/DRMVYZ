@@ -77,24 +77,38 @@ export function extractModelContours(svg: string, curveSegments: number, smoothi
     }
   }
   const rings = normalized.flatMap(s => [s.outer, ...s.holes]), pointCount = rings.reduce((sum, ring) => sum + ring.length, 0)
-  // For larger contours, turn bevel off rather than guessing at thin features.
-  let minimumDetail = pointCount <= 2000 ? Infinity : 0
-  if (pointCount <= 2000) {
-    for (const ring of rings) for (let i = 0; i < ring.length; i++) {
-      const p = ring[i]
-      minimumDetail = Math.min(minimumDetail, p.distanceTo(ring[(i + 1) % ring.length]))
-      for (const other of rings) for (let j = 0; j < other.length; j++) {
-        if (other === ring && (j === i || (j + 1) % ring.length === i)) continue
-        const a = other[j], b = other[(j + 1) % other.length], edge = b.clone().sub(a)
-        const t = edge.lengthSq() ? Math.max(0, Math.min(1, p.clone().sub(a).dot(edge) / edge.lengthSq())) : 0
-        minimumDetail = Math.min(minimumDetail, p.distanceTo(a.clone().addScaledVector(edge, t)))
-      }
+  // Bound the work by the existing 6,000-point input budget, not an arbitrary
+  // 2,000-point cutoff. Scalar math avoids millions of temporary Vector2s.
+  // Test all nonincident edges, including holes and separate islands.
+  let minimumDetail = Infinity
+  const edges = rings.flatMap(ring => ring.map((a, i) => {
+    const b = ring[(i + 1) % ring.length], dx = b.x - a.x, dy = b.y - a.y
+    return { ring, i, x: a.x, y: a.y, dx, dy, lengthSq: dx * dx + dy * dy }
+  }))
+  for (const ring of rings) for (let i = 0; i < ring.length; i++) {
+    const p = ring[i]
+    for (const edge of edges) {
+      if (edge.ring === ring && (edge.i === i || (edge.i + 1) % ring.length === i)) continue
+      const x = p.x - edge.x, y = p.y - edge.y
+      const t = edge.lengthSq ? Math.max(0, Math.min(1, (x * edge.dx + y * edge.dy) / edge.lengthSq)) : 0
+      const d = (x - t * edge.dx) ** 2 + (y - t * edge.dy) ** 2
+      minimumDetail = Math.min(minimumDetail, d)
     }
   }
+  minimumDetail = Math.sqrt(minimumDetail)
   const shapes = normalized.map(s => {
     const shape = new Shape(s.outer)
     shape.holes = s.holes.map(h => new Path(h))
     return shape
   })
   return { shapes, pointCount, minimumDetail }
+}
+
+/** The exact sampled front-cap contours supplied to ExtrudeGeometry, not the original raster mask. */
+export function createContourPreview(contours: ModelContours): Blob {
+  const rings = contours.shapes.map(shape => [shape.getPoints(1), ...shape.holes.map(hole => hole.getPoints(1))])
+  const bounds = new Box2().setFromPoints(rings.flat(2))
+  const size = bounds.getSize(new Vector2()), padding = 0.04
+  const paths = rings.map(shape => `<path fill="white" fill-rule="evenodd" d="${shape.map(ring => ring.map((p, i) => `${i ? 'L' : 'M'}${p.x} ${-p.y}`).join(' ') + ' Z').join(' ')}"/>`).join('')
+  return new Blob([`<svg xmlns="http://www.w3.org/2000/svg" width="${(size.x + padding * 2) * 256}" height="${(size.y + padding * 2) * 256}" viewBox="${bounds.min.x - padding} ${-bounds.max.y - padding} ${size.x + padding * 2} ${size.y + padding * 2}">${paths}</svg>`], { type: 'image/svg+xml' })
 }

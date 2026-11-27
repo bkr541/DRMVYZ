@@ -17,7 +17,7 @@ const source = new Blob(['source'], { type: 'image/png' })
 const media = { id: MODEL_ID, dbId: MODEL_ID, type: 'image', name: 'Logo.png', url: 'https://example.invalid/original.png', thumbnailUrl: 'https://example.invalid/thumbnail.png' } as UploadedMedia
 const savedAsset = (version = 1) => ({ id: MODEL_ID, kind: 'generated' as const, userId: USER_A, name: 'Saved logo', description: null, favorite: false, sourceMediaId: MODEL_ID, status: 'ready' as const, currentVersion: version, createdAt: '2026-11-12T00:00:00Z', updatedAt: '2026-11-12T00:00:00Z' })
 const flush = async () => { for (let i = 0; i < 100; i++) await Promise.resolve() }
-const artifact = () => ({ group: new Group(), stats, dispose: vi.fn(), recipe: structuredClone(recipe), sourceSnapshot: source, traceSvg: '<svg/>', glb: new Blob(['glb']), materialCount: 1, dimensions: [2, 2, 2] as [number, number, number], files: { source: { data: source, contentType: 'image/png' as const }, glb: { data: new Blob(['glb']), contentType: 'model/gltf-binary' as const }, trace: { data: new Blob(['<svg/>']), contentType: 'image/svg+xml' as const } }, warnings: [] })
+const artifact = () => ({ group: new Group(), contourPreview: source, stats, dispose: vi.fn(), recipe: structuredClone(recipe), sourceSnapshot: source, traceSvg: '<svg/>', glb: new Blob(['glb']), materialCount: 1, dimensions: [2, 2, 2] as [number, number, number], files: { source: { data: source, contentType: 'image/png' as const }, glb: { data: new Blob(['glb']), contentType: 'model/gltf-binary' as const }, trace: { data: new Blob(['<svg/>']), contentType: 'image/svg+xml' as const } }, warnings: [] })
 beforeEach(() => {
   vi.resetAllMocks(); useModelEditorStore.getState().reset()
   mocks.media = { items: [media], ensureMediaSigned: vi.fn().mockResolvedValue(undefined), retryMediaAsset: vi.fn().mockResolvedValue(true) }
@@ -188,6 +188,55 @@ describe('model save and edit lifecycle', () => {
       expect(useModelEditorStore.getState().generationPending).toBe(false)
     } finally { vi.useRealTimers() }
   })
+  it('keeps the current preview and model during threshold edits and automatically rebuilds an already confirmed opaque source', async () => {
+    vi.useFakeTimers()
+    try {
+      await draft()
+      const state = useModelEditorStore.getState(), previous = state.artifact!
+      const nextPreview = new Blob(['new traced outline'], { type: 'image/svg+xml' })
+      useModelEditorStore.setState({ needsConfirmation: true, confirmed: true })
+      mocks.prepare.mockImplementation(async (_source, next) => ({ sourceSnapshot: source, foregroundPreview: new Blob(['mask']), recipe: next, requiresForegroundConfirmation: true, warnings: [] }))
+      mocks.generate.mockImplementation(async input => ({ ...artifact(), recipe: input.recipe, contourPreview: nextPreview }))
+      state.setRecipe({ foreground: { ...recipe.foreground, mode: 'luminance' }, trace: { ...recipe.trace, threshold: 0.12 } })
+      expect(useModelEditorStore.getState()).toMatchObject({ preview: source, confirmed: true, generationPending: true })
+      expect(useModelEditorStore.getState().artifact).toBe(previous)
+      await vi.advanceTimersByTimeAsync(301); await flush()
+      expect(mocks.generate).toHaveBeenCalledWith(expect.objectContaining({ foregroundConfirmed: true, recipe: expect.objectContaining({ trace: expect.objectContaining({ threshold: 0.12 }) }) }))
+      expect(useModelEditorStore.getState()).toMatchObject({ preview: nextPreview, confirmed: true, generationPending: false, status: 'ready' })
+      expect(useModelEditorStore.getState().model).toBe(useModelEditorStore.getState().artifact)
+    } finally { vi.useRealTimers() }
+  })
+  it('retains the last model and preview when foreground preparation fails and does not generate from stale input', async () => {
+    vi.useFakeTimers()
+    try {
+      await draft(); const previous = useModelEditorStore.getState().artifact
+      mocks.prepare.mockRejectedValueOnce(new Error('Empty foreground'))
+      useModelEditorStore.getState().setRecipe({ trace: { ...recipe.trace, threshold: 0.12 } })
+      await vi.advanceTimersByTimeAsync(301); await flush()
+      expect(mocks.generate).not.toHaveBeenCalled(); expect(mocks.fromTrace).not.toHaveBeenCalled()
+      expect(useModelEditorStore.getState()).toMatchObject({ preview: source, artifact: previous, generationPending: false, status: 'error', error: 'Empty foreground' })
+      expect(selectModelCanSave(useModelEditorStore.getState())).toBe(false)
+      expect(selectModelCanSaveAs(useModelEditorStore.getState())).toBe(false)
+    } finally { vi.useRealTimers() }
+  })
+  it('does not allow a superseded preparation to start generation for a newer pending edit', async () => {
+    vi.useFakeTimers()
+    try {
+      await draft()
+      let finish!: (value: unknown) => void
+      mocks.prepare.mockReturnValueOnce(new Promise(resolve => { finish = resolve }))
+      useModelEditorStore.getState().setRecipe({ trace: { ...recipe.trace, threshold: 0.2 } })
+      await vi.advanceTimersByTimeAsync(301); await flush()
+      useModelEditorStore.getState().setRecipe({ trace: { ...recipe.trace, threshold: 0.12 } })
+      finish({ sourceSnapshot: source, foregroundPreview: source, recipe, requiresForegroundConfirmation: false, warnings: [] })
+      await flush()
+      expect(mocks.generate).not.toHaveBeenCalled(); expect(mocks.fromTrace).not.toHaveBeenCalled()
+      mocks.prepare.mockImplementation(async (_source, next) => ({ sourceSnapshot: source, foregroundPreview: source, recipe: next, requiresForegroundConfirmation: false, warnings: [] }))
+      await vi.advanceTimersByTimeAsync(301); await flush()
+      expect(mocks.generate).toHaveBeenCalledTimes(1)
+      expect(useModelEditorStore.getState().recipe?.trace.threshold).toBe(0.12)
+    } finally { vi.useRealTimers() }
+  })
   it('preserves a readable saved GLB when its source snapshot is missing', async () => {
     mocks.getVersion.mockResolvedValue({ generatorRecipe: recipe, geometryStats: stats }); mocks.load.mockResolvedValue(artifact())
     useModelEditorStore.getState().load(savedAsset()); await flush()
@@ -324,7 +373,7 @@ describe('Save As and Revert availability, and the copy\'s tags and collections'
     expect(selectModelCanSaveAs(state())).toBe(true)
     useModelEditorStore.setState({ status: 'loading-model' })
     expect(selectModelCanSaveAs(state())).toBe(false)
-    useModelEditorStore.setState({ asset: savedAsset() as never, status: 'ready', artifact: artifact() as never, source: source as never, generationPending: false })
+    useModelEditorStore.setState({ asset: savedAsset() as never, status: 'ready', artifact: artifact() as never, source: source as never, recipe: structuredClone(recipe), generationPending: false })
     expect(selectModelCanSaveAs(state())).toBe(true)
     useModelEditorStore.setState({ generationPending: true })
     expect(selectModelCanSaveAs(state())).toBe(false)

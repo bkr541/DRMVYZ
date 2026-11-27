@@ -237,7 +237,7 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
               <HeaderIconKey
                 label="Download Preview PNG"
                 icon={<HeaderActionIcon action="capture" />}
-                disabled={modelDownloadDisabled}
+                disabled={modelDownloadDisabled || modelGenerationPending}
                 onClick={() => { void useModelEditorStore.getState().download('png') }}
               />
             </>}

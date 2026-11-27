@@ -157,12 +157,31 @@ export function ModelEditorInspector(props: { onSelectSource?: () => void }) {
   return builtin ? <BuiltinModelInspector key={builtin.id} model={builtin} /> : <EditableModelInspector {...props} />
 }
 
+/** Decode replacements offscreen; never revoke the visible URL until its replacement is ready. */
+function ModelSourcePreview({ blob }: { blob: Blob | null }) {
+  const [url, setUrl] = useState<string | null>(null)
+  const [failed, setFailed] = useState(false)
+  useEffect(() => {
+    setFailed(false)
+    if (!blob) { setUrl(null); return }
+    const next = URL.createObjectURL(blob), image = new Image()
+    let adopted = false
+    image.onload = () => { adopted = true; setUrl(next) }
+    image.onerror = () => setFailed(true)
+    image.src = next
+    return () => { image.onload = image.onerror = null; if (!adopted) URL.revokeObjectURL(next) }
+  }, [blob])
+  useEffect(() => () => { if (url) URL.revokeObjectURL(url) }, [url])
+  return <>
+    <div className="mm-model-source-preview">{url && <img src={url} alt="Foreground and cutout preview" />}</div>
+    {failed && <NoticeCard tone="warning" title="Preview unavailable">Could not display the latest foreground preview.</NoticeCard>}
+  </>
+}
+
 function EditableModelInspector({ onSelectSource }: { onSelectSource?: () => void }) {
   const s = useModelEditorStore()
   const [tab, setTab] = useState<MediaInspectorTab>(() => useModelEditorStore.getState().asset ? 'info' : 'edit')
-  const [url, setUrl] = useState<string | null>(null)
   const [pendingVersion, setPendingVersion] = useState<number | null>(null), [revertOpen, setRevertOpen] = useState(false)
-  useEffect(() => { if (!s.preview) { setUrl(null); return }; const next = URL.createObjectURL(s.preview); setUrl(next); return () => URL.revokeObjectURL(next) }, [s.preview])
   const busy = s.status === 'saving' || s.status === 'deleting'
   const locked = busy || !!s.publishedVersion || !!s.pendingOperationId || !s.source
   const recipe = s.recipe
@@ -225,7 +244,12 @@ function EditableModelInspector({ onSelectSource }: { onSelectSource?: () => voi
       </>}
       {tab === 'edit' && recipe && <>
         <Collapsible label="Source Preparation" icon={<AppIcon kind="image" size={14} />}>
-          {url && <div className="mm-model-source-preview"><img src={url} alt="Foreground and cutout preview" /></div>}
+          <ModelSourcePreview key={s.sessionKey} blob={s.preview} />
+          {s.generationPending ? <p role="status">Updating foreground and 3D geometry…</p>
+            : s.status === 'error' && s.model ? <p>Showing the last successful model. The latest edits could not be applied.</p>
+            : s.model && s.needsConfirmation && !s.confirmed ? <p>Review and confirm the foreground to update the 3D model.</p>
+            : s.artifact?.contourPreview ? <p>Traced front-face outline of the current 3D model.</p>
+            : <p>Prepared foreground mask. Fine details may change during tracing.</p>}
           {s.sourceInfo?.mimeType === 'image/svg+xml' ? <p>SVG uses its filled paths directly. Raster foreground and smoothing controls are unavailable for vector sources.</p> : <>
           <SelectRow label="Foreground" value={recipe.foreground.mode} options={[{ value: 'alpha', label: 'Image alpha' }, { value: 'luminance', label: 'Threshold' }, { value: 'prepared', label: 'Prepared alpha' }]} disabled={locked}
             onChange={value => s.setRecipe({ foreground: { ...recipe.foreground, mode: value as 'alpha' | 'luminance' | 'prepared' } })} />
@@ -235,7 +259,7 @@ function EditableModelInspector({ onSelectSource }: { onSelectSource?: () => voi
           <SliderRow label="Smoothing" value={recipe.trace.smoothing} disabled={locked} onChange={smoothing => s.setRecipe({ trace: { ...recipe.trace, smoothing } })} />
           </>}
           <SelectRow label="Quality" value={recipe.quality ?? 'normal'} options={[{ value: 'draft', label: 'Draft' }, { value: 'normal', label: 'Normal' }, { value: 'high', label: 'High' }]} disabled={locked} onChange={quality => s.setRecipe({ quality: quality as 'draft' | 'normal' | 'high' })} />
-          {s.needsConfirmation && <ToggleRow label="Confirm foreground preview" value={s.confirmed} disabled={busy} onChange={s.confirmForeground} />}
+          {s.needsConfirmation && <ToggleRow label="Confirm foreground preview" value={s.confirmed} disabled={busy || s.generationPending} onChange={s.confirmForeground} />}
         </Collapsible>
         <Collapsible label="Transform" icon={<AppIcon kind="rotateRight" size={14} />}>
           <div className="mm-model-field-grid">
@@ -254,13 +278,15 @@ function EditableModelInspector({ onSelectSource }: { onSelectSource?: () => voi
             <NumberInputRow label="Curve detail" value={geometry.curveSegments} min={1} max={64} step={1} disabled={locked} onChange={curveSegments => s.setRecipe({ geometry: { ...geometry, curveSegments } })} />
             <SelectRow label="Pivot" value={recipe.transform.pivot} disabled={locked} options={[{ value: 'center', label: 'Center' }, { value: 'bottom', label: 'Bottom' }]} onChange={pivot => s.setRecipe({ transform: { ...recipe.transform, pivot: pivot as 'center' | 'bottom' } })} />
             <div className="mm-model-field-grid__wide"><ToggleRow label="Readable from both sides" value={recipe.twoSided ?? false} disabled={locked} description={TWO_SIDED_DESCRIPTION} onChange={twoSided => s.setRecipe({ twoSided })} /></div>
-            <div className="mm-model-field-grid__wide"><ToggleRow label="Bevel" value={geometry.bevelEnabled} disabled={locked} onChange={bevelEnabled => s.setRecipe({ geometry: { ...geometry, bevelEnabled } })} /></div>
+            <div className="mm-model-field-grid__wide"><ToggleRow label="Bevel" value={geometry.bevelEnabled} disabled={locked} onChange={bevelEnabled => s.setRecipe({ geometry: { ...geometry, bevelEnabled,
+              ...(bevelEnabled ? { bevelSize: geometry.bevelSize > 1e-7 ? geometry.bevelSize : 0.015, bevelThickness: geometry.bevelThickness || 0.015, bevelSegments: geometry.bevelSegments || 3 } : {}) } })} /></div>
             {geometry.bevelEnabled && <>
               <NumberInputRow label="Bevel width" value={geometry.bevelSize} min={0} max={1} step={0.005} disabled={locked} onChange={bevelSize => s.setRecipe({ geometry: { ...geometry, bevelSize } })} />
               <NumberInputRow label="Bevel thickness" value={geometry.bevelThickness} min={0} max={1} step={0.005} disabled={locked} onChange={bevelThickness => s.setRecipe({ geometry: { ...geometry, bevelThickness } })} />
               <NumberInputRow label="Bevel segments" value={geometry.bevelSegments} min={1} max={16} step={1} disabled={locked} onChange={bevelSegments => s.setRecipe({ geometry: { ...geometry, bevelSegments } })} />
             </>}
           </div>
+          {s.warnings.filter(warning => /^Bevel/.test(warning)).map(warning => <NoticeCard key={warning} tone="warning" title="Bevel adjustment">{warning}</NoticeCard>)}
         </Collapsible>}
         <Collapsible label="Materials" icon={<AppIcon kind="edit" size={14} />}>{material('front')}{material('side')}</Collapsible>
         {preview && <Collapsible label="Preview" icon={<AppIcon kind="image" size={14} />}>
@@ -281,10 +307,10 @@ function EditableModelInspector({ onSelectSource }: { onSelectSource?: () => voi
       {(s.status === 'loading-source' || s.status === 'loading-model' || s.status === 'generating' || s.generationPending || busy) && <div role="status">{s.progress ?? (s.generationPending ? 'Updating 3D geometry…' : 'Loading model source…')} <IconChipButton disabled={s.status === 'deleting'} onClick={s.cancel}>Cancel operation</IconChipButton></div>}
       {s.error && <NoticeCard tone="error" role="alert" title="Model operation failed">{s.error}
         {(s.saveTarget || s.saveFailure) && <IconChipButton onClick={() => { void s.save() }}>Retry Save</IconChipButton>}
-        {!s.saveTarget && !s.saveFailure && s.source && <IconChipButton onClick={() => { void s.prepare() }}>Retry preparation</IconChipButton>}
+        {!s.saveTarget && !s.saveFailure && s.source && <IconChipButton onClick={() => { void (s.model ? s.generate() : s.prepare()) }}>{s.model ? 'Retry geometry update' : 'Retry preparation'}</IconChipButton>}
         {!s.source && !s.asset && <IconChipButton onClick={() => { void s.retrySource() }}>Retry source</IconChipButton>}
       </NoticeCard>}
-      {s.warnings.map(warning => <NoticeCard key={warning} tone="warning" title="Model source">{warning}</NoticeCard>)}
+      {s.warnings.filter(warning => tab !== 'edit' || !/^Bevel/.test(warning)).map(warning => <NoticeCard key={warning} tone="warning" title="Model source">{warning}</NoticeCard>)}
     </div>
     {(pendingVersion !== null || revertOpen) && <ConfirmDialog title="Discard model edits?" message="Reloading a saved version replaces your current edits." confirmLabel="Discard and Reload" onCancel={() => { setPendingVersion(null); setRevertOpen(false) }} onConfirm={() => { if (pendingVersion !== null && s.asset) s.load(s.asset, pendingVersion); else if (s.error) void s.reloadLatest(); else s.revert(); setPendingVersion(null); setRevertOpen(false) }} />}
   </>

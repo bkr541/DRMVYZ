@@ -1,10 +1,10 @@
 import { Box3, BufferGeometry, ExtrudeGeometry, Group, Mesh, Vector3 } from 'three'
 import { parseModelGeometryStats, parseModelRecipe, type ModelGeneratorRecipe, type ModelGeometryStats } from '../domain/modelAssetTypes'
 import { createModelMaterials } from '../materials/modelMaterials'
-import { extractModelContours } from './extractContours'
+import { createContourPreview, extractModelContours } from './extractContours'
 import { bakeTwoSided } from './twoSidedModel'
 import { checkAbort, MODEL_QUALITY, ModelGenerationError, type ModelDiagnostic, type ModelQuality } from './modelQualityBudget'
-export interface GeneratedModel { group: Group; recipe: ModelGeneratorRecipe; stats: ModelGeometryStats; materialCount: number; dimensions: [number, number, number]; warnings: ModelDiagnostic[]; dispose(): void }
+export interface GeneratedModel { group: Group; contourPreview: Blob; recipe: ModelGeneratorRecipe; stats: ModelGeometryStats; materialCount: number; dimensions: [number, number, number]; warnings: ModelDiagnostic[]; dispose(): void }
 /** Releases everything the group owns: geometry, materials, and the textures those materials hold (an imported GLB carries multi-megapixel images). */
 export function disposeModelGroup(group: Group): void {
   const geometries = new Set<BufferGeometry>(), materials = new Set<import('three').Material>()
@@ -30,16 +30,27 @@ export function createExtrudedModel(svg: string, input: ModelGeneratorRecipe, qu
   recipe.geometry.curveSegments = Math.min(recipe.geometry.curveSegments, budget.curveSegments)
   recipe.geometry.bevelSegments = Math.min(recipe.geometry.bevelSegments, budget.bevelSegments)
   const contours = extractModelContours(svg, recipe.geometry.curveSegments, recipe.trace.smoothing)
-  const safeBevel = Math.max(0, Math.min(contours.minimumDetail * 0.2, recipe.geometry.depth * 0.25))
-  if (recipe.geometry.bevelEnabled && (recipe.geometry.bevelSize > safeBevel || recipe.geometry.bevelThickness > safeBevel)) {
-    warnings.push({ code: 'bevel_clamped', message: 'Bevel was reduced to protect thin silhouette details.' })
-    recipe.geometry.bevelSize = Math.min(recipe.geometry.bevelSize, safeBevel)
-    recipe.geometry.bevelThickness = Math.min(recipe.geometry.bevelThickness, safeBevel)
-  }
-  if (!recipe.geometry.bevelSegments || !recipe.geometry.bevelSize || !recipe.geometry.bevelThickness) recipe.geometry.bevelEnabled = false
-  if (contours.pointCount * (6 + 4 * (recipe.geometry.bevelEnabled ? recipe.geometry.bevelSegments : 0)) > budget.triangles) {
-    recipe.geometry.bevelEnabled = false
-    warnings.push({ code: 'sharp_edge_fallback', message: 'Bevel was disabled to stay within the selected triangle budget.' })
+  const geometry = recipe.geometry
+  if (geometry.bevelEnabled) {
+    // XY clearance protects holes; Z thickness is independently bounded by depth.
+    const safeWidth = Math.max(0, Math.min(contours.minimumDetail * 0.2, geometry.depth * 0.25))
+    const safeThickness = geometry.depth * 0.25
+    if (geometry.bevelSize > safeWidth || geometry.bevelThickness > safeThickness) {
+      warnings.push({ code: 'bevel_clamped', message: 'Bevel was reduced to protect thin silhouette details. Width may be very small on intricate logos.' })
+      geometry.bevelSize = Math.min(geometry.bevelSize, safeWidth)
+      geometry.bevelThickness = Math.min(geometry.bevelThickness, safeThickness)
+    }
+    const requestedSegments = geometry.bevelSegments
+    // A simpler bevel is preferable to silently removing it entirely.
+    while (geometry.bevelSegments > 1 && contours.pointCount * (6 + 4 * geometry.bevelSegments) > budget.triangles) geometry.bevelSegments--
+    if (geometry.bevelSegments < requestedSegments) warnings.push({ code: 'bevel_segments_reduced', message: 'Bevel segments were reduced to fit the selected quality budget.' })
+    if (!geometry.bevelSegments || geometry.bevelSize < 1e-7 || !geometry.bevelThickness) {
+      geometry.bevelEnabled = false
+      warnings.push({ code: 'bevel_unavailable', message: 'Bevel could not be applied safely. Increase bevel width/thickness or simplify the source to preserve its cutouts.' })
+    } else if (contours.pointCount * (6 + 4 * geometry.bevelSegments) > budget.triangles) {
+      geometry.bevelEnabled = false
+      warnings.push({ code: 'sharp_edge_fallback', message: 'Bevel could not fit the triangle budget. Select a higher quality or simplify the source.' })
+    }
   }
   if (contours.pointCount * 6 > budget.triangles) throw new ModelGenerationError('geometry_budget', 'Model exceeds this quality tier; simplify the source or select a higher tier.')
   const group = new Group(); group.name = 'UserModel'
@@ -64,7 +75,7 @@ export function createExtrudedModel(svg: string, input: ModelGeneratorRecipe, qu
     group.traverse(object => { if (object instanceof Mesh) { vertices += object.geometry.attributes.position.count; triangles += (object.geometry.index?.count ?? object.geometry.attributes.position.count) / 3 } })
     if (triangles > budget.triangles) throw new ModelGenerationError('geometry_budget', 'Generated model exceeds the selected triangle budget.')
     const stats = parseModelGeometryStats({ triangles, vertices, meshes: group.children.length, bounds: { min: finalBounds.min.toArray(), max: finalBounds.max.toArray() } })
-    return { group, recipe, stats, materialCount: materials.length, dimensions: finalBounds.getSize(new Vector3()).toArray(), warnings, dispose: () => disposeModelGroup(group) }
+    return { group, contourPreview: createContourPreview(contours), recipe, stats, materialCount: materials.length, dimensions: finalBounds.getSize(new Vector3()).toArray(), warnings, dispose: () => disposeModelGroup(group) }
   } catch (error) {
     const attached = group.children.length > 0
     disposeModelGroup(group); if (!attached) materials.forEach(m => m.dispose()); throw error
