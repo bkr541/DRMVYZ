@@ -20,6 +20,7 @@ import { CINEMA2_USER_MODEL_HOLOGRAM_PRESET_MANIFEST } from './Cinema2UserModelH
 import { CINEMA2_USER_MODEL_SLICES_PRESET_MANIFEST } from './Cinema2UserModelSlicesPreset'
 import { CINEMA2_USER_MODEL_VOXEL_PRESET_MANIFEST } from './Cinema2UserModelVoxelPreset'
 import { CINEMA2_ORBITAL_PRESET_MANIFEST } from './Cinema2OrbitalPreset'
+import { CINEMA2_PULSE_CUBED_PRESET_MANIFEST } from './Cinema2PulseCubedPreset'
 import { CINEMA2_SUBMERGE_PRESET_MANIFEST } from './Cinema2SubmergePreset'
 import { CINEMA2_LIVEWIRE_PRESET_MANIFEST } from './Cinema2LivewirePreset'
 import { CINEMA2_CORRIDOR_PRESET_MANIFEST } from './Cinema2CorridorPreset'
@@ -114,6 +115,8 @@ const AUTHORED_PRESET_DECLARATIONS = Object.freeze([
   defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_MOSAIC_PRESET_MANIFEST }),
   defineCinema2FirstPartyPreset({ role: 'keeper', manifest: CINEMA2_OVERDRIVE_PRESET_MANIFEST }),
   defineCinema2FirstPartyPreset({ role: 'keeper', manifest: CINEMA2_ORBITAL_PRESET_MANIFEST }),
+  // Selectable native review preset; keeper promotion follows production visual acceptance.
+  defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_PULSE_CUBED_PRESET_MANIFEST }),
   // Complete native implementation; human visual acceptance pending.
   defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_NEON_FOREST_PRESET_MANIFEST }),
   // Final PSYLO acceptance granted by the user on 2026-11-02.
