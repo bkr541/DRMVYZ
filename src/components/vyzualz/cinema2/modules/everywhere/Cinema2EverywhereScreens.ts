@@ -1,4 +1,5 @@
 export const EVERYWHERE_SCREEN_VERTEX = /* glsl */ `
+uniform vec2 uWallExtent;
 attribute vec4 aProgram; // exposure, seed, aspect, hero
 attribute vec4 aMediaPose; // scale, offset x/y, rotation
 attribute vec4 aMediaEffects; // power, channel, distortion, vertical stretch
@@ -6,7 +7,8 @@ attribute vec4 aEyeFraming; // crop, offset x/y, independent resting eyelid
 attribute vec4 aEyePose; // gaze x/y, blink, roll back
 varying vec2 vUv;
 varying vec2 vWall;
-varying vec2 vCabinet;
+varying vec3 vGlassNormal;
+varying vec3 vGlassView;
 varying vec4 vProgram;
 varying vec4 vEyePose;
 varying vec4 vEyeFraming;
@@ -15,14 +17,20 @@ varying vec4 vMediaEffects;
 void main() {
   vec4 local = instanceMatrix * vec4(position,1.0);
   vUv = uv;
-  vWall = local.xy / vec2(30.0,15.0) + .5;
-  vCabinet = instanceMatrix[3].xy / vec2(30.0,15.0) + .5;
+  vWall = local.xy / uWallExtent + .5;
+  // The family-specific instance scale is non-uniform (glass depth is much
+  // smaller than width/height). Correct normals before reflecting the light.
+  mat3 im=mat3(instanceMatrix);
+  vec3 invScale2=1.0/vec3(dot(im[0],im[0]),dot(im[1],im[1]),dot(im[2],im[2]));
+  vGlassNormal=normalMatrix*im*(normal*invScale2);
+  vec4 viewPosition=modelViewMatrix*local;
+  vGlassView=-viewPosition.xyz;
   vProgram = aProgram;
   vEyePose = aEyePose;
   vEyeFraming = aEyeFraming;
   vMediaPose = aMediaPose;
   vMediaEffects = aMediaEffects;
-  gl_Position = projectionMatrix * modelViewMatrix * local;
+  gl_Position = projectionMatrix * viewPosition;
 }`
 
 export const EVERYWHERE_SCREEN_FRAGMENT = /* glsl */ `
@@ -31,6 +39,7 @@ uniform sampler2D uMedia;
 uniform sampler2D uPool0;
 uniform sampler2D uPool1;
 uniform sampler2D uPool2;
+uniform vec2 uWallExtent;
 uniform vec3 uPoolAspect; // zero means no ready feed
 uniform vec4 uProgram; // CRT mode, channel step, kick, snare
 uniform vec4 uMusic; // bass, high, build, drop
@@ -50,7 +59,8 @@ uniform vec3 uCool;
 uniform vec3 uWarm;
 varying vec2 vUv;
 varying vec2 vWall;
-varying vec2 vCabinet;
+varying vec3 vGlassNormal;
+varying vec3 vGlassView;
 varying vec4 vProgram;
 varying vec4 vEyePose;
 varying vec4 vEyeFraming;
@@ -206,12 +216,16 @@ void main() {
     eyePose.z=max(eyePose.z,vEyeFraming.w*(1.0-eyePose.w));
     picture = animatedEye(eyeUV,eyePose);
     // Lift the photographic feed only; opaque user media retains its prior exposure.
-    picture = pow(max(picture,vec3(0.0)),vec3(.68))*1.55;
-    float alternate = smoothstep(.52,.90,seed)*(1.0-vProgram.w);
-    picture = mix(picture,picture*vec3(.80,1.05,1.16),alternate*.33);
+    picture = pow(max(picture,vec3(0.0)),vec3(.82))*1.36;
+    // Secondary half-lidded feeds have a quieter, cooler broadcast grade.
+    // Preserve the original photograph and the moving iris, not a second asset.
+    float alternate = smoothstep(.18,.40,vEyeFraming.w)*(1.0-vProgram.w);
+    float luminance=dot(picture,vec3(.2126,.7152,.0722));
+    vec3 quiet=mix(picture,vec3(luminance),.66)*vec3(1.01,1.07,1.13);
+    picture=mix(picture,quiet,alternate*.82);
   }
   bool span=uLayout>.5 && uLayout<1.5;
-  float screenAspect=span ? 2.0 : vProgram.z;
+  float screenAspect=span ? uWallExtent.x/uWallExtent.y : vProgram.z;
   vec2 source=span ? vWall : curved;
   float channel=0.0;
   if (uSourceMode > .5) picture=vec3(.002,.003,.004);
@@ -259,7 +273,13 @@ void main() {
   float edgeFalloff = 1.0-.18*dot(p*vec2(.82,1.0),p*vec2(.82,1.0));
   float rim = exp(-abs(mask+.055)*28.0);
   float glint = exp(-pow((p.y - .66 + p.x*.28)*7.1,2.0)) * exp(-pow((p.x+.48)*2.3,2.0));
-  vec3 glass = (uCool*(.075*glint + rim*.043*max(0.0,-p.x)) + uWarm * rim*.067*max(0.0,p.x))*uLook.w;
+  vec3 n=normalize(vGlassNormal), view=normalize(vGlassView);
+  float fresnel=pow(1.0-clamp(dot(n,view),0.0,1.0),3.0);
+  vec3 reflection=reflect(-view,n);
+  float coolPanel=pow(max(0.0,dot(reflection,normalize(vec3(-.65,.45,1.0)))),36.0);
+  float warmPanel=pow(max(0.0,dot(reflection,normalize(vec3(.70,.28,1.0)))),58.0);
+  vec3 glass = (uCool*(.025*glint + rim*.035*max(0.0,-p.x) + coolPanel*.075 + fresnel*.018)
+    + uWarm*(rim*.045*max(0.0,p.x)+warmPanel*.085+fresnel*.012))*uLook.w;
   float breakUp = 1.0-uReaction.y*line*.38;
   float power=uSourceMode>.5 ? vMediaEffects.x : 1.0;
   vec3 rgb = power*picture*uTint*detail*edgeFalloff*breakUp*uLook.y*vProgram.x + glass;

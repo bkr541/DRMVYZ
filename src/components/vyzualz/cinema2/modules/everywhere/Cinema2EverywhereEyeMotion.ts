@@ -1,4 +1,5 @@
 import type { EverywhereCabinet, EverywhereLook } from './Cinema2EverywhereWall'
+import { everywhereSpatialPosition } from './Cinema2EverywhereSpatial'
 
 export type EverywhereEyePose = readonly [gazeX: number, gazeY: number, blink: number, rollBack: number]
 const clamp = (n: number, lo=0, hi=1) => Math.max(lo,Math.min(hi,n))
@@ -21,9 +22,9 @@ const gaze = (t: number,period: number) => {
 export function everywhereEyePose(item: Readonly<EverywhereCabinet>,index: number,look: Readonly<EverywhereLook>): EverywhereEyePose {
   if (look.motion<=0) return [0,0,0,0]
   const t=Math.max(0,look.phase-.22)
-  const radius=Math.hypot(item.x,item.y)
-  const nx=item.x/Math.max(1,radius), ny=item.y/Math.max(1,radius)
-  const travelRadius=radius*.67, travelX=item.x*.67, travelY=item.y*.67
+  const spatial=everywhereSpatialPosition(item), radius=spatial.radius
+  const nx=spatial.x/Math.max(1,radius), ny=spatial.y/Math.max(1,radius)
+  const travelRadius=radius*.67, travelX=spatial.x*.67, travelY=spatial.y*.67
   let x=0,y=0,blink=0,roll=0
   switch (look.pattern) {
     case 'all-eyes':
@@ -39,7 +40,7 @@ export function everywhereEyePose(item: Readonly<EverywhereCabinet>,index: numbe
       x=gaze(t,8)*(item.y>=0?1:-1); y=gaze(t,8)*(item.x>=0?-.55:.55)
       blink=pulse(t-2-(travelX+travelY)*.12,8,.52); break
     case 'channel-hold': {
-      const bank=index%3, p=t-bank*.55
+      const bank=(Math.floor((spatial.x+15)/3.4)+Math.floor((spatial.y+8)/2.4))%3, p=t-bank*.55
       x=gaze(p,9); y=.28*gaze(p-2,9); blink=pulse(p-2,9,.65); break
     }
     case 'ghost-feed':

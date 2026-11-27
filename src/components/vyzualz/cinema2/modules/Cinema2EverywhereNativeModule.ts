@@ -16,7 +16,7 @@ export const CINEMA2_EVERYWHERE_MODULE_TYPE_ID = cinema2StableId<Cinema2ModuleTy
 export const EVERYWHERE_EYE_ASSET = 'cinema2-everywhere-eye'
 const overrides = { ...CINEMA2_THREE_DEFAULT_OVERRIDES, environmentIntensity:.26 }
 const DEFAULT_LOOK: Readonly<EverywhereLook> = {
-  pattern:'all-eyes',phase:.22,brightness:1.06,coverage:.86,angle:.84,motion:.72,scan:.20,glare:.65,layout:'repeat',
+  pattern:'all-eyes',phase:.22,brightness:1.06,coverage:.96,angle:.84,motion:.72,scan:.20,glare:.65,layout:'repeat',
   colors:EVERYWHERE_COLORS, energy:0,bass:0,high:0,vocal:0,kick:0,snare:0,build:0,drop:0,
 }
 type Merge = typeof import('three/examples/jsm/utils/BufferGeometryUtils.js')['mergeGeometries']
@@ -83,7 +83,7 @@ export class Cinema2EverywherePerformance {
       !auto || motion===0 ? 0 : paused ? this.look[key] : active ? n(key,0)*motion : 0
     this.look={
       pattern:base?.activePattern ?? this.look.pattern,phase:this.phase,motion,
-      brightness:n('brightness',1.06,0,1.8),coverage:n('coverage',.86,.18),angle:n('angle',.84,0,1.25),
+      brightness:n('brightness',1.06,0,1.8),coverage:n('coverage',.96,.18),angle:n('angle',.84,0,1.25),
       scan:n('scan',.20),glare:n('glare',.65),layout:parameters.get('mediaLayout')==='wall' ? 'wall' : parameters.get('mediaLayout')==='repeat' ? 'repeat' : 'choreographed',
       mediaFit:parameters.get('mediaFit')==='cover' ? 'cover' : parameters.get('mediaFit')==='stretch' ? 'stretch' : 'contain',
       contentMotion:n('contentMotion',.75),scaleVariation:n('scaleVariation',.6),screenPower:parameters.get('screenPower')!==false,heroReadability:parameters.get('heroReadability')!==false,

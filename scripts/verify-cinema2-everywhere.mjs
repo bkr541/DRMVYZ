@@ -35,7 +35,7 @@ try {
     await api('prepare')
     await expect.poll(async () => {
       const state = inspection(await api('advanceBy', .05))
-      return state.renderReady && state.eyeReady && state.screens === 46
+      return state.renderReady && state.eyeReady && state.screens > 40 && state.screens <= 100
     }).toBe(true)
     assert.equal(JSON.parse((await api('status')).authored).values['everywhere-auto-performance'], auto)
   }
@@ -58,6 +58,9 @@ try {
   await open(false)
   const baseline = await capture('everywhere')
   assert(baseline.some(value => value > 180), 'The picture should contain luminous CRTs.')
+  // The central picture must be luminous, not just a bright outer edge.
+  const center=await sharp(await page.screenshot()).extract({left:385,top:205,width:254,height:166}).removeAlpha().raw().toBuffer()
+  assert(center.some(value=>value>180),'The hero CRT must have a luminous central picture.')
   // The new installation has deliberate dark gaps between individual CRTs.
   // Use an alternate environment color to distinguish those gaps from the
   // television geometry, and detect an excessively empty composition.
@@ -72,13 +75,16 @@ try {
     for (let i=0;i<normal.length;i+=3) {
       if (Math.max(Math.abs(normal[i]-sentinel[i]),Math.abs(normal[i+1]-sentinel[i+1]),Math.abs(normal[i+2]-sentinel[i+2]))>30) exposed++
     }
-    assert(exposed/(normal.length/3)<.60, `Excessive background at ${width}x${height}: ${exposed} pixels`)
-    if(width===1024) assert(exposed/(normal.length/3)>.02, 'The wide wall should retain intentional negative space.')
+    const exposedFraction=exposed/(normal.length/3)
+    assert(exposedFraction<(width===1024?.15:.22), `Excessive exposed backing at ${width}x${height}: ${exposedFraction}`)
+    if(width===1024) assert(exposedFraction>.003, 'The wall should retain intentional inter-cabinet darkness.')
     await change({background:[.012,.018,.023,1]})
   }
   await page.setViewportSize({width:1024,height:576})
   await api('resize',1024,576)
-  await change({motion:.72})
+  await change({'camera-distance':[0,0,3]})
+  await capture('installation-far-distance')
+  await change({'camera-distance':[0,0,0],motion:.72})
   // Production-path checks for the reconstruction: actual cabinet angle and
   // camera motion must visibly change the scene; lowering screen power must
   // reduce its illumination. Captures are also inputs for human visual review.

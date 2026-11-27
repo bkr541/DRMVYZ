@@ -2,6 +2,7 @@ import type * as Three from 'three'
 import type { Cinema2Color } from '../../contracts/Cinema2NativePresetManifest'
 import type { Cinema2ManagedMediaResource } from '../../media/Cinema2MediaSlotRuntime'
 import type { Cinema2ThreeLibrary } from '../three/Cinema2ThreeLibrary'
+import { everywhereSpatialPosition } from './Cinema2EverywhereSpatial'
 import { everywhereMediaPose } from './Cinema2EverywhereMediaMotion'
 import { everywhereEyePose } from './Cinema2EverywhereEyeMotion'
 import { EVERYWHERE_CABINET_STYLES, buildEverywhereCabinetParts } from './Cinema2EverywhereCabinets'
@@ -9,9 +10,9 @@ import { EVERYWHERE_SCREEN_FRAGMENT, EVERYWHERE_SCREEN_VERTEX } from './Cinema2E
 
 export const EVERYWHERE_COLORS = {
   background: [.012,.018,.023,1],
-  cabinet: [.095,.10,.105,1],
-  cool: [.19,.92,1,1],
-  warm: [1,.51,.22,1],
+  cabinet: [.13,.135,.14,1],
+  cool: [.12,.79,.86,1],
+  warm: [1,.57,.30,1],
   screen: [1,.97,.93,1],
 } as const satisfies Readonly<Record<string,Cinema2Color>>
 
@@ -61,61 +62,94 @@ export function everywhereWallCoverScale(aspect: number): number {
   return Math.max(1, (Number.isFinite(aspect) ? aspect : EVERYWHERE_WIDE_ASPECT) / EVERYWHERE_WIDE_ASPECT)
 }
 
-// World-space staging, in physical scene units (not camera-plane coordinates).
-// [x,y,z, size, pitch,yaw,roll (degrees), cabinet family]. The positions and
-// sizes are independent; perspective is left entirely to the shared camera.
-// The hero, asymmetric satellites, edge wings and distant pockets deliberately
-// do not share a row/column generator. Order keeps the hero at channel index 0.
+// Reference-led physical staging, in world units. Hero and the next 17
+// silhouettes follow the dominant sets in the approved composition. Smaller
+// sets fill projected openings at deeper levels; the final wings extend past
+// the 16:9 frame for wide outputs. Positions are baked, never recomputed from
+// the active camera. OBB clearance was checked at sampled Cabinet Angle values.
+// [x,y,z,scale,pitch,yaw,roll (degrees),family]. Index zero is the hero feed.
 const INSTALLATION = [
-  [0.000,-0.120,2.050,2.65,0,-3,-2,0],
-  [-5.163,1.508,0.685,1.53,8,5,-16,1],
-  [4.777,2.170,-0.652,1.65,13,-48,17,2],
-  [-4.476,-2.337,-0.112,1.36,-12,7,10,3],
-  [4.954,-1.528,-0.135,1.39,-7,-43,-12,1],
-  [-2.657,4.141,-0.553,1.27,21,16,13,3],
-  [0.624,3.507,-1.699,1.4,23,-9,-12,1],
-  [4.067,5.100,-2.802,1.14,26,-24,23,0],
-  [-1.360,-4.394,-0.325,1.35,-20,11,-9,2],
-  [1.783,-4.026,-1.640,1.44,-19,-18,16,3],
-  [-5.927,4.629,-1.786,1.33,22,32,-20,2],
-  [6.812,3.766,-2.628,1.12,19,-27,-9,3],
-  [-6.597,-4.743,-2.446,1.36,-18,32,17,1],
-  [5.452,-4.489,-1.260,1.28,-24,-29,-15,0],
-  // Near wings: turned cabinet sidewalls, some intentional edge cropping.
-  [-7.717,0.147,4.048,1.67,5,10,-11,2],
-  [7.705,0.583,4.068,1.82,-8,-15,14,1],
-  [-6.757,4.054,3.625,1.43,24,18,21,0],
-  [6.670,-3.896,3.270,1.5,-28,-15,-20,3],
-  [-5.692,-4.650,2.823,1.57,-26,8,-14,0],
-  [6.597,5.211,2.778,1.55,27,-15,12,2],
-  [-2.615,5.412,2.993,1.56,38,12,-17,1],
-  [2.400,-5.500,2.500,1.7,-32,-15,20,2],
-  // Distant pockets visible through the foreground, not a complete rear wall.
-  [-2.100,2.050,-5.400,0.94,-10,-14,8,2],
-  [2.000,2.250,-5.100,0.86,13,22,-19,3],
-  [-0.350,5.850,-4.800,1.2,-18,9,12,0],
-  [-3.500,-4.850,-5.800,1.22,15,-13,-21,3],
-  [0.700,-5.900,-5.200,1.08,20,16,9,1],
-  [3.350,-2.200,-6.200,0.97,-8,-17,19,2],
-  [-5.700,0.100,-5.700,1.04,6,18,12,0],
-  [6.800,1.000,-6.400,1.24,-7,-12,-22,2],
-  [-8.716,2.322,-3.585,1.46,12,25,17,3],
-  [8.439,-2.227,-3.765,1.45,-11,-32,-17,0],
-  [-10.490,-1.882,-3.170,1.85,-16,43,-11,1],
-  [10.567,2.795,-1.810,1.62,18,-37,16,2],
-  [-9.678,6.129,-2.920,1.6,23,29,-17,0],
-  [9.861,-6.173,-2.435,1.72,-27,-30,20,3],
-  [-4.700,7.500,-4.100,1.51,31,21,18,2],
-  [5.088,7.844,-3.992,1.53,29,-26,-14,1],
-  [-5.129,-7.632,-3.160,1.58,-31,19,12,0],
-  [5.000,-7.800,-4.100,1.67,-28,-18,-13,1],
-  // Lateral extensions for exploratory camera offsets and ultrawide outputs.
-  [-12.532,2.720,-1.750,1.8,-6,45,-18,2],
-  [12.955,-0.478,-2.082,1.9,7,-49,15,1],
-  [-13.223,-5.905,-3.693,1.9,-20,38,13,3],
-  [13.230,5.188,-3.990,1.8,20,-40,-16,0],
-  [-15.600,4.100,-4.253,2.1,17,48,-12,1],
-  [15.748,-4.405,-4.419,2.0,-15,-47,17,2],
+  [-0.082,-0.092,1.4,2.53,0,-2,0,0],
+  // Major surrounding sets and reference-led satellites.
+  [-4.826,1.469,2.2,1.219,5,18,-12,1],
+  [5.14,2.035,2.0,1.246,-4,-23,12,1],
+  [-5.518,-2.066,2.6,1.366,-5,15,-13,1],
+  [6.191,-0.402,2.5,1.207,1,-18,12,1],
+  [6.013,-3.524,0.491,1.73,-4.215,-18.187,9.933,3],
+  [-2.525,4.035,0.008,1.465,7.312,9.592,-10.574,3],
+  [-1.723,-4.1,1.2,1.091,-6,10,-7,1],
+  [3.53,4.561,-1.628,1.462,8.248,-11.44,7.41,3],
+  [-6.917,4.554,0.4,1.307,8,15,-9,3],
+  [-5.969,5.17,-3.51,0.989,4.036,7.068,-10.861,1],
+  [0.344,4.021,-0.861,0.755,1.639,1.641,-2.997,0],
+  [0.809,3.983,-2.77,0.789,2.737,-7.362,3.651,1],
+  [-6.174,3.427,-2.967,0.778,3.704,11.302,-5.505,3],
+  [4.242,0.738,-0.7,0.736,-3,-8,5,0],
+  [-4.309,-2.49,-1.0,0.599,-3,10,-5,1],
+  [-0.66,-3.44,-1.0,0.714,-5,0,2,0],
+  [1.03,-3.419,-1.3,0.716,-3,-5,6,3],
+  // Smaller recessed sets fill the interstitial silhouettes.
+  [6.039,-1.705,-4.011,1.167,0.052,-1.845,6.804,2],
+  [-12.253,2.636,-5.188,1.749,1.72,4.598,-0.42,2],
+  [-7.523,-0.037,-6.025,1.183,-0.908,1.094,-3.057,1],
+  [9.468,4.446,-1.905,1.274,1.035,-17.526,-9.385,2],
+  [-9.736,-0.399,-2.058,1.072,-3.3,11.997,2.221,3],
+  [2.361,-6.83,-5.751,1.538,-6.674,2.003,-3.269,2],
+  [7.533,5.319,-4.392,1.236,5.477,-12.363,-5.853,3],
+  [-6.14,-5.326,-3.745,1.601,-0.616,10.236,8.271,2],
+  [5.244,-6.042,-5.723,0.725,-9.849,-0.689,11.744,1],
+  [-11.76,-7.819,-7.866,1.443,-6.5,11.971,8.64,2],
+  [4.832,-3.842,-4.226,0.754,-4.024,-3.421,-7.616,1],
+  [10.754,-3.451,-4.32,1.273,-4.869,-12.662,0.763,2],
+  [13.77,1.9,-7.37,1.054,-3.33,-18.928,-10.245,2],
+  [1.774,7.548,-7.976,1.177,8.847,6.091,-3.416,2],
+  [-12.433,5.796,-4.378,1.076,6.659,6.295,0.696,3],
+  [5.202,2.924,-7.44,0.878,2.892,-4.188,-5.932,0],
+  [-4.96,-1.143,-3.538,0.952,0.618,10.449,9.055,2],
+  [0.001,-6.001,-3.859,0.735,-3.917,7.354,-5.397,0],
+  [-1.274,5.336,-4.058,1.001,5.632,5.513,-1.395,2],
+  [-4.499,1.258,-3.917,0.881,4.205,6.12,11.296,2],
+  [3.925,-5.195,-8.375,0.786,-3.712,-9.866,-2.567,1],
+  [6.553,-0.425,-7.775,1.317,-2.595,-13.023,-2.632,2],
+  // Lateral and edge extensions.
+  [-18.153,-3.753,-1.71,1.867,-4.01,13.841,-6.789,3],
+  [14.502,-4.325,-1.061,1.779,-6.751,-12.933,6.713,0],
+  [-16.511,4.06,-1.445,2.175,5.592,15.687,6.127,2],
+  [-13.117,-0.071,-1.432,1.775,4.227,17.835,-5.772,0],
+  [21.736,-3.034,-5.751,1.713,2.462,-15.519,-0.299,1],
+  [19.928,4.798,-3.6,2.062,4.216,-15.877,0.8,2],
+  [15.287,-0.103,-1.441,1.608,-4.753,-14.818,-6.713,3],
+  [-11.442,-3.908,-0.709,1.269,-3.031,9.194,-3.319,1],
+  [-24.344,-0.13,-6.2,2.117,3.905,28.447,8.452,2],
+  [16.596,5.924,-6.843,1.556,1.485,-9.884,-10.946,3],
+  [26.299,1.908,-6.929,1.278,2.687,-23.906,-11.121,2],
+  [16.437,2.096,-6.586,1.183,-1.243,-15.765,-3.328,2],
+  [-18.95,5.26,-8.438,1.673,8.633,8.626,7.482,2],
+  [16.372,-1.887,-8.752,1.49,-0.6,-16.382,3.461,1],
+  [26.268,-6.483,-7.025,1.625,-8.148,-28.179,8.143,2],
+  [14.885,-5.791,-7.312,1.183,-7.582,-6.928,5.809,1],
+  // Perimeter continuation at the farthest authored camera distance.
+  [30.281,-3.244,-6.94,1.825,-4.305,-15.931,-5.74,2],
+  [-30.363,-5.694,-6.789,1.643,-5.434,16.05,-1.842,0],
+  [10.429,-5.924,-1.334,1.142,0.571,-13.077,4.59,2],
+  [-28.823,7.076,-6.871,2.036,9.823,24.823,-9.617,2],
+  [25.303,6.398,-4.344,1.215,10.186,-19.688,-4.739,0],
+  [23.437,0.968,-1.775,1.692,1.368,-26.511,-5.487,2],
+  [-16.631,-7.771,-6.914,1.855,-1.053,5.661,10.132,2],
+  [-23.876,0.852,-1.944,1.595,-2.856,20.704,5.047,2],
+  [-2.159,6.906,-1.945,0.998,5.036,-5.215,-10.527,0],
+  [-12.445,-2.178,-6.566,1.788,-7.232,2.458,4.889,3],
+  [12.777,9.04,-8.668,1.317,7.208,-15.349,-6.286,0],
+  [-14.849,8.728,-8.201,1.464,10.736,14.196,-11.864,2],
+  [4.327,-6.716,-1.864,0.872,-7.143,-1.056,6.074,3],
+  [-22.53,-2.173,-1.938,1.054,1.355,21.322,-5.945,1],
+  [6.798,6.414,-1.366,1.191,10.916,1.003,10.335,2],
+  [8.735,-7.69,-4.124,1.144,-3.778,-6.428,10.689,0],
+  [12.421,3.348,-4.184,1.694,-0.386,-9.448,0.448,2],
+  [31.282,4.64,-8.452,1.794,-2.935,-26.632,-2.452,0],
+  [-22.453,-8.347,-6.278,1.546,-1.989,12.269,-3.388,3],
+  [-6.168,7.728,-6.507,1.649,8.793,4.07,6.719,2],
+  [22.946,-5.82,-1.571,1.1,-1.99,-23.057,-8.451,2],
 ] as const
 
 export function buildEverywhereCabinetLayout(): EverywhereCabinet[] {
@@ -131,26 +165,29 @@ export function buildEverywhereCabinetLayout(): EverywhereCabinet[] {
 export function everywhereEyeFraming(item: EverywhereCabinet,index: number): readonly [number,number,number,number] {
   if(index===0) return [1,0,0,0]
   const s=item.seed
-  return [1.02+.34*s,Math.sin(index*2.39)*.075,Math.cos(index*1.73)*.065,(index%5===0?.31:index%4===0?.13:0)]
+  const closeup = index < 11 || index%3===0
+  return [closeup ? 1.04+.25*s : 1.0+.07*s,
+    Math.sin(index*2.39)*.055,Math.cos(index*1.73)*.055,
+    closeup ? .015*s : .22+.28*s]
 }
 
 export function everywhereScreenGain(item: Readonly<EverywhereCabinet>, index: number, look: Readonly<EverywhereLook>): number {
   const phase = look.phase
   const gaussian = (distance: number, width: number) => Math.exp(-((distance / width) ** 2))
-  const radius = Math.hypot(item.x,item.y*.87)
+  const { x,y,radius } = everywhereSpatialPosition(item)
   const front = (phase*.58)%1
   const coverage = Math.min(1,look.coverage + look.energy*.12 - look.vocal*.10)
-  let gain = .71+item.seed*.28
-  if (look.pattern === 'signal-sweep') gain = .22+.79*gaussian(item.x-(front*25-12.5),2.2)
-  if (look.pattern === 'outward-pulse') gain = .24+.80*gaussian(radius-front*14,1.5)
-  if (look.pattern === 'cross-cut') gain = .24+.76*gaussian(item.y-item.x*Math.cos(phase)*.66,1.04)
-  if (look.pattern === 'channel-hold') gain = ((index+(Math.floor(phase*.68)))%3===0) ? 1 : .24
+  let gain = index===0 ? 1 : .77+item.seed*.23
+  if (look.pattern === 'signal-sweep') gain = .22+.79*gaussian(x-(front*30-15),2.2)
+  if (look.pattern === 'outward-pulse') gain = .24+.80*gaussian(radius-front*16,1.5)
+  if (look.pattern === 'cross-cut') gain = .24+.76*gaussian(y-x*Math.cos(phase)*.66,1.04)
+  if (look.pattern === 'channel-hold') gain = ((Math.floor((x+30)/3.4)+Math.floor((y+12)/2.4)+Math.floor(phase*.68))%3===0) ? 1 : .24
   if (look.pattern === 'ghost-feed') gain = .33+.61*(.5+.5*Math.sin(phase*2.15+item.seed*9.4))**2
   if (look.pattern === 'static-switch') gain = .66 + .30 * (1 + Math.sin(item.seed*17 + phase*2))*.5
-  if (look.pattern === 'retro-broadcast') gain = .62 + .38*gaussian(item.y, 2.8)
-  if (look.pattern === 'tape-tracking') gain = .42 + .55*gaussian(item.y - Math.sin(phase*.7)*3, 2.1)
+  if (look.pattern === 'retro-broadcast') gain = .62 + .38*gaussian(y, 2.8)
+  if (look.pattern === 'tape-tracking') gain = .42 + .55*gaussian(y - Math.sin(phase*.7)*3, 2.1)
   if (look.pattern === 'channel-mosaic') gain = .58 + .40*(.5+.5*Math.sin(index*2.4+Math.floor(phase*.5)))
-  if (look.pattern === 'signal-relay') gain = .38 + .62*gaussian(radius-(front*14), 2.0)
+  if (look.pattern === 'signal-relay') gain = .28 + .72*gaussian(radius-(1-front)*16, 2.0)
   if (look.pattern === 'midnight-replay') gain = .46 + .52*gaussian(radius, 3.0) + .10*Math.sin(phase*.5+item.seed*5)
   if (item.seed>coverage && index>0) gain*=.27
   const focus = .66 + .34 * Math.exp(-radius*.24)
@@ -181,6 +218,7 @@ export class Cinema2EverywhereWall {
   private readonly lightNormal: Three.Vector3
   private readonly screenMatrix: Three.Matrix4
   private readonly screenLocals: Three.Matrix4[]
+  private readonly backing: Three.Mesh<Three.BufferGeometry,Three.MeshBasicMaterial>
   private readonly spillLights: { light: Three.PointLight; index: number }[] = []
   private readonly spillCool: { value: Three.Color }
   private readonly spillWarm: { value: Three.Color }
@@ -205,15 +243,15 @@ export class Cinema2EverywhereWall {
     this.screenLocals = EVERYWHERE_CABINET_STYLES.map(style=>new THREE.Matrix4().makeTranslation(style.screenX,style.screenY,style.screenZ)
       .scale(new THREE.Vector3(style.screenW,style.screenH,style.glassDepth)))
     this.spillCool={value:new THREE.Color()}; this.spillWarm={value:new THREE.Color()}
-    this.caseMaterial = new THREE.MeshStandardMaterial({roughness:.76,metalness:.13})
-    this.woodTint=new THREE.Color(0x32241c)
-    this.woodMaterial=new THREE.MeshStandardMaterial({color:0x32241c,roughness:.81,metalness:.04})
+    this.caseMaterial = new THREE.MeshStandardMaterial({roughness:.57,metalness:.17})
+    this.woodTint=new THREE.Color(0x493025)
+    this.woodMaterial=new THREE.MeshStandardMaterial({color:0x493025,roughness:.71,metalness:.03})
     const materials={
       shell:this.caseMaterial,
       wood:this.woodMaterial,
-      bezel:new THREE.MeshStandardMaterial({color:0x151719,roughness:.52,metalness:.24}),
+      bezel:new THREE.MeshStandardMaterial({color:0x242526,roughness:.46,metalness:.32}),
       recess:new THREE.MeshStandardMaterial({color:0x060708,roughness:.38,metalness:.2}),
-      metal:new THREE.MeshStandardMaterial({color:0x777065,roughness:.36,metalness:.62}),
+      metal:new THREE.MeshStandardMaterial({color:0x94867a,roughness:.34,metalness:.57}),
       dark:new THREE.MeshStandardMaterial({color:0x090a0a,roughness:.83,metalness:.02}),
     }
     // Screen bounce on its own physical bezel and cabinet. Each instance uses
@@ -230,14 +268,24 @@ export class Cinema2EverywhereWall {
           vCrtSpill=aCrtSpill; vCrtLocal=position;`)
         shader.fragmentShader=shader.fragmentShader.replace('#include <common>',`#include <common>
           uniform vec3 uCrtCool; uniform vec3 uCrtWarm;
-          varying float vCrtSpill; varying vec3 vCrtLocal;`)
+          varying float vCrtSpill; varying vec3 vCrtLocal;
+          float crtHash(vec3 p) { p=fract(p*.1031); p+=dot(p,p.yzx+33.33); return fract((p.x+p.y)*p.z); }`)
+          .replace('#include <color_fragment>',`#include <color_fragment>
+          // Fine cabinet wear, filtered at distance. No per-set texture allocation.
+          vec3 cells=vCrtLocal*vec3(125.0,210.0,135.0);
+          float detail=crtHash(floor(cells));
+          float filterWidth=max(length(dFdx(cells)),length(dFdy(cells)));
+          float wear=(detail-.5)*(1.0-smoothstep(.45,1.6,filterWidth));
+          diffuseColor.rgb*=1.0+wear*.24;`)
+          .replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
+          roughnessFactor=clamp(roughnessFactor+wear*.18,.18,1.0);`)
           .replace('#include <emissivemap_fragment>',`#include <emissivemap_fragment>
-          float face=exp(-abs(vCrtLocal.z-.22)*5.0);
-          float edge=pow(clamp(1.0-abs(vCrtLocal.y)*.55,0.0,1.0),2.0);
-          vec3 bounce=mix(uCrtCool,uCrtWarm,smoothstep(-.8,.8,vCrtLocal.x));
-          totalEmissiveRadiance+=bounce*diffuseColor.rgb*face*edge*vCrtSpill*.8;`)
+          float face=exp(-abs(vCrtLocal.z-.20)*5.5);
+          float lip=exp(-abs(vCrtLocal.z-.145)*13.0);
+          vec3 bounce=mix(uCrtCool,uCrtWarm,smoothstep(-.70,.70,vCrtLocal.x+vCrtLocal.y*.30));
+          totalEmissiveRadiance+=bounce*sqrt(max(diffuseColor.rgb,vec3(0.0)))*(face*.12+lip*.23)*vCrtSpill;`)
       }
-      material.customProgramCacheKey=()=> 'everywhere-cabinet-bounce-v1'
+      material.customProgramCacheKey=()=> 'everywhere-cabinet-bounce-v2'
     }
     for(const [style,spec] of EVERYWHERE_CABINET_STYLES.entries()) {
       const indices=this.sets.flatMap((item,index)=>item.style===style?[index]:[])
@@ -248,7 +296,7 @@ export class Cinema2EverywhereWall {
         mesh.frustumCulled=false
         indices.forEach((index,slot)=>{
           const seed=this.sets[index]!.seed
-          const shade=.65+seed*.35
+          const shade=.72+seed*.28
           mesh.setColorAt(slot,new THREE.Color().setRGB(shade,shade,shade))
         })
         if(mesh.instanceColor) mesh.instanceColor.needsUpdate=true
@@ -259,7 +307,7 @@ export class Cinema2EverywhereWall {
     const { THREE: T } = library
     // Actual convex glass, with a curved image shader on top. The outer edges
     // stay at the original aperture depth, so the bezel still occludes them.
-    const plane = new T.PlaneGeometry(1,1,12,10)
+    const plane = new T.PlaneGeometry(1,1,20,16)
     const glassVertices=plane.getAttribute('position')
     for(let i=0;i<glassVertices.count;i++) {
       const x=glassVertices.getX(i)*2,y=glassVertices.getY(i)*2
@@ -289,7 +337,7 @@ export class Cinema2EverywhereWall {
         uEye:{value:this.eyeTexture},uMedia:{value:this.mediaTexture},uHasEye:{value:0},uHasMedia:{value:0},uSourceMode:{value:0},
         uPool0:{value:this.poolTextures[0]},uPool1:{value:this.poolTextures[1]},uPool2:{value:this.poolTextures[2]},
         uPoolAspect:{value:new T.Vector3()},uProgram:{value:new T.Vector4()},uMusic:{value:new T.Vector4()},
-        uLayout:{value:0},uMediaAspect:{value:1},uMediaFit:{value:1},uMediaOpacity:{value:1},uMediaRotation:{value:0},
+        uWallExtent:{value:new T.Vector2(30,15)},uLayout:{value:0},uMediaAspect:{value:1},uMediaFit:{value:1},uMediaOpacity:{value:1},uMediaRotation:{value:0},
         uMediaTransform:{value:new T.Vector4(.5,.5,1,1)},uLook:{value:new T.Vector4()},
         uReaction:{value:new T.Vector2()},uTint:{value:new T.Color()},uCool:{value:new T.Color()},uWarm:{value:new T.Color()},
       },
@@ -303,15 +351,24 @@ export class Cinema2EverywhereWall {
       this.poolTextures.forEach((texture,index)=>this.borrow(renderer,texture,this.poolMedia[index]?.texture ?? null))
     }
     this.group.add(this.screen)
-    this.coolLight = new T.DirectionalLight(0xffffff,.95)
-    this.coolLight.position.set(-9,5,-1.5)
-    this.warmLight = new T.DirectionalLight(0xffffff,.82)
-    this.warmLight.position.set(9,-1,1)
-    this.group.add(this.coolLight,this.warmLight,new T.HemisphereLight(0x9bb9c5,0x160d08,.035))
+    // Recessed architectural envelope, behind every cabinet. Its curvature
+    // remains physical at every aspect; the dark surface only reads in gaps.
+    const backingGeometry=new T.PlaneGeometry(76,32,24,1)
+    const back=backingGeometry.getAttribute('position')
+    for(let i=0;i<back.count;i++) back.setZ(i,-15+2.0*(back.getX(i)/38)**2)
+    back.needsUpdate=true; backingGeometry.computeVertexNormals()
+    this.backing=new T.Mesh(backingGeometry,new T.MeshBasicMaterial({color:0x090b0d}))
+    this.group.add(this.backing)
+    // Directional grazing light reveals sidewalls without flattening the wall.
+    this.coolLight = new T.DirectionalLight(0xffffff,1.35)
+    this.coolLight.position.set(-12,7,5)
+    this.warmLight = new T.DirectionalLight(0xffffff,1.65)
+    this.warmLight.position.set(10,5,3)
+    this.group.add(this.coolLight,this.warmLight,new T.HemisphereLight(0x9bb9c5,0x160d08,.045))
     // A small fixed light budget adds actual short-range inter-cabinet spill.
     // No shadow maps or per-TV lights (which would scale with cabinet count).
     for(const index of [0,1,2,3,4,5]) {
-      const light=new T.PointLight(0xffffff,0,4.2,2)
+      const light=new T.PointLight(0xffffff,0,5.4,2)
       this.spillLights.push({light,index}); this.group.add(light)
     }
     this.place(.84)
@@ -330,6 +387,7 @@ export class Cinema2EverywhereWall {
     uniforms.uProgram!.value.set(Math.max(0,EVERYWHERE_PATTERNS.findIndex(p=>p.value===look.pattern)-5),poolStep,look.kick,look.snare)
     uniforms.uMusic!.value.set(look.bass,look.high,look.build,look.drop)
     const cover = everywhereWallCoverScale(aspectRatio)
+    uniforms.uWallExtent!.value.set(30*Math.max(1,(Number.isFinite(aspectRatio)?aspectRatio:16/9)/2),15)
     // Reposition the installation laterally for wide outputs; never scale the
     // meshes or cancel their natural perspective.
     this.group.scale.set(1,1,1)
@@ -351,6 +409,7 @@ export class Cinema2EverywhereWall {
     this.group.position.z = 0
     const setColor = (color: Three.Color, rgba: Cinema2Color) => color.setRGB(rgba[0],rgba[1],rgba[2],THREE.SRGBColorSpace)
     setColor(this.caseMaterial.color,look.colors.cabinet)
+    setColor(this.backing.material.color,look.colors.background)
     this.woodMaterial.color.copy(this.caseMaterial.color).multiplyScalar(1.6).lerp(this.woodTint,.55)
     setColor(this.spillCool.value,look.colors.cool)
     setColor(this.spillWarm.value,look.colors.warm)
@@ -363,10 +422,10 @@ export class Cinema2EverywhereWall {
     for(const {light,index} of this.spillLights) {
       const item=this.sets[index]!
       light.color.copy(this.spillCool.value).lerp(this.spillWarm.value,index%2?.72:.28)
-      light.intensity=powerAt(index)*(index===0?3.4:1.75)
+      light.intensity=powerAt(index)*(index===0?18:9)
       this.screen.getMatrixAt(index,this.screenMatrix)
       light.position.setFromMatrixPosition(this.screenMatrix)
-      light.position.addScaledVector(this.lightNormal.set(0,0,1).transformDirection(this.screenMatrix),.22*item.scale)
+      light.position.addScaledVector(this.lightNormal.set(0,0,1).transformDirection(this.screenMatrix),.43*item.scale)
     }
     setColor(this.coolLight.color,look.colors.cool)
     setColor(this.warmLight.color,look.colors.warm)
@@ -429,6 +488,8 @@ export class Cinema2EverywhereWall {
       this.renderer?.properties.remove(texture)
       texture.dispose()
     }
+    this.backing.geometry.dispose()
+    this.backing.material.dispose()
     this.coolLight.dispose()
     this.warmLight.dispose()
     this.spillLights.forEach(({light})=>light.dispose())

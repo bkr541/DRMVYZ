@@ -1,10 +1,12 @@
 import type { EverywhereCabinet, EverywhereLook } from './Cinema2EverywhereWall'
+import { everywhereSpatialPosition } from './Cinema2EverywhereSpatial'
 
 /** Deterministic content-space choreography. No clock, allocations of GPU resources,
  * or asset-specific assumptions. The caller supplies the shared musical phase. */
 export function everywhereMediaPose(cabinet: EverywhereCabinet, index: number, look: Readonly<EverywhereLook>) {
   const {phase,pattern,seed}={phase:look.phase,pattern:look.pattern,seed:cabinet.seed}
-  const x=cabinet.x/15, y=cabinet.y/8, r=Math.hypot(x,y)
+  const spatial=everywhereSpatialPosition(cabinet)
+  const x=spatial.x/15, y=spatial.y/8, r=Math.hypot(x,y,spatial.depth/8)
   const t=phase*.38, wave=(v:number)=>.5+.5*Math.sin(v), cycle=t-Math.floor(t)
   const bank=Math.floor((x+1)*3)+Math.floor((y+1)*2)
   let scale=1, dx=0, dy=0, rotation=0, power=1, channel=0, distortion=0, stretch=1
@@ -19,7 +21,7 @@ export function everywhereMediaPose(cabinet: EverywhereCabinet, index: number, l
     case 'retro-broadcast': power=(Math.floor((y+1)*4)+Math.floor(t))%4!==0?1:0; scale=.82+.2*wave(phase+y*6); stretch=.85+.15*wave(phase+y*5); channel=Math.floor((y+1)*3); break
     case 'tape-tracking': power=Math.abs(y-Math.sin(phase*.5))<.65?1:0; dx=.12*Math.sin(phase*2+y*10); dy=.09*Math.sin(phase+y*3); distortion=.4+.5*look.snare; scale=.8+.25*wave(phase+x*4); channel=Math.floor((x+1)*3); break
     case 'channel-mosaic': power=wave(index*2.4+Math.floor(t))>.25?1:0; scale=.56+.55*wave(index*2.3+Math.floor(t)); rotation=.12*Math.sin(index*2.4); channel=bank+Math.floor(seed*3); break
-    case 'signal-relay': {const d=r-cycle*1.65; power=Math.abs(d)<.28?1:0; scale=.72+.45*Math.exp(-d*d*14); dx=x*.08; channel=Math.floor(r*5); break}
+    case 'signal-relay': {const d=r-(1-cycle)*1.65; power=Math.abs(d)<.28?1:0; scale=.72+.45*Math.exp(-d*d*14); dx=x*.08; channel=Math.floor(r*5); break}
     case 'midnight-replay': power=r<.34||seed>.87?1:0; scale=.65+.45*Math.exp(-r*4); dx=x*.06; channel=Math.floor(seed*3); break
   }
   const motion=(look.contentMotion??.75)*look.motion, variation=look.scaleVariation??.6

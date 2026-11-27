@@ -68,8 +68,10 @@ describe('Everywhere', () => {
 
   it('builds a deterministic spatial wall with a prominent hero and distinct screen programs', () => {
     const wall = buildEverywhereCabinetLayout()
-    expect(wall).toHaveLength(46)
-    expect(wall[0]).toMatchObject({ x: 0, scale: 2.65 })
+    expect(wall.length).toBeGreaterThan(40)
+    expect(wall.length).toBeLessThanOrEqual(100)
+    expect(Math.abs(wall[0]!.x)).toBeLessThan(.2)
+    expect(wall[0]!.scale).toBeGreaterThan(Math.max(...wall.slice(1).map(c=>c.scale)))
     expect(buildEverywhereCabinetLayout()).toEqual(wall)
     expect(wall.some(screen => screen.x < -6)).toBe(true)
     expect(wall.some(screen => screen.x > 6)).toBe(true)
@@ -136,20 +138,72 @@ describe('Everywhere', () => {
     expect(apparent(4)).toBeGreaterThan(apparent(-5)*1.8)
   })
 
-  it('keeps conservative cabinet bounds disjoint across sampled cabinet angles', () => {
-    const wall=buildEverywhereCabinetLayout()
-    for(const angle of [0,.25,.5,.75,.84,1,1.25]) {
+  // Use the actual merged family geometry, including the glass bulge. A
+  // hand-written box that ignores knobs, feet or extrusion bevels is unsafe.
+  const localCabinetBounds=()=>EVERYWHERE_CABINET_STYLES.map(style=>{
+    const bounds=new THREE.Box3()
+    for(const {geometry} of buildEverywhereCabinetParts(THREE,mergeGeometries,style)) {
+      geometry.computeBoundingBox()
+      bounds.union(geometry.boundingBox!)
+      geometry.dispose()
+    }
+    bounds.max.z=Math.max(bounds.max.z,style.screenZ+style.glassDepth)
+    return bounds
+  })
+  const transform=(c:ReturnType<typeof buildEverywhereCabinetLayout>[number],angle:number)=>{
+    const object=new THREE.Object3D()
+    object.position.set(c.x,c.y,c.z)
+    object.rotation.set(c.pitch*angle,c.yaw*angle,c.roll*angle)
+    object.scale.set(c.scale*c.width,c.scale*c.height,c.scale*c.depth)
+    object.updateMatrix()
+    return object.matrix.clone()
+  }
+
+  it('keeps actual cabinet bounds disjoint throughout the Cabinet Angle control', () => {
+    const wall=buildEverywhereCabinetLayout(), bounds=localCabinetBounds()
+    for(const angle of Array.from({length:51},(_,i)=>i*.025)) {
       const boxes=wall.map(c=>{
-        const s=EVERYWHERE_CABINET_STYLES[c.style]!
-        const ymin=-s.h/2-.045,ymax=s.h/2+(c.style===2?.19:.045)
+        const b=bounds[c.style]!
         const rotation=new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(c.pitch*angle,c.yaw*angle,c.roll*angle))
-        const center=new THREE.Vector3(0,(ymin+ymax)/2,(.34-s.depth)/2).multiplyScalar(c.scale).applyMatrix4(rotation).add(new THREE.Vector3(c.x,c.y,c.z))
-        const half=new THREE.Vector3(s.w/2+.045,(ymax-ymin)/2,(s.depth+.34)/2).multiplyScalar(c.scale)
+        const center=b.getCenter(new THREE.Vector3()).multiplyScalar(c.scale).applyMatrix4(rotation).add(new THREE.Vector3(c.x,c.y,c.z))
+        const half=b.getSize(new THREE.Vector3()).multiplyScalar(c.scale/2)
         return new OBB(center,half,new THREE.Matrix3().setFromMatrix4(rotation))
       })
       for(let i=0;i<boxes.length;i++)for(let j=0;j<i;j++) {
         expect(boxes[i]!.intersectsOBB(boxes[j]!),`angle=${angle}, cabinets ${i}/${j}`).toBe(false)
       }
+    }
+  })
+
+  it('keeps a dominant hero and dense projected geometry at supported camera distances and aspects',()=>{
+    const wall=buildEverywhereCabinetLayout(), bounds=localCabinetBounds()
+    const matrices=wall.map(c=>transform(c,.84)), inverses=matrices.map(m=>m.clone().invert())
+    const camera=new THREE.PerspectiveCamera(40,16/9,.2,60)
+    const point=new THREE.Vector3(), ray=new THREE.Ray(), localRay=new THREE.Ray()
+    const update=(aspect:number,z:number)=>{
+      camera.aspect=aspect;camera.position.set(0,0,z);camera.lookAt(0,0,0)
+      camera.updateProjectionMatrix();camera.updateMatrixWorld(true)
+    }
+    update(16/9,14)
+    const hero=new THREE.Box3(), b=bounds[wall[0]!.style]!
+    for(const x of [b.min.x,b.max.x])for(const y of [b.min.y,b.max.y])for(const z of [b.min.z,b.max.z]) {
+      hero.expandByPoint(point.set(x,y,z).applyMatrix4(matrices[0]!).project(camera))
+    }
+    const size=hero.getSize(new THREE.Vector3())
+    expect(size.x/2).toBeGreaterThan(.30);expect(size.x/2).toBeLessThan(.39)
+    expect(size.y/2).toBeGreaterThan(.42);expect(size.y/2).toBeLessThan(.56)
+    // Ray vs local bounds is a silhouette occupancy proxy, NOT a render.
+    // Ignore the dark architectural backing so it cannot inflate the result.
+    for(const z of [11,14,17])for(const aspect of [9/16,1,16/9,32/9]) {
+      update(aspect,z)
+      let hits=0
+      const columns=64, rows=36
+      for(let y=0;y<rows;y++)for(let x=0;x<columns;x++) {
+        point.set(2*(x+.5)/columns-1,2*(y+.5)/rows-1,.5).unproject(camera)
+        ray.set(camera.position,point.sub(camera.position).normalize())
+        if(wall.some((c,i)=>localRay.copy(ray).applyMatrix4(inverses[i]!).intersectsBox(bounds[c.style]!))) hits++
+      }
+      expect(hits/(columns*rows),`aspect=${aspect}, camera=${z}`).toBeGreaterThan(z===17?.80:.85)
     }
   })
 

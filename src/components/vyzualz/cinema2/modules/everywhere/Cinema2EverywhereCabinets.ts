@@ -37,7 +37,7 @@ export function buildEverywhereCabinetParts(T:ThreeNamespace,merge:Merge,s:Every
       const hole=new T.Path();const sw=s.screenW+margin*2,sh=s.screenH+margin*2
       roundedPath(hole,s.screenX-x-sw/2,s.screenY-y-sh/2,sw,sh,Math.min(.13,sh*.13));shape.holes.push(hole)
     }
-    return new T.ExtrudeGeometry(shape,{curveSegments:7,depth,steps:1,bevelEnabled:true,bevelSegments:2,bevelSize:bevel,bevelThickness:bevel}).translate(x,y,z)
+    return new T.ExtrudeGeometry(shape,{curveSegments:9,depth,steps:depth>.5?4:1,bevelEnabled:true,bevelSegments:2,bevelSize:bevel,bevelThickness:bevel}).translate(x,y,z)
   }
   const box=(m:Finish,w:number,h:number,d:number,x:number,y:number,z:number)=>add(m,new T.BoxGeometry(w,h,d).translate(x,y,z))
   const knob=(x:number,y:number,r:number,d=.065)=>{
@@ -62,19 +62,20 @@ export function buildEverywhereCabinetParts(T:ThreeNamespace,merge:Merge,s:Every
   box('dark',s.screenW+.015,s.screenH+.015,.028,s.screenX,s.screenY,.08)
   switch(s.family){
     case 'broadcast':
-      // Squared metal monitor, bottom status rail, rack-style side flanges.
-      for(const side of [-1,1]){
-        box('bezel',.075,s.h*.83,.14,side*(s.w/2-.01),0,.075)
-        for(const y of [-.53,.53]) add('metal',new T.CylinderGeometry(.027,.027,.022,10).rotateX(Math.PI/2).translate(side*(s.w/2-.015),y,.16))
-      }
-      for(let i=0;i<5;i++) box('metal',.055,.038,.028,-.64+i*.145,-.715,.16)
-      box('metal',.25,.026,.018,.64,-.715,.158)
+      // Monumental monitor: recessed full-width control rail, fine buttons,
+      // inset speaker grille and concentric rotary tuning dial (reference hero).
+      box('dark',1.88,.17,.032,0,-.708,.136)
+      for(let i=0;i<6;i++) box('metal',.061,.039,.034,-.68+i*.112,-.715,.165)
+      for(let i=0;i<8;i++) box('bezel',.011,.083,.018,.39+i*.025,-.715,.16)
+      add('metal',new T.CylinderGeometry(.093,.099,.023,32).rotateX(Math.PI/2).translate(.83,-.709,.181))
+      knob(.83,-.709,.077,.075)
+      box('metal',.055,.018,.022,.12,-.715,.177)
       break
     case 'wood-console':
       // Separate broad side control/speaker panel, aluminum trim, feet.
       box('dark',.43,1.43,.075,.91,0,.125)
       knob(.91,.51,.115,.12);knob(.91,.21,.093,.09)
-      for(let i=0;i<12;i++) box('bezel',.32,.025,.027,.91,-.04-i*.052,.179)
+      for(let i=0;i<14;i++) box('bezel',.32,.014,.027,.91,-.02-i*.043,.179)
       for(const y of [-.78,.78])box('metal',s.w-.13,.025,.045,0,y,.154)
       for(const side of [-1,1])box('dark',.25,.105,.55,side*.71,-.87,-.38)
       break
@@ -89,7 +90,8 @@ export function buildEverywhereCabinetParts(T:ThreeNamespace,merge:Merge,s:Every
     case 'molded':
       // Deep tapered consumer CRT, chunky lower chin and side air vents.
       box('shell',1.78,.115,.08,0,-.70,.125)
-      for(let i=0;i<5;i++) box('dark',.065,.045,.035,-.56+i*.15,-.70,.18)
+      for(let i=0;i<6;i++) box('dark',.055,.037,.035,-.64+i*.14,-.70,.18)
+      for(let i=0;i<5;i++) box('bezel',.015,.07,.022,.24+i*.026,-.70,.171)
       knob(.72,-.70,.052,.044)
       break
   }

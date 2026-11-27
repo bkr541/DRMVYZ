@@ -17,12 +17,12 @@ export function everywhereCameraProfileRules(camera:Cinema2CameraId):Cinema2Chor
   const base=(name:string,enabledWhen:readonly Cinema2ParameterConditionManifest[],strength='camera-impact')=>({id:cinema2StableId<Cinema2ChoreographyRuleId>(`everywhere-camera-${name}`),priority:100,enabledParameter:ref('camera-motion'),strengthParameter:ref(strength),enabledWhen})
   const music=[eq('auto-performance',true),ne('camera-mode','gentle')]
   const rules:Cinema2ChoreographyRuleManifest[]=[
-    {...base('build',music),source:{signal:'continuous',path:'director.build',capability:'visual-director.significance',smoothingMs:250},actions:[action('build-dolly','transform.position',[0,.06,-1.6]),action('build-lens','fovDegrees',-2)]},
-    {...base('drop',music),source:{signal:'drop',capability:'music.drop'},conditions:[{kind:'once-per-event'}],actions:[envelope('drop-dolly','transform.position',[0,.04,-4.2],.45,2.6),envelope('drop-lens','fovDegrees',-8,.45,2.6)]},
+    {...base('build',music),source:{signal:'continuous',path:'director.build',capability:'visual-director.significance',smoothingMs:250},actions:[action('build-dolly','transform.position',[0,.06,-.85]),action('build-lens','fovDegrees',-1.2)]},
+    {...base('drop',music),source:{signal:'drop',capability:'music.drop'},conditions:[{kind:'once-per-event'}],actions:[envelope('drop-dolly','transform.position',[0,.04,-1.8],.45,2.6),envelope('drop-lens','fovDegrees',-3.5,.45,2.6)]},
     {...base('vocal',music),source:{signal:'continuous',path:'audio.features.vocalPresence',capability:'audio.features',smoothingMs:240},actions:[action('vocal-wide','transform.position',[0,0,.35])]},
     {...base('reveal',[...music,ne('camera-mode','pattern')]),source:{signal:'phrase',capability:'music.phrase'},conditions:[{kind:'once-per-event'}],actions:[envelope('reveal-wide','transform.position',[0,0,.6],.3,1.4)]},
-    {...base('hero',[eq('camera-mode','hero')]),source:{signal:'continuous',path:'audio.features.overallEnergy',capability:'audio.features',smoothingMs:240},actions:[action('hero-push','transform.position',[0,0,-1.4])]},
-    {...base('explore',[eq('camera-mode','explore')]),source:{signal:'phrase',capability:'music.phrase'},conditions:[{kind:'once-per-event'}],actions:[envelope('explore-track','transform.position',[1.5,.3,-.35],.5,2.4)]},
+    {...base('hero',[eq('camera-mode','hero')]),source:{signal:'continuous',path:'audio.features.overallEnergy',capability:'audio.features',smoothingMs:240},actions:[action('hero-push','transform.position',[0,0,-.9])]},
+    {...base('explore',[eq('camera-mode','explore')]),source:{signal:'phrase',capability:'music.phrase'},conditions:[{kind:'once-per-event'}],actions:[envelope('explore-track','transform.position',[.85,.22,-.25],.5,2.4)]},
     {...base('kick',[eq('kick-zoom',true),ne('camera-mode','gentle')]),source:{signal:'kick',capability:'music.rhythm-events'},conditions:[{kind:'once-per-event'},{kind:'not-silent'}],actions:[envelope('kick-lens','fovDegrees',-1.5,.025,.2)]},
     {...base('roll',[ne('camera-mode','gentle')],'camera-roll'),source:{signal:'snare',capability:'music.rhythm-events'},conditions:[{kind:'once-per-event'}],actions:[envelope('analog-roll','roll',1.5,.1,.65)]},
   ]
