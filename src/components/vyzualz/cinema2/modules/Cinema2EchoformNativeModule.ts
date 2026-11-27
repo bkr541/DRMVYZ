@@ -26,7 +26,6 @@ import {
   Cinema2MainframeReactivityEngine,
   resolveCinema2MainframeTimeSec,
   type Cinema2MainframeLightingFrame,
-  type Cinema2MainframePatternId,
 } from './mainframe/Cinema2MainframePatternEngine'
 import {
   CINEMA2_MAINFRAME_TRIGGER_IDS,
@@ -48,6 +47,7 @@ import {
   type Cinema2MainframeMusicalCue,
   type Cinema2MainframeMusicalCueKind,
 } from './mainframe/Cinema2MainframeMusicAdapter'
+import { ECHOFORM_PATTERN_IDS, echoformLightingPattern, evaluateEchoformPerformance, EchoformWaveBank, type EchoformPattern } from './echoform/Cinema2EchoformPerformance'
 import { CINEMA2_MAINFRAME_IMPULSE_IDS } from './mainframe/Cinema2MainframeReactivity'
 
 export const CINEMA2_ECHOFORM_NATIVE_MODULE_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('echoform-native-render')
@@ -94,8 +94,9 @@ function shellCount(value: unknown): number {
   return 3
 }
 
-function parameterPattern(value: unknown): Cinema2MainframePatternId {
-  return typeof value === 'string' && CINEMA2_MAINFRAME_PATTERN_IDS.includes(value as Cinema2MainframePatternId) ? value as Cinema2MainframePatternId : CINEMA2_MAINFRAME_DEFAULT_PATTERN
+function parameterPattern(value: unknown, enhanced: boolean): EchoformPattern {
+  const ids: readonly string[] = enhanced ? ECHOFORM_PATTERN_IDS : CINEMA2_MAINFRAME_PATTERN_IDS
+  return typeof value === 'string' && ids.includes(value) ? value as EchoformPattern : CINEMA2_MAINFRAME_DEFAULT_PATTERN
 }
 
 function validateConfig(config: Cinema2JsonObject | undefined): readonly Cinema2ModuleDiagnostic[] {
@@ -115,6 +116,7 @@ export interface Cinema2EchoformFigure {
   /** A second figure the particles disperse into and merge from, alternating with the first every 8 beats. */
   readonly secondary?: Readonly<{ svgSource: string; geometry?: Cinema2EchoformGeometryOptions }>
   /** Names the shared GPU resource; unique per artwork. */
+  readonly enhanced?: boolean
   readonly resourceKey: string
 }
 
@@ -125,6 +127,8 @@ export function createCinema2EchoformModuleDefinition(figure: Readonly<Cinema2Ec
   version: CINEMA2_ECHOFORM_NATIVE_MODULE_VERSION,
   validate: (module: Readonly<Cinema2ModuleManifest>) => validateConfig(module.config),
   create: (context: Cinema2ModuleCreateContext) => {
+    const enhanced = figure.enhanced === true
+    const waves = new EchoformWaveBank()
     const beatClock = new Cinema2BeatClock()
     let draw: Omit<Cinema2EchoformDrawState, 'modelMatrix' | 'viewProjectionMatrix'> | null = null
     let structuralSeed = context.randomness.sample('echoform-initial-seed')
@@ -136,10 +140,10 @@ export function createCinema2EchoformModuleDefinition(figure: Readonly<Cinema2Ec
     const orchestrationClock = new Cinema2MainframeBeatClockResolver()
     const dropCoordinator = new Cinema2MainframeDropCoordinator()
     const musicalCues: Cinema2MainframeMusicalCue[] = []
-    const initialPattern = parameterPattern(context.parameters.get('pattern'))
+    const initialPattern = parameterPattern(context.parameters.get('pattern'), enhanced)
     const patternControls = new Cinema2PatternControlResolver<Cinema2MainframeTriggerId>()
-    const patternController = new Cinema2MainframePatternController(
-      createCinema2MainframePatternCycle(index => context.randomness.sample('echoform-pattern-cycle', index)),
+    const patternController = new Cinema2MainframePatternController<EchoformPattern>(
+      createCinema2MainframePatternCycle(index => context.randomness.sample('echoform-pattern-cycle', index), enhanced ? ECHOFORM_PATTERN_IDS : CINEMA2_MAINFRAME_PATTERN_IDS),
       initialPattern,
     )
     let lighting: Readonly<Cinema2MainframeLightingFrame> | null = null
@@ -149,7 +153,7 @@ export function createCinema2EchoformModuleDefinition(figure: Readonly<Cinema2Ec
     let triggerTrackId: string | null | undefined
     let triggerContextGeneration: number | null = null
     let previousPlayback: ReturnType<typeof resolveCinema2MainframePlaybackState> | null = null
-    let selection: Readonly<Cinema2MainframePatternSelection> = Object.freeze({ activePattern: initialPattern, patternStartBeat: 0, changed: false })
+    let selection: Readonly<Cinema2MainframePatternSelection<EchoformPattern>> = Object.freeze({ activePattern: initialPattern, patternStartBeat: 0, changed: false })
 
     const provider = Object.freeze({
       id: `${context.module.id}:echoform-native`,
@@ -164,7 +168,7 @@ export function createCinema2EchoformModuleDefinition(figure: Readonly<Cinema2Ec
         const renderer = context.resources.acquire(
           figure.resourceKey,
           'EchoformSvgRenderer',
-          gl => new Cinema2EchoformRenderer(gl, figure.svgSource, figure.geometry, figure.secondary ?? null),
+          gl => new Cinema2EchoformRenderer(gl, figure.svgSource, figure.geometry, figure.secondary ?? null, enhanced),
           value => value.dispose(),
         )
         renderer.draw({
@@ -178,7 +182,7 @@ export function createCinema2EchoformModuleDefinition(figure: Readonly<Cinema2Ec
     return {
       lifecycle: {
         update: ({ frame, parameters }: Cinema2ModuleUpdateContext) => {
-          const authoredPattern = parameterPattern(parameters.get('pattern'))
+          const authoredPattern = parameterPattern(parameters.get('pattern'), enhanced)
           const savedPatternChange = bool(parameters.get('patternChange'), false)
           const triggerValue = parameters.get('trigger')
           const savedTrigger: Cinema2MainframeTriggerId = typeof triggerValue === 'string' && CINEMA2_MAINFRAME_TRIGGER_IDS.includes(triggerValue as Cinema2MainframeTriggerId)
@@ -198,7 +202,7 @@ export function createCinema2EchoformModuleDefinition(figure: Readonly<Cinema2Ec
           const triggerReset = shouldResetCinema2MainframeDropState(accepted,
             { timeSec, sourceIdentity, playback },
             { timeSec: triggerPreviousTimeSec, sourceIdentity: triggerSourceIdentity, contextGeneration: triggerContextGeneration, playback: previousPlayback })
-          if (triggerReset) dropCoordinator.reset()
+          if (triggerReset) { dropCoordinator.reset(); waves.reset() }
           const cues = musicalCues.splice(0)
           const dispatched = triggerReset || playback !== 'playing' ? [] : resolveCinema2MainframeMusicalEvents(accepted, cues)
           const coordinated = dropCoordinator.update(accepted, dispatched)
@@ -209,7 +213,7 @@ export function createCinema2EchoformModuleDefinition(figure: Readonly<Cinema2Ec
             current: timing,
           })
           selection = patternController.update({ authoredPattern, patternChange, trigger, triggerEventId, absoluteBeat: timing.beats, reset: triggerReset })
-          lighting = reactivity.update(frame, selection.activePattern, bpmSync, selection.patternStartBeat, coordinated.events, timing.beats)
+          lighting = reactivity.update(enhanced ? accepted : frame, echoformLightingPattern(selection.activePattern), bpmSync, selection.patternStartBeat, coordinated.events, timing.beats)
           triggerPreviousTimeSec = timeSec
           triggerPreviousBeat = timing.beats
           triggerSourceIdentity = sourceIdentity
@@ -250,10 +254,22 @@ export function createCinema2EchoformModuleDefinition(figure: Readonly<Cinema2Ec
           const structuralYaw = sectionTurn * turnDirection * Math.min(42, rotationDegrees * 1.35)
           const shellPulse = 1 + bass * intensity * 0.38 + beatPulse * intensity * 0.24
 
+          const performance = enhanced ? evaluateEchoformPerformance(selection.activePattern, timing.beats, selection.patternStartBeat, rate, motion, intensity, lighting, playback === 'playing', waves.update(coordinated.events, timeSec, playback === 'playing'), waves.stereoSide) : undefined
+          const f = (key: string, fallback: number) => clamp(number(parameters.get(key), fallback))
+          const field = enhanced ? {
+            orbitCount: Math.round(clamp(number(parameters.get('orbitCount'), 3), 0, 5)), orbitSpread: f('orbitSpread', 0.65),
+            echoCount: Math.round(clamp(number(parameters.get('echoCount'), 3), 0, 3)), echoDistance: f('echoDistance', 0.45),
+            particleDensity: f('particleFieldDensity', 0.6), shockwave: f('shockwaveIntensity', 0.75), headphone: f('headphoneEnergy', 0.8),
+            filaments: f('energyFilaments', 0.4), scan: f('scanIntensity', 0.65), turbulence: f('particleTurbulence', 0.45),
+            recoil: f('impactRecoil', 0.35), blackout: f('blackoutDepth', 0.85), surface: f('surfaceIllumination', 0.5),
+            environment: parameters.get('environment') !== 'void', orbitColor: color(parameters.get('orbitColor'), EYE),
+            atmosphere: color(parameters.get('atmosphereColor'), Object.freeze([0.08, 0.11, 0.28, 1]) as Cinema2Color), intensity,
+          } : undefined
           draw = {
+            performance, field,
             orchestration: adapted ? Object.freeze({ strength: clamp(number(parameters.get('masterIntensity'), 0.8) / 0.8, 0, 1.25), frame: adapted }) : null,
-            reconstruction,
-            phase: cyclePhase,
+            reconstruction: performance ? clamp(authoredReconstruction + performance.energy * 0.15 + performance.impact * 0.18 - performance.fragment * 0.18) : reconstruction,
+            phase: performance ? 0.40 + performance.charge * 0.08 : cyclePhase,
             morph: figure.secondary ? Object.freeze({
               figure: (motion < 0.05 ? 0 : Math.floor(musicalBeat / 8) % 2) as 0 | 1,
               // Merges in over the first of each cycle and disperses over the last, so each figure appears out of dust and goes back to it.
@@ -266,12 +282,12 @@ export function createCinema2EchoformModuleDefinition(figure: Readonly<Cinema2Ec
             pointSize: clamp(number(parameters.get('pointSize'), 0.34), 0.12, 0.62),
             shellCount: shellCount(parameters.get('shellCount')),
             shellSeparation: clamp(number(parameters.get('shellSeparation'), 0.58) * shellPulse, 0, 1.5),
-            yawRadians: (idleYaw + structuralYaw) * Math.PI / 180,
+            yawRadians: (performance ? (Math.sin(performance.localBeat * Math.PI / 8) * rotationDegrees * performance.motion + structuralYaw) : idleYaw + structuralYaw) * Math.PI / 180,
             scale: clamp(number(parameters.get('figureScale'), 1), 0.55, 1.65),
             pulse: clamp(beatPulse * intensity + bass * intensity * 0.25),
             sparkle: clamp(high * intensity),
             scatter: clamp(fragmentation + kickScatter * intensity * 0.72, 0, 1.4),
-            seed: structuralSeed + Math.floor(musicalBeat) * 0.013,
+            seed: enhanced ? 0.37 : structuralSeed + Math.floor(musicalBeat) * 0.013,
             background: color(parameters.get('backgroundColor'), BLACK),
             shadow: color(parameters.get('shadowColor'), SHADOW),
             metal: color(parameters.get('metalColor'), METAL),
@@ -281,6 +297,7 @@ export function createCinema2EchoformModuleDefinition(figure: Readonly<Cinema2Ec
           }
         },
         dispose: () => {
+          waves.reset()
           beatClock.reset()
           musicalCues.splice(0)
           dropCoordinator.reset()
@@ -316,5 +333,6 @@ export function createCinema2EchoformModuleDefinition(figure: Readonly<Cinema2Ec
 export const cinema2EchoformNativeModuleDefinition = createCinema2EchoformModuleDefinition({
   typeId: CINEMA2_ECHOFORM_NATIVE_MODULE_TYPE_ID,
   svgSource: goonzSvgSource,
-  resourceKey: 'echoform:goonz-svg-renderer:v2',
+  enhanced: true,
+  resourceKey: 'echoform:goonz-svg-renderer:v3',
 })

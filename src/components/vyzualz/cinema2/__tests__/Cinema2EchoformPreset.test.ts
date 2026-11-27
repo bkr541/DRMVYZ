@@ -48,7 +48,7 @@ describe('Echoform preset', () => {
     expect(CINEMA2_ECHOFORM_PRESET_MANIFEST.metadata.description).toContain('wire mesh')
   })
 
-  it('exposes BPM sync plus a six-color original-palette surface and music-aware formation controls', () => {
+  it('exposes BPM sync plus an eight-color enhanced-palette surface and music-aware formation controls', () => {
     const parameters = CINEMA2_ECHOFORM_PRESET_MANIFEST.parameters ?? []
     expect(parameters.find(parameter => parameter.id === CINEMA2_ECHOFORM_BPM_SYNC_ID)).toMatchObject({
       label: 'BPM Sync',
@@ -63,6 +63,8 @@ describe('Echoform preset', () => {
       'Highlight',
       'Eye Cyan',
       'Topology Accent',
+      'Orbit Energy',
+      'Atmosphere',
     ])
     expect(CINEMA2_ECHOFORM_PRESET_MANIFEST.choreography?.rules.map(rule => rule.source.signal)).toEqual(expect.arrayContaining([
       'continuous',
@@ -100,7 +102,7 @@ describe('Echoform preset', () => {
     expect(buildCinema2EchoformGeometry(goonzMasterSvg).points.slice(0, 70)).toEqual(geometry.points.slice(0, 70))
   })
 
-  it('carries Mainframe\u2019s orchestration surface: the six programs, Pattern Change with its Trigger, Idle Glow and the nine musical cues', () => {
+  it('carries Mainframe\u2019s orchestration surface: the twelve programs, Pattern Change with its Trigger, Idle Glow and the nine musical cues', () => {
     const parameters = CINEMA2_ECHOFORM_PRESET_MANIFEST.parameters ?? []
     expect(parameters.find(parameter => parameter.id === CINEMA2_ECHOFORM_PATTERN_ID)).toMatchObject({ type: 'enum', defaultValue: 'outward-bus', designParentGroup: 'design' })
     expect(parameters.find(parameter => parameter.id === CINEMA2_ECHOFORM_PATTERN_CHANGE_ID)).toMatchObject({ type: 'boolean', defaultValue: false })

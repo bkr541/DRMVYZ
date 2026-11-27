@@ -8,14 +8,14 @@ import { CINEMA2_ECHOWAVE_NATIVE_MODULE_TYPE_ID } from '../modules/Cinema2Echowa
 import {
   CINEMA2_ECHOFORM_MODULE_ID,
   CINEMA2_ECHOFORM_PRESET_ID,
-  CINEMA2_ECHOFORM_PRESET_MANIFEST,
+  CINEMA2_ECHOFORM_LEGACY_MANIFEST,
 } from './Cinema2EchoformPreset'
 import { CINEMA2_ECHOFORM_NATIVE_MODULE_TYPE_ID } from '../modules/Cinema2EchoformNativeModule'
 
 /**
  * ECHOWAVE: Echoform on the DVYDRM wordmark. It is the same preset as Echoform in every control, default, choreography rule, camera, effect and render
  * pass, with only the artwork (and so the native module that reads it) and the names changed. It is derived from Echoform's manifest rather than
- * copied, so the two cannot drift apart: a change to Echoform's controls or choreography is a change to Echowave's.
+ * copied, so the two cannot drift apart: the enhanced bulldog-specific manifest is deliberately separate.
  */
 export const CINEMA2_ECHOWAVE_PRESET_ID = cinema2NamespacedId<Cinema2PresetId>('drmvyz.cinema2.echowave')
 export const CINEMA2_ECHOWAVE_MODULE_ID = 'echowave-figure' as Cinema2ModuleId
@@ -46,7 +46,7 @@ function rewrite(value: unknown): unknown {
   return value
 }
 
-const derived = rewrite(CINEMA2_ECHOFORM_PRESET_MANIFEST) as Cinema2NativePresetManifest
+const derived = rewrite(CINEMA2_ECHOFORM_LEGACY_MANIFEST) as Cinema2NativePresetManifest
 
 export const CINEMA2_ECHOWAVE_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
   ...derived,

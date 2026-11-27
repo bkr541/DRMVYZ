@@ -4,7 +4,7 @@ import wordmarkSvg from '../../../../assets/dvydrm_wordmark_clean_master.svg?raw
 import { buildCinema2EchoformGeometry, ECHOFORM_KIND, ECHOFORM_VERTEX_FLOATS } from '../modules/echoform/Cinema2EchoformGeometry'
 import { CINEMA2_ECHOWAVE_CLOUD_LOGO_GEOMETRY, CINEMA2_ECHOWAVE_GEOMETRY, CINEMA2_ECHOWAVE_NATIVE_MODULE_TYPE_ID } from '../modules/Cinema2EchowaveNativeModule'
 import { cinema2NativeModuleRegistry } from '../modules/Cinema2ModuleRegistry'
-import { CINEMA2_ECHOFORM_PRESET_MANIFEST } from '../presets/Cinema2EchoformPreset'
+import { CINEMA2_ECHOFORM_LEGACY_MANIFEST, CINEMA2_ECHOFORM_PRESET_MANIFEST } from '../presets/Cinema2EchoformPreset'
 import { CINEMA2_ECHOWAVE_PRESET_ID, CINEMA2_ECHOWAVE_PRESET_MANIFEST } from '../presets/Cinema2EchowavePreset'
 import { CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS } from '../presets/Cinema2FirstPartyPresetCatalog'
 import { validateCinema2PresetAuthoringConventions } from '../presets/Cinema2PresetAuthoring'
@@ -27,8 +27,8 @@ describe('Echowave preset', () => {
 
   it('is Echoform in every control, default and rule, on its own module, ids and wording', () => {
     const labels = (manifest: typeof CINEMA2_ECHOFORM_PRESET_MANIFEST) => (manifest.parameters ?? []).map(parameter => [parameter.label, 'defaultValue' in parameter ? parameter.defaultValue : null])
-    expect(labels(CINEMA2_ECHOWAVE_PRESET_MANIFEST)).toEqual(labels(CINEMA2_ECHOFORM_PRESET_MANIFEST))
-    expect(CINEMA2_ECHOWAVE_PRESET_MANIFEST.choreography?.rules).toHaveLength(CINEMA2_ECHOFORM_PRESET_MANIFEST.choreography?.rules.length ?? -1)
+    expect(labels(CINEMA2_ECHOWAVE_PRESET_MANIFEST)).toEqual(labels(CINEMA2_ECHOFORM_LEGACY_MANIFEST))
+    expect(CINEMA2_ECHOWAVE_PRESET_MANIFEST.choreography?.rules).toHaveLength(CINEMA2_ECHOFORM_LEGACY_MANIFEST.choreography?.rules.length ?? -1)
     expect(CINEMA2_ECHOWAVE_PRESET_MANIFEST.modules?.[0]).toMatchObject({ typeId: CINEMA2_ECHOWAVE_NATIVE_MODULE_TYPE_ID })
     const text = JSON.stringify(CINEMA2_ECHOWAVE_PRESET_MANIFEST)
     expect(text).not.toMatch(/echoform|Echoform|bulldog|GOONZ/)

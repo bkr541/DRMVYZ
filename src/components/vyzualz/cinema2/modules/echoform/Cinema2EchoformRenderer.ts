@@ -1,3 +1,5 @@
+import { Cinema2EchoformEnergyField, ECHOFORM_FIELD_VERTEX, ECHOFORM_FIELD_FRAGMENT, type EchoformFieldControls } from './Cinema2EchoformEnergyField'
+import type { EchoformPerformance } from './Cinema2EchoformPerformance'
 import type { Cinema2Color } from '../../contracts/Cinema2NativePresetManifest'
 import type { Cinema2Matrix4 } from '../../scene/Cinema2SceneGraph'
 import { buildCinema2EchoformGeometry, ECHOFORM_VERTEX_FLOATS, type Cinema2EchoformGeometryOptions } from './Cinema2EchoformGeometry'
@@ -18,6 +20,8 @@ export interface Cinema2EchoformMorph {
 export interface Cinema2EchoformDrawState {
   /** Null for a single-figure preset; otherwise the figure to draw and its assembly. */
   readonly morph: Cinema2EchoformMorph | null
+  readonly performance?: EchoformPerformance
+  readonly field?: EchoformFieldControls
   /** Mainframe's geometry-aware musical orchestration; null while nothing is playing. */
   readonly orchestration: Cinema2EchoformOrchestration | null
   readonly modelMatrix: Cinema2Matrix4
@@ -58,6 +62,10 @@ layout(location = 3) in float a_phase;
 uniform mat4 u_model;
 uniform mat4 u_viewProjection;
 uniform float u_yaw;
+uniform vec4 u_performance; // enabled, darkness, fragment, scan position
+uniform vec4 u_pose; // pitch, roll, depth, scan strength
+uniform vec4 u_echo; // x, z, yaw offset, opacity
+uniform float u_prepass;
 uniform float u_scale;
 uniform float u_depth;
 uniform float u_reconstruction;
@@ -157,6 +165,12 @@ void main() {
   float kind = a_data.w;
   float reveal = clamp(u_reconstruction + u_pulse * 0.1 - u_fragmentation * 0.3, 0.0, 1.0);
   float present = 1.0 - smoothstep(reveal - 0.07, reveal + 0.02, order);
+  if (u_performance.x > 0.5) {
+    if (kind == 4.0) present = 1.0;
+    else if (kind == 0.0) present = max(present, 0.42);
+    float scanFront = (u_performance.w * 2.0 - 1.0) * 1.04;
+    if (kind != 4.0) present *= mix(1.0, 0.24 + 0.76 * (1.0 - smoothstep(scanFront - 0.08, scanFront + 0.08, a_position.y)), u_pose.w);
+  }
   // Thin the stipple with the density control; contours, wire and eyes always survive.
   float keep = (kind == 1.0 || kind == 3.0 || kind == 5.0) ? step(rand, u_density) : 1.0;
 
@@ -174,9 +188,23 @@ void main() {
     local = vec3(cw * local.x - sw * local.y, sw * local.x + cw * local.y, local.z);
     local += away * loose * (0.35 + 1.25 * hash11(rand * 53.0 + 8.0));
   }
-  float c = cos(u_yaw);
-  float s = sin(u_yaw);
+  if (u_performance.x > 0.5) {
+    // Anatomical groups, not arbitrary chunks of the particle cloud.
+    float system = a_meta.w;
+    vec3 split = vec3(sign(a_position.x) * (system == 1.0 ? 0.37 : 0.10), system == 3.0 ? 0.24 : -0.07, (system - 4.0) * 0.075);
+    local += split * u_performance.z;
+    // The focal eyes stay anchored during dispersal.
+    if (kind == 4.0 && u_performance.y > 0.65) local = a_position * vec3(u_scale, u_scale, u_scale * (0.6 + u_depth));
+  }
+  float c = cos(u_yaw + u_echo.z);
+  float s = sin(u_yaw + u_echo.z);
   local = vec3(c * local.x + s * local.z, local.y, -s * local.x + c * local.z);
+  if (u_performance.x > 0.5) {
+    float cp = cos(u_pose.x), sp = sin(u_pose.x), cr = cos(u_pose.y), sr = sin(u_pose.y);
+    local.yz = mat2(cp,sp,-sp,cp) * local.yz;
+    local.xy = mat2(cr,sr,-sr,cr) * local.xy;
+    local += vec3(u_echo.x,0.0,u_pose.z+u_echo.y);
+  }
   gl_Position = u_viewProjection * u_model * vec4(local, 1.0);
 
   // The reference's sequence: the focal feature ignites out of black, a magenta mass swells through the dark parts,
@@ -235,6 +263,13 @@ void main() {
   }
   float twinkle = 0.7 + 0.3 * step(0.55, fract(rand * 17.0 + u_seed * 3.0)) + u_sparkle * step(0.9, rand);
   float alpha = present * keep * brightness * twinkle * (0.2 + 0.8 * clamp(u_assemble, 0.0, 1.0));
+  if (u_performance.x > 0.5) {
+    float scanFront = (u_performance.w * 2.0 - 1.0) * 1.04;
+    alpha *= 1.0 + u_pose.w * 1.25 * exp(-pow((a_position.y-scanFront)/0.045,2.0));
+    alpha *= kind == 4.0 ? 1.0 : pow(1.0-u_performance.y,3.0);
+    if (kind == 4.0) alpha = max(alpha,0.65);
+    alpha *= u_echo.w;
+  }
   v_color = vec4(color * alpha, alpha);
   float size = kind == 4.0 ? 3.4 : (kind == 5.0 ? 3.0 : (kind == 3.0 ? 1.4 : (kind == 1.0 ? 3.2 : 2.6)));
   gl_PointSize = max(1.0, size * (1.0 + 0.35 * crest) * (0.6 + rand * 0.8) * (u_pointSize / 0.24) * u_pixelScale);
@@ -243,10 +278,12 @@ void main() {
 const POINT_FRAGMENT = `#version 300 es
 precision highp float;
 in vec4 v_color;
+uniform float u_prepass;
 out vec4 outColor;
 void main() {
   vec2 p = gl_PointCoord - 0.5;
   float falloff = 1.0 - smoothstep(0.28, 0.5, length(p));
+  if (u_prepass > 0.5 && v_color.a * falloff < 0.48) discard;
   outColor = vec4(v_color.rgb * falloff, v_color.a * falloff);
 }`
 
@@ -266,6 +303,7 @@ export function getCinema2EchoformShaderProgramSources(): readonly Readonly<{
   return Object.freeze([
     Object.freeze({ label: 'echoform-point-cloud', vertSrc: COMMON_VERTEX, fragSrc: POINT_FRAGMENT }),
     Object.freeze({ label: 'echoform-wire-mesh', vertSrc: COMMON_VERTEX, fragSrc: LINE_FRAGMENT }),
+    Object.freeze({ label: 'echoform-energy-field', vertSrc: ECHOFORM_FIELD_VERTEX, fragSrc: ECHOFORM_FIELD_FRAGMENT }),
   ])
 }
 
@@ -283,6 +321,7 @@ export class Cinema2EchoformRenderer {
   private readonly secondaryPoints: GpuBatch | null
   private readonly secondaryLines: GpuBatch | null
   private readonly uniforms = new Map<string, WebGLUniformLocation | null>()
+  private readonly energyField: Cinema2EchoformEnergyField | null
   private disposed = false
 
   constructor(
@@ -290,6 +329,7 @@ export class Cinema2EchoformRenderer {
     svgSource: string,
     geometryOptions: Cinema2EchoformGeometryOptions = {},
     secondary: Readonly<{ svgSource: string; geometry?: Cinema2EchoformGeometryOptions }> | null = null,
+    enhanced = false,
   ) {
     const geometry = buildCinema2EchoformGeometry(svgSource, geometryOptions)
     this.pointProgram = createProgram(gl, COMMON_VERTEX, POINT_FRAGMENT)
@@ -299,11 +339,16 @@ export class Cinema2EchoformRenderer {
     const other = secondary ? buildCinema2EchoformGeometry(secondary.svgSource, secondary.geometry ?? {}) : null
     this.secondaryPoints = other ? createBatch(gl, other.points, other.pointCount) : null
     this.secondaryLines = other ? createBatch(gl, other.lines, other.lineVertexCount) : null
+    this.energyField = enhanced ? new Cinema2EchoformEnergyField(gl, createProgram(gl, ECHOFORM_FIELD_VERTEX, ECHOFORM_FIELD_FRAGMENT)) : null
   }
 
   draw(state: Readonly<Cinema2EchoformDrawState>): void {
     if (this.disposed) return
     const gl = this.gl
+    if (this.energyField && state.performance && state.field) {
+      this.drawEnhanced(state)
+      return
+    }
     gl.enable(gl.BLEND)
     gl.blendFunc(gl.ONE, gl.ONE)
     gl.disable(gl.DEPTH_TEST)
@@ -316,7 +361,35 @@ export class Cinema2EchoformRenderer {
     gl.bindVertexArray(null)
   }
 
-  private drawBatch(program: WebGLProgram, batch: GpuBatch, mode: number, state: Readonly<Cinema2EchoformDrawState>): void {
+  private drawEnhanced(state: Readonly<Cinema2EchoformDrawState>): void {
+    const gl = this.gl, p = state.performance!, field = state.field!
+    const depthFunc = gl.getParameter(gl.DEPTH_FUNC) as number
+    try {
+      // Sparse depth prepass: only genuinely visible point cores occlude rear geometry.
+      // The translucent wire cloud remains additive instead of becoming a solid plate.
+      gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); gl.depthMask(true)
+      gl.disable(gl.BLEND); gl.colorMask(false, false, false, false)
+      this.drawBatch(this.pointProgram, this.points, gl.POINTS, state, [0,0,0,1], true)
+      gl.colorMask(true, true, true, true); gl.depthMask(false)
+      gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE)
+      this.energyField!.draw(state)
+      const count = Math.min(field.echoCount, state.shellCount - 1)
+      for (let i = count; i >= 1; i--) {
+        const side = i % 2 ? -1 : 1
+        const distance = field.echoDistance * p.echo * (0.30 + i * 0.24)
+        const alpha = p.echo * (0.25 / Math.sqrt(i)) * field.intensity
+        if (alpha < 0.008) continue
+        this.drawBatch(this.lineProgram, this.lines, gl.LINES, state, [side * distance, -distance * (0.9 + state.shellSeparation), side * distance * 0.4, alpha])
+      }
+      this.drawBatch(this.lineProgram, this.lines, gl.LINES, state)
+      this.drawBatch(this.pointProgram, this.points, gl.POINTS, state)
+    } finally {
+      gl.colorMask(true,true,true,true); gl.depthMask(true); gl.depthFunc(depthFunc)
+      gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST); gl.bindVertexArray(null)
+    }
+  }
+
+  private drawBatch(program: WebGLProgram, batch: GpuBatch, mode: number, state: Readonly<Cinema2EchoformDrawState>, echo: readonly [number,number,number,number] = [0,0,0,1], prepass = false): void {
     if (batch.count === 0) return
     const gl = this.gl
     gl.useProgram(program)
@@ -330,7 +403,12 @@ export class Cinema2EchoformRenderer {
     gl.uniform1f(this.location(program, 'u_depth'), Math.max(0, Math.min(1.5, state.shellSeparation)))
     gl.uniform1f(this.location(program, 'u_reconstruction'), state.reconstruction)
     gl.uniform1f(this.location(program, 'u_phase'), state.phase)
-    gl.uniform1f(this.location(program, 'u_assemble'), state.morph ? state.morph.assemble : 1)
+    const p = state.performance, field = state.field
+    gl.uniform1f(this.location(program, 'u_assemble'), p?.assemble ?? state.morph?.assemble ?? 1)
+    gl.uniform4f(this.location(program, 'u_performance'), p ? 1 : 0, (p?.darkness ?? 0) * (field?.blackout ?? 0), p?.fragment ?? 0, p?.scan ?? 0)
+    gl.uniform4f(this.location(program, 'u_pose'), p?.pitch ?? 0, p?.roll ?? 0, (p?.depth ?? 0) * (field?.recoil ?? 0), (p?.scanGain ?? 0) * (field?.scan ?? 0))
+    gl.uniform4f(this.location(program, 'u_echo'), ...echo)
+    gl.uniform1f(this.location(program, 'u_prepass'), prepass ? 1 : 0)
     gl.uniform1f(this.location(program, 'u_waveBeats'), state.waveBeats)
     gl.uniform1f(this.location(program, 'u_waveGain'), state.waveGain)
     gl.uniform1f(this.location(program, 'u_fragmentation'), state.fragmentation)
@@ -385,6 +463,7 @@ export class Cinema2EchoformRenderer {
       this.gl.deleteBuffer(batch.buffer)
       this.gl.deleteVertexArray(batch.vao)
     }
+    this.energyField?.dispose()
     this.gl.deleteProgram(this.pointProgram)
     this.gl.deleteProgram(this.lineProgram)
   }

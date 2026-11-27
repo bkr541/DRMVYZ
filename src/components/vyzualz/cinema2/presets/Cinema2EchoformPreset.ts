@@ -1,3 +1,4 @@
+import { ECHOFORM_PATTERN_OPTIONS } from '../modules/echoform/Cinema2EchoformPerformance'
 import { cinema2AutoTargets } from './Cinema2AutoPerformanceAuthoring'
 import { withCinema2MoodDrives } from './Cinema2MoodConductorAuthoring'
 import {
@@ -302,7 +303,7 @@ const moduleTarget = (property: string) => cinema2AutoTargets.module(CINEMA2_ECH
  * turn widens as the passage gets active; the points swell on a peak; Idle Glow, Glow and Trails follow the passage. Figure Scale, Motion Amount
  * and Motion Rate stay the user's: Motion Amount also scales the camera and the point-cloud's own beat-timed cycle.
  */
-export const CINEMA2_ECHOFORM_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = withCinema2MoodDrives(CINEMA2_ECHOFORM_AUTHORED_PRESET_MANIFEST, {
+export const CINEMA2_ECHOFORM_LEGACY_MANIFEST: Readonly<Cinema2NativePresetManifest> = withCinema2MoodDrives(CINEMA2_ECHOFORM_AUTHORED_PRESET_MANIFEST, {
   idPrefix: 'echoform-auto',
   enabledParameter: CINEMA2_ECHOFORM_AUTO_PERFORMANCE_ID,
   strengthParameter: CINEMA2_ECHOFORM_MASTER_INTENSITY_ID,
@@ -325,4 +326,69 @@ export const CINEMA2_ECHOFORM_PRESET_MANIFEST: Readonly<Cinema2NativePresetManif
     { id: 'glow-peak', target: cinema2AutoTargets.effect('echoform-bloom', 'mix'), source: 'mood.peak', operation: 'add', value: 0.15 },
     { id: 'trails-calm', target: cinema2AutoTargets.effect('echoform-trails', 'mix'), source: 'mood.calm', operation: 'add', value: 0.15 },
   ],
+})
+
+// EchoWave derives from the frozen legacy manifest above. Only the bulldog gets
+// the enhanced field, controls, camera and native choreography below.
+const fieldId = (key: string) => cinema2StableId<Cinema2ParameterId>(`echoform-${key.replace(/[A-Z]/g, c => `-${c.toLowerCase()}`)}`)
+const fieldControls = [
+  ['orbitCount', 'Orbit Count', 'Number of independently tilted energy rings.', 3, 0, 5, 1, 'design', 'Energy Field'],
+  ['orbitSpread', 'Orbit Spread', 'Distance between adjacent energy orbits.', 0.65, 0, 1, 0.01, 'design', 'Energy Field'],
+  ['echoCount', 'Echo Count', 'Maximum temporal copies, bounded by Shell Layers.', 3, 0, 3, 1, 'design', 'Shells'],
+  ['echoDistance', 'Echo Distance', 'Lateral and depth separation of temporal copies.', 0.45, 0, 1, 0.01, 'design', 'Shells'],
+  ['particleFieldDensity', 'Particle Field Density', 'Density of the surrounding 3D particle current.', 0.6, 0, 1, 0.01, 'design', 'Energy Field'],
+  ['cameraMovement', 'Camera Movement', 'Scales shared cinematic camera drift and musical framing.', 0.35, 0, 1, 0.01, 'design', 'Motion'],
+  ['shockwaveIntensity', 'Shockwave Intensity', 'Brightness of delivered kick, snare and drop wavefronts.', 0.75, 0, 1, 0.01, 'effects', 'Energy'],
+  ['headphoneEnergy', 'Headphone Energy', 'Brightness of the stereo earcup coils.', 0.8, 0, 1, 0.01, 'effects', 'Energy'],
+  ['energyFilaments', 'Energy Filaments', 'Intensity of energy streams connecting the earcups to the field.', 0.4, 0, 1, 0.01, 'effects', 'Energy'],
+  ['scanIntensity', 'Scan Intensity', 'Strength of the moving reconstruction plane and topology highlight.', 0.65, 0, 1, 0.01, 'effects', 'Energy'],
+  ['particleTurbulence', 'Particle Turbulence', 'Curvature of the particle currents.', 0.45, 0, 1, 0.01, 'effects', 'Energy'],
+  ['impactRecoil', 'Impact Recoil', 'Depth displacement on musical impact.', 0.35, 0, 1, 0.01, 'effects', 'Energy'],
+  ['blackoutDepth', 'Blackout Depth', 'Suppresses the field and figure except for its eyes before release.', 0.85, 0, 1, 0.01, 'effects', 'Energy'],
+  ['surfaceIllumination', 'Surface Illumination', 'Controls selective reactor floor lighting.', 0.5, 0, 1, 0.01, 'effects', 'Energy'],
+] as const
+const additional = fieldControls.map(([key,label,description,value,min,max,step,parent,group],i) => floatParameter(fieldId(key),label,description,value,min,max,step,parent,group,20+i))
+const orbitColor = color(0.20,0.85,1), atmosphereColor = color(0.08,0.11,0.28)
+const fieldParameters = Object.freeze([
+  ...additional,
+  Object.freeze({ ...parameterBase, id: fieldId('environment'), label: 'Environment', description: 'Choose a selectively illuminated reactor deck or pure black space.', type: 'enum' as const, defaultValue: 'reactor', options: Object.freeze([{value:'reactor',label:'Reactor Floor'},{value:'void',label:'Void'}]), designParentGroup: 'design' as const, group: 'Composition', order: 40 }),
+  colorParameter(fieldId('orbitColor'), 'Orbit Energy', 'Color of the orbit segments and wavefronts.', orbitColor, 7),
+  colorParameter(fieldId('atmosphereColor'), 'Atmosphere', 'Color of the dark reactor floor illumination.', atmosphereColor, 8),
+])
+const enhancedDefaults = { figureScale: 1.15, reconstruction: 0.80, fragmentation: 0.20, pointSize: 0.30, shellCount: 'Deep' }
+const enhancedParameters = (CINEMA2_ECHOFORM_LEGACY_MANIFEST.parameters ?? []).map(p => {
+  if (p.id === CINEMA2_ECHOFORM_PATTERN_ID) return Object.freeze({ ...p, description: 'Twelve distinct spatial routines driven by the shared musical clock and events.', options: Object.freeze(ECHOFORM_PATTERN_OPTIONS) })
+  if (p.id === CINEMA2_ECHOFORM_SHELL_COUNT_ID) return Object.freeze({ ...p, defaultValue: 'Deep', description: 'Bounds the number of dimensional echo layers: Single suppresses copies, Reference allows two, Deep allows three.' })
+  if (p.id === CINEMA2_ECHOFORM_SCALE_ID) return Object.freeze({ ...p, defaultValue: enhancedDefaults.figureScale })
+  if (p.id === CINEMA2_ECHOFORM_RECONSTRUCTION_ID) return Object.freeze({ ...p, defaultValue: enhancedDefaults.reconstruction, description: 'Sets the authored amount of visible artwork.' })
+  if (p.id === CINEMA2_ECHOFORM_FRAGMENTATION_ID) return Object.freeze({ ...p, defaultValue: enhancedDefaults.fragmentation })
+  if (p.id === CINEMA2_ECHOFORM_POINT_SIZE_ID) return Object.freeze({ ...p, defaultValue: enhancedDefaults.pointSize })
+  if (p.id === CINEMA2_ECHOFORM_GLOW_ID) return Object.freeze({ ...p, defaultValue: 0.55 })
+  if (p.id === CINEMA2_ECHOFORM_MOTION_ID) return Object.freeze({ ...p, description: 'Scales authored spatial choreography, pose changes and cinematic camera motion.' })
+  return p
+})
+const legacy = CINEMA2_ECHOFORM_LEGACY_MANIFEST
+const legacyModule = legacy.modules![0]!
+const fieldDefaults = Object.fromEntries(fieldControls.filter(([key]) => key !== 'cameraMovement').map(([key,,,value]) => [key,value]))
+const fieldBindings = Object.fromEntries(fieldControls.filter(([key]) => key !== 'cameraMovement').map(([key]) => [key,cinema2Ref(fieldId(key))]))
+const camera = legacy.cameras![0]!
+export const CINEMA2_ECHOFORM_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
+  ...legacy,
+  metadata: Object.freeze({ ...legacy.metadata, description: 'A dimensional holographic reactor built from the original GOONZ bulldog SVG: layered figure, wire mesh, cyan eyes, segmented orbits, stereo energy emitters, depth-separated echoes and musical wavefronts. Twelve spatial routines respond to the shared musical intelligence.' }),
+  parameters: Object.freeze([...enhancedParameters, ...fieldParameters]),
+  modules: Object.freeze([Object.freeze({ ...legacyModule,
+    parameters: Object.freeze({ ...legacyModule.parameters, ...enhancedDefaults, ...fieldDefaults, environment: 'reactor', orbitColor, atmosphereColor }),
+    parameterBindings: Object.freeze({ ...legacyModule.parameterBindings, ...fieldBindings, environment: cinema2Ref(fieldId('environment')), orbitColor: cinema2Ref(fieldId('orbitColor')), atmosphereColor: cinema2Ref(fieldId('atmosphereColor')) }),
+  })]),
+  cameras: Object.freeze([Object.freeze({ ...camera, label: 'Echoform Reactor', fovDegrees: 39, minAspect: 1.35,
+    transform: Object.freeze({ position: Object.freeze([0,0.12,4.8] as const) }),
+    motion: cinema2CinematicMotion('gentle', { overrides: Object.freeze({ idleMotion: false, preservePoseOnDiscontinuity: true, drift: Object.freeze({ position: 0.24, target: 0.06, rollDegrees: 1.2, fovDegrees: 1.6, speed: 0.09 }), tempo: Object.freeze({ referenceBpm: 120, flightSpeed: false, weave: 0.13, bob: 0.045, roll: 0.8, fov: 1.6, punch: 2.2 }) }) }),
+    controls: Object.freeze({ ...camera.controls, masterMotionAmount: cinema2Ref(fieldId('cameraMovement')) }),
+  })]),
+  effects: Object.freeze(legacy.effects!.map(effect => effect.id === BLOOM_EFFECT_ID ? Object.freeze({ ...effect, parameters: Object.freeze({ ...effect.parameters, mix: 0.55 }) }) : effect)),
+  choreography: Object.freeze({ ...legacy.choreography!, rules: Object.freeze([
+    ...legacy.choreography!.rules,
+    Object.freeze({ id: ruleId('echoform-camera-build'), priority: 100, enabledParameter: cinema2Ref(CINEMA2_ECHOFORM_AUTO_PERFORMANCE_ID), strengthParameter: cinema2Ref(fieldId('cameraMovement')), source: Object.freeze({signal:'continuous' as const,capability:'visual-director.significance' as const,path:'director.build' as const,smoothingMs:180}), actions: Object.freeze([Object.freeze({id:actionId('echoform-camera-build-dolly'),target:Object.freeze({kind:'camera' as const,ref:cinema2Ref(CAMERA_ID),property:'transform.position'}),operation:'add' as const,value:Object.freeze([0,0,-0.48] as const)})]) }),
+    Object.freeze({ id: ruleId('echoform-camera-drop'), priority: 101, enabledParameter: cinema2Ref(CINEMA2_ECHOFORM_AUTO_PERFORMANCE_ID), strengthParameter: cinema2Ref(fieldId('cameraMovement')), source: Object.freeze({signal:'drop' as const,capability:'music.drop' as const}), conditions:Object.freeze([Object.freeze({kind:'once-per-event' as const})]), actions:Object.freeze([Object.freeze({id:actionId('echoform-camera-drop-recoil'),target:Object.freeze({kind:'camera' as const,ref:cinema2Ref(CAMERA_ID),property:'transform.position'}),operation:'envelope' as const,composition:'add' as const,value:Object.freeze([0,0,0.48] as const),envelope:Object.freeze({attack:0.03,hold:0.12,release:0.9,unit:'seconds' as const}),retrigger:'restart' as const})]) }),
+  ]) }),
 })
