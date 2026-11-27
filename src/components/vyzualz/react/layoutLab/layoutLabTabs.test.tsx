@@ -163,7 +163,7 @@ describe('persistent Layout Lab tabs', () => {
       expect(study.querySelector('[aria-label="Output dimensions"]')?.textContent).toBe('1920 × 1080')
       expect(select(study, 'Video Bitrate').textContent).toContain('8 Mbps')
       expect(study.querySelectorAll('[aria-label="Capture actions"] button')).toHaveLength(2)
-      expect(action(study, 'Start Recording').classList.contains('ll-out-record')).toBe(true)
+      expect(action(study, 'Start Recording').classList.contains(study.dataset.outputStudy === 'media-header' ? 'rv-output-record' : 'll-out-record')).toBe(true)
       expect(action(study, 'Start Recording').classList.contains('dv-icon-chip')).toBe(true)
       expect(action(study, 'Start Recording').getAttribute('aria-pressed')).toBe('false')
       expect(getComputedStyle(action(study, 'Start Recording')).color).toBe('rgb(255, 96, 111)')
@@ -178,8 +178,8 @@ describe('persistent Layout Lab tabs', () => {
     expect(header.querySelector('.rw-window-header-actions')).toBeNull()
     expect(header.querySelector('.ll-out-capture-state, .ll-out-audio')).toBeNull()
     const headerBody = header.querySelector('.ll-out-media-body')!
-    const headerActions = headerBody.lastElementChild!
-    expect(headerActions.classList.contains('ll-out-header-actions')).toBe(true)
+    const headerActions = headerBody.querySelector('.rv-output-actions')!
+    expect(headerActions.classList.contains('rv-output-actions')).toBe(true)
     expect([...headerActions.querySelectorAll('button')].map(button => button.textContent?.trim())).toEqual(['Start Recording', 'Screenshot'])
     expect(headerActions.previousElementSibling?.textContent).toContain('Video Settings')
     expect(action(header, 'Start Recording').classList.contains('dv-icon-chip--danger')).toBe(true)

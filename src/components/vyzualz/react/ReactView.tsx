@@ -386,7 +386,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager, onOpenPreset
     : (lowerSurfaces[0] ?? 'trackMap')
   const leftTab = isReactLeftTabAvailable(preferredLeftTab, workspaceComposition) ? preferredLeftTab : defaultLeftTab
   const [stageFocus, setStageFocus] = useState(false)
-  const [performanceAspectRatio, setPerformanceAspectRatio] = useState<OutputAspectRatio | null>(null)
+  const [castAspectRatio, setCastAspectRatio] = useState<OutputAspectRatio | null>(null)
   const [trackMapLaneIconsExpanded, setTrackMapLaneIconsExpanded] = useState(false)
   const [trackTimelineOpen, setTrackTimelineOpen] = useState(false)
   const mediaSourceCapability = getReactMediaSourceCapability(activeReactEngineId)
@@ -422,6 +422,8 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager, onOpenPreset
   // Recording — useRecorder lives at view level so active recordings survive tab switches
   const recorder = useRecorder()
   const { startVideoRecording } = recorder
+  // An active cast owns the stage geometry. Recording retains its own export dimensions.
+  const performanceAspectRatio = castAspectRatio ?? recorder.aspect
   const { hasActiveProgramAudio, getRecordingStream } = engine
   const [outputCanvas, setOutputCanvas] = useState<HTMLCanvasElement | null>(null)
   // While a stage transition runs, the cast reads its blend canvas instead of the engine's canvas, so the audience sees what the operator sees.
@@ -477,6 +479,10 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager, onOpenPreset
     setCanvasOutputCapability(capability)
     if (!isCanvasOutputAvailable(capability)) setOutputCanvas(null)
   }, [])
+  const captureCanvas = isCanvasOutputAvailable(outputCapability) && (activeReactEngineId !== 'cinema2' || cinema2Runtime != null)
+    ? transitionCanvas ?? outputCanvas : null
+  const captureSourceRef = useRef<HTMLCanvasElement | null>(captureCanvas)
+  useLayoutEffect(() => { captureSourceRef.current = captureCanvas }, [captureCanvas])
   const [pixGridOutputCanvas, setPixGridOutputCanvas] = useState<HTMLCanvasElement | null>(null)
   const handlePixGridCanvasReady = useCallback((canvas: HTMLCanvasElement | null) => {
     setOutputCanvas(canvas)
@@ -522,11 +528,11 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager, onOpenPreset
 
   const handleStartRecording = useCallback(
     (canvas: HTMLCanvasElement) => {
-      if (!isCanvasOutputAvailable(outputCapability) || canvas !== outputCanvas) return
+      if (!isCanvasOutputAvailable(outputCapability) || canvas !== captureSourceRef.current) return
       const audioStream = hasActiveProgramAudio ? getRecordingStream() : null
-      startVideoRecording(canvas, audioStream)
+      startVideoRecording(canvas, audioStream, { sourceRef: captureSourceRef })
     },
-    [getRecordingStream, hasActiveProgramAudio, outputCanvas, outputCapability, startVideoRecording],
+    [getRecordingStream, hasActiveProgramAudio, outputCapability, startVideoRecording],
   )
 
   // Right tab — persisted to localStorage after runtime validation.
@@ -1048,7 +1054,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager, onOpenPreset
                         <TrackMapLaneIconsToggleIcon />
                       </button>
                     )}
-                    <OutputCastControl canvas={transitionCanvas ?? outputCanvas} capability={outputCapability} onPerformanceAspectChange={setPerformanceAspectRatio} />
+                    <OutputCastControl canvas={transitionCanvas ?? outputCanvas} capability={outputCapability} onPerformanceAspectChange={setCastAspectRatio} />
                     <button
                       type="button"
                       className={`rv-stage-focus-btn${stageFocus ? ' is-active' : ''}`}
@@ -1164,7 +1170,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager, onOpenPreset
             )}
             {activeRightPanel === 'output' && (
               <ReactOutputWorkspacePanel
-                canvas={activeReactEngineId === 'cinema2' && cinema2Runtime == null ? null : outputCanvas}
+                canvas={captureCanvas}
                 outputCapability={outputCapability}
                 recorder={recorder}
                 liveFps={liveFps}

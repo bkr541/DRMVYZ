@@ -2,6 +2,14 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import { encodeWAV, downloadBlob } from '../utils/wavExport'
 import { notify } from '../stores/notificationStore'
 import { BRAND_FILE_PREFIX } from '../brand'
+import type { OutputAspectRatio } from '../native/outputBridge'
+import type { MutableRefObject } from 'react'
+import { createRecordingFrame, captureRecordingPng } from './recordingFrame'
+
+export type RecordingFps = 24 | 30 | 60
+export type RecordingFormat = 'WebM' | 'MP4' | 'MOV'
+export type RecordingBitrate = 4 | 8 | 12 | 16 | 24 | 40
+export interface RecordingOptions { fps?: RecordingFps; sourceRef?: MutableRefObject<HTMLCanvasElement | null> }
 
 export type RecorderState = 'idle' | 'recording'
 export type RecordingMode = 'video-audio' | 'video-only'
@@ -11,12 +19,18 @@ export interface Recorder {
   recordingMode: RecordingMode | null
   recordingTime: number
   recorderError: string | null
-  fps: 30 | 60
-  setFps: (fps: 30 | 60) => void
+  fps: RecordingFps
+  setFps: (fps: RecordingFps) => void
+  aspect: OutputAspectRatio
+  setAspect: (aspect: OutputAspectRatio) => void
+  format: RecordingFormat
+  setFormat: (format: RecordingFormat) => void
+  bitrate: RecordingBitrate
+  setBitrate: (bitrate: RecordingBitrate) => void
   startVideoRecording: (
     canvas: HTMLCanvasElement,
     audioStream: MediaStream | null,
-    opts?: { fps?: 30 | 60 },
+    opts?: RecordingOptions,
   ) => void
   stopRecording: () => void
   exportRingBuffer: (
@@ -35,15 +49,20 @@ const MIME_CANDIDATES = [
   'video/webm',
 ]
 
-export function pickVideoMimeType(): string {
-  if (typeof MediaRecorder === 'undefined') return ''
-  return MIME_CANDIDATES.find(t => MediaRecorder.isTypeSupported(t)) ?? ''
+const FORMAT_MIME_CANDIDATES: Record<RecordingFormat, readonly string[]> = {
+  WebM: MIME_CANDIDATES,
+  MP4: ['video/mp4;codecs=avc1,mp4a.40.2', 'video/mp4'],
+  MOV: ['video/quicktime'],
+}
+export function pickVideoMimeType(format: RecordingFormat = 'WebM'): string {
+  if (typeof MediaRecorder === 'undefined' || typeof MediaRecorder.isTypeSupported !== 'function') return ''
+  return FORMAT_MIME_CANDIDATES[format].find(t => MediaRecorder.isTypeSupported(t)) ?? ''
 }
 
 export function buildCombinedStream(
   canvas: HTMLCanvasElement,
   audioStream: MediaStream | null,
-  fps: 30 | 60,
+  fps: RecordingFps,
 ): { stream: MediaStream; capturedTracks: MediaStreamTrack[]; mode: RecordingMode } {
   const videoStream    = canvas.captureStream(fps)
   const videoTracks    = videoStream.getVideoTracks()
@@ -52,12 +71,14 @@ export function buildCombinedStream(
   const audioTracks = audioStream?.getAudioTracks() ?? []
   const mode: RecordingMode = audioTracks.length > 0 ? 'video-audio' : 'video-only'
 
-  const stream = new MediaStream([
-    ...videoTracks,
-    ...audioTracks,
-  ])
-
-  return { stream, capturedTracks, mode }
+  try {
+    if (!videoTracks.length) throw new Error('Canvas did not produce a video track')
+    const stream = new MediaStream([...videoTracks, ...audioTracks])
+    return { stream, capturedTracks, mode }
+  } catch (error) {
+    for (const track of capturedTracks) track.stop()
+    throw error
+  }
 }
 
 export function useRecorder(): Recorder {
@@ -65,15 +86,23 @@ export function useRecorder(): Recorder {
   const [recordingMode, setRecordingMode] = useState<RecordingMode | null>(null)
   const [recordingTime, setRecordingTime] = useState(0)
   const [recorderError, setRecorderError] = useState<string | null>(null)
-  const [fps, setFpsState] = useState<30 | 60>(30)
+  const [fps, setFpsState] = useState<RecordingFps>(30)
 
   const mediaRecorderRef   = useRef<MediaRecorder | null>(null)
-  const chunksRef          = useRef<Blob[]>([])
+  const stopFrameRef       = useRef<(() => void) | null>(null)
+  const [aspect, setAspectState] = useState<OutputAspectRatio>('16:9')
+  const [format, setFormatState] = useState<RecordingFormat>(() => pickVideoMimeType('WebM') ? 'WebM' : pickVideoMimeType('MP4') ? 'MP4' : pickVideoMimeType('MOV') ? 'MOV' : 'WebM')
+  const [bitrate, setBitrateState] = useState<RecordingBitrate>(8)
+  const settingsRef = useRef({ aspect, format, bitrate })
+  const setAspect = useCallback((value: OutputAspectRatio) => { if (!mediaRecorderRef.current) { settingsRef.current.aspect = value; setAspectState(value) } }, [])
+  const setFormat = useCallback((value: RecordingFormat) => { if (!mediaRecorderRef.current) { settingsRef.current.format = value; setFormatState(value) } }, [])
+  const setBitrate = useCallback((value: RecordingBitrate) => { if (!mediaRecorderRef.current) { settingsRef.current.bitrate = value; setBitrateState(value) } }, [])
   const timerRef           = useRef<ReturnType<typeof setInterval> | null>(null)
   const captureTracksRef   = useRef<MediaStreamTrack[]>([])
-  const fpsRef             = useRef<30 | 60>(fps)
+  const fpsRef             = useRef<RecordingFps>(fps)
 
-  const setFps = useCallback((f: 30 | 60) => {
+  const setFps = useCallback((f: RecordingFps) => {
+    if (mediaRecorderRef.current) return
     setFpsState(f)
     fpsRef.current = f
   }, [])
@@ -81,8 +110,11 @@ export function useRecorder(): Recorder {
   // stopRecording defined before startVideoRecording so onerror can close over it.
   const stopRecording = useCallback(() => {
     const mr = mediaRecorderRef.current
-    if (mr && mr.state !== 'inactive') mr.stop()
     mediaRecorderRef.current = null
+    if (mr && mr.state !== 'inactive') {
+      try { mr.stop() } catch (error) { setRecorderError(`Could not stop recorder: ${String(error)}`) }
+    }
+    stopFrameRef.current?.(); stopFrameRef.current = null
 
     // Stop only the video capture tracks we created — never stop the shared audio stream.
     for (const track of captureTracksRef.current) track.stop()
@@ -97,64 +129,85 @@ export function useRecorder(): Recorder {
   const startVideoRecording = useCallback((
     canvas: HTMLCanvasElement,
     audioStream: MediaStream | null,
-    opts?: { fps?: 30 | 60 },
+    opts?: RecordingOptions,
   ) => {
     if (mediaRecorderRef.current) return
 
     const targetFps = opts?.fps ?? fpsRef.current
-    const mimeType  = pickVideoMimeType()
+    const { aspect, format, bitrate } = settingsRef.current
+    const mimeType = pickVideoMimeType(format)
 
     if (!mimeType) {
-      setRecorderError('Your browser does not support video recording (WebM). Use Chrome or Edge.')
+      setRecorderError(`${format} recording is not supported by this runtime. Choose an available video format.`)
       return
     }
 
     setRecorderError(null)
 
     let stream: MediaStream, capturedTracks: MediaStreamTrack[], mode: RecordingMode
+    let stopFrame: (() => void) | undefined
     try {
-      ;({ stream, capturedTracks, mode } = buildCombinedStream(canvas, audioStream, targetFps))
+      const frame = createRecordingFrame(opts?.sourceRef ?? { current: canvas }, aspect, targetFps, error => {
+        setRecorderError(`Frame capture failed: ${String(error)}`)
+        stopRecording()
+      })
+      stopFrame = frame.stop
+      ;({ stream, capturedTracks, mode } = buildCombinedStream(frame.canvas, audioStream, targetFps))
     } catch (err) {
+      stopFrame?.()
       setRecorderError(`Failed to capture canvas stream: ${err instanceof Error ? err.message : String(err)}`)
       return
     }
 
     let mr: MediaRecorder
+    const chunks: Blob[] = []
     try {
-      chunksRef.current = []
       mr = new MediaRecorder(stream, {
         mimeType,
-        videoBitsPerSecond: 8_000_000,
+        videoBitsPerSecond: bitrate * 1_000_000,
       })
     } catch (err) {
+      stopFrame?.()
       for (const track of capturedTracks) track.stop()
       setRecorderError(`Could not create recorder: ${err instanceof Error ? err.message : String(err)}`)
       return
     }
 
     mr.ondataavailable = (e) => {
-      if (e.data.size > 0) chunksRef.current.push(e.data)
+      if (e.data.size > 0) chunks.push(e.data)
     }
     mr.onstop = () => {
-      const blob = new Blob(chunksRef.current, { type: mimeType })
-      downloadBlob(blob, `${BRAND_FILE_PREFIX}-performance-${Date.now()}.webm`)
-      chunksRef.current = []
+      if (mediaRecorderRef.current === mr) stopRecording()
+      const actualType = (mr.mimeType || mimeType).split(';')[0].trim().toLowerCase()
+      const expectedType = mimeType.split(';')[0].trim().toLowerCase()
+      if (actualType !== expectedType) {
+        notify('react', { tone: 'error', title: 'Recording format mismatch', message: `Encoder returned ${actualType} instead of ${expectedType}. No mislabeled file was saved.` })
+        return
+      }
+      const extension = format.toLowerCase()
+      const blob = new Blob(chunks, { type: actualType })
+      if (blob.size) downloadBlob(blob, `${BRAND_FILE_PREFIX}-performance-${Date.now()}.${extension}`)
+      else notify('react', { tone: 'warning', title: 'Recording empty', message: 'No video data was produced.' })
     }
     mr.onerror = (e) => {
       const msg = (e as Event & { error?: DOMException }).error?.message ?? 'unknown'
-      setRecorderError(`Recording error: ${msg}`)
-      stopRecording()
+      if (mediaRecorderRef.current === mr) {
+        setRecorderError(`Recording error: ${msg}`)
+        stopRecording()
+      }
     }
 
     try {
       mr.start(500)
     } catch (err) {
+      stopFrame?.()
       for (const track of capturedTracks) track.stop()
       setRecorderError(`Failed to start recording: ${err instanceof Error ? err.message : String(err)}`)
       return
     }
 
     // Only assign to refs after all potentially-failing operations succeed.
+    stopFrameRef.current = stopFrame ?? null
     captureTracksRef.current = capturedTracks
     mediaRecorderRef.current = mr
     setRecordingMode(mode)
@@ -172,6 +225,7 @@ export function useRecorder(): Recorder {
         try { mr.stop() } catch { /* ignore */ }
       }
       mediaRecorderRef.current = null
+      stopFrameRef.current?.(); stopFrameRef.current = null
       for (const track of captureTracksRef.current) track.stop()
       captureTracksRef.current = []
       if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
@@ -196,28 +250,21 @@ export function useRecorder(): Recorder {
   }, [])
 
   const exportPNG = useCallback((canvas?: HTMLCanvasElement | null) => {
-    const target = canvas ?? Array.from(
-      document.querySelectorAll<HTMLCanvasElement>('canvas'),
-    ).reduce<HTMLCanvasElement | null>((best, c) => {
-      if (!best) return c
-      return c.width * c.height > best.width * best.height ? c : best
-    }, null)
+    const target = canvas
 
     if (!target) {
       notify('react', { tone: 'warning', title: 'Nothing to export', message: 'There is no visual output to export yet. Start an engine, then export again.' })
       return
     }
 
-    const url = target.toDataURL('image/png')
-    const a   = document.createElement('a')
-    a.href     = url
-    a.download = `${BRAND_FILE_PREFIX}-frame-${Date.now()}.png`
-    a.click()
+    void captureRecordingPng(target, settingsRef.current.aspect).then(blob => {
+      downloadBlob(blob, `${BRAND_FILE_PREFIX}-frame-${Date.now()}.png`)
+    }).catch(error => notify('react', { tone: 'error', title: 'Screenshot failed', message: String(error) }))
   }, [])
 
   return {
     recorderState, recordingMode, recordingTime, recorderError,
-    fps, setFps,
+    fps, setFps, aspect, setAspect, format, setFormat, bitrate, setBitrate,
     startVideoRecording, stopRecording,
     exportRingBuffer, exportPNG,
   }

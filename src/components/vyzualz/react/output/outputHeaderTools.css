@@ -1,0 +1,41 @@
+/* Shared by the production inspector and Layout Lab 05. Cast rails use the
+   existing production rules (Layout Lab supplies its isolated copy). */
+.rv-output-header-tools {
+  --workspace-group-top: 8px;
+  --workspace-group-gap: 10px;
+  --workspace-group-body-top: 6px;
+  --workspace-group-body-padding: 8px 8px 10px 12px;
+  display: flex; flex-direction: column; gap: 6px; min-width: 0;
+  container-type: inline-size;
+}
+.rv-output-header-tools > * { flex-shrink: 0; }
+.rv-output-header-tools .drc-header { padding-bottom: 8px; }
+.rv-output-header-tools .drc-body { min-width: 0; --drc-nested-inset: calc(var(--drc-parent-label-inset) - 12px); --drc-group-lead: 16px; --drc-group-follow: 18px; }
+.rv-output-header-tools .drc-body[hidden] { display: none; }
+.rv-output-header-tools .rv-cast-rail-section legend { margin-bottom: 5px; }
+.rv-output-header-tools .rv-cast-rail-group--aspect { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 5px; }
+.rv-output-header-tools .rv-cast-rail-group--aspect button { box-sizing: border-box; min-width: 0; padding-inline: 3px; }
+.rv-output-header-tools .rv-cast-rail-group button:disabled { opacity: .55; cursor: not-allowed; }
+.rv-output-header-tools .rv-cast-rail-group button.is-selected:disabled { opacity: .8; }
+.rv-output-resolution { display: flex; justify-content: space-between; align-items: center; gap: 8px; color: var(--out-muted, var(--ui-text-secondary, #a0aeb4)); font: var(--type-field-value, 400 11px/1.2 system-ui); }
+.rv-output-resolution strong { color: var(--out-ink, var(--color-text-strong, #e0e8ec)); font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rv-output-header-tools .rv-ctrl-row { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.rv-output-header-tools .rv-ctrl-label { color: var(--ui-text-secondary); font: var(--type-field-label, 400 11px/1.2 system-ui); }
+.rv-output-field, .rv-output-header-tools .rv-ctrl-label-cluster { min-width: 0; }
+.rv-output-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.rv-output-actions { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; padding-top: 6px; }
+.rv-output-actions > .dv-icon-chip { box-sizing: border-box; width: 100%; min-height: 32px; justify-content: center; --app-icon-accent: currentColor; }
+.rv-output-actions .dv-icon-chip__icon { width: 16px; height: 16px; }
+.rv-output-actions > .rv-output-record { color: #ff606f; border-color: rgba(255,96,111,.33); background: rgba(255,72,92,.08); }
+.rv-output-actions > .rv-output-record:hover:not(:disabled), .rv-output-actions > .rv-output-record:focus-visible { color: #ff7582; border-color: rgba(255,96,111,.65); background: rgba(255,72,92,.16); }
+.rv-output-actions > .rv-output-record.is-recording { color: #ff606f; border-color: rgba(255,96,111,.68); background: rgba(255,72,92,.19); }
+.rv-output-actions > .rv-output-record.is-recording:hover:not(:disabled) { color: #ff7582; background: rgba(255,72,92,.27); }
+.rv-output-menu.drm-dropdown__menu { --radius-group: 6px; border-radius: 6px; background: #0d1417; border: 1px solid rgba(154,178,188,.18); }
+.rv-output-menu .drm-dropdown__option { position: relative; padding: 9px 12px 9px 16px; color: #a0aeb4; background: transparent; border-color: transparent; }
+.rv-output-menu .drm-dropdown__option--selected { color: #8ef4ff; }
+.rv-output-menu .drm-dropdown__option--selected::before { content: ''; position: absolute; left: 0; top: 3px; bottom: 3px; width: 2px; background: #4ac7db; }
+.rv-output-header-tools :is(button, [role='combobox']):focus-visible { outline: 1px solid #67f7ff; outline-offset: 2px; }
+@container (max-width: 285px) { .rv-output-header-tools .rv-cast-rail-group--aspect { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+.rv-output-inspector { box-sizing: border-box; padding: 10px; gap: 6px; }
+.rv-output-recording-panel { min-width: 0; display: flex; flex-direction: column; gap: 6px; }

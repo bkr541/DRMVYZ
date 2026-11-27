@@ -17,7 +17,7 @@ import {
 import { ReactOutputWorkspacePanel } from './panels/ReactWorkspacePanels'
 
 vi.mock('./ReactRecordingPanel', () => ({
-  ReactRecordingPanel: () => <div aria-label="standard recording controls">Standard recording controls</div>,
+  ReactRecordingPanel: ({ canvas }: { canvas: HTMLCanvasElement | null }) => <div aria-label="standard recording controls"><button disabled={!canvas}>Start Recording</button></div>,
 }))
 
 vi.mock('./output/ProductionOutputPanel', () => ({
@@ -31,6 +31,9 @@ const recorder: Recorder = {
   recorderError: null,
   fps: 30,
   setFps: vi.fn(),
+  aspect: '16:9', setAspect: vi.fn(),
+  format: 'WebM', setFormat: vi.fn(),
+  bitrate: 8, setBitrate: vi.fn(),
   startVideoRecording: vi.fn(),
   stopRecording: vi.fn(),
   exportRingBuffer: vi.fn(),
@@ -129,8 +132,8 @@ describe('effective Canvas output capability', () => {
 
     expect(isCanvasFracturesOutputDeferred(CANVAS_FRACTURES_OUTPUT_DEFERRED)).toBe(true)
     expect(host.querySelector('[aria-label="Fractures recording unavailable"]')).not.toBeNull()
-    expect(host.querySelector<HTMLButtonElement>('[aria-label="Fractures recording unavailable"] button[disabled]')?.textContent).toContain('Recording unavailable')
-    expect(host.querySelector('[aria-label="standard recording controls"]')).toBeNull()
+    expect(host.querySelector<HTMLButtonElement>('[aria-label="standard recording controls"] button')?.disabled).toBe(true)
+    expect(host.querySelector('[aria-label="standard recording controls"]')).not.toBeNull()
 
     renderOutputPanel(CANVAS_OUTPUT_AVAILABLE)
     expect(host.querySelector('[aria-label="Fractures recording unavailable"]')).toBeNull()

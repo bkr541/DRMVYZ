@@ -66,6 +66,9 @@ const recorder: Recorder = {
   recorderError: null,
   fps: 30,
   setFps: vi.fn(),
+  aspect: '16:9', setAspect: vi.fn(),
+  format: 'WebM', setFormat: vi.fn(),
+  bitrate: 8, setBitrate: vi.fn(),
   startVideoRecording: vi.fn(),
   stopRecording: vi.fn(),
   exportRingBuffer: vi.fn(),
@@ -90,6 +93,7 @@ function runNextFrame(timestamp: number) {
 }
 
 beforeEach(() => {
+  vi.stubGlobal('MediaRecorder', { isTypeSupported: (mime: string) => mime.startsWith('video/webm') })
   nextRafId = 1
   rafCallbacks = new Map()
   resizeObservers = []

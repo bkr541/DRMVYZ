@@ -1,33 +1,20 @@
 import { useId, useState, type ReactNode } from 'react'
 import { AppIcon, type AppIconKind } from '../../../shared/icons/AppIcon'
 import { RailWindowHeader } from '../../layout/RailWindowHeader'
-import { SelectRow, type SelectOption } from '../ReactControlRows'
+import { SelectRow } from '../ReactControlRows'
 import { DualRailCollapsible } from '../DualRailCollapsible'
 import { IconChipButton } from '../controls/IconChipButton'
 import { Badge } from '../controls/Badge'
 import { StatusBadge } from '../controls/StatusBadge'
 import { performanceOutputSize } from '../output/performanceOutputGeometry'
-import type { OutputAspectRatio } from '../../../../native/outputBridge'
+import { OutputHeaderTools, OUTPUT_ASPECTS as ASPECTS, OUTPUT_FIELDS as FIELDS, DEFAULT_OUTPUT_SETTINGS as DEFAULT_SETTINGS, type OutputField as Field, type OutputSettings as Settings } from '../output/OutputHeaderTools'
+import headerToolsStyles from '../output/outputHeaderTools.css?inline'
 import railStyles from '../../layout/RailWindowHeader.css?inline'
 import dropdownStyles from '../../../shared/Dropdown/Dropdown.css?inline'
 import collapsibleStyles from '../DualRailCollapsible.css?inline'
 import iconStyles from '../../../shared/icons/appIcon.css?inline'
 import styles from './outputStudies.css?inline'
 
-// Match OutputCastControl's six aspect choices, order and production glyphs.
-// Window mode is a display destination setting, not a video encoding setting.
-const ASPECTS = [
-  ['16:9', 'ratio16x9'], ['16:10', 'ratio16x10'], ['4:3', 'ratio4x3'],
-  ['3:2', 'ratio3x2'], ['1:1', 'ratio1x1'], ['9:16', 'ratio9x16'],
-] as const satisfies readonly (readonly [OutputAspectRatio, AppIconKind])[]
-const FIELDS = {
-  fps: { label: 'Frame Rate', options: ['24', '30', '60'].map(value => ({ value, label: `${value} fps` })) },
-  bitrate: { label: 'Video Bitrate', options: ['4', '8', '12', '16', '24', '40'].map(value => ({ value, label: `${value} Mbps` })) },
-  format: { label: 'Video Format', options: ['WebM', 'MP4', 'MOV'].map(value => ({ value, label: value })) },
-} satisfies Record<string, { label: string; options: SelectOption[] }>
-type Field = keyof typeof FIELDS
-type Settings = Record<Field, string> & { aspect: OutputAspectRatio }
-const DEFAULT_SETTINGS: Settings = { aspect: '16:9', fps: '30', bitrate: '8', format: 'WebM' }
 const STUDIES = [
   { id: 'command', name: '01 · Command Row', description: 'Capture actions and status at the top; framing and encoding immediately below.' },
   { id: 'dock', name: '02 · Capture Dock', description: 'Framing and compact aligned settings above a fixed, always-visible capture toolbar.' },
@@ -150,21 +137,9 @@ function OutputStudy({ study }: { study: Study }) {
           <Section title="Framing">{rail}{resolution}</Section>
           <Section title="Encoding">{options('format')}{options('fps')}{select('bitrate')}</Section>
         </>}
-        {study.id === 'media-header' && <>
-          {group('Framing', 'crop', frameSettings)}
-          {group('Video Settings', 'image', encodingSettings)}
-          <div className="ll-out-header-actions" role="group" aria-label="Capture actions">
-            <IconChipButton className={`dv-icon-chip--danger ll-out-record${recording ? ' is-recording' : ''}`}
-              icon={<AppIcon kind={recording ? 'stop' : 'record'} size={16} />}
-              aria-label={actionLabel} aria-pressed={recording} title={actionLabel} onClick={toggleRecording}>
-              {actionLabel}
-            </IconChipButton>
-            <IconChipButton icon={<AppIcon kind="camera" size={16} />} aria-label="Screenshot"
-              title="Screenshot (export PNG)" onClick={exportPng}>
-              Screenshot
-            </IconChipButton>
-          </div>
-        </>}
+        {study.id === 'media-header' && <OutputHeaderTools settings={settings} onChange={change}
+          recording={recording} onRecord={toggleRecording} onScreenshot={exportPng}
+          menuBoundarySelector=".ll-out-inspector" />}
         {study.id === 'media-transform' && <>
           <div className="ll-out-media-transform-toolbar">{mediaActions}</div>
           {group('Framing', 'crop', frameSettings)}
@@ -196,7 +171,7 @@ function OutputStudy({ study }: { study: Study }) {
 
 export function OutputStudies() {
   return <div className="ll-out-gallery" aria-label="Output Inspector studies">
-    <style>{railStyles + dropdownStyles + collapsibleStyles + iconStyles + styles}</style>
+    <style>{railStyles + dropdownStyles + collapsibleStyles + iconStyles + styles + headerToolsStyles}</style>
     <p className="ll-out-intro">Preset-independent Output concepts. Framing uses the Cast Output ratios and geometry. Recording, audio status, export and proposed video formats are simulated.</p>
     <h2 className="ll-out-gallery-heading">Media Manager studies</h2>
     <div className="ll-out-studies">{STUDIES.filter(study => study.id.startsWith('media-')).map(study => <OutputStudy key={study.id} study={study} />)}</div>

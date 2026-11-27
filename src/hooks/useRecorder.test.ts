@@ -426,3 +426,26 @@ describe('exportPNG canvas selection', () => {
     expect(appendSpy).toHaveBeenCalled()
   })
 })
+
+describe('explicit recording containers', () => {
+  afterEach(() => vi.unstubAllGlobals())
+  it('selects MP4 only when the encoder supports MP4', () => {
+    vi.stubGlobal('MediaRecorder', { isTypeSupported: (mime: string) => mime === 'video/mp4' })
+    expect(pickVideoMimeType('MP4')).toBe('video/mp4')
+    expect(pickVideoMimeType('WebM')).toBe('')
+    expect(pickVideoMimeType('MOV')).toBe('')
+  })
+  it('does not substitute MP4 or WebM for unsupported QuickTime', () => {
+    vi.stubGlobal('MediaRecorder', { isTypeSupported: (mime: string) => mime.startsWith('video/webm') || mime.startsWith('video/mp4') })
+    expect(pickVideoMimeType('MOV')).toBe('')
+    vi.stubGlobal('MediaRecorder', { isTypeSupported: (mime: string) => mime === 'video/quicktime' })
+    expect(pickVideoMimeType('MOV')).toBe('video/quicktime')
+  })
+  it('passes 24 fps to the capture stream', () => {
+    vi.stubGlobal('MediaStream', FakeMediaStream)
+    const canvas = new FakeCanvas()
+    const capture = vi.spyOn(canvas, 'captureStream')
+    buildCombinedStream(canvas as unknown as HTMLCanvasElement, null, 24)
+    expect(capture).toHaveBeenCalledWith(24)
+  })
+})
