@@ -9,10 +9,10 @@ import { EVERYWHERE_CABINET_STYLES, buildEverywhereCabinetParts } from './Cinema
 import { EVERYWHERE_SCREEN_FRAGMENT, EVERYWHERE_SCREEN_VERTEX } from './Cinema2EverywhereScreens'
 
 export const EVERYWHERE_COLORS = {
-  background: [.012,.018,.023,1],
-  cabinet: [.13,.135,.14,1],
-  cool: [.12,.79,.86,1],
-  warm: [1,.57,.30,1],
+  background: [.008,.010,.012,1],
+  cabinet: [.075,.078,.081,1],
+  cool: [.055,.71,.83,1],
+  warm: [1,.52,.21,1],
   screen: [1,.97,.93,1],
 } as const satisfies Readonly<Record<string,Cinema2Color>>
 
@@ -62,95 +62,123 @@ export function everywhereWallCoverScale(aspect: number): number {
   return Math.max(1, (Number.isFinite(aspect) ? aspect : EVERYWHERE_WIDE_ASPECT) / EVERYWHERE_WIDE_ASPECT)
 }
 
-// Reference-led physical staging, in world units. Hero and the next 17
-// silhouettes follow the dominant sets in the approved composition. Smaller
-// sets fill projected openings at deeper levels; the final wings extend past
-// the 16:9 frame for wide outputs. Positions are baked, never recomputed from
-// the active camera. OBB clearance was checked at sampled Cabinet Angle values.
+// Reference silhouette staging: dominant hero, eight large peripheral consoles,
+// smaller interstitial sets, lateral wings and far-camera perimeter. The
+// placement was solved against tapered front/rear cabinet silhouettes (not
+// enlarged bounding rectangles), with physical OBB separation across the
+// bounded articulation range. All coordinates are physical world units.
 // [x,y,z,scale,pitch,yaw,roll (degrees),family]. Index zero is the hero feed.
 const INSTALLATION = [
-  [-0.082,-0.092,1.4,2.53,0,-2,0,0],
-  // Major surrounding sets and reference-led satellites.
-  [-4.826,1.469,2.2,1.219,5,18,-12,1],
-  [5.14,2.035,2.0,1.246,-4,-23,12,1],
-  [-5.518,-2.066,2.6,1.366,-5,15,-13,1],
-  [6.191,-0.402,2.5,1.207,1,-18,12,1],
-  [6.013,-3.524,0.491,1.73,-4.215,-18.187,9.933,3],
-  [-2.525,4.035,0.008,1.465,7.312,9.592,-10.574,3],
-  [-1.723,-4.1,1.2,1.091,-6,10,-7,1],
-  [3.53,4.561,-1.628,1.462,8.248,-11.44,7.41,3],
-  [-6.917,4.554,0.4,1.307,8,15,-9,3],
-  [-5.969,5.17,-3.51,0.989,4.036,7.068,-10.861,1],
-  [0.344,4.021,-0.861,0.755,1.639,1.641,-2.997,0],
-  [0.809,3.983,-2.77,0.789,2.737,-7.362,3.651,1],
-  [-6.174,3.427,-2.967,0.778,3.704,11.302,-5.505,3],
-  [4.242,0.738,-0.7,0.736,-3,-8,5,0],
-  [-4.309,-2.49,-1.0,0.599,-3,10,-5,1],
-  [-0.66,-3.44,-1.0,0.714,-5,0,2,0],
-  [1.03,-3.419,-1.3,0.716,-3,-5,6,3],
-  // Smaller recessed sets fill the interstitial silhouettes.
-  [6.039,-1.705,-4.011,1.167,0.052,-1.845,6.804,2],
-  [-12.253,2.636,-5.188,1.749,1.72,4.598,-0.42,2],
-  [-7.523,-0.037,-6.025,1.183,-0.908,1.094,-3.057,1],
-  [9.468,4.446,-1.905,1.274,1.035,-17.526,-9.385,2],
-  [-9.736,-0.399,-2.058,1.072,-3.3,11.997,2.221,3],
-  [2.361,-6.83,-5.751,1.538,-6.674,2.003,-3.269,2],
-  [7.533,5.319,-4.392,1.236,5.477,-12.363,-5.853,3],
-  [-6.14,-5.326,-3.745,1.601,-0.616,10.236,8.271,2],
-  [5.244,-6.042,-5.723,0.725,-9.849,-0.689,11.744,1],
-  [-11.76,-7.819,-7.866,1.443,-6.5,11.971,8.64,2],
-  [4.832,-3.842,-4.226,0.754,-4.024,-3.421,-7.616,1],
-  [10.754,-3.451,-4.32,1.273,-4.869,-12.662,0.763,2],
-  [13.77,1.9,-7.37,1.054,-3.33,-18.928,-10.245,2],
-  [1.774,7.548,-7.976,1.177,8.847,6.091,-3.416,2],
-  [-12.433,5.796,-4.378,1.076,6.659,6.295,0.696,3],
-  [5.202,2.924,-7.44,0.878,2.892,-4.188,-5.932,0],
-  [-4.96,-1.143,-3.538,0.952,0.618,10.449,9.055,2],
-  [0.001,-6.001,-3.859,0.735,-3.917,7.354,-5.397,0],
-  [-1.274,5.336,-4.058,1.001,5.632,5.513,-1.395,2],
-  [-4.499,1.258,-3.917,0.881,4.205,6.12,11.296,2],
-  [3.925,-5.195,-8.375,0.786,-3.712,-9.866,-2.567,1],
-  [6.553,-0.425,-7.775,1.317,-2.595,-13.023,-2.632,2],
-  // Lateral and edge extensions.
-  [-18.153,-3.753,-1.71,1.867,-4.01,13.841,-6.789,3],
-  [14.502,-4.325,-1.061,1.779,-6.751,-12.933,6.713,0],
-  [-16.511,4.06,-1.445,2.175,5.592,15.687,6.127,2],
-  [-13.117,-0.071,-1.432,1.775,4.227,17.835,-5.772,0],
-  [21.736,-3.034,-5.751,1.713,2.462,-15.519,-0.299,1],
-  [19.928,4.798,-3.6,2.062,4.216,-15.877,0.8,2],
-  [15.287,-0.103,-1.441,1.608,-4.753,-14.818,-6.713,3],
-  [-11.442,-3.908,-0.709,1.269,-3.031,9.194,-3.319,1],
-  [-24.344,-0.13,-6.2,2.117,3.905,28.447,8.452,2],
-  [16.596,5.924,-6.843,1.556,1.485,-9.884,-10.946,3],
-  [26.299,1.908,-6.929,1.278,2.687,-23.906,-11.121,2],
-  [16.437,2.096,-6.586,1.183,-1.243,-15.765,-3.328,2],
-  [-18.95,5.26,-8.438,1.673,8.633,8.626,7.482,2],
-  [16.372,-1.887,-8.752,1.49,-0.6,-16.382,3.461,1],
-  [26.268,-6.483,-7.025,1.625,-8.148,-28.179,8.143,2],
-  [14.885,-5.791,-7.312,1.183,-7.582,-6.928,5.809,1],
-  // Perimeter continuation at the farthest authored camera distance.
-  [30.281,-3.244,-6.94,1.825,-4.305,-15.931,-5.74,2],
-  [-30.363,-5.694,-6.789,1.643,-5.434,16.05,-1.842,0],
-  [10.429,-5.924,-1.334,1.142,0.571,-13.077,4.59,2],
-  [-28.823,7.076,-6.871,2.036,9.823,24.823,-9.617,2],
-  [25.303,6.398,-4.344,1.215,10.186,-19.688,-4.739,0],
-  [23.437,0.968,-1.775,1.692,1.368,-26.511,-5.487,2],
-  [-16.631,-7.771,-6.914,1.855,-1.053,5.661,10.132,2],
-  [-23.876,0.852,-1.944,1.595,-2.856,20.704,5.047,2],
-  [-2.159,6.906,-1.945,0.998,5.036,-5.215,-10.527,0],
-  [-12.445,-2.178,-6.566,1.788,-7.232,2.458,4.889,3],
-  [12.777,9.04,-8.668,1.317,7.208,-15.349,-6.286,0],
-  [-14.849,8.728,-8.201,1.464,10.736,14.196,-11.864,2],
-  [4.327,-6.716,-1.864,0.872,-7.143,-1.056,6.074,3],
-  [-22.53,-2.173,-1.938,1.054,1.355,21.322,-5.945,1],
-  [6.798,6.414,-1.366,1.191,10.916,1.003,10.335,2],
-  [8.735,-7.69,-4.124,1.144,-3.778,-6.428,10.689,0],
-  [12.421,3.348,-4.184,1.694,-0.386,-9.448,0.448,2],
-  [31.282,4.64,-8.452,1.794,-2.935,-26.632,-2.452,0],
-  [-22.453,-8.347,-6.278,1.546,-1.989,12.269,-3.388,3],
-  [-6.168,7.728,-6.507,1.649,8.793,4.07,6.719,2],
-  [22.946,-5.82,-1.571,1.1,-1.99,-23.057,-8.451,2],
+  [0,-0.081,2.25,2.307,0,0,0,0],
+  [-4.164,1.276,3.1,1.126,4,43,-12,1],
+  [4.444,1.742,3,1.208,-6,-43,11,1],
+  [-4.775,-1.791,3.6,1.252,-5,41,-14,1],
+  [6.433,-0.605,1.346,1.446,1.805,-37.724,9.595,1],
+  [4.927,-4.022,-0.04,1.658,-6.403,-27.521,9.202,3],
+  [-2.023,3.573,-0.374,1.526,10.03,22.157,-11.814,3],
+  [-1.616,-3.636,2,1.028,-10,18,-7,1],
+  [3.243,3.879,-0.074,1.357,8.846,-20.502,8.841,3],
+  [-5.997,4.056,1.6,1.248,10,26,-10,3],
+  [-4.974,4.738,-2.274,0.926,7.299,12.729,-11.673,1],
+  [-0.123,4.001,-3.278,0.793,1.688,5.741,-3.096,0],
+  [0.88,2.759,-0.439,0.704,4.092,-7.018,3.34,1],
+  [-5.868,3.096,-1.608,0.865,7.389,15.281,-5.76,3],
+  [3.887,0.769,-0.7,0.747,-3,-13,5,0],
+  [-3.897,-2.313,-0.6,0.64,-4,15,-5,1],
+  [-0.634,-3.16,-0.8,0.744,-6,0,2,0],
+  [1.387,-4.006,-2.577,0.86,-4.348,-8.005,5.176,3],
+  [-7.999,1.727,0.8,0.798,3,38,-7,1],
+  [8.135,2.642,0.3,0.69,4,-31,7,1],
+  [7.719,-2.865,1,0.945,-5,-38,9,3],
+  [-7.56,-3.939,1,0.901,-7,35,-6,0],
+  // Recessed interstitial monitors.
+  [-9.617,0.363,-5.473,1.746,-3.206,22.981,-5.552,2],
+  [4.219,-1.355,-3.743,1.323,-3.497,-5.578,-8.899,1],
+  [-5.871,-0.593,-4.045,1.442,1.35,19.761,3.592,2],
+  [8.201,6.001,-5.526,1.682,4.087,-19.04,8.823,2],
+  [8.871,-4.212,-3.23,1.741,-5.383,-30.922,8.762,2],
+  [3.155,-5.418,-5.369,1.699,-7.245,-6.995,1.214,0],
+  [-6.366,-5.618,-6.121,1.643,-4.216,19.92,-2.733,3],
+  [-9.852,4.28,-3.432,1.152,1.831,26.1,-11.339,1],
+  [3.372,3.338,-4.325,1.315,1.029,-3.582,2.771,2],
+  [-4.099,3.286,-5.655,2.013,0.999,15.72,-10.609,2],
+  [-6.947,-4.78,-1.439,0.959,-3.972,21.74,0.956,0],
+  [0.486,5.7,-3.443,0.945,6.212,1.652,-8.743,1],
+  [8.726,4.452,-2.06,1.353,2.487,-36.543,-9.429,3],
+  [8.791,1.062,-1.894,1.615,-1.122,-31.987,-7.788,2],
+  [-0.234,-5.82,-5.158,1.157,-8.115,0.496,-1.229,3],
+  [-2.782,-3.584,-4.106,1.275,-7.864,-0.422,0.889,2],
+  [4.558,-3.484,-8.079,1.122,-3.033,-8.062,-7.702,0],
+  [6.403,-2.697,-5.829,1.117,-0.742,-18.01,-9.537,0],
+  [-5.332,-0.925,-7.707,1.367,2.91,15.414,5.201,2],
+  [2.714,6.552,-8.148,1.225,4.39,-7.427,3.138,3],
+  [1.612,-3.844,-8.014,0.696,1.336,-8.458,1.902,1],
+  [7.177,0.427,-7.512,0.89,2.977,-25.403,6.405,1],
+  [-12.807,-0.353,-8.245,0.903,1.09,30.805,4.038,0],
+  [-1.71,7.792,-8.18,0.99,3.233,-4.565,8.931,3],
+  [-0.375,3.164,-5.419,0.75,1.123,-4.595,-11.254,2],
+  [5.206,-0.002,-8.158,0.688,-3.491,-11.475,8.394,0],
+  [-0.046,-3.755,-6.324,0.952,-3.372,7.262,1.177,2],
+  [5.81,2.79,-8.263,1.098,5.742,-17.132,-11.563,1],
+  [-12.687,1.567,-8.14,1.026,1.453,27.913,-4.39,0],
+  [8.231,-4.261,-7.77,1.118,1.361,-19.052,-10.738,0],
+  [1.17,-7.08,-8.024,1.117,-3.448,-11.601,-8.984,3],
+  [7.292,-1.064,-5.943,0.702,1.551,-21.677,-4.433,1],
+  [-9.737,-1.007,-8.283,0.976,-2.114,14.805,-6.916,1],
+  [-3.864,0.614,-4.376,0.484,-0.259,2.448,-6.083,0],
+  [12.034,-3.262,-8.172,1.286,-3.028,-33.214,2.978,3],
+  [-5.4,-3.889,-4.168,0.975,-1.372,7.155,-6.014,0],
+  [-6.2,4.687,-7.998,0.681,8.421,19.677,-3.443,1],
+  [-12.834,6.704,-7.805,1.279,3.424,40.049,-9.24,0],
+  [1.936,4.293,-6.348,1.28,1.055,-9.901,7.751,2],
+  // Lateral continuation and far-camera edges.
+  [-17.276,-0.08,-3.685,1.983,1.931,43,-6.425,3],
+  [19.014,0.81,-3.457,1.827,-1.446,-43,-3.289,0],
+  [16.24,-3.273,-0.671,1.574,-3.373,-43,-10.409,2],
+  [-15.232,4.745,-1.72,1.54,2.363,43,-6.424,0],
+  [12.809,1.234,-2.746,1.896,5.285,-43,9.802,2],
+  [-12.031,-1.109,-0.743,1.941,-5.54,43,7.948,2],
+  [15.462,3.073,-0.606,1.293,2.62,-43,-2.916,3],
+  [-16.552,-4.281,-1.55,1.526,-6.262,43,-2.437,2],
+  [17.28,-6.602,-5.76,1.57,-1.982,-43,-3.612,1],
+  [-20.997,1.97,-6.13,2.032,1.526,43,-0.409,0],
+  [20.061,6.024,-5.417,1.948,9.226,-43,9.859,2],
+  [13.263,-2.927,-2.742,1.261,-6.085,-39.49,1.161,1],
+  [-12.416,-5.046,-2.945,1.817,-7.952,33.239,7.056,3],
+  [-22.104,-2.463,-5.202,1.604,-7.117,43,11.425,0],
+  [-12.832,2.845,-0.785,0.987,5.194,43,0.604,1],
+  [-17.315,-4.658,-5.329,1.97,-6.463,43,0.389,2],
+  [-20.624,4.932,-3.392,1.336,9.244,43,0.908,0],
+  [15.252,-1.749,-5.75,1.85,-2.241,-40.082,11.221,2],
+  [15.471,5.829,-6.257,1.559,6.137,-43,5.68,0],
+  [22.183,-1.824,-5.562,1.404,-3.874,-43,5.64,1],
+  [13.1,-5.569,-5.267,1.094,-9.767,-31.589,-2.844,1],
+  [-20.211,-3.768,-2.669,1.414,-0.115,43,1.085,3],
+  [-16.223,5.446,-5.718,1.22,8.839,43,-5.029,2],
+  [-14.558,-4.417,-8.924,1.85,0.462,32.829,-8.478,2],
+  [-17.907,2.785,-9.047,1.608,-2.092,43,-5.447,2],
+  [19.032,2.038,-7.197,1.201,0.244,-43,-3.469,2],
+  [17.932,-2.265,-4.383,0.609,-4.833,-43,3.527,3],
+  [-26.297,-0.216,-7.304,1.499,-3.262,43,11.737,0],
+  [-12.673,4.881,-4.854,0.996,5.423,36.646,-2.496,1],
+  [21.575,-5.232,-8.479,1.232,-0.406,-43,-0.744,1],
+  [19.267,-1.375,-7.259,0.962,1.2,-40.606,-9.374,3],
+  [-24.152,4.892,-8.789,1.352,1.145,43,-0.039,3],
+  [21.091,4.041,-8.526,1.381,-1.635,-43,2.416,2],
+  [16.842,3.934,-8.375,1.237,6.001,-43,-3.156,2],
+  [27.333,7.604,-8.437,2.005,3.995,-43,-2.965,2],
+  [26.764,-6.926,-8.48,1.386,-0.205,-43,3.63,1],
+  [28.583,3.268,-8.745,1.65,8.15,-43,-2.866,3],
+  [12.414,7.491,-8.44,1.14,10.296,-22.978,9.743,3],
+  [-20.186,3.069,-1.538,0.983,-0.141,43,7.545,0],
+  [19.165,3.461,-1.253,0.684,1.199,-43,11.48,1],
 ] as const
+
+/** Keep the physical wrap even at minimum articulation. Zero now means the
+ * calmest installation, not a flat array of front-facing rectangles. */
+export function everywhereCabinetArticulation(angle:number):number {
+  return .65+.35*Math.max(0,Math.min(1.25,Number.isFinite(angle)?angle:.84))
+}
 
 export function buildEverywhereCabinetLayout(): EverywhereCabinet[] {
   const rad=Math.PI/180
@@ -165,10 +193,10 @@ export function buildEverywhereCabinetLayout(): EverywhereCabinet[] {
 export function everywhereEyeFraming(item: EverywhereCabinet,index: number): readonly [number,number,number,number] {
   if(index===0) return [1,0,0,0]
   const s=item.seed
-  const closeup = index < 11 || index%3===0
-  return [closeup ? 1.04+.25*s : 1.0+.07*s,
+  const closeup = index < 10 || index%3===0
+  return [closeup ? 1.01+.17*s : 1.0+.04*s,
     Math.sin(index*2.39)*.055,Math.cos(index*1.73)*.055,
-    closeup ? .015*s : .22+.28*s]
+    closeup ? .012*s : .24+.13*s]
 }
 
 export function everywhereScreenGain(item: Readonly<EverywhereCabinet>, index: number, look: Readonly<EverywhereLook>): number {
@@ -202,7 +230,10 @@ type Merge = typeof import('three/examples/jsm/utils/BufferGeometryUtils.js')['m
 export class Cinema2EverywhereWall {
   private readonly group: Three.Group
   private readonly sets = buildEverywhereCabinetLayout()
-  private readonly cabinetBatches: { mesh: Three.InstancedMesh; indices: number[]; spill: Three.InstancedBufferAttribute }[] = []
+  private readonly cabinetBatches: { mesh: Three.InstancedMesh; indices: number[]; spill: Three.InstancedBufferAttribute; neighbor: Three.InstancedBufferAttribute }[] = []
+  private readonly neighbors: {index:number; side:number; weight:number}[][]
+  private readonly powers: Float32Array
+  private readonly incident: Float32Array
   private readonly screen: Three.InstancedMesh
   private readonly screenMaterial: Three.ShaderMaterial
   private readonly caseMaterial: Three.MeshStandardMaterial
@@ -237,61 +268,119 @@ export class Cinema2EverywhereWall {
     this.group = new THREE.Group()
     root.add(this.group)
     this.count = this.sets.length
+    this.powers=new Float32Array(this.count)
+    this.incident=new Float32Array(this.count*4)
+    // Local indirect screen light is evaluated from the real physical neighbors.
+    // This costs at most six scalar contributions per cabinet, not a light per TV.
+    this.neighbors=this.sets.map((item,index)=>{
+      const yaw=item.yaw*everywhereCabinetArticulation(.84)
+      return this.sets.flatMap((other,j)=>{
+        if(j===index)return []
+        const dx=other.x-item.x,dy=other.y-item.y,dz=other.z-item.z
+        const x=dx*Math.cos(yaw)-dz*Math.sin(yaw)
+        const radius=Math.hypot(dx,dy,dz*.85)
+        const range=(item.scale+other.scale)*2.5
+        if(radius>range)return []
+        const side=Math.abs(x)>Math.abs(dy) ? (x<0?0:1) : (dy>0?2:3)
+        const weight=Math.min(.65,other.scale*other.scale/Math.max(.9,radius*radius)*2.5)*Math.exp(-Math.max(0,-dz)*.17)
+        return [{index:j,side,weight}]
+      }).sort((a,b)=>b.weight-a.weight).slice(0,6)
+    })
     this.placement = new THREE.Object3D()
     this.lightNormal = new THREE.Vector3()
     this.screenMatrix = new THREE.Matrix4()
     this.screenLocals = EVERYWHERE_CABINET_STYLES.map(style=>new THREE.Matrix4().makeTranslation(style.screenX,style.screenY,style.screenZ)
       .scale(new THREE.Vector3(style.screenW,style.screenH,style.glassDepth)))
     this.spillCool={value:new THREE.Color()}; this.spillWarm={value:new THREE.Color()}
-    this.caseMaterial = new THREE.MeshStandardMaterial({roughness:.57,metalness:.17})
-    this.woodTint=new THREE.Color(0x493025)
-    this.woodMaterial=new THREE.MeshStandardMaterial({color:0x493025,roughness:.71,metalness:.03})
+    this.caseMaterial = new THREE.MeshStandardMaterial({roughness:.47,metalness:.26})
+    this.woodTint=new THREE.Color(0x24170f)
+    this.woodMaterial=new THREE.MeshStandardMaterial({color:0x24170f,roughness:.64,metalness:.03})
     const materials={
       shell:this.caseMaterial,
       wood:this.woodMaterial,
-      bezel:new THREE.MeshStandardMaterial({color:0x242526,roughness:.46,metalness:.32}),
-      recess:new THREE.MeshStandardMaterial({color:0x060708,roughness:.38,metalness:.2}),
-      metal:new THREE.MeshStandardMaterial({color:0x94867a,roughness:.34,metalness:.57}),
+      bezel:new THREE.MeshStandardMaterial({color:0x111317,roughness:.43,metalness:.32}),
+      recess:new THREE.MeshStandardMaterial({color:0x050607,roughness:.38,metalness:.2}),
+      metal:new THREE.MeshStandardMaterial({color:0x433a31,roughness:.28,metalness:.78}),
       dark:new THREE.MeshStandardMaterial({color:0x090a0a,roughness:.83,metalness:.02}),
     }
-    // Screen bounce on its own physical bezel and cabinet. Each instance uses
-    // the exact same power/exposure envelope as its picture. This is bounded
-    // local irradiance, not a global emissive outline or a second render pass.
-    for(const material of Object.values(materials)) {
+    // Real standard materials, augmented with screen-dependent indirect
+    // irradiance, cavity attenuation and directional edge reflections. Front
+    // plates are deliberately dark: only narrow bevels catch strong light.
+    for(const [finish,material] of Object.entries(materials)) {
+      const isWood=finish==='wood', isMetal=finish==='metal', isDark=finish==='dark'||finish==='recess'
       material.onBeforeCompile=shader=>{
         shader.uniforms.uCrtCool=this.spillCool; shader.uniforms.uCrtWarm=this.spillWarm
         shader.vertexShader=shader.vertexShader.replace('#include <common>',`#include <common>
           attribute float aCrtSpill;
+          attribute vec4 aCrtNeighbor;
           varying float vCrtSpill;
-          varying vec3 vCrtLocal;`)
+          varying vec4 vCrtNeighbor;
+          varying vec3 vCrtLocal;
+          varying vec3 vCrtLocalNormal;
+          varying vec3 vCrtWorldNormal;
+          varying vec3 vCrtWorld;`)
           .replace('#include <begin_vertex>',`#include <begin_vertex>
-          vCrtSpill=aCrtSpill; vCrtLocal=position;`)
+          vCrtSpill=aCrtSpill; vCrtNeighbor=aCrtNeighbor;
+          vCrtLocal=position; vCrtLocalNormal=normal;
+          vCrtWorldNormal=mat3(modelMatrix)*mat3(instanceMatrix)*normal;
+          vCrtWorld=(modelMatrix*instanceMatrix*vec4(position,1.0)).xyz;`)
         shader.fragmentShader=shader.fragmentShader.replace('#include <common>',`#include <common>
           uniform vec3 uCrtCool; uniform vec3 uCrtWarm;
-          varying float vCrtSpill; varying vec3 vCrtLocal;
+          varying float vCrtSpill; varying vec4 vCrtNeighbor;
+          varying vec3 vCrtLocal; varying vec3 vCrtLocalNormal;
+          varying vec3 vCrtWorldNormal; varying vec3 vCrtWorld;
           float crtHash(vec3 p) { p=fract(p*.1031); p+=dot(p,p.yzx+33.33); return fract((p.x+p.y)*p.z); }`)
           .replace('#include <color_fragment>',`#include <color_fragment>
-          // Fine cabinet wear, filtered at distance. No per-set texture allocation.
-          vec3 cells=vCrtLocal*vec3(125.0,210.0,135.0);
+          vec3 localN=normalize(vCrtLocalNormal);
+          vec3 worldN=normalize(vCrtWorldNormal);
+          vec3 crtViewDir=normalize(cameraPosition-vCrtWorld);
+          float frontFacing=smoothstep(.45,.98,localN.z);
+          float bevel=smoothstep(.12,.42,abs(localN.z))*smoothstep(.12,.42,length(localN.xy));
+          vec3 cells=vCrtLocal*vec3(120.0,200.0,145.0);
           float detail=crtHash(floor(cells));
           float filterWidth=max(length(dFdx(cells)),length(dFdy(cells)));
-          float wear=(detail-.5)*(1.0-smoothstep(.45,1.6,filterWidth));
-          diffuseColor.rgb*=1.0+wear*.24;`)
+          float wear=(detail-.5)*(1.0-smoothstep(.4,1.6,filterWidth));
+          float scratches=step(.94,crtHash(floor(vCrtLocal*vec3(11.0,310.0,43.0))))*(1.0-smoothstep(.6,2.0,filterWidth));
+          float patina=crtHash(floor(vCrtLocal*vec3(13.0,19.0,17.0)));
+          float grain=${isWood?'sin(vCrtLocal.y*175.0+sin(vCrtLocal.z*13.0)*2.8+sin(vCrtLocal.y*35.0)*.7)*.13':'0.0'};
+          diffuseColor.rgb*=1.0+wear*.48+grain+(patina-.5)*.16;
+          diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*2.0+vec3(.014,.007,.003),scratches*.35);`)
           .replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
-          roughnessFactor=clamp(roughnessFactor+wear*.18,.18,1.0);`)
+          roughnessFactor=clamp(roughnessFactor+wear*.28+patina*.11-scratches*.15,.16,1.0);`)
+          .replace('#include <aomap_fragment>',`#include <aomap_fragment>
+          // Front plane fill is much darker than side/top panels. The cavity
+          // attenuation prevents the recessed black bezel reading as silver.
+          float cavity=mix(1.0,${isDark?'.17':isMetal?'.42':'.33'},frontFacing);
+          reflectedLight.directDiffuse*=cavity;
+          reflectedLight.indirectDiffuse*=cavity*.64;
+          reflectedLight.indirectSpecular*=mix(.68,.27,frontFacing);
+          reflectedLight.directSpecular*=mix(1.0,.36,frontFacing);`)
           .replace('#include <emissivemap_fragment>',`#include <emissivemap_fragment>
-          float face=exp(-abs(vCrtLocal.z-.20)*5.5);
-          float lip=exp(-abs(vCrtLocal.z-.145)*13.0);
-          vec3 bounce=mix(uCrtCool,uCrtWarm,smoothstep(-.70,.70,vCrtLocal.x+vCrtLocal.y*.30));
-          totalEmissiveRadiance+=bounce*sqrt(max(diffuseColor.rgb,vec3(0.0)))*(face*.12+lip*.23)*vCrtSpill;`)
+          float nearLip=exp(-abs(vCrtLocal.z-.145)*13.0);
+          float nearFront=exp(-abs(vCrtLocal.z-.10)*2.8);
+          vec3 bounce=mix(uCrtCool,uCrtWarm,smoothstep(-.72,.72,vCrtLocal.x+vCrtLocal.y*.25));
+          float directional=max(0.0,-localN.x)*vCrtNeighbor.x+max(0.0,localN.x)*vCrtNeighbor.y
+            +max(0.0,localN.y)*vCrtNeighbor.z+max(0.0,-localN.y)*vCrtNeighbor.w;
+          vec3 warmHalf=normalize(normalize(vec3(.70,.76,.24))+crtViewDir);
+          vec3 coolHalf=normalize(normalize(vec3(-.89,.31,.14))+crtViewDir);
+          float warmEdge=pow(max(0.0,dot(worldN,warmHalf)),24.0);
+          float coolEdge=pow(max(0.0,dot(worldN,coolHalf)),22.0);
+          float powered=.19+.81*min(1.5,vCrtSpill);
+          vec3 edgeLight=(uCrtWarm*warmEdge*1.4+uCrtCool*coolEdge*.74)*bevel*nearFront*powered;
+          vec3 sideBounce=(uCrtCool*(vCrtNeighbor.x*.68+vCrtNeighbor.z*.19)+uCrtWarm*(vCrtNeighbor.y*.73+vCrtNeighbor.w*.24));
+          totalEmissiveRadiance+=bounce*nearLip*bevel*vCrtSpill*${isDark?'.025':'.14'}
+            +sideBounce*min(1.0,directional)*nearFront*${isDark?'.008':'.105'}
+            +edgeLight*${isDark?'.05':isMetal?'1.0':'.53'};`)
       }
-      material.customProgramCacheKey=()=> 'everywhere-cabinet-bounce-v2'
+      material.customProgramCacheKey=()=> `everywhere-cinematic-cabinet-v3-${finish}`
     }
     for(const [style,spec] of EVERYWHERE_CABINET_STYLES.entries()) {
       const indices=this.sets.flatMap((item,index)=>item.style===style?[index]:[])
       for(const {geometry,material} of buildEverywhereCabinetParts(THREE,merge,spec)) {
         const spill=new THREE.InstancedBufferAttribute(new Float32Array(indices.length),1).setUsage(THREE.DynamicDrawUsage)
         geometry.setAttribute('aCrtSpill',spill)
+        const neighbor=new THREE.InstancedBufferAttribute(new Float32Array(indices.length*4),4).setUsage(THREE.DynamicDrawUsage)
+        geometry.setAttribute('aCrtNeighbor',neighbor)
         const mesh=new THREE.InstancedMesh(geometry,materials[material],indices.length)
         mesh.frustumCulled=false
         indices.forEach((index,slot)=>{
@@ -300,7 +389,7 @@ export class Cinema2EverywhereWall {
           mesh.setColorAt(slot,new THREE.Color().setRGB(shade,shade,shade))
         })
         if(mesh.instanceColor) mesh.instanceColor.needsUpdate=true
-        this.cabinetBatches.push({mesh,indices,spill}); this.group.add(mesh)
+        this.cabinetBatches.push({mesh,indices,spill,neighbor}); this.group.add(mesh)
       }
     }
 
@@ -360,11 +449,11 @@ export class Cinema2EverywhereWall {
     this.backing=new T.Mesh(backingGeometry,new T.MeshBasicMaterial({color:0x090b0d}))
     this.group.add(this.backing)
     // Directional grazing light reveals sidewalls without flattening the wall.
-    this.coolLight = new T.DirectionalLight(0xffffff,1.35)
-    this.coolLight.position.set(-12,7,5)
-    this.warmLight = new T.DirectionalLight(0xffffff,1.65)
-    this.warmLight.position.set(10,5,3)
-    this.group.add(this.coolLight,this.warmLight,new T.HemisphereLight(0x9bb9c5,0x160d08,.045))
+    this.coolLight = new T.DirectionalLight(0xffffff,2.15)
+    this.coolLight.position.set(-16,6,2.4)
+    this.warmLight = new T.DirectionalLight(0xffffff,2.65)
+    this.warmLight.position.set(9,13,1.5)
+    this.group.add(this.coolLight,this.warmLight,new T.HemisphereLight(0x536a73,0x160d08,.018))
     // A small fixed light budget adds actual short-range inter-cabinet spill.
     // No shadow maps or per-TV lights (which would scale with cabinet count).
     for(const index of [0,1,2,3,4,5]) {
@@ -410,19 +499,32 @@ export class Cinema2EverywhereWall {
     const setColor = (color: Three.Color, rgba: Cinema2Color) => color.setRGB(rgba[0],rgba[1],rgba[2],THREE.SRGBColorSpace)
     setColor(this.caseMaterial.color,look.colors.cabinet)
     setColor(this.backing.material.color,look.colors.background)
-    this.woodMaterial.color.copy(this.caseMaterial.color).multiplyScalar(1.6).lerp(this.woodTint,.55)
+    this.caseMaterial.color.multiplyScalar(.63)
+    this.woodMaterial.color.copy(this.caseMaterial.color).multiplyScalar(1.25).lerp(this.woodTint,.60)
     setColor(this.spillCool.value,look.colors.cool)
     setColor(this.spillWarm.value,look.colors.warm)
     const mediaReady=Boolean(media||poolMedia.some(Boolean))
     const powerAt=(index:number)=>Math.min(2.1,this.gains.getX(index)*look.brightness*(animateEyes ? (eye?1:0) : (mediaReady?this.mediaEffects.getX(index):0)))
-    for(const {indices,spill} of this.cabinetBatches) {
-      indices.forEach((index,slot)=>spill.setX(slot,powerAt(index)))
-      spill.needsUpdate=true
+    this.sets.forEach((_,index)=>{this.powers[index]=powerAt(index)})
+    this.incident.fill(0)
+    this.neighbors.forEach((neighbors,index)=>{
+      for(const {index:source,side,weight} of neighbors) {
+        const offset=index*4+side
+        this.incident[offset]=Math.min(1.4,this.incident[offset]!+this.powers[source]!*weight)
+      }
+    })
+    for(const {indices,spill,neighbor} of this.cabinetBatches) {
+      indices.forEach((index,slot)=>{
+        spill.setX(slot,this.powers[index]!)
+        const o=index*4
+        neighbor.setXYZW(slot,this.incident[o]!,this.incident[o+1]!,this.incident[o+2]!,this.incident[o+3]!)
+      })
+      spill.needsUpdate=true; neighbor.needsUpdate=true
     }
     for(const {light,index} of this.spillLights) {
       const item=this.sets[index]!
       light.color.copy(this.spillCool.value).lerp(this.spillWarm.value,index%2?.72:.28)
-      light.intensity=powerAt(index)*(index===0?18:9)
+      light.intensity=this.powers[index]!*(index===0?22:13)
       this.screen.getMatrixAt(index,this.screenMatrix)
       light.position.setFromMatrixPosition(this.screenMatrix)
       light.position.addScaledVector(this.lightNormal.set(0,0,1).transformDirection(this.screenMatrix),.43*item.scale)
@@ -458,7 +560,8 @@ export class Cinema2EverywhereWall {
       // ultra-wide output instead of stretching the physical cabinet meshes.
       object.position.set(item.x+(cover-1)*Math.sign(item.x)*Math.max(0,Math.abs(item.x)-3),item.y,item.z)
       object.scale.set(item.scale*item.width,item.scale*item.height,item.scale*item.depth)
-      object.rotation.set(item.pitch*angle,item.yaw*angle,item.roll*angle)
+      const articulation=everywhereCabinetArticulation(angle)
+      object.rotation.set(item.pitch*articulation,item.yaw*articulation,item.roll*articulation)
       object.updateMatrix()
       this.screen.setMatrixAt(index,this.screenMatrix.multiplyMatrices(object.matrix,this.screenLocals[item.style]!))
       return object.matrix.clone()

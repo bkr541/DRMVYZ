@@ -35,7 +35,7 @@ try {
     await api('prepare')
     await expect.poll(async () => {
       const state = inspection(await api('advanceBy', .05))
-      return state.renderReady && state.eyeReady && state.screens > 40 && state.screens <= 100
+      return state.renderReady && state.eyeReady && state.screens > 40 && state.screens <= 120
     }).toBe(true)
     assert.equal(JSON.parse((await api('status')).authored).values['everywhere-auto-performance'], auto)
   }
@@ -76,22 +76,29 @@ try {
       if (Math.max(Math.abs(normal[i]-sentinel[i]),Math.abs(normal[i+1]-sentinel[i+1]),Math.abs(normal[i+2]-sentinel[i+2]))>30) exposed++
     }
     const exposedFraction=exposed/(normal.length/3)
-    assert(exposedFraction<(width===1024?.15:.22), `Excessive exposed backing at ${width}x${height}: ${exposedFraction}`)
-    if(width===1024) assert(exposedFraction>.003, 'The wall should retain intentional inter-cabinet darkness.')
-    await change({background:[.012,.018,.023,1]})
+    assert(exposedFraction<(width===1024?.09:.16), `Excessive exposed backing at ${width}x${height}: ${exposedFraction}`)
+    if(width===1024) assert(exposedFraction>.001, 'The wall should retain intentional inter-cabinet darkness.')
+    await change({background:[.008,.010,.012,1]})
   }
   await page.setViewportSize({width:1024,height:576})
   await api('resize',1024,576)
   await change({'camera-distance':[0,0,3]})
-  await capture('installation-far-distance')
-  await change({'camera-distance':[0,0,0],motion:.72})
+  const farWall=await capture('installation-far-distance')
+  await change({background:[1,0,1,1]})
+  const farSentinel=await capture()
+  let farExposed=0
+  for(let i=0;i<farWall.length;i+=3) {
+    if(Math.max(Math.abs(farWall[i]-farSentinel[i]),Math.abs(farWall[i+1]-farSentinel[i+1]),Math.abs(farWall[i+2]-farSentinel[i+2]))>30)farExposed++
+  }
+  assert(farExposed/(farWall.length/3)<.13,'Saved maximum camera distance must not expose a floating, sparse installation.')
+  await change({background:[.008,.010,.012,1],'camera-distance':[0,0,0],motion:.72})
   // Production-path checks for the reconstruction: actual cabinet angle and
   // camera motion must visibly change the scene; lowering screen power must
   // reduce its illumination. Captures are also inputs for human visual review.
   await change({motion:0,angle:.84,'camera-motion':false})
   const staged=await capture('installation-default')
   await change({angle:0})
-  changed(staged,await capture('installation-front-facing'),'Cabinet orientations',.5)
+  changed(staged,await capture('installation-minimum-articulation'),'Cabinet orientations',.5)
   await change({angle:.84,'camera-distance':[1,0,1]})
   changed(staged,await capture('installation-parallax'),'Camera parallax',.5)
   await change({'camera-distance':[0,0,0],brightness:0})

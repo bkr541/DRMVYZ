@@ -14,7 +14,7 @@ import { describeCinema2LoadedModel } from './three/Cinema2ThreeAssetMetadata'
 
 export const CINEMA2_EVERYWHERE_MODULE_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('everywhere-native')
 export const EVERYWHERE_EYE_ASSET = 'cinema2-everywhere-eye'
-const overrides = { ...CINEMA2_THREE_DEFAULT_OVERRIDES, environmentIntensity:.26 }
+const overrides = { ...CINEMA2_THREE_DEFAULT_OVERRIDES, environmentIntensity:.055 }
 const DEFAULT_LOOK: Readonly<EverywhereLook> = {
   pattern:'all-eyes',phase:.22,brightness:1.06,coverage:.96,angle:.84,motion:.72,scan:.20,glare:.65,layout:'repeat',
   colors:EVERYWHERE_COLORS, energy:0,bass:0,high:0,vocal:0,kick:0,snare:0,build:0,drop:0,

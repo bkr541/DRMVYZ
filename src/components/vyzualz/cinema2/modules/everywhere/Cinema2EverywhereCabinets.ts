@@ -41,8 +41,10 @@ export function buildEverywhereCabinetParts(T:ThreeNamespace,merge:Merge,s:Every
   }
   const box=(m:Finish,w:number,h:number,d:number,x:number,y:number,z:number)=>add(m,new T.BoxGeometry(w,h,d).translate(x,y,z))
   const knob=(x:number,y:number,r:number,d=.065)=>{
-    add('metal',new T.CylinderGeometry(r*.83,r,d,20).rotateX(Math.PI/2).translate(x,y,.21))
-    box('dark',.016,r*.73,.012,x,y+r*.15,.21+d/2)
+    add('metal',new T.CylinderGeometry(r*.96,r,.025,32).rotateX(Math.PI/2).translate(x,y,.205))
+    add('dark',new T.CylinderGeometry(r*.74,r*.82,d,32).rotateX(Math.PI/2).translate(x,y,.217+d*.28))
+    add('metal',new T.TorusGeometry(r*.76,.007,6,36).translate(x,y,.217+d*.72))
+    box('metal',.012,r*.54,.009,x,y+r*.12,.222+d*.72)
   }
   const shell=extrude(s.w-.075,s.h-.075,s.radius,s.depth-.12,.036,-s.depth)
   const pos=shell.getAttribute('position')
@@ -56,7 +58,7 @@ export function buildEverywhereCabinetParts(T:ThreeNamespace,merge:Merge,s:Every
   // stacked at identical Z. Aperture clearance avoids clipping convex glass.
   add(s.family==='wood-console'?'wood':'shell',extrude(s.w-.08,s.h-.08,s.radius,.125,.032,-.105,true,.068))
   add('bezel',extrude(s.w-.095,s.h-.095,Math.max(.025,s.radius-.012),.105,.021,.025,true,.044))
-  add('metal',extrude(s.screenW+.19,s.screenH+.19,.16,.019,.006,.137,true,.065,s.screenX,s.screenY))
+  add('metal',extrude(s.screenW+.164,s.screenH+.164,.15,.018,.006,.137,true,.065,s.screenX,s.screenY))
   add('recess',extrude(s.screenW+.13,s.screenH+.13,.16,.027,.008,.153,true,.012,s.screenX,s.screenY))
   // Recessed face behind glass; the rounded shader corners stay black.
   box('dark',s.screenW+.015,s.screenH+.015,.028,s.screenX,s.screenY,.08)
@@ -76,7 +78,7 @@ export function buildEverywhereCabinetParts(T:ThreeNamespace,merge:Merge,s:Every
       box('dark',.43,1.43,.075,.91,0,.125)
       knob(.91,.51,.115,.12);knob(.91,.21,.093,.09)
       for(let i=0;i<14;i++) box('bezel',.32,.014,.027,.91,-.02-i*.043,.179)
-      for(const y of [-.78,.78])box('metal',s.w-.13,.025,.045,0,y,.154)
+      for(const y of [-.78,.78])box('metal',s.w-.13,.012,.035,0,y,.154)
       for(const side of [-1,1])box('dark',.25,.105,.55,side*.71,-.87,-.38)
       break
     case 'portable':
@@ -94,6 +96,13 @@ export function buildEverywhereCabinetParts(T:ThreeNamespace,merge:Merge,s:Every
       for(let i=0;i<5;i++) box('bezel',.015,.07,.022,.24+i*.026,-.70,.171)
       knob(.72,-.70,.052,.044)
       break
+  }
+  // Recessed side panels and construction seams catch oblique highlights.
+  // All details remain within the conservative housing bounds.
+  for(const side of [-1,1]) {
+    const x=side*(s.w-.075)*.5
+    box('dark',.016,s.h*.69,.014,x,s.h*.04,-.12)
+    for(const y of [-s.h*.30,s.h*.34])box('dark',.014,.013,.23,x*.94,y,-.31)
   }
   // Actual side and rear ventilation details; revealed only by grazing light.
   for(const side of [-1,1])for(let i=0;i<8;i++){

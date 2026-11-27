@@ -216,13 +216,28 @@ void main() {
     eyePose.z=max(eyePose.z,vEyeFraming.w*(1.0-eyePose.w));
     picture = animatedEye(eyeUV,eyePose);
     // Lift the photographic feed only; opaque user media retains its prior exposure.
-    picture = pow(max(picture,vec3(0.0)),vec3(.82))*1.36;
-    // Secondary half-lidded feeds have a quieter, cooler broadcast grade.
-    // Preserve the original photograph and the moving iris, not a second asset.
-    float alternate = smoothstep(.18,.40,vEyeFraming.w)*(1.0-vProgram.w);
-    float luminance=dot(picture,vec3(.2126,.7152,.0722));
-    vec3 quiet=mix(picture,vec3(luminance),.66)*vec3(1.01,1.07,1.13);
-    picture=mix(picture,quiet,alternate*.82);
+    picture = pow(max(picture,vec3(0.0)),vec3(.68))*1.53;
+    // Secondary feeds reproduce the reference's bright neutral eyes rather
+    // than a dimmed duplicate of the orange iris. Reconstruct a smaller iris
+    // from the same photograph, retaining the original lids and gaze motion.
+    float alternate = smoothstep(.19,.34,vEyeFraming.w)*(1.0-vProgram.w);
+    if(alternate>.001) {
+      float side=abs(eyeUV.x-.5)*2.0;
+      float upper=eyeApertureUpper(side), lower=eyeApertureLower(side);
+      float aperture=smoothstep(lower,lower+.025,eyeUV.y)*(1.0-smoothstep(upper-.025,upper,eyeUV.y));
+      vec2 center=eyeCenter+vec2(eyePose.x*.075,eyePose.y*.06);
+      vec2 smallUV=eyeCenter+(eyeUV-center)/.73;
+      float smallIris=irisMask(smallUV);
+      float oldIris=1.0-smoothstep(1.0,1.20,irisDistance(eyeUV));
+      float height=clamp((eyeUV.y-lower)/max(.01,upper-lower),.10,.90);
+      vec3 whites=mix(scleraStrip(.055+eyeUV.x*.085,height),scleraStrip(.86+eyeUV.x*.085,height),smoothstep(.25,.75,eyeUV.x));
+      vec3 quiet=mix(animatedEye(eyeUV,eyePose),whites,oldIris*aperture*(1.0-eyePose.z));
+      quiet=mix(quiet,eyeSample(smallUV),smallIris*aperture*(1.0-eyePose.z));
+      quiet=pow(max(quiet,vec3(0.0)),vec3(.56))*1.50;
+      float luminance=dot(quiet,vec3(.2126,.7152,.0722));
+      vec3 neutral=mix(quiet,vec3(luminance),.79)*mix(vec3(1.12,1.02,.89),vec3(.75,.96,1.05),smallIris*aperture);
+      picture=mix(picture,neutral,alternate);
+    }
   }
   bool span=uLayout>.5 && uLayout<1.5;
   float screenAspect=span ? uWallExtent.x/uWallExtent.y : vProgram.z;
@@ -270,7 +285,7 @@ void main() {
     picture*=.82+.18*vProgram.w+.12*uMusic.z*vProgram.w;
     picture+=vec3(noise*.035);
   }
-  float edgeFalloff = 1.0-.18*dot(p*vec2(.82,1.0),p*vec2(.82,1.0));
+  float edgeFalloff = 1.0-.095*dot(p*vec2(.82,1.0),p*vec2(.82,1.0));
   float rim = exp(-abs(mask+.055)*28.0);
   float glint = exp(-pow((p.y - .66 + p.x*.28)*7.1,2.0)) * exp(-pow((p.x+.48)*2.3,2.0));
   vec3 n=normalize(vGlassNormal), view=normalize(vGlassView);

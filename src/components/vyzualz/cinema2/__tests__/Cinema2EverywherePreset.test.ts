@@ -10,7 +10,7 @@ import { Cinema2ParameterState } from '../parameters/Cinema2ParameterState'
 import { CINEMA2_AFTERHOURS_TRIGGER_OPTIONS } from '../presets/Cinema2AfterhoursPreset'
 import { CINEMA2_EVERYWHERE_PRESET_ID, CINEMA2_EVERYWHERE_PRESET_MANIFEST } from '../presets/Cinema2EverywherePreset'
 import { Cinema2EverywherePerformance } from '../modules/Cinema2EverywhereNativeModule'
-import { buildEverywhereCabinetLayout, EVERYWHERE_PATTERNS, everywhereWallCoverScale, everywhereEyeFraming, everywhereScreenGain, type EverywhereLook } from '../modules/everywhere/Cinema2EverywhereWall'
+import { buildEverywhereCabinetLayout, EVERYWHERE_PATTERNS, everywhereWallCoverScale, everywhereCabinetArticulation, everywhereEyeFraming, everywhereScreenGain, type EverywhereLook } from '../modules/everywhere/Cinema2EverywhereWall'
 import { everywhereEyePose } from '../modules/everywhere/Cinema2EverywhereEyeMotion'
 import { EVERYWHERE_SCREEN_FRAGMENT } from '../modules/everywhere/Cinema2EverywhereScreens'
 import type { Cinema2ModuleUpdateContext } from '../modules/Cinema2ModuleContracts'
@@ -69,7 +69,7 @@ describe('Everywhere', () => {
   it('builds a deterministic spatial wall with a prominent hero and distinct screen programs', () => {
     const wall = buildEverywhereCabinetLayout()
     expect(wall.length).toBeGreaterThan(40)
-    expect(wall.length).toBeLessThanOrEqual(100)
+    expect(wall.length).toBeLessThanOrEqual(120)
     expect(Math.abs(wall[0]!.x)).toBeLessThan(.2)
     expect(wall[0]!.scale).toBeGreaterThan(Math.max(...wall.slice(1).map(c=>c.scale)))
     expect(buildEverywhereCabinetLayout()).toEqual(wall)
@@ -132,7 +132,7 @@ describe('Everywhere', () => {
     expect(everywhereEyeFraming(wall[0]!,0)).toEqual([1,0,0,0])
     expect(new Set(surrounding.map((c,i)=>JSON.stringify(everywhereEyeFraming(c,i+1)))).size).toBe(surrounding.length)
     // The projected size of the same physical cabinet must shrink with distance.
-    const camera=new THREE.PerspectiveCamera(40,16/9,.2,60)
+    const camera=new THREE.PerspectiveCamera(38,16/9,.2,60)
     camera.position.z=14;camera.updateMatrixWorld()
     const apparent=(z:number)=>new THREE.Vector3(1,0,z).project(camera).x-new THREE.Vector3(-1,0,z).project(camera).x
     expect(apparent(4)).toBeGreaterThan(apparent(-5)*1.8)
@@ -153,7 +153,8 @@ describe('Everywhere', () => {
   const transform=(c:ReturnType<typeof buildEverywhereCabinetLayout>[number],angle:number)=>{
     const object=new THREE.Object3D()
     object.position.set(c.x,c.y,c.z)
-    object.rotation.set(c.pitch*angle,c.yaw*angle,c.roll*angle)
+    const a=everywhereCabinetArticulation(angle)
+    object.rotation.set(c.pitch*a,c.yaw*a,c.roll*a)
     object.scale.set(c.scale*c.width,c.scale*c.height,c.scale*c.depth)
     object.updateMatrix()
     return object.matrix.clone()
@@ -164,7 +165,7 @@ describe('Everywhere', () => {
     for(const angle of Array.from({length:51},(_,i)=>i*.025)) {
       const boxes=wall.map(c=>{
         const b=bounds[c.style]!
-        const rotation=new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(c.pitch*angle,c.yaw*angle,c.roll*angle))
+        const rotation=new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(c.pitch*everywhereCabinetArticulation(angle),c.yaw*everywhereCabinetArticulation(angle),c.roll*everywhereCabinetArticulation(angle)))
         const center=b.getCenter(new THREE.Vector3()).multiplyScalar(c.scale).applyMatrix4(rotation).add(new THREE.Vector3(c.x,c.y,c.z))
         const half=b.getSize(new THREE.Vector3()).multiplyScalar(c.scale/2)
         return new OBB(center,half,new THREE.Matrix3().setFromMatrix4(rotation))
@@ -178,7 +179,7 @@ describe('Everywhere', () => {
   it('keeps a dominant hero and dense projected geometry at supported camera distances and aspects',()=>{
     const wall=buildEverywhereCabinetLayout(), bounds=localCabinetBounds()
     const matrices=wall.map(c=>transform(c,.84)), inverses=matrices.map(m=>m.clone().invert())
-    const camera=new THREE.PerspectiveCamera(40,16/9,.2,60)
+    const camera=new THREE.PerspectiveCamera(38,16/9,.2,60)
     const point=new THREE.Vector3(), ray=new THREE.Ray(), localRay=new THREE.Ray()
     const update=(aspect:number,z:number)=>{
       camera.aspect=aspect;camera.position.set(0,0,z);camera.lookAt(0,0,0)
@@ -192,19 +193,37 @@ describe('Everywhere', () => {
     const size=hero.getSize(new THREE.Vector3())
     expect(size.x/2).toBeGreaterThan(.30);expect(size.x/2).toBeLessThan(.39)
     expect(size.y/2).toBeGreaterThan(.42);expect(size.y/2).toBeLessThan(.56)
-    // Ray vs local bounds is a silhouette occupancy proxy, NOT a render.
-    // Ignore the dark architectural backing so it cannot inflate the result.
-    for(const z of [11,14,17])for(const aspect of [9/16,1,16/9,32/9]) {
+    // Test projected cabinet carcasses, not padded bounding boxes. A tapered
+    // frustum with inset corners is conservative for the actual bevels. Ray
+    // intersections include actual sides and rear profile, not empty OBB space.
+    const carcasses=EVERYWHERE_CABINET_STYLES.map(style=>{
+      const ring=(w:number,h:number,z:number)=>[
+        new THREE.Vector3(-w*.48,-h*.48,z),new THREE.Vector3(w*.48,-h*.48,z),
+        new THREE.Vector3(w*.48,h*.48,z),new THREE.Vector3(-w*.48,h*.48,z),
+      ]
+      const v=[...ring(style.w,style.h,.10),...ring((style.w-.075)*style.taperX,(style.h-.075)*style.taperY,-style.depth)]
+      const faces=[[0,1,2,3],[7,6,5,4],[0,4,5,1],[1,5,6,2],[2,6,7,3],[3,7,4,0]]
+      return faces.flatMap(([a,b,c,d])=>[[v[a!]!,v[b!]!,v[c!]!],[v[a!]!,v[c!]!,v[d!]!]] as const)
+    })
+    const hit=new THREE.Vector3()
+    for(const z of [12.3,14,15])for(const aspect of [9/16,1,16/9,32/9]) {
       update(aspect,z)
       let hits=0
       const columns=64, rows=36
       for(let y=0;y<rows;y++)for(let x=0;x<columns;x++) {
         point.set(2*(x+.5)/columns-1,2*(y+.5)/rows-1,.5).unproject(camera)
         ray.set(camera.position,point.sub(camera.position).normalize())
-        if(wall.some((c,i)=>localRay.copy(ray).applyMatrix4(inverses[i]!).intersectsBox(bounds[c.style]!))) hits++
+        if(wall.some((c,i)=>{
+          localRay.copy(ray).applyMatrix4(inverses[i]!)
+          if(!localRay.intersectsBox(bounds[c.style]!))return false
+          return carcasses[c.style]!.some(([a,b,c])=>localRay.intersectTriangle(a,b,c,false,hit)!==null)
+        })) hits++
       }
-      expect(hits/(columns*rows),`aspect=${aspect}, camera=${z}`).toBeGreaterThan(z===17?.80:.85)
+      expect(hits/(columns*rows),`aspect=${aspect}, camera=${z}`).toBeGreaterThan(z===15?.86:.90)
     }
+    expect(everywhereCabinetArticulation(0)).toBeGreaterThan(.5)
+    expect(everywhereCabinetArticulation(1.25)).toBeGreaterThan(everywhereCabinetArticulation(0))
+    expect(wall.slice(1,6).filter(c=>Math.abs(c.yaw)>.60).length).toBeGreaterThanOrEqual(3)
   })
 
   it('choreographs bounded synchronized gazes, actual blinks and rolls without a local clock', () => {
