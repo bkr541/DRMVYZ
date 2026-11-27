@@ -5,10 +5,10 @@ import { DrawerNotice } from '../../../components/vyzualz/shared/DrawerNotice'
 import { UnderlineTabs } from '../../../components/vyzualz/react/controls/UnderlineTabs'
 import { PRESET_MANAGER_PRESETS } from '../../../components/vyzualz/presetManager/presetManagerCatalog'
 import type { PresetMetadataRow } from '../../presetCatalog/presetMetadata'
-import { buildAdminPresets, recordKey, type AdminPreset, type CatalogPack, type PackMember } from './presetAdmin'
+import { buildAdminPresets, recordKey, type AdminPreset, type CatalogPack, type CatalogPackEdit, type PackMember } from './presetAdmin'
 import { PackPane } from './PackPane'
 import { PresetCatalogPane, type SaveManyResult } from './PresetCatalogPane'
-import { addPackMember, createPack, deletePack, loadPackMembers, loadPacks, loadPresetMetadata, movePackMember, removePackMember, savePresetMetadata, updatePack } from './presetsApi'
+import { addPackMember, createPack, deletePack, loadPackMembers, loadPacks, loadPresetMetadata, movePackMember, removePackMember, savePresetMetadata, updatePack, uploadPackArtwork } from './presetsApi'
 
 type Section = 'presets' | 'packs'
 
@@ -77,9 +77,13 @@ export function PresetsTab() {
       setPacks(current => [...current, created])
       return created
     },
-    onUpdate: async (id: string, patch: Partial<Pick<CatalogPack, 'name' | 'description' | 'display_order'>>) => {
+    onUpdate: async (id: string, patch: CatalogPackEdit) => {
       const saved = await updatePack(id, patch)
-      setPacks(current => current.map(pack => (pack.id === id ? saved : pack)))
+      setPacks(current => current.map(pack => (pack.id === id ? { ...saved, thumbnail_path: pack.thumbnail_path } : pack)))
+    },
+    onUploadArtwork: async (pack: CatalogPack, file: File) => {
+      const saved = await uploadPackArtwork(pack, file)
+      setPacks(current => current.map(item => item.id === pack.id ? { ...item, thumbnail_path: saved.thumbnail_path } : item))
     },
     onDelete: async (id: string) => {
       await deletePack(id)

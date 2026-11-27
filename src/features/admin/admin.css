@@ -209,3 +209,27 @@
 .adm-browser .adm-cards { overflow: visible; }
 .adm-pack-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
 .adm-pack-missing { display: grid; place-items: center; min-height: 80px; border: 1px dashed var(--color-border-subtle, rgba(154, 178, 188, 0.18)); border-radius: var(--radius-group, 6px); color: var(--color-text-muted, rgba(196, 212, 220, 0.66)); font: var(--type-field-value); }
+
+/* Pack covers: square artwork + the reference's flat cyan title panel, not the generic record card. */
+.adm-browser .adm-pack-covers { grid-template-columns: repeat(auto-fill, minmax(min(100%, 190px), 1fr)); gap: 16px; align-items: start; padding: 3px; }
+.adm-pack-covers .adm-pack-cover { display: block; min-width: 0; padding: 0; border: 1px solid #4e666b; border-radius: 0; background: #0a1215; container-type: inline-size; }
+.adm-pack-covers .adm-pack-cover.is-selected { border-color: #a0eced; box-shadow: 0 0 0 1px #a0eced; }
+.adm-pack-artwork { aspect-ratio: 1; position: relative; background: #080f12; }
+.adm-pack-artwork-button { position: absolute; inset: 0; display: grid; place-items: center; width: 100%; height: 100%; padding: 0; border: 0; background: transparent; color: #a0eced; cursor: pointer; }
+.adm-pack-artwork-button img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.adm-pack-upload-hint { position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 10px; font: var(--type-field-value); text-align: center; }
+.adm-pack-upload-hint.has-artwork { opacity: 0; background: #0a1215e6; }
+.adm-pack-artwork-button:hover .adm-pack-upload-hint.has-artwork, .adm-pack-artwork-button:focus-visible .adm-pack-upload-hint.has-artwork, .adm-pack-artwork-button:disabled .adm-pack-upload-hint.has-artwork { opacity: 1; }
+.adm-pack-artwork-button:focus-visible { outline: 2px solid #a0eced; outline-offset: -3px; }
+.adm-pack-artwork-button:disabled { cursor: progress; }
+.adm-pack-covers .adm-pack-cover-copy { box-sizing: border-box; min-height: 44cqw; display: flex; flex-direction: column; justify-content: space-between; gap: 10px; padding: 4cqw 5cqw 6cqw; background: #a0eced; color: #12272d; text-transform: uppercase; border-radius: 0; }
+.adm-pack-cover-rule { display: block; width: 7.5cqw; height: 2px; background: currentColor; flex: none; }
+.adm-pack-cover-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; width: 100%; line-height: 1.1; }
+.adm-pack-cover-text strong { font-weight: 700; font-size: clamp(15px, 10cqw, 40px); letter-spacing: -.045em; overflow-wrap: anywhere; }
+.adm-pack-cover-text > span { font-weight: 400; font-size: clamp(12px, 7.5cqw, 30px); letter-spacing: -.025em; overflow-wrap: anywhere; }
+.adm-pack-add-label { font: var(--type-field-label); color: var(--color-text-muted, #a0aeb4); }
+.adm-pack-add .adm-inline-actions { align-items: center; }
+.adm-pack-add .rv-visual-preset-search { flex: 1; min-width: 0; }
+/* The portal retains the shared smart-search theme even outside the inspector's scroll owner. */
+.rv-visual-preset-search-portal { --pf-ink: #e0e8ec; --pf-muted: #a0aeb4; --pf-line: #344046; --pf-accent: #8ef4ff; }
+.rv-visual-preset-search-portal .ll-pf-smart-popover { display: flex; flex-direction: column; color: var(--pf-ink); font: var(--type-field-value); }

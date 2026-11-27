@@ -12,9 +12,10 @@ import type { PresetMetadataRow } from '../../presetCatalog/presetMetadata'
 const data = vi.hoisted(() => ({
   rows: [] as unknown[],
   saves: [] as { key: string; status: string | null; name: string | null; before: number }[],
-  packs: [] as { id: string; name: string; description: string | null; display_order: number }[],
+  packs: [] as { id: string; name: string; description: string | null; display_order: number; thumbnail_path?: string | null; subtitle?: string | null }[],
   members: [] as { pack_id: string; engine_id: string; preset_key: string; position: number }[],
   failOn: null as string | null,
+  uploads: [] as { id: string; name: string }[],
 }))
 
 vi.mock('../../../lib/adminAccess', () => ({ useAdminAccess: () => true, useAdminAccessStatus: () => 'granted', hasAdminAccess: () => true }))
@@ -42,7 +43,15 @@ vi.mock('./presetsApi', () => ({
     const others = current.filter(entry => !(entry.engine_id === engineId && entry.preset_key === presetKey))
     return row ? [...others, row] : others
   },
-  addPackMember: async () => undefined, removePackMember: async () => undefined, createPack: async (name: string, order: number) => { const pack = { id: `pack-${data.packs.length + 1}`, name, description: null, display_order: order }; data.packs = [...data.packs, pack]; return pack }, updatePack: async () => undefined, deletePack: async () => undefined, movePackMember: async () => undefined,
+  PACK_IMAGE_ACCEPT: 'image/jpeg,image/png,image/webp',
+  loadPackArtwork: async () => new Blob(['test'], { type: 'image/png' }),
+  uploadPackArtwork: async (pack: typeof data.packs[number], file: File) => {
+    data.uploads.push({ id: pack.id, name: file.name })
+    const saved = { ...pack, thumbnail_path: `${pack.id}/art.png` }
+    data.packs = data.packs.map(item => item.id === pack.id ? saved : item)
+    return saved
+  },
+  addPackMember: async (member: typeof data.members[number]) => { data.members = [...data.members, member]; return member }, removePackMember: async () => undefined, createPack: async (name: string, order: number) => { const pack = { id: `pack-${data.packs.length + 1}`, name, description: null, display_order: order }; data.packs = [...data.packs, pack]; return pack }, updatePack: async () => undefined, deletePack: async () => undefined, movePackMember: async () => undefined,
 }))
 
 import { AdminView } from '../AdminView'
@@ -59,7 +68,7 @@ const click = async (element: Element | null) => { expect(element).not.toBeNull(
 
 beforeEach(async () => {
   for (const event of useNotificationStore.getState().events.admin) useNotificationStore.getState().dismissEvent('admin', event.id)
-  data.rows = []; data.saves = []; data.failOn = null; data.packs = [{ id: 'p1', name: 'Starters', description: 'The first pack.', display_order: 1 }]; data.members = [{ pack_id: 'p1', engine_id: 'cinema2', preset_key: 'bravo', position: 1 }]
+  data.rows = []; data.saves = []; data.uploads = []; data.failOn = null; data.packs = [{ id: 'p1', name: 'Starters', description: 'The first pack.', display_order: 1 }]; data.members = [{ pack_id: 'p1', engine_id: 'cinema2', preset_key: 'bravo', position: 1 }]
   host = document.createElement('div'); document.body.appendChild(host); root = createRoot(host)
   await act(async () => root.render(<ApplicationWorkspaceFrame appView="admin" onAppViewChange={() => {}}><AdminView /></ApplicationWorkspaceFrame>))
   await until(() => !!q('[data-testid="admin-view"]'))
@@ -153,6 +162,46 @@ describe('Admin Preset Catalog inside the real Admin page', () => {
     await click(qa('.adm-pane[data-active="true"] .adm-new-pack button').find(button => button.textContent === 'Create Pack')!)
     await until(() => qa('.adm-pane[data-active="true"] .adm-card').length === 2)
     expect(q('.adm-pane[data-active="true"] .adm-stage .adm-preview-title h2')!.textContent).toBe('Late Night')
+  })
+
+  it('renders an artwork grid, opens the file picker and saves artwork without changing the pack membership', async () => {
+    await click(qa('[role="tab"]').find(tab => tab.textContent === 'Packs')!)
+    const card = q('.adm-pack-covers .adm-pack-cover')!
+    expect(card.querySelector('img')).toBeNull()
+    const fileInput = card.querySelector<HTMLInputElement>('input[type="file"]')!
+    const picker = vi.spyOn(fileInput, 'click').mockImplementation(() => undefined)
+    const originalCreate = URL.createObjectURL
+    const originalRevoke = URL.revokeObjectURL
+    URL.createObjectURL = vi.fn(() => 'blob:pack-cover')
+    URL.revokeObjectURL = vi.fn()
+    try {
+      await click(card.querySelector('[aria-label="Upload artwork for Starters"]'))
+      expect(picker).toHaveBeenCalledOnce()
+      Object.defineProperty(fileInput, 'files', { configurable: true, value: [new File(['image'], 'cover.png', { type: 'image/png' })] })
+      await act(async () => fileInput.dispatchEvent(new Event('change', { bubbles: true })))
+      await until(() => !!card.querySelector('img'))
+      expect(data.uploads).toEqual([{ id: 'p1', name: 'cover.png' }])
+      expect(card.querySelector('img')?.getAttribute('src')).toBe('blob:pack-cover')
+      expect(data.members).toHaveLength(1)
+    } finally { picker.mockRestore(); URL.createObjectURL = originalCreate; URL.revokeObjectURL = originalRevoke }
+  })
+
+  it('uses the shared thumbnail smart search and excludes existing members before adding', async () => {
+    await click(qa('[role="tab"]').find(tab => tab.textContent === 'Packs')!)
+    await click(q('.adm-pack-cover-copy'))
+    const input = q('input[aria-label="Add Preset"]') as HTMLInputElement
+    await act(async () => input.focus())
+    const menu = () => document.querySelector('.rv-visual-preset-search-portal')!
+    expect(menu().querySelectorAll('[role="option"]')).toHaveLength(2)
+    expect(menu().textContent).not.toContain('Bravo')
+    expect(menu().querySelectorAll('.ll-pfp-artwork')).toHaveLength(2)
+    await act(async () => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, 'CIN'); input.dispatchEvent(new Event('input', { bubbles: true })) })
+    expect(menu().querySelector('mark')?.textContent?.toLowerCase()).toBe('cin')
+    await click(menu().querySelector('[role="option"]'))
+    await click(qa('.adm-pack-add button').find(button => button.textContent === 'Add')!)
+    await until(() => data.members.length === 2)
+    expect(data.members[1]).toMatchObject({ pack_id: 'p1', preset_key: 'alpha' })
+    expect(input.value).toBe('')
   })
 
   it('keeps unsaved edits on the Presets tab while the Packs tab is open, and the header takes only the showing tab\'s actions', async () => {

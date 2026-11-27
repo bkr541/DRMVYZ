@@ -3,7 +3,8 @@ import type { PresetMetadataRow } from '../../presetCatalog/presetMetadata'
 
 export type PublicationStatus = NonNullable<PresetMetadataRow['publication_status']>
 
-export interface CatalogPack { id: string; name: string; description: string | null; display_order: number; created_at?: string; updated_at?: string }
+export interface CatalogPack { id: string; name: string; description: string | null; subtitle?: string | null; thumbnail_path?: string | null; display_order: number; created_at?: string; updated_at?: string }
+export type CatalogPackEdit = Partial<Pick<CatalogPack, 'name' | 'description' | 'subtitle' | 'display_order'>>
 export interface PackMember { pack_id: string; engine_id: string; preset_key: string; position: number }
 
 /** A shipped preset with what the admin has changed. `row` is null while nothing is overridden. */
