@@ -5,7 +5,7 @@ import type { Cinema2MediaPoolSource } from '../media/Cinema2MediaPoolSource'
 import { CINEMA2_AFTERHOURS_TRIGGER_IDS, resolveCinema2AfterhoursTriggerEventIdentity, type Cinema2AfterhoursTriggerId } from './Cinema2AfterhoursNativeModule'
 import { Cinema2BeatClock } from './Cinema2BeatClock'
 import type { Cinema2ModuleCreateContext, Cinema2ModuleDiagnostic, Cinema2ModuleTypeDefinition, Cinema2ModuleUpdateContext } from './Cinema2ModuleContracts'
-import { DEFAULT_OVERDRIVE_LOOK, OVERDRIVE_COLORS, OVERDRIVE_PATTERNS, OVERDRIVE_POSES, OverdriveScene, type OverdriveLook, type OverdrivePattern, type OverdrivePose } from './overdrive/OverdriveScene'
+import { DEFAULT_OVERDRIVE_LOOK, OVERDRIVE_COLORS, OVERDRIVE_PATTERNS, OVERDRIVE_POSES, overdriveEnvironmentGain, OverdriveScene, type OverdriveLook, type OverdrivePattern, type OverdrivePose } from './overdrive/OverdriveScene'
 import { Cinema2MainframePatternController, createCinema2MainframePatternCycle } from './mainframe/Cinema2MainframePatternController'
 import { loadCinema2ThreeLibrary, type Cinema2ThreeLibrary } from './three/Cinema2ThreeLibrary'
 import { Cinema2ThreeSceneBridge, CINEMA2_THREE_DEFAULT_OVERRIDES } from './three/Cinema2ThreeSceneBridge'
@@ -97,7 +97,7 @@ export const cinema2OverdriveNativeModuleDefinition:Readonly<Cinema2ModuleTypeDe
       execute(execution){if(disposed||diagnostics.length)return;aspect=execution.camera?.aspect??execution.width/Math.max(1,execution.height)
         if(!starting){starting=true;void Promise.all([loadCinema2ThreeLibrary(),import('three/examples/jsm/utils/BufferGeometryUtils.js')]).then(([library,{mergeGeometries}])=>{if(!disposed)setup={library,merge:mergeGeometries}}).catch(e=>{if(!disposed)report(e)})}
         if(setup&&!bridge){const {library,merge}=setup;const root=new library.THREE.Group();try{bridge=context.resources.acquire('overdrive:scene','OverdriveThreeChamber',gl=>new Cinema2ThreeSceneBridge(gl,library,[{asset:{id:'overdrive-geometry',scene:root,animations:[],triangleCount:0,gpuBytes:0,metadata:describeCinema2LoadedModel(root)},node:null,preserveMaterials:true}],{hdr:true,modelController:{attach:r=>{scene=new OverdriveScene(library,merge,r)},beforeDraw:quality=>{const look=performance.look;const direct=context.media.get('coreMedia');const usePool=look.mode==='pool'||(look.mode==='auto'&&context.mediaPoolSource?.getSelection()!=null);const media=usePool?pool?.resource??null:direct;scene?.apply({...look,mode:look.mode==='auto'?(media?'media':'procedural'):look.mode},media,quality,aspect)},dispose:()=>scene?.dispose()}}),v=>v.dispose())}catch(e){scene?.dispose();scene=null;report(e);return}}
-        if(bridge){bridge.draw(execution,{...CINEMA2_THREE_DEFAULT_OVERRIDES,environmentIntensity:performance.look.reflection});if(bridge.ready){const bytes=bridge.estimateGpuBytes()+(pool?.resource?pool.resource.width*pool.resource.height*4:0);if(bytes!==reported){reported=bytes;context.resources.reportGpuBytes(bytes)}}}
+        if(bridge){bridge.draw(execution,{...CINEMA2_THREE_DEFAULT_OVERRIDES,environmentIntensity:overdriveEnvironmentGain(performance.look)});if(bridge.ready){const bytes=bridge.estimateGpuBytes()+(pool?.resource?pool.resource.width*pool.resource.height*4:0);if(bytes!==reported){reported=bytes;context.resources.reportGpuBytes(bytes)}}}
       },
     }]},getDiagnostics:()=>diagnostics,inspect:()=>({...performance.inspect(),renderReady:bridge?.ready===true,userMedia:context.media.get('coreMedia')!=null,poolReady:pool?.resource!=null})}
   },

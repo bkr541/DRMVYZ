@@ -3,7 +3,7 @@ import {
   cinema2NamespacedId, cinema2Ref, cinema2StableId,
   type Cinema2ChoreographyActionId, type Cinema2ChoreographyContinuousSourcePath,
   type Cinema2ChoreographyRuleId, type Cinema2ChoreographyRuleManifest, type Cinema2DesignParentGroup,
-  type Cinema2CameraId, type Cinema2EffectId, type Cinema2LayerId, type Cinema2MediaSlotId, type Cinema2ModuleId,
+  type Cinema2CameraId, type Cinema2EffectId, type Cinema2LightId, type Cinema2LayerId, type Cinema2MediaSlotId, type Cinema2ModuleId,
   type Cinema2NativePresetManifest, type Cinema2ParameterId, type Cinema2ParameterManifest, type Cinema2PresetId,
   type Cinema2SceneNodeId,
 } from '../contracts/Cinema2NativePresetManifest'
@@ -78,8 +78,8 @@ const parameters: readonly Cinema2ParameterManifest[] = [
   slider('roughness','Metal Roughness','effects','Materials',1,.32,.12,.9,'Changes the metallic specular lobe.'),
   slider('reflection','Reflection','effects','Materials',2,.65,0,1.5,'Environment reflection intensity.'),
   slider('detail','Carbon Detail','effects','Materials',3,1,0,1,'Carbon-fiber texture visibility.'),
-  slider('bloom','Bloom','effects','Finish',1,.30,0,1.2,'HDR bloom around emissive components.'),
-  slider('finish','Cinematic Finish','effects','Finish',2,.46,0,1,'Mix of cinematic grading.'),
+  slider('bloom','Bloom','effects','Finish',1,.43,0,1.2,'HDR bloom around emissive components.'),
+  slider('finish','Cinematic Finish','effects','Finish',2,.66,0,1,'Mix of cinematic grading.'),
   ...Object.entries({background:'Background',metal:'Primary Metal',titanium:'Titanium',carbon:'Carbon Fiber',core:'Core Emission',conduit:'Energy Conduits',rim:'Rim Light',accent:'Impact Accent'}).map(([key,label],i)=>swatch(key as keyof typeof OVERDRIVE_COLORS,label,i+1,`Color of ${label.toLowerCase()}.`)),
 ]
 const bindings = {
@@ -147,20 +147,27 @@ const manifest: Cinema2NativePresetManifest = {
   },
   layers: [{ id: layer, label: 'Mechanical Chamber', source: cinema2Ref(root), role: 'world', depthPolicy: 'read-write', order: 0 }],
   cameras: [{
-    id: camera, label: 'Core Perspective', projection: 'perspective', fovDegrees: 48,
+    id: camera, label: 'Core Perspective', projection: 'perspective', fovDegrees: 46,
     near: 0.2, far: 40, transform: { position: [0, 0, 10.1] },
     targetNode: cinema2Ref(aim), rig: { kind: 'orbit', radius:10.1, azimuthDegrees:0, elevationDegrees:0, angularVelocityDegreesPerSecond:0 },
-    motion:{drift:{position:.12,target:.015,rollDegrees:1.2,fovDegrees:.3,speed:.10,seed:624}},
+    motion:{drift:{position:.20,target:.025,rollDegrees:.7,fovDegrees:.45,speed:.10,seed:624}},
     controls:{motionAmount:ref('camera-motion'),masterMotionAmount:ref('motion'),orbitAzimuthDegrees:ref('camera-orbit'),orbitRadius:ref('camera-distance')},
-    safety:{minPosition:[-2,-.5,9],maxPosition:[2,.5,11.2],maxTargetOffset:[.08,.08,.08],minFovDegrees:47,maxFovDegrees:49},
+    safety:{minPosition:[-2,-.5,9],maxPosition:[2,.5,11.2],maxTargetOffset:[.08,.08,.08],minFovDegrees:45,maxFovDegrees:47},
   }],
+  // A restrained shared shadow key gives contact definition without washing the chamber.
+  // Low quality automatically skips the shadow map in the existing Three light budget.
+  lighting: { lights: [{
+    id: cinema2StableId<Cinema2LightId>('overdrive-contact-key'), type: 'spot',
+    color: [.84,.88,1,1], intensity: .085, transform: { position: [-3,-6,5] },
+    targetNode: cinema2Ref(aim), config: { range: 13, coneAngleDegrees: 68, penumbra: .7, threeShadow: true, scatter: false },
+  }] },
   environment: { backgroundColor: OVERDRIVE_COLORS.background, exposure: 1, controls: { backgroundColor: ref('background') } },
   effects: [
     { id: bloom, typeId: CINEMA2_HDR_BLOOM_EFFECT_TYPE_ID, version: 1, enabled: true, order: 0, scope: 'output',
-      parameters: { mix: 1, threshold: 1.25, knee: 0.29, intensity: 0.30, spread: 0.32, levels: 5, clampMax: 12, tint: [1, 1, 1, 1] },
+      parameters: { mix: 1, threshold: 1.18, knee: 0.32, intensity: 0.43, spread: 0.29, levels: 5, clampMax: 12, tint: [1, 1, 1, 1] },
       parameterBindings: { intensity: ref('bloom') } },
     { id: finish, typeId: CINEMA2_CINEMATIC_FINISH_EFFECT_TYPE_ID, version: 1, enabled: true, order: 1, scope: 'output',
-      parameters: { mix: 0.46, exposure: 1.02, contrast: 1.08, saturation: 1.05, vignette: 0.08, grain: 0, aberration: 0 }, parameterBindings:{mix:ref('finish')} },
+      parameters: { mix: 0.66, toneMap: 1, exposure: 1.00, contrast: 1.12, saturation: 1.04, temperature: -.12, vignette: .19, vignetteSoftness: .72, grain: .012, aberration: 0 }, parameterBindings:{mix:ref('finish')} },
   ],
   choreography: { tempoSyncParameter: ref('bpm-sync'), rules: [
     route('energy', 'audio.features.overallEnergy', 'audio.features', 145),

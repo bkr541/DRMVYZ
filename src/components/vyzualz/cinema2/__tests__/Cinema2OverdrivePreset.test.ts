@@ -5,7 +5,8 @@ import { compileCinema2NativePreset } from '../presets/Cinema2PresetCompiler'
 import { validateCinema2PresetAuthoringConventions } from '../presets/Cinema2PresetAuthoring'
 import { withCinema2AutoCoverage } from '../presets/Cinema2AutoCoverage'
 import { Cinema2OverdrivePerformance, OverdrivePool } from '../modules/Cinema2OverdriveNativeModule'
-import { DEFAULT_OVERDRIVE_LOOK, OVERDRIVE_PATTERNS, OVERDRIVE_POSES, overdriveAssemblyPose, overdriveBandRadius, overdriveFullColorGain } from '../modules/overdrive/OverdriveScene'
+import { DEFAULT_OVERDRIVE_LOOK, OVERDRIVE_PATTERNS, OVERDRIVE_POSES, overdriveAssemblyPose, overdriveBandRadius, overdriveFullColorGain, overdriveEnvironmentGain, overdriveInnerBankScale, OVERDRIVE_FOREGROUND_Z, OVERDRIVE_RIB_COUNT, OVERDRIVE_CONE_PROFILE, OverdriveScene } from '../modules/overdrive/OverdriveScene'
+import type { Cinema2ThreeLibrary } from '../modules/three/Cinema2ThreeLibrary'
 import type { Cinema2ModuleUpdateContext } from '../modules/Cinema2ModuleContracts'
 import type { Cinema2MediaSlotRuntime, Cinema2MediaSource } from '../media/Cinema2MediaSlotRuntime'
 
@@ -42,6 +43,42 @@ describe('OVERDRIVE',()=>{
     const base=overdriveAssemblyPose(0,DEFAULT_OVERDRIVE_LOOK)
     expect(overdriveAssemblyPose(0,{...DEFAULT_OVERDRIVE_LOOK,kick:1}).cone).toBeGreaterThan(base.cone)
     expect(overdriveAssemblyPose(0,{...DEFAULT_OVERDRIVE_LOOK,motion:0,kick:1}).cone).toBe(0)
+  })
+  it('authors a recessed front-facing cone, a shadow key and restrained reflections',()=>{
+    expect(OVERDRIVE_CONE_PROFILE[0][1]-OVERDRIVE_CONE_PROFILE[7][1]).toBeGreaterThan(.3)
+    expect(OVERDRIVE_CONE_PROFILE[0][0]).toBeGreaterThan(OVERDRIVE_CONE_PROFILE[OVERDRIVE_CONE_PROFILE.length-1]![0])
+    expect(overdriveEnvironmentGain(DEFAULT_OVERDRIVE_LOOK)).toBeLessThan(.15)
+    expect(overdriveEnvironmentGain({...DEFAULT_OVERDRIVE_LOOK,reflection:0})).toBe(0)
+    expect(overdriveEnvironmentGain({...DEFAULT_OVERDRIVE_LOOK,pose:OVERDRIVE_POSES.blackout})).toBeLessThan(.02)
+    expect(overdriveInnerBankScale(1)).toBe(1)
+    expect(manifest.lighting?.lights[0]?.config?.threeShadow).toBe(true)
+    expect(manifest.cameras?.[0]?.fovDegrees).toBe(46)
+  })
+  it('constructs real reusable meshes with axial depth, visible cones and a stable core at different aspects',async()=>{
+    const THREE=await import('three')
+    const {mergeGeometries}=await import('three/examples/jsm/utils/BufferGeometryUtils.js')
+    const root=new THREE.Group()
+    const scene=new OverdriveScene({THREE} as unknown as Cinema2ThreeLibrary,mergeGeometries,root)
+    try{
+      const objects=(name:string)=>{const found:import('three').Object3D[]=[];root.traverse(o=>{if(o.name===name)found.push(o)});return found}
+      scene.apply(DEFAULT_OVERDRIVE_LOOK,null,'high',16/9)
+      root.updateMatrixWorld(true)
+      const arms=objects('overdrive-acoustic-assembly')
+      const cones=objects('overdrive-recessed-diaphragm') as import('three').Mesh[]
+      expect(arms).toHaveLength(10);expect(cones).toHaveLength(10)
+      expect(new Set(cones.map(c=>c.geometry)).size).toBe(1)
+      expect(arms[0]!.position.z).toBeCloseTo(OVERDRIVE_FOREGROUND_Z,1)
+      expect(objects('overdrive-core-rib')).toHaveLength(OVERDRIVE_RIB_COUNT)
+      const core=objects('overdrive-led-surface')[0]!
+      const before=core.getWorldScale(new THREE.Vector3()).toArray()
+      scene.apply(DEFAULT_OVERDRIVE_LOOK,null,'low',32/9);root.updateMatrixWorld(true)
+      expect(core.getWorldScale(new THREE.Vector3()).toArray()).toEqual(before)
+      // Front-side raycast catches inverted lathe winding (the previous profile faced backwards).
+      const cone=cones[0]!,world=cone.localToWorld(new THREE.Vector3(.25,0,1.5))
+      const direction=new THREE.Vector3(0,0,-1).transformDirection(cone.matrixWorld)
+      expect(new THREE.Raycaster(world,direction).intersectObject(cone).length).toBeGreaterThan(0)
+    }finally{scene.dispose()}
+    expect(root.children).toHaveLength(0)
   })
   it('honors manual pattern edits and resets phase on timeline revisions',()=>{
     const perf=new Cinema2OverdrivePerformance(i=>(i%7)/7)
