@@ -1,0 +1,9 @@
+{
+  "id": "cinema2-signs",
+  "kind": "model",
+  "compression": "none",
+  "license": "CC-BY-4.0",
+  "origin": "User-supplied Cropcircle Glow Motion GLB; original bytes retained. Runtime choreography and surrounding light rig added by STAGELESS.",
+  "attribution": "Cropcircle Glow Motion by Miguelangelo Rosario (https://sketchfab.com/miguelangelo2k), https://sketchfab.com/3d-models/cropcircle-glow-motion-29100a2fca824b8ebdac4427c78a75da, CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).",
+  "files": { "high": "public/cinema2/models/signs.glb" }
+}

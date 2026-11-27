@@ -675,6 +675,25 @@ export const CINEMA2_ASSET_RECORDS = [
     }
   },
   {
+    "id": "cinema2-signs",
+    "kind": "model",
+    "compression": "none",
+    "license": "CC-BY-4.0",
+    "attribution": "Cropcircle Glow Motion by Miguelangelo Rosario (https://sketchfab.com/miguelangelo2k), https://sketchfab.com/3d-models/cropcircle-glow-motion-29100a2fca824b8ebdac4427c78a75da, CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).",
+    "files": {
+      "high": {
+        "url": "/cinema2/models/signs.glb",
+        "bytes": 746524,
+        "triangles": 8062
+      }
+    },
+    "gpuBytes": {
+      "high": 2318674,
+      "medium": 2318674,
+      "low": 2318674
+    }
+  },
+  {
     "id": "cinema2-smoke-sprites",
     "kind": "texture",
     "layout": "sprite-sheet-rgba",

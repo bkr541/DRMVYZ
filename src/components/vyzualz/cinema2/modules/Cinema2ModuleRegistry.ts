@@ -20,6 +20,7 @@ import { cinema2SpaceBoiModuleDefinition } from './Cinema2SpaceBoiNativeModule'
 import { cinema2OpenDecksClubModuleDefinition } from './Cinema2OpenDecksClubModule'
 import { cinema2NeonForestNativeModuleDefinition } from './Cinema2NeonForestNativeModule'
 import { cinema2OrbitalNativeModuleDefinition } from './Cinema2OrbitalNativeModule'
+import { cinema2SignsNativeModuleDefinition } from './Cinema2SignsNativeModule'
 import { cinema2PulseCubedNativeModuleDefinition } from './Cinema2PulseCubedNativeModule'
 import { cinema2SubmergeNativeModuleDefinition } from './Cinema2SubmergeNativeModule'
 import { cinema2LivewireNativeModuleDefinition } from './Cinema2LivewireNativeModule'
@@ -213,6 +214,8 @@ for (const definition of cinema2CratePresentationModules) {
 }
 const orbitalRegistration = cinema2NativeModuleRegistry.register(cinema2OrbitalNativeModuleDefinition)
 if (!orbitalRegistration.ok) throw new Error('Cinema 2.0 ORBITAL module registration failed.')
+const signsRegistration = cinema2NativeModuleRegistry.register(cinema2SignsNativeModuleDefinition)
+if (!signsRegistration.ok) throw new Error('Cinema 2.0 SIGNS module registration failed.')
 const pulseCubedRegistration = cinema2NativeModuleRegistry.register(cinema2PulseCubedNativeModuleDefinition)
 if (!pulseCubedRegistration.ok) throw new Error('Cinema 2.0 PULSE CUBED module registration failed.')
 const submergeRegistration = cinema2NativeModuleRegistry.register(cinema2SubmergeNativeModuleDefinition)
