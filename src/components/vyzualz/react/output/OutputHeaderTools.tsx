@@ -63,7 +63,11 @@ export function OutputHeaderTools({ settings, onChange, recording, onRecord, onS
     </DualRailCollapsible>
     <div className="rv-output-actions" role="group" aria-label="Capture actions">
       <IconChipButton className={`dv-icon-chip--danger rv-output-record${recording ? ' is-recording' : ''}`}
-        icon={<AppIcon kind={recording ? 'stop' : 'record'} size={16} />} aria-label={action}
+        icon={recording ? <AppIcon kind="stop" size={16} /> : (
+          <svg className="app-icon" width={16} height={16} viewBox="0 0 16 16" aria-hidden="true">
+            <circle cx={8} cy={8} r={6} fill="currentColor" stroke="none" />
+          </svg>
+        )} aria-label={action}
         aria-pressed={recording} title={action} disabled={!recording && !canRecord} onClick={onRecord}>{action}</IconChipButton>
       <IconChipButton icon={<AppIcon kind="camera" size={16} />} aria-label="Screenshot" title="Screenshot (export PNG)"
         disabled={!canScreenshot} onClick={onScreenshot}>Screenshot</IconChipButton>

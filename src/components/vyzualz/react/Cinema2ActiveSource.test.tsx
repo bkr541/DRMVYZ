@@ -15,6 +15,8 @@ describe('Cinema 2.0 Active Source', () => {
       expect(host.textContent).toContain('Poster')
       expect(host.querySelector('[role="status"]')?.textContent).toContain('Loading media')
       const trigger = host.querySelector<HTMLButtonElement>('[aria-label="Source actions"]')!
+      expect(trigger.querySelector('[data-app-icon="more"]')).not.toBeNull()
+      expect(trigger.classList.contains('dv-icon-chip')).toBe(false)
       await act(async () => trigger.click())
       expect(document.activeElement?.getAttribute('role')).toBe('menuitem')
       await act(async () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })))

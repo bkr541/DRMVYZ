@@ -134,6 +134,8 @@ describe('effective Canvas output capability', () => {
     expect(host.querySelector('[aria-label="Fractures recording unavailable"]')).not.toBeNull()
     expect(host.querySelector<HTMLButtonElement>('[aria-label="standard recording controls"] button')?.disabled).toBe(true)
     expect(host.querySelector('[aria-label="standard recording controls"]')).not.toBeNull()
+    expect(host.querySelector('.rv-inspector.rv-inspector-scroll > .rv-ctrl-group [aria-label="standard recording controls"]')).not.toBeNull()
+    expect(host.querySelector('.rv-output-inspector')).toBeNull()
 
     renderOutputPanel(CANVAS_OUTPUT_AVAILABLE)
     expect(host.querySelector('[aria-label="Fractures recording unavailable"]')).toBeNull()

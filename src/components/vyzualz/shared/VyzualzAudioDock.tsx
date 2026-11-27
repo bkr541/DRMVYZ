@@ -1247,13 +1247,14 @@ export function VyzualzAudioDock({
               <span className="vz-dock-bpm-block-val vz-dock-bpm-analyzing">Analyzing…</span>
             )}
             {bpmState.kind === 'failed' && (
-              <button
-                className="vz-dock-bpm-block-val vz-dock-bpm-failed"
-                onClick={handleRetry}
-                title={bpmState.error ?? 'Analysis failed — click to retry'}
-              >
-                unavailable
-              </button>
+              <>
+                <span className="vz-dock-bpm-block-val vz-dock-bpm-none" title={bpmState.error ?? 'Analysis failed'}>Unavailable</span>
+                <button type="button" className="vz-dock-bpm-failed vz-dock-bpm-stale-btn"
+                  onClick={handleRetry} aria-label="Retry BPM analysis"
+                  title={bpmState.error ? `Retry BPM analysis: ${bpmState.error}` : 'Retry BPM analysis'}>
+                  <AppIcon kind="sync" size={14} />
+                </button>
+              </>
             )}
             {bpmState.kind === 'unavailable' && (
               <span
@@ -1353,23 +1354,24 @@ export function VyzualzAudioDock({
             ) : bpmReanalysisStatus === 'failed' ? (
               <div className="vz-dock-bpm-stale-actions">
                 <span className="vz-dock-bpm-stale-status vz-dock-bpm-stale-status--err">Failed</span>
-                <button className="vz-dock-bpm-stale-btn" onClick={handleKeepExisting}>Dismiss</button>
-                <button className="vz-dock-bpm-stale-btn vz-dock-bpm-stale-btn--pri" onClick={handleResnap}>Re-snap</button>
+                <button type="button" className="vz-dock-bpm-stale-btn" onClick={handleKeepExisting} aria-label="Dismiss" title="Dismiss"><AppIcon kind="close" size={14} /></button>
+                <button type="button" className="vz-dock-bpm-stale-btn vz-dock-bpm-stale-btn--pri" onClick={handleResnap} aria-label="Re-snap" title="Re-snap"><AppIcon kind="gridSnap" size={14} /></button>
               </div>
             ) : showReanalyzeConfirm ? (
               <div className="vz-dock-bpm-stale-actions">
                 <span className="vz-dock-bpm-stale-confirm">
                   {autoSectionCount} auto section{autoSectionCount !== 1 ? 's' : ''} will be replaced. Manual sections kept.
                 </span>
-                <button className="vz-dock-bpm-stale-btn" onClick={() => setShowReanalyzeConfirm(false)}>Cancel</button>
-                <button className="vz-dock-bpm-stale-btn vz-dock-bpm-stale-btn--pri" onClick={handleReanalyzeConfirm}>Confirm</button>
+                <button type="button" className="vz-dock-bpm-stale-btn" onClick={() => setShowReanalyzeConfirm(false)} aria-label="Cancel" title="Cancel"><AppIcon kind="close" size={14} /></button>
+                <button type="button" className="vz-dock-bpm-stale-btn vz-dock-bpm-stale-btn--pri" onClick={handleReanalyzeConfirm} aria-label="Confirm" title="Confirm"><AppIcon kind="check" size={14} /></button>
               </div>
             ) : (
               <div className="vz-dock-bpm-stale-actions">
-                <button className="vz-dock-bpm-stale-btn" onClick={handleKeepExisting}>Keep</button>
-                <button className="vz-dock-bpm-stale-btn" onClick={handleResnap}>Re-snap</button>
-                <button className="vz-dock-bpm-stale-btn vz-dock-bpm-stale-btn--pri" onClick={handleReanalyzeClick}>
-                  Reanalyze {effectiveBpm.toFixed(0)}
+                <button type="button" className="vz-dock-bpm-stale-btn" onClick={handleKeepExisting} aria-label="Keep" title="Keep"><AppIcon kind="check" size={14} /></button>
+                <button type="button" className="vz-dock-bpm-stale-btn" onClick={handleResnap} aria-label="Re-snap" title="Re-snap"><AppIcon kind="gridSnap" size={14} /></button>
+                <button type="button" className="vz-dock-bpm-stale-btn vz-dock-bpm-stale-btn--pri" onClick={handleReanalyzeClick}
+                  aria-label={`Reanalyze ${effectiveBpm.toFixed(0)} BPM`} title={`Reanalyze ${effectiveBpm.toFixed(0)} BPM`}>
+                  <AppIcon kind="sync" size={14} />
                 </button>
               </div>
             )}
@@ -1399,6 +1401,7 @@ export function VyzualzAudioDock({
             onClick={toggleBpmSync}
             title={bpmSync ? 'BPM Sync: ON' : 'BPM Sync: OFF'}
             aria-label={bpmSync ? 'BPM Sync: ON' : 'BPM Sync: OFF'}
+            aria-pressed={bpmSync}
           >
             {bpmSync && <span className="vz-dock-sync-dot" />}
             <AppIcon kind="sync" className="vz-dock-action-icon" size="16" />

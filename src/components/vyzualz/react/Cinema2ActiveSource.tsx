@@ -2,7 +2,6 @@ import { useCallback, useRef, useState, type ReactNode } from 'react'
 import { AppIcon } from '../../shared/icons/AppIcon'
 import { ContextActionMenu, type ContextActionMenuItem } from '../context-menu/ContextActionMenu'
 import { Collapsible } from './ReactControlRows'
-import { IconChipButton } from './controls/IconChipButton'
 
 /** Presentation only: the owning runtime/parameter adapter supplies allowed actions. */
 export function Cinema2ActiveSource({ name, type, preview, status, error, actions = [], children }: {
@@ -17,8 +16,8 @@ export function Cinema2ActiveSource({ name, type, preview, status, error, action
       <div className="rv-cinema2-active-source-row">
         <span className="rv-cinema2-active-source-preview" aria-hidden="true">{preview ?? <AppIcon kind="layers" size={23} />}</span>
         <div className="rv-cinema2-active-source-copy"><strong title={name}>{name}</strong><span>{type}</span></div>
-        {!!actions.length && <IconChipButton ref={trigger} aria-label="Source actions" aria-haspopup="menu" aria-expanded={!!open}
-          onClick={event => { const rect = event.currentTarget.getBoundingClientRect(); setOpen(current => current ? null : { x: rect.left, y: rect.bottom + 4 }) }}>•••</IconChipButton>}
+        {!!actions.length && <button type="button" className="rv-cinema2-source-actions" ref={trigger} title="Source actions" aria-label="Source actions" aria-haspopup="menu" aria-expanded={!!open}
+          onClick={event => { const rect = event.currentTarget.getBoundingClientRect(); setOpen(current => current ? null : { x: rect.left, y: rect.bottom + 4 }) }}><AppIcon kind="more" size={20} /></button>}
       </div>
       {status && <div className="rv-ctrl-info" role="status">{status}</div>}
       {error && <div className="rv-ctrl-info" role="alert">{error}</div>}

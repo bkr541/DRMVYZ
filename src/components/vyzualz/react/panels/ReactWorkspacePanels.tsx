@@ -176,28 +176,30 @@ export function ReactOutputWorkspacePanel({
         ]}
       />}
       <div className="rv-workspace-panel-body">
-        <div className="rv-inspector rv-inspector-scroll rv-output-inspector">
-          {surface === 'production' && isLaserDmx ? (
-            <div className="rv-ctrl-group"><ProductionOutputPanel /></div>
-          ) : <>
-            <ReactRecordingPanel
-              canvas={isCanvasOutputAvailable(outputCapability) ? canvas : null}
-              recorder={recorder}
-              liveFps={liveFps}
-              hasActiveProgramAudio={hasActiveProgramAudio}
-              onStartRecording={onStartRecording}
-            />
-            {fracturesOutputDeferred ? (
-              <DrawerNotice tone="info" title="Fractures recording is unavailable" ariaLabel="Fractures recording unavailable">
-                <p>The effective Fractures renderer is active for preview and performance, but capture is intentionally disabled in the current MVP.</p>
-              </DrawerNotice>
-            ) : !isCanvasOutputAvailable(outputCapability) ? (
-              <DrawerNotice tone="info" title="Output unavailable">The active renderer has not resolved a capture surface.</DrawerNotice>
-            ) : null}
-            {isCinema2 && <DualRailCollapsible label="Runtime Diagnostics" defaultOpen={false}>
-              <Cinema2RuntimeDiagnostics runtime={cinema2Runtime} snapshot={cinema2RuntimeSnapshot} />
-            </DualRailCollapsible>}
-          </>}
+        <div className="rv-inspector rv-inspector-scroll">
+          <div className="rv-ctrl-group">
+            {surface === 'production' && isLaserDmx ? (
+              <ProductionOutputPanel />
+            ) : <>
+              <ReactRecordingPanel
+                canvas={isCanvasOutputAvailable(outputCapability) ? canvas : null}
+                recorder={recorder}
+                liveFps={liveFps}
+                hasActiveProgramAudio={hasActiveProgramAudio}
+                onStartRecording={onStartRecording}
+              />
+              {fracturesOutputDeferred ? (
+                <DrawerNotice tone="info" title="Fractures recording is unavailable" ariaLabel="Fractures recording unavailable">
+                  <p>The effective Fractures renderer is active for preview and performance, but capture is intentionally disabled in the current MVP.</p>
+                </DrawerNotice>
+              ) : !isCanvasOutputAvailable(outputCapability) ? (
+                <DrawerNotice tone="info" title="Output unavailable">The active renderer has not resolved a capture surface.</DrawerNotice>
+              ) : null}
+              {isCinema2 && <DualRailCollapsible label="Runtime Diagnostics" defaultOpen={false}>
+                <Cinema2RuntimeDiagnostics runtime={cinema2Runtime} snapshot={cinema2RuntimeSnapshot} />
+              </DualRailCollapsible>}
+            </>}
+          </div>
         </div>
       </div>
     </div>

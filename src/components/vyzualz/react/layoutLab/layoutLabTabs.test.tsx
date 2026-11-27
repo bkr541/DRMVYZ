@@ -183,6 +183,8 @@ describe('persistent Layout Lab tabs', () => {
     expect([...headerActions.querySelectorAll('button')].map(button => button.textContent?.trim())).toEqual(['Start Recording', 'Screenshot'])
     expect(headerActions.previousElementSibling?.textContent).toContain('Video Settings')
     expect(action(header, 'Start Recording').classList.contains('dv-icon-chip--danger')).toBe(true)
+    expect(action(header, 'Start Recording').querySelectorAll('svg circle[fill="currentColor"][stroke="none"]')).toHaveLength(1)
+    expect(action(header, 'Start Recording').querySelector('svg path')).toBeNull()
     expect(action(header, 'Screenshot').classList.contains('dv-icon-chip--danger')).toBe(false)
     expect(getComputedStyle(headerActions).display).toBe('grid')
     expect(getComputedStyle(action(header, 'Start Recording')).width).toBe('100%')

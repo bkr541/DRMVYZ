@@ -23813,6 +23813,56 @@ button.llhr-chip { cursor: pointer; }
   background: var(--fw-surface-background);
 }
 
+/* Audio dock actions are bare glyphs, not keycaps. Keep the existing grid and
+   hit areas; zoom controls and the contents of opened popovers are excluded.
+   The surface reset also neutralizes legacy hover/active and inline play styles. */
+.rv-shell > .az-dock.vz-transport-dock .vz-dock-region :is(
+  .vz-dock-addtrack-btn, .vz-dock-playlist-trigger, .vz-dock-track-nav-btn,
+  .az-play-btn, .vz-dock-tap-btn, .vz-dock-bpm-reset-btn, .vz-dock-cue-btn,
+  .vz-dock-sync-master-btn, .vz-dock-source-trigger, .vz-dock-track-timeline-btn,
+  .vz-live-dock-transport, .vz-dock-bpm-stale-btn, .vz-dock-bpm-failed
+) {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  --app-icon-accent: currentColor;
+}
+.rv-shell > .az-dock.vz-transport-dock .vz-dock-region :is(
+  .vz-dock-addtrack-btn, .vz-dock-playlist-trigger, .vz-dock-track-nav-btn,
+  .az-play-btn, .vz-dock-tap-btn, .vz-dock-bpm-reset-btn, .vz-dock-cue-btn,
+  .vz-dock-sync-master-btn, .vz-dock-source-trigger, .vz-dock-track-timeline-btn,
+  .vz-live-dock-transport, .vz-dock-bpm-stale-btn, .vz-dock-bpm-failed
+):hover:not(:disabled):not([aria-disabled='true']),
+.rv-shell > .az-dock.vz-transport-dock .vz-dock-region :is(
+  .vz-dock-sync-master-btn--on, .vz-dock-source-trigger[aria-expanded='true'],
+  .vz-dock-playlist-trigger[aria-expanded='true'], .vz-dock-track-timeline-btn[data-state='active'],
+  .vz-live-dock-transport.dv-icon-chip--primary
+) {
+  color: var(--dock-cyan-bright, var(--az-cyan)) !important;
+}
+.rv-shell > .az-dock.vz-transport-dock .vz-dock-region :is(
+  .vz-dock-addtrack-btn, .vz-dock-playlist-trigger, .vz-dock-track-nav-btn,
+  .az-play-btn, .vz-dock-tap-btn, .vz-dock-bpm-reset-btn, .vz-dock-cue-btn,
+  .vz-dock-sync-master-btn, .vz-dock-source-trigger, .vz-dock-track-timeline-btn,
+  .vz-live-dock-transport, .vz-dock-bpm-stale-btn, .vz-dock-bpm-failed
+):focus-visible {
+  outline: 1px solid var(--dock-cyan-bright, var(--az-cyan));
+  outline-offset: 1px;
+}
+.rv-shell > .az-dock.vz-transport-dock .vz-dock-blank-btn {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+.rv-shell > .az-dock.vz-transport-dock .vz-dock-bpm-stale-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  min-height: 24px;
+  padding: 0;
+}
+
 /* Phase 04 — The original audio dock stays mounted after .rv-layout, now as
    an actual second grid row. These declarations override React's historical
    viewport-fixed dock without changing Show Manager's shared component. */
@@ -23910,6 +23960,17 @@ button.llhr-chip { cursor: pointer; }
 .rv-cinema2-active-source-copy { display: flex; flex: 1; flex-direction: column; min-width: 0; gap: 3px; }
 .rv-cinema2-active-source-copy strong, .rv-cinema2-active-source-copy span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rv-cinema2-active-source-copy span { color: rgba(232,244,248,.55); }
+.rv-cinema2-active-source-row > .rv-cinema2-source-actions {
+  display: inline-flex; align-items: center; justify-content: center;
+  flex: 0 0 28px; width: 28px; height: 28px; padding: 0;
+  border: 0; background: transparent; box-shadow: none;
+  color: var(--ui-text-secondary, rgba(232,244,248,.65)); cursor: pointer;
+}
+.rv-cinema2-active-source-row > .rv-cinema2-source-actions:is(:hover, [aria-expanded='true'], :focus-visible) {
+  color: var(--color-primary, #4ac7db); background: transparent;
+}
+.rv-cinema2-active-source-row > .rv-cinema2-source-actions:focus-visible { outline: 1px solid currentColor; outline-offset: 2px; }
+
 
 /* Production Visual Search uses the same artwork, rows and popover as Layout Lab. */
 .rv-visual-preset-search {
