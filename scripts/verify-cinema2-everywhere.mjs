@@ -35,7 +35,7 @@ try {
     await api('prepare')
     await expect.poll(async () => {
       const state = inspection(await api('advanceBy', .05))
-      return state.renderReady && state.eyeReady && state.screens === 92
+      return state.renderReady && state.eyeReady && state.screens === 46
     }).toBe(true)
     assert.equal(JSON.parse((await api('status')).authored).values['everywhere-auto-performance'], auto)
   }
@@ -79,6 +79,19 @@ try {
   await page.setViewportSize({width:1024,height:576})
   await api('resize',1024,576)
   await change({motion:.72})
+  // Production-path checks for the reconstruction: actual cabinet angle and
+  // camera motion must visibly change the scene; lowering screen power must
+  // reduce its illumination. Captures are also inputs for human visual review.
+  await change({motion:0,angle:.84,'camera-motion':false})
+  const staged=await capture('installation-default')
+  await change({angle:0})
+  changed(staged,await capture('installation-front-facing'),'Cabinet orientations',.5)
+  await change({angle:.84,'camera-distance':[1,0,1]})
+  changed(staged,await capture('installation-parallax'),'Camera parallax',.5)
+  await change({'camera-distance':[0,0,0],brightness:0})
+  const dark=await capture('installation-screen-off')
+  assert(dark.reduce((a,b)=>a+b,0)<staged.reduce((a,b)=>a+b,0),'Screen-off must darken the installation')
+  await change({brightness:1.06,motion:.72,'camera-motion':true})
   const frames = [['all-eyes', baseline]]
   for (const pattern of ['signal-sweep','outward-pulse','cross-cut','channel-hold','ghost-feed','static-switch','retro-broadcast','tape-tracking','channel-mosaic','signal-relay','midnight-replay']) {
     await change({ pattern })

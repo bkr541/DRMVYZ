@@ -2,12 +2,14 @@ export const EVERYWHERE_SCREEN_VERTEX = /* glsl */ `
 attribute vec4 aProgram; // exposure, seed, aspect, hero
 attribute vec4 aMediaPose; // scale, offset x/y, rotation
 attribute vec4 aMediaEffects; // power, channel, distortion, vertical stretch
+attribute vec4 aEyeFraming; // crop, offset x/y, independent resting eyelid
 attribute vec4 aEyePose; // gaze x/y, blink, roll back
 varying vec2 vUv;
 varying vec2 vWall;
 varying vec2 vCabinet;
 varying vec4 vProgram;
 varying vec4 vEyePose;
+varying vec4 vEyeFraming;
 varying vec4 vMediaPose;
 varying vec4 vMediaEffects;
 void main() {
@@ -17,6 +19,7 @@ void main() {
   vCabinet = instanceMatrix[3].xy / vec2(30.0,15.0) + .5;
   vProgram = aProgram;
   vEyePose = aEyePose;
+  vEyeFraming = aEyeFraming;
   vMediaPose = aMediaPose;
   vMediaEffects = aMediaEffects;
   gl_Position = projectionMatrix * modelViewMatrix * local;
@@ -50,6 +53,7 @@ varying vec2 vWall;
 varying vec2 vCabinet;
 varying vec4 vProgram;
 varying vec4 vEyePose;
+varying vec4 vEyeFraming;
 varying vec4 vMediaPose;
 varying vec4 vMediaEffects;
 
@@ -196,9 +200,13 @@ void main() {
   if (uSourceMode < .5 && uHasEye > .5) {
     // Do not mirror animated pictures: synchronized world-left/right gazes
     // must look in the same direction across all cabinets.
-    picture = animatedEye(curved,vEyePose);
+    vec2 eyeUV=(curved-.5)/max(1.0,vEyeFraming.x)+.5+vEyeFraming.yz;
+    vec4 eyePose=vEyePose;
+    eyePose.x+=vEyeFraming.y*3.5*(1.0-abs(eyePose.x))*(1.0-uMusic.w);
+    eyePose.z=max(eyePose.z,vEyeFraming.w*(1.0-eyePose.w));
+    picture = animatedEye(eyeUV,eyePose);
     // Lift the photographic feed only; opaque user media retains its prior exposure.
-    picture = pow(max(picture,vec3(0.0)),vec3(.82))*1.16;
+    picture = pow(max(picture,vec3(0.0)),vec3(.68))*1.55;
     float alternate = smoothstep(.52,.90,seed)*(1.0-vProgram.w);
     picture = mix(picture,picture*vec3(.80,1.05,1.16),alternate*.33);
   }
@@ -248,10 +256,10 @@ void main() {
     picture*=.82+.18*vProgram.w+.12*uMusic.z*vProgram.w;
     picture+=vec3(noise*.035);
   }
-  float edgeFalloff = 1.0-.26*dot(p*vec2(.82,1.0),p*vec2(.82,1.0));
+  float edgeFalloff = 1.0-.18*dot(p*vec2(.82,1.0),p*vec2(.82,1.0));
   float rim = exp(-abs(mask+.055)*28.0);
   float glint = exp(-pow((p.y - .66 + p.x*.28)*7.1,2.0)) * exp(-pow((p.x+.48)*2.3,2.0));
-  vec3 glass = (uCool*(.21*glint + rim*.043*max(0.0,-p.x)) + uWarm * rim*.067*max(0.0,p.x))*uLook.w;
+  vec3 glass = (uCool*(.075*glint + rim*.043*max(0.0,-p.x)) + uWarm * rim*.067*max(0.0,p.x))*uLook.w;
   float breakUp = 1.0-uReaction.y*line*.38;
   float power=uSourceMode>.5 ? vMediaEffects.x : 1.0;
   vec3 rgb = power*picture*uTint*detail*edgeFalloff*breakUp*uLook.y*vProgram.x + glass;

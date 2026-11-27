@@ -1,3 +1,7 @@
+import * as THREE from 'three'
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
+import { OBB } from 'three/examples/jsm/math/OBB.js'
+import { EVERYWHERE_CABINET_STYLES, buildEverywhereCabinetParts } from '../modules/everywhere/Cinema2EverywhereCabinets'
 import { everywhereMediaPose } from '../modules/everywhere/Cinema2EverywhereMediaMotion'
 import { afterEach, describe, expect, it } from 'vitest'
 import { setAutoPerformanceUserDefault } from '../../../../lib/autoPerformanceDefault'
@@ -6,7 +10,7 @@ import { Cinema2ParameterState } from '../parameters/Cinema2ParameterState'
 import { CINEMA2_AFTERHOURS_TRIGGER_OPTIONS } from '../presets/Cinema2AfterhoursPreset'
 import { CINEMA2_EVERYWHERE_PRESET_ID, CINEMA2_EVERYWHERE_PRESET_MANIFEST } from '../presets/Cinema2EverywherePreset'
 import { Cinema2EverywherePerformance } from '../modules/Cinema2EverywhereNativeModule'
-import { buildEverywhereCabinetLayout, EVERYWHERE_PATTERNS, everywhereWallCoverScale, everywhereScreenGain, type EverywhereLook } from '../modules/everywhere/Cinema2EverywhereWall'
+import { buildEverywhereCabinetLayout, EVERYWHERE_PATTERNS, everywhereWallCoverScale, everywhereEyeFraming, everywhereScreenGain, type EverywhereLook } from '../modules/everywhere/Cinema2EverywhereWall'
 import { everywhereEyePose } from '../modules/everywhere/Cinema2EverywhereEyeMotion'
 import { EVERYWHERE_SCREEN_FRAGMENT } from '../modules/everywhere/Cinema2EverywhereScreens'
 import type { Cinema2ModuleUpdateContext } from '../modules/Cinema2ModuleContracts'
@@ -64,7 +68,7 @@ describe('Everywhere', () => {
 
   it('builds a deterministic spatial wall with a prominent hero and distinct screen programs', () => {
     const wall = buildEverywhereCabinetLayout()
-    expect(wall).toHaveLength(92)
+    expect(wall).toHaveLength(46)
     expect(wall[0]).toMatchObject({ x: 0, scale: 2.65 })
     expect(buildEverywhereCabinetLayout()).toEqual(wall)
     expect(wall.some(screen => screen.x < -6)).toBe(true)
@@ -93,48 +97,58 @@ describe('Everywhere', () => {
     )
   })
 
-  it('keeps a varied curved installation, deliberate seams and wide framing instead of a rear tile grid', () => {
-    const wall=buildEverywhereCabinetLayout()
-    const surrounding=wall.slice(1)
-    expect(new Set(surrounding.map(c=>c.style)).size).toBe(3)
-    expect(new Set(surrounding.map(c=>c.z.toFixed(2))).size).toBeGreaterThan(65)
-    expect(new Set(surrounding.map(c=>c.scale.toFixed(2))).size).toBeGreaterThan(30)
-    expect(Math.max(...surrounding.map(c=>c.depth))-Math.min(...surrounding.map(c=>c.depth))).toBeGreaterThan(.5)
-    expect(surrounding.every(c=>Math.abs(c.x)<3 || c.x*c.yaw<0)).toBe(true)
-    expect(Math.max(...wall.map(c=>c.z))-Math.min(...wall.map(c=>c.z))).toBeGreaterThan(2.5)
+  it('builds four genuinely different CRT carcasses and fits the glass inside each aperture', () => {
+    const dimensions=EVERYWHERE_CABINET_STYLES.map(style=>{
+      const parts=buildEverywhereCabinetParts(THREE,mergeGeometries,style)
+      const bounds=new THREE.Box3()
+      for(const {geometry} of parts) {
+        geometry.computeBoundingBox()
+        bounds.union(geometry.boundingBox!)
+        expect(geometry.getAttribute('position').count).toBeGreaterThan(0)
+        expect(Array.from(geometry.getAttribute('position').array).every(Number.isFinite)).toBe(true)
+        geometry.dispose()
+      }
+      expect(bounds.min.z).toBeLessThan(-.9)
+      expect(Math.abs(style.screenX)+style.screenW/2).toBeLessThan(style.w/2)
+      expect(Math.abs(style.screenY)+style.screenH/2).toBeLessThan(style.h/2)
+      return bounds.getSize(new THREE.Vector3()).toArray().map(n=>n.toFixed(2)).join('/')
+    })
+    expect(new Set(dimensions).size).toBe(4)
+  })
+
+  it('uses natural perspective, independent world positions, depth separation and distinct eye framing', () => {
+    const wall=buildEverywhereCabinetLayout(), surrounding=wall.slice(1)
+    expect(new Set(wall.map(c=>c.style)).size).toBe(4)
+    expect(new Set(surrounding.map(c=>c.y.toFixed(1))).size).toBeGreaterThan(30)
+    expect(Math.max(...wall.map(c=>c.z))-Math.min(...wall.map(c=>c.z))).toBeGreaterThan(9)
+    expect(surrounding.some(c=>c.z>wall[0]!.z)).toBe(true)
+    expect(surrounding.some(c=>c.z<-5)).toBe(true)
     expect(Math.max(...wall.map(c=>c.x))).toBeGreaterThan(15)
     expect(Math.min(...wall.map(c=>c.x))).toBeLessThan(-15)
+    expect(everywhereWallCoverScale(32/9)).toBe(1)
     expect(manifest.cameras?.[0]?.minAspect).toBeUndefined()
-    // Project the actual front corners (XYZ Euler order, default Cabinet Angle).
-    // This is a framing regression, not a pixel-perfect WebGL occlusion test.
-    for (const aspect of [.45,9/16,1,16/9,1.9,21/9,32/9,4]) {
-      const cover=everywhereWallCoverScale(aspect)
-      for (const distance of [9,14,17]) {
-        const polygons=wall.map(c=>{
-          const [pitch,yaw,roll]=[c.pitch*.84,c.yaw*.84,c.roll*.84]
-          return [[-1.04,-.78],[1.04,-.78],[1.04,.78],[-1.04,.78]].map(([px,py])=>{
-            const x=px!*c.scale*c.width,y=py!*c.scale*c.height,z=.18*c.scale*c.depth
-            const rx=x*Math.cos(roll)-y*Math.sin(roll), ry=x*Math.sin(roll)+y*Math.cos(roll)
-            const yx=rx*Math.cos(yaw)+z*Math.sin(yaw), yz=-rx*Math.sin(yaw)+z*Math.cos(yaw)
-            const wx=yx+c.x, wy=ry*Math.cos(pitch)-yz*Math.sin(pitch)+c.y
-            const wz=ry*Math.sin(pitch)+yz*Math.cos(pitch)+c.z
-            return [wx*cover/(distance-wz),wy*cover/(distance-wz)] as const
-          })
-        })
-        const inside=(x:number,y:number,poly:typeof polygons[number])=>poly.every(([ax,ay],i)=>{
-          const [bx,by]=poly[(i+1)%poly.length]!
-          return (bx-ax)*(y-ay)-(by-ay)*(x-ax)>=0
-        })
-        let hits=0
-        const fov=Math.tan(Math.PI/9)
-        for(let iy=0;iy<25;iy++) for(let ix=0;ix<41;ix++) {
-          const x=((ix+.5)/41*2-1)*fov*aspect,y=((iy+.5)/25*2-1)*fov
-          if(polygons.some(poly=>inside(x,y,poly))) hits++
-        }
-        expect(inside(0,0,polygons[0]!)).toBe(true)
-        expect(hits/(25*41),`aspect=${aspect}, distance=${distance}`).toBeGreaterThan(.55)
-        // At the normal wide view, the installation must not become wallpaper.
-        if(aspect===16/9 && distance===14) expect(hits/(25*41)).toBeLessThan(.90)
+    expect(everywhereEyeFraming(wall[0]!,0)).toEqual([1,0,0,0])
+    expect(new Set(surrounding.map((c,i)=>JSON.stringify(everywhereEyeFraming(c,i+1)))).size).toBe(surrounding.length)
+    // The projected size of the same physical cabinet must shrink with distance.
+    const camera=new THREE.PerspectiveCamera(40,16/9,.2,60)
+    camera.position.z=14;camera.updateMatrixWorld()
+    const apparent=(z:number)=>new THREE.Vector3(1,0,z).project(camera).x-new THREE.Vector3(-1,0,z).project(camera).x
+    expect(apparent(4)).toBeGreaterThan(apparent(-5)*1.8)
+  })
+
+  it('keeps conservative cabinet bounds disjoint across sampled cabinet angles', () => {
+    const wall=buildEverywhereCabinetLayout()
+    for(const angle of [0,.25,.5,.75,.84,1,1.25]) {
+      const boxes=wall.map(c=>{
+        const s=EVERYWHERE_CABINET_STYLES[c.style]!
+        const ymin=-s.h/2-.045,ymax=s.h/2+(c.style===2?.19:.045)
+        const rotation=new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(c.pitch*angle,c.yaw*angle,c.roll*angle))
+        const center=new THREE.Vector3(0,(ymin+ymax)/2,(.34-s.depth)/2).multiplyScalar(c.scale).applyMatrix4(rotation).add(new THREE.Vector3(c.x,c.y,c.z))
+        const half=new THREE.Vector3(s.w/2+.045,(ymax-ymin)/2,(s.depth+.34)/2).multiplyScalar(c.scale)
+        return new OBB(center,half,new THREE.Matrix3().setFromMatrix4(rotation))
+      })
+      for(let i=0;i<boxes.length;i++)for(let j=0;j<i;j++) {
+        expect(boxes[i]!.intersectsOBB(boxes[j]!),`angle=${angle}, cabinets ${i}/${j}`).toBe(false)
       }
     }
   })
