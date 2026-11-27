@@ -1,0 +1,11 @@
+{
+  "id": "cinema2-chromaverse-temple-of-light",
+  "kind": "model",
+  "compression": "none",
+  "license": "CC-BY-4.0",
+  "attribution": "Temple of Light (infinite mandalas) by Miguelangelo Rosario (https://sketchfab.com/miguelangelo2k). https://sketchfab.com/3d-models/temple-of-light-infinite-mandalas-720acbe09c84432a8f6712a0b685e1be. CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Modified: animation resampling, texture resizing and binary deduplication; native choreography.",
+  "origin": "Owner-supplied CHROMAVERSE/temple_of_light_infinite_mandalas.glb, optimized runtime copy",
+  "files": {
+    "high": "public/cinema2/models/chromaverse/temple-of-light.glb"
+  }
+}

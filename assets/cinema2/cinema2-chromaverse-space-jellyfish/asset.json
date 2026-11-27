@@ -1,0 +1,11 @@
+{
+  "id": "cinema2-chromaverse-space-jellyfish",
+  "kind": "model",
+  "compression": "none",
+  "license": "CC-BY-4.0",
+  "attribution": "Inside the Space Jellyfish by Miguelangelo Rosario (https://sketchfab.com/miguelangelo2k). https://sketchfab.com/3d-models/inside-the-space-jellyfish-0cdaf61b32664489b10f39f669410db5. CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Modified: animation resampling, texture resizing and binary deduplication; native choreography.",
+  "origin": "Owner-supplied CHROMAVERSE/inside_the_space_jellyfish.glb, optimized runtime copy",
+  "files": {
+    "high": "public/cinema2/models/chromaverse/space-jellyfish.glb"
+  }
+}

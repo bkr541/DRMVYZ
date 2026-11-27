@@ -1,0 +1,11 @@
+{
+  "id": "cinema2-chromaverse-alter-ego",
+  "kind": "model",
+  "compression": "none",
+  "license": "CC-BY-4.0",
+  "attribution": "Are you talking to me ? Warning: DO NOT ZOOM ! by Miguelangelo Rosario (https://sketchfab.com/miguelangelo2k). https://sketchfab.com/3d-models/are-you-talking-to-me-warning-do-not-zoom-aa6d3b9431ba49b68d9d0ac4357368a6. CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Modified: animation resampling, texture resizing and binary deduplication; native choreography.",
+  "origin": "Owner-supplied CHROMAVERSE/are_you_talking_to_me__warning_do_not_zoom.glb, optimized runtime copy",
+  "files": {
+    "high": "public/cinema2/models/chromaverse/alter-ego.glb"
+  }
+}

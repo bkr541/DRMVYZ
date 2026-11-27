@@ -44,6 +44,76 @@
       "origin": "Original dark chamber.glb supplied by the user. The bundled GLB is unchanged."
     },
     {
+      "id": "cinema2-chromaverse-alter-ego",
+      "kind": "model",
+      "license": "CC-BY-4.0",
+      "attribution": "Are you talking to me ? Warning: DO NOT ZOOM ! by Miguelangelo Rosario (https://sketchfab.com/miguelangelo2k). https://sketchfab.com/3d-models/are-you-talking-to-me-warning-do-not-zoom-aa6d3b9431ba49b68d9d0ac4357368a6. CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Modified: animation resampling, texture resizing and binary deduplication; native choreography.",
+      "origin": "Owner-supplied CHROMAVERSE/are_you_talking_to_me__warning_do_not_zoom.glb, optimized runtime copy"
+    },
+    {
+      "id": "cinema2-chromaverse-disco-waves",
+      "kind": "model",
+      "license": "CC-BY-4.0",
+      "attribution": "Disco Waves by Tycho Magnetic Anomaly (https://sketchfab.com/Tycho_Magnetic_Anomaly). https://sketchfab.com/3d-models/disco-waves-8b359a5c0ad446d091f3ac90415eb166. CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Modified: animation resampling, texture resizing and binary deduplication; native choreography.",
+      "origin": "Owner-supplied CHROMAVERSE/disco_waves.glb, optimized runtime copy"
+    },
+    {
+      "id": "cinema2-chromaverse-hypnotic-flower",
+      "kind": "model",
+      "license": "CC-BY-4.0",
+      "attribution": "Hypnotic flower by Miguelangelo Rosario (https://sketchfab.com/miguelangelo2k). https://sketchfab.com/3d-models/hypnotic-flower-3ede58d7feac4d4c9114ae47c69fec3a. CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Modified: animation resampling, texture resizing and binary deduplication; native choreography.",
+      "origin": "Owner-supplied CHROMAVERSE/hypnotic_flower.glb, optimized runtime copy"
+    },
+    {
+      "id": "cinema2-chromaverse-magic-warp",
+      "kind": "model",
+      "license": "CC-BY-4.0",
+      "attribution": "Magic Warp Flow by Miguelangelo Rosario (https://sketchfab.com/miguelangelo2k). https://sketchfab.com/3d-models/magic-warp-flow-f21da71b70dc4f1a8b02a13f09bb9fc4. CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Modified: animation resampling, texture resizing and binary deduplication; native choreography.",
+      "origin": "Owner-supplied CHROMAVERSE/magic_warp_flow.glb, optimized runtime copy"
+    },
+    {
+      "id": "cinema2-chromaverse-pulse",
+      "kind": "model",
+      "license": "CC-BY-4.0",
+      "attribution": "Pulse by tamminen (https://sketchfab.com/tamminen). https://sketchfab.com/3d-models/pulse-ea875d1cbe4b4528803ab414fccccfb9. CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Modified: animation resampling, texture resizing and binary deduplication; native choreography.",
+      "origin": "Owner-supplied CHROMAVERSE/pulse.glb, optimized runtime copy"
+    },
+    {
+      "id": "cinema2-chromaverse-space-jellyfish",
+      "kind": "model",
+      "license": "CC-BY-4.0",
+      "attribution": "Inside the Space Jellyfish by Miguelangelo Rosario (https://sketchfab.com/miguelangelo2k). https://sketchfab.com/3d-models/inside-the-space-jellyfish-0cdaf61b32664489b10f39f669410db5. CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Modified: animation resampling, texture resizing and binary deduplication; native choreography.",
+      "origin": "Owner-supplied CHROMAVERSE/inside_the_space_jellyfish.glb, optimized runtime copy"
+    },
+    {
+      "id": "cinema2-chromaverse-starfield-warp",
+      "kind": "model",
+      "license": "CC-BY-4.0",
+      "attribution": "Starfield warp by Miguelangelo Rosario (https://sketchfab.com/miguelangelo2k). https://sketchfab.com/3d-models/starfield-warp-0bb7f32bba994088b6ae3545c4a6c0ad. CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Modified: animation resampling, texture resizing and binary deduplication; native choreography.",
+      "origin": "Owner-supplied CHROMAVERSE/starfield_warp.glb, optimized runtime copy"
+    },
+    {
+      "id": "cinema2-chromaverse-temple-of-light",
+      "kind": "model",
+      "license": "CC-BY-4.0",
+      "attribution": "Temple of Light (infinite mandalas) by Miguelangelo Rosario (https://sketchfab.com/miguelangelo2k). https://sketchfab.com/3d-models/temple-of-light-infinite-mandalas-720acbe09c84432a8f6712a0b685e1be. CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Modified: animation resampling, texture resizing and binary deduplication; native choreography.",
+      "origin": "Owner-supplied CHROMAVERSE/temple_of_light_infinite_mandalas.glb, optimized runtime copy"
+    },
+    {
+      "id": "cinema2-chromaverse-time-tunnel",
+      "kind": "model",
+      "license": "CC-BY-4.0",
+      "attribution": "Timetunnel 2016 >PHOTOSENSITIVE SEIZURE WARNING< by Miguelangelo Rosario (https://sketchfab.com/miguelangelo2k). https://sketchfab.com/3d-models/timetunnel-2016-photosensitive-seizure-warning-f1d82c867b70452a9c47e791c724f071. CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Modified: animation resampling, texture resizing and binary deduplication; native choreography.",
+      "origin": "Owner-supplied CHROMAVERSE/timetunnel_2016_photosensitive_seizure_warning.glb, optimized runtime copy"
+    },
+    {
+      "id": "cinema2-chromaverse-torus",
+      "kind": "model",
+      "license": "CC-BY-4.0",
+      "attribution": "Torus or not torus by Miguelangelo Rosario (https://sketchfab.com/miguelangelo2k). https://sketchfab.com/3d-models/torus-or-not-torus-5fba56c15fc047acb189adcebd2f21cb. CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Modified: animation resampling, texture resizing and binary deduplication; native choreography.",
+      "origin": "Owner-supplied CHROMAVERSE/torus_or_not_torus.glb, optimized runtime copy"
+    },
+    {
       "id": "cinema2-conduit-chamber",
       "kind": "model",
       "license": "generated-in-house",

@@ -1,0 +1,11 @@
+{
+  "id": "cinema2-chromaverse-starfield-warp",
+  "kind": "model",
+  "compression": "none",
+  "license": "CC-BY-4.0",
+  "attribution": "Starfield warp by Miguelangelo Rosario (https://sketchfab.com/miguelangelo2k). https://sketchfab.com/3d-models/starfield-warp-0bb7f32bba994088b6ae3545c4a6c0ad. CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Modified: animation resampling, texture resizing and binary deduplication; native choreography.",
+  "origin": "Owner-supplied CHROMAVERSE/starfield_warp.glb, optimized runtime copy",
+  "files": {
+    "high": "public/cinema2/models/chromaverse/starfield-warp.glb"
+  }
+}

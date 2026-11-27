@@ -253,7 +253,8 @@ export function analyzeAssets(records, readFileBytes, budgetOverrides = {}) {
       const previous = seenFiles.get(path)
       if (previous && previous !== id) fail(id, 'ASSET_FILE_SHARED', `file "${path}" is already used by "${previous}".`)
       seenFiles.set(path, id)
-      if (bytes.length > budgets.maxFileBytes) fail(id, 'ASSET_FILE_TOO_LARGE', `"${path}" is ${formatMegabytes(bytes.length)}, above the ${formatMegabytes(budgets.maxFileBytes)} per-file budget.`)
+      const maxFileBytes = budgets.maxFileBytesByAsset?.[id] ?? budgets.maxFileBytes
+      if (bytes.length > maxFileBytes) fail(id, 'ASSET_FILE_TOO_LARGE', `"${path}" is ${formatMegabytes(bytes.length)}, above the ${formatMegabytes(maxFileBytes)} per-file budget.`)
       const entry = { path, url: `/${path.slice('public/'.length)}`, bytes: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex').slice(0, 16) }
       try {
         if (record.kind === 'environment') {

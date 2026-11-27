@@ -1,0 +1,11 @@
+{
+  "id": "cinema2-chromaverse-time-tunnel",
+  "kind": "model",
+  "compression": "none",
+  "license": "CC-BY-4.0",
+  "attribution": "Timetunnel 2016 >PHOTOSENSITIVE SEIZURE WARNING< by Miguelangelo Rosario (https://sketchfab.com/miguelangelo2k). https://sketchfab.com/3d-models/timetunnel-2016-photosensitive-seizure-warning-f1d82c867b70452a9c47e791c724f071. CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Modified: animation resampling, texture resizing and binary deduplication; native choreography.",
+  "origin": "Owner-supplied CHROMAVERSE/timetunnel_2016_photosensitive_seizure_warning.glb, optimized runtime copy",
+  "files": {
+    "high": "public/cinema2/models/chromaverse/time-tunnel.glb"
+  }
+}

@@ -229,7 +229,11 @@ test('fails when all shipped assets exceed the installer budget', () => {
 
 test('loads and merges the Cinema 2.0 project budget overrides', () => {
   assert.deepEqual(PROJECT_BUDGETS, {
-    installerBytes: 160 * 1024 * 1024,
+    installerBytes: 300 * 1024 * 1024,
+    maxFileBytesByAsset: {
+      'cinema2-chromaverse-alter-ego': 64 * 1024 * 1024,
+      'cinema2-chromaverse-magic-warp': 25 * 1024 * 1024,
+    },
     maxFileBytes: 16 * 1024 * 1024,
     maxTrianglesPerAsset: 250000,
     maxTextureDimension: 4096,
@@ -271,12 +275,25 @@ test('project overrides still reject assets above every new threshold', () => {
   assert.deepEqual(overGpu.issues.filter(issue => issue.code === 'ASSET_GPU_OVER_BUDGET').map(issue => issue.message.match(/on (\w+),/)?.[1]), ['low', 'medium', 'high'])
 
   const fifteenMiBTexture = png(1, 1, 15 * 1024 * 1024 - 33)
-  const records = Array.from({ length: 11 }, (_, index) => ({
+  const records = Array.from({ length: 21 }, (_, index) => ({
     directory: `installer-${index}`,
     record: texture({ id: `installer-${index}`, files: { high: `public/cinema2/textures/installer-${index}.png` } }),
   }))
   const overInstaller = analyzeAssets(records, () => fifteenMiBTexture, PROJECT_BUDGETS)
   assert.ok(codes(overInstaller).includes('ASSETS_INSTALLER_OVER_BUDGET'))
+})
+
+test('CHROMAVERSE file budget exceptions are scoped to the two specified IDs', () => {
+  const file = 'public/cinema2/models/exception.glb'
+  const large = glb({ triangles: 12 })
+  const bytes = Buffer.concat([large, Buffer.alloc(20 * 1024 * 1024 - large.length)])
+  const accepted = model({ id: 'cinema2-chromaverse-magic-warp', files: { high: file } })
+  const other = model({ id: 'unrelated-model', files: { high: file } })
+  // Use a valid header-only texture fixture for file-size policy; the same policy applies before kind inspection.
+  const readLarge = () => png(1, 1, bytes.length - 33)
+  const candidate = id => texture({ id, files: { high: 'public/cinema2/textures/exception.png' } })
+  assert.ok(!codes(analyzeAssets([{ directory: accepted.id, record: candidate(accepted.id) }], readLarge, PROJECT_BUDGETS)).includes('ASSET_FILE_TOO_LARGE'))
+  assert.ok(codes(analyzeAssets([{ directory: other.id, record: candidate(other.id) }], readLarge, PROJECT_BUDGETS)).includes('ASSET_FILE_TOO_LARGE'))
 })
 
 test('generates a deterministic manifest source and an attribution list', () => {

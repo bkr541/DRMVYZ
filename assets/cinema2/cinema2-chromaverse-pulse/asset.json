@@ -1,0 +1,11 @@
+{
+  "id": "cinema2-chromaverse-pulse",
+  "kind": "model",
+  "compression": "none",
+  "license": "CC-BY-4.0",
+  "attribution": "Pulse by tamminen (https://sketchfab.com/tamminen). https://sketchfab.com/3d-models/pulse-ea875d1cbe4b4528803ab414fccccfb9. CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Modified: animation resampling, texture resizing and binary deduplication; native choreography.",
+  "origin": "Owner-supplied CHROMAVERSE/pulse.glb, optimized runtime copy",
+  "files": {
+    "high": "public/cinema2/models/chromaverse/pulse.glb"
+  }
+}
