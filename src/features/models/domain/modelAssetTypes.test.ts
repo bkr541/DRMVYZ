@@ -102,3 +102,11 @@ describe('imported model records', () => {
     expect(modelStoragePaths(base.user_id, base.id, 1, OP, null, false)).toEqual({ glbPath: `${root}/model.glb`, sourceSnapshotPath: null, traceSvgPath: null, thumbnailPath: null })
   })
 })
+
+
+it('round-trips versioned geometry cleanup without changing the schema version and rejects invalid component identifiers', () => {
+  const cleanup = { version: 1 as const, sourceTraceFingerprint: '0123456789abcdef', excludedComponentIds: ['fedcba9876543210'] }
+  expect(parseModelRecipe({ ...recipe, cleanup }).cleanup).toEqual(cleanup)
+  expect(parseModelRecipe({ ...recipe, cleanup }).schemaVersion).toBe(1)
+  expect(() => parseModelRecipe({ ...recipe, cleanup: { ...cleanup, excludedComponentIds: ['ModelPart1'] } })).toThrow('Invalid geometry cleanup recipe.')
+})

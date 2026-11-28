@@ -10,6 +10,8 @@ import { createForegroundMask, sniffModelImage } from '../trace/imageInput'
 import { createExtrudedModel } from '../geometry/createExtrudedModel'
 import { extractModelContours } from '../geometry/extractContours'
 import { checkDimensions, MODEL_QUALITY } from '../geometry/modelQualityBudget'
+import { exportModelGlb, validateModelGlb } from '../export/exportGlb'
+import { parseModelRecipe } from '../domain/modelAssetTypes'
 import { createDefaultModelRecipe, MODEL_MATERIAL_PRESETS } from './createModelArtifact'
 const fixture = (name: string) => readFile(resolve('src/features/models/__tests__/fixtures', name))
 const svg = async (name: string) => (await fixture(name)).toString('utf8')
@@ -84,6 +86,38 @@ describe('actual VTracer WASM', () => {
 })
 
 describe('actual extruded geometry and material controls', () => {
+  it('excludes a disconnected contour from the actual extrusion and preserves its identity through geometry changes and two-sided output', async () => {
+    const source = await svg('islands.svg'), original = createExtrudedModel(source, createDefaultModelRecipe())
+    const [removed, kept] = original.components.components
+    const cleanup = { version: 1 as const, sourceTraceFingerprint: original.components.fingerprint, excludedComponentIds: [removed.id] }
+    const recipe = parseModelRecipe({ ...original.recipe, cleanup, geometry: { ...original.recipe.geometry, depth: 0.7 }, twoSided: true })
+    const edited = createExtrudedModel(source, recipe)
+    try {
+      expect(edited.components.fingerprint).toBe(original.components.fingerprint)
+      expect(edited.recipe.cleanup).toEqual(cleanup)
+      expect(edited.group.children).toHaveLength(2)
+      expect(edited.group.children.every(mesh => mesh.userData.modelComponentId === kept.id)).toBe(true)
+      expect(edited.stats.meshes).toBe(2)
+      const glb = await exportModelGlb(edited.group)
+      expect((await validateModelGlb(await glb.arrayBuffer())).triangles).toBe(edited.stats.triangles)
+      const restored = createExtrudedModel(source, { ...recipe, cleanup: undefined, twoSided: false })
+      try { expect(restored.group.children).toHaveLength(2) } finally { restored.dispose() }
+      const editedSingle = createExtrudedModel(source, { ...recipe, twoSided: false })
+      try { expect(editedSingle.group.children).toHaveLength(1); expect(editedSingle.stats.triangles).toBeLessThan(original.stats.triangles) } finally { editedSingle.dispose() }
+    } finally { original.dispose(); edited.dispose() }
+  })
+  it('reconciles changed contours without using ordinal indexes or deleting the final solid', async () => {
+    const original = createExtrudedModel(await svg('islands.svg'), createDefaultModelRecipe())
+    const recipe = { ...original.recipe, cleanup: { version: 1 as const, sourceTraceFingerprint: original.components.fingerprint, excludedComponentIds: original.components.components.map(c => c.id) } }
+    const edited = createExtrudedModel(await svg('islands.svg'), recipe)
+    const changed = createExtrudedModel(await svg('donut.svg'), recipe)
+    try {
+      expect(edited.recipe.cleanup).toBeUndefined()
+      expect(edited.group.children).toHaveLength(2)
+      expect(changed.recipe.cleanup).toBeUndefined()
+      expect(changed.warnings.some(w => w.code === 'cleanup_reconciled')).toBe(true)
+    } finally { original.dispose(); edited.dispose(); changed.dispose() }
+  })
   it('keeps a donut hole open and front orientation correct', async () => {
     const model = createExtrudedModel(await svg('donut.svg'), createDefaultModelRecipe())
     expect(model.stats.triangles).toBeGreaterThan(0)

@@ -17,7 +17,7 @@ const source = new Blob(['source'], { type: 'image/png' })
 const media = { id: MODEL_ID, dbId: MODEL_ID, type: 'image', name: 'Logo.png', url: 'https://example.invalid/original.png', thumbnailUrl: 'https://example.invalid/thumbnail.png' } as UploadedMedia
 const savedAsset = (version = 1) => ({ id: MODEL_ID, kind: 'generated' as const, userId: USER_A, name: 'Saved logo', description: null, favorite: false, sourceMediaId: MODEL_ID, status: 'ready' as const, currentVersion: version, createdAt: '2026-11-12T00:00:00Z', updatedAt: '2026-11-12T00:00:00Z' })
 const flush = async () => { for (let i = 0; i < 100; i++) await Promise.resolve() }
-const artifact = () => ({ group: new Group(), contourPreview: source, stats, dispose: vi.fn(), recipe: structuredClone(recipe), sourceSnapshot: source, traceSvg: '<svg/>', glb: new Blob(['glb']), materialCount: 1, dimensions: [2, 2, 2] as [number, number, number], files: { source: { data: source, contentType: 'image/png' as const }, glb: { data: new Blob(['glb']), contentType: 'model/gltf-binary' as const }, trace: { data: new Blob(['<svg/>']), contentType: 'image/svg+xml' as const } }, warnings: [] })
+const artifact = () => ({ components: { fingerprint: 'aaaaaaaaaaaaaaaa', components: [{ id: '1111111111111111', area: 1, relativeArea: 0.9995 }, { id: '2222222222222222', area: 0.0005, relativeArea: 0.0005 }] }, group: new Group(), contourPreview: source, stats, dispose: vi.fn(), recipe: structuredClone(recipe), sourceSnapshot: source, traceSvg: '<svg/>', glb: new Blob(['glb']), materialCount: 1, dimensions: [2, 2, 2] as [number, number, number], files: { source: { data: source, contentType: 'image/png' as const }, glb: { data: new Blob(['glb']), contentType: 'model/gltf-binary' as const }, trace: { data: new Blob(['<svg/>']), contentType: 'image/svg+xml' as const } }, warnings: [] })
 beforeEach(() => {
   vi.resetAllMocks(); useModelEditorStore.getState().reset()
   mocks.media = { items: [media], ensureMediaSigned: vi.fn().mockResolvedValue(undefined), retryMediaAsset: vi.fn().mockResolvedValue(true) }
@@ -36,6 +36,42 @@ beforeEach(() => {
 afterEach(() => { useModelEditorStore.getState().reset(); vi.unstubAllGlobals() })
 
 describe('model editor lifecycle', () => {
+  it('prepares settings without implicitly generating the first model', async () => {
+    vi.useFakeTimers()
+    try {
+      useModelEditorStore.getState().begin(media); await flush()
+      expect(useModelEditorStore.getState().status).toBe('awaiting-generation')
+      mocks.prepare.mockImplementation(async (_source, next) => ({ sourceSnapshot: source, foregroundPreview: source, recipe: next, requiresForegroundConfirmation: false, warnings: [] }))
+      useModelEditorStore.getState().setRecipe({ trace: { ...recipe.trace, threshold: 0.23 } })
+      await vi.advanceTimersByTimeAsync(301); await flush()
+      expect(useModelEditorStore.getState()).toMatchObject({ status: 'awaiting-generation', generationPending: false, model: null })
+      expect(mocks.generate).not.toHaveBeenCalled()
+      await useModelEditorStore.getState().generate()
+      expect(mocks.generate).toHaveBeenCalledWith(expect.objectContaining({ recipe: expect.objectContaining({ trace: expect.objectContaining({ threshold: 0.23 }) }) }))
+    } finally { vi.useRealTimers() }
+  })
+  it('selects small components and persists cleanup through generation, undo, redo and restore', async () => {
+    vi.useFakeTimers()
+    try {
+      const original = artifact()
+      useModelEditorStore.setState({ source, preview: source, recipe: original.recipe, model: original, artifact: original, status: 'ready' })
+      const settle = async () => { await vi.advanceTimersByTimeAsync(301); await flush() }
+      useModelEditorStore.getState().selectSmallComponents(0.1)
+      expect(useModelEditorStore.getState().selectedComponents).toEqual(['2222222222222222'])
+      useModelEditorStore.getState().removeSelectedComponents(); await settle()
+      expect(useModelEditorStore.getState().artifact?.recipe.cleanup?.excludedComponentIds).toEqual(['2222222222222222'])
+      useModelEditorStore.getState().undoCleanup(); await settle()
+      expect(useModelEditorStore.getState().recipe?.cleanup).toBeUndefined()
+      useModelEditorStore.getState().redoCleanup(); await settle()
+      expect(useModelEditorStore.getState().recipe?.cleanup?.excludedComponentIds).toEqual(['2222222222222222'])
+      useModelEditorStore.getState().selectComponent('1111111111111111')
+      useModelEditorStore.getState().removeSelectedComponents()
+      expect(useModelEditorStore.getState().recipe?.cleanup?.excludedComponentIds).toEqual(['2222222222222222'])
+      expect(useModelEditorStore.getState().cleanupNotice).toContain('Keep at least one')
+      useModelEditorStore.getState().restoreComponents(); await settle()
+      expect(useModelEditorStore.getState().artifact?.recipe.cleanup).toBeUndefined()
+    } finally { vi.useRealTimers() }
+  })
   it('fetches the original signed bytes and generates using the Phase 02 engine without changing image state', async () => {
     const id = useModelEditorStore.getState().begin(media)
     await flush()
@@ -169,7 +205,7 @@ describe('model save and edit lifecycle', () => {
       expect(mocks.fromTrace).toHaveBeenCalledTimes(1)
       expect(mocks.fromTrace).toHaveBeenCalledWith(source, original.traceSvg, expect.objectContaining({
         geometry: expect.objectContaining({ depth: 3 }), transform: expect.objectContaining({ rotation: [0, Math.PI / 4, 0] }),
-      }), expect.any(AbortSignal))
+      }), expect.any(AbortSignal), expect.any(Function))
       const next = useModelEditorStore.getState().recipe!
       useModelEditorStore.getState().setRecipe({ preview: { ...next.preview, lightIntensity: 2 } })
       await vi.advanceTimersByTimeAsync(301)

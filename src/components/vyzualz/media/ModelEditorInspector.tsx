@@ -1,3 +1,4 @@
+import { ModelCleanupControls } from './ModelCleanupControls'
 import '../../../styles/reactView.css'
 import { useEffect, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
@@ -245,11 +246,11 @@ function EditableModelInspector({ onSelectSource }: { onSelectSource?: () => voi
       {tab === 'edit' && recipe && <>
         <Collapsible label="Source Preparation" icon={<AppIcon kind="image" size={14} />}>
           <ModelSourcePreview key={s.sessionKey} blob={s.preview} />
-          {s.generationPending ? <p role="status">Updating foreground and 3D geometry…</p>
+          {s.generationPending ? <p role="status">{s.model ? 'Updating foreground and 3D geometry…' : 'Preparing source settings…'}</p>
             : s.status === 'error' && s.model ? <p>Showing the last successful model. The latest edits could not be applied.</p>
             : s.model && s.needsConfirmation && !s.confirmed ? <p>Review and confirm the foreground to update the 3D model.</p>
             : s.artifact?.contourPreview ? <p>Traced front-face outline of the current 3D model.</p>
-            : <p>Prepared foreground mask. Fine details may change during tracing.</p>}
+            : <p>White areas become solid geometry; transparent areas become openings. Adjust the settings until the silhouette is correct, then select Generate 3D Model in Media Preview. Fine details may change during tracing.</p>}
           {s.sourceInfo?.mimeType === 'image/svg+xml' ? <p>SVG uses its filled paths directly. Raster foreground and smoothing controls are unavailable for vector sources.</p> : <>
           <SelectRow label="Foreground" value={recipe.foreground.mode} options={[{ value: 'alpha', label: 'Image alpha' }, { value: 'luminance', label: 'Threshold' }, { value: 'prepared', label: 'Prepared alpha' }]} disabled={locked}
             onChange={value => s.setRecipe({ foreground: { ...recipe.foreground, mode: value as 'alpha' | 'luminance' | 'prepared' } })} />
@@ -261,6 +262,7 @@ function EditableModelInspector({ onSelectSource }: { onSelectSource?: () => voi
           <SelectRow label="Quality" value={recipe.quality ?? 'normal'} options={[{ value: 'draft', label: 'Draft' }, { value: 'normal', label: 'Normal' }, { value: 'high', label: 'High' }]} disabled={locked} onChange={quality => s.setRecipe({ quality: quality as 'draft' | 'normal' | 'high' })} />
           {s.needsConfirmation && <ToggleRow label="Confirm foreground preview" value={s.confirmed} disabled={busy || s.generationPending} onChange={s.confirmForeground} />}
         </Collapsible>
+        {s.artifact?.components && <Collapsible label="Geometry Cleanup" defaultOpen={false}><ModelCleanupControls /></Collapsible>}
         <Collapsible label="Transform" icon={<AppIcon kind="rotateRight" size={14} />}>
           <div className="mm-model-field-grid">
             <NumberInputRow label="Uniform scale" value={recipe.transform.scale[0]} min={0.01} max={10} step={0.05} disabled={locked}
@@ -304,10 +306,10 @@ function EditableModelInspector({ onSelectSource }: { onSelectSource?: () => voi
         {!!s.versions.length && <SelectRow label="Model version" value={String(s.activeVersion)} disabled={busy || s.builtinTextureLoading} options={s.versions.map(v => ({ value: String(v.version), label: `Version ${v.version}` }))} onChange={version => loadVersion(Number(version))} />}
         {s.versions.length >= 50 && <IconChipButton onClick={() => { void s.moreVersions() }}>Load older versions</IconChipButton>}
       </Collapsible>}
-      {(s.status === 'loading-source' || s.status === 'loading-model' || s.status === 'generating' || s.generationPending || busy) && <div role="status">{s.progress ?? (s.generationPending ? 'Updating 3D geometry…' : 'Loading model source…')} <IconChipButton disabled={s.status === 'deleting'} onClick={s.cancel}>Cancel operation</IconChipButton></div>}
+      {(s.status === 'loading-source' || s.status === 'loading-model' || s.status === 'generating' || s.generationPending || busy) && <div role="status">{s.progress ?? s.generationStage ?? (s.generationPending ? 'Updating 3D geometry…' : 'Loading model source…')} <IconChipButton disabled={s.status === 'deleting'} onClick={s.cancel}>Cancel operation</IconChipButton></div>}
       {s.error && <NoticeCard tone="error" role="alert" title="Model operation failed">{s.error}
         {(s.saveTarget || s.saveFailure) && <IconChipButton onClick={() => { void s.save() }}>Retry Save</IconChipButton>}
-        {!s.saveTarget && !s.saveFailure && s.source && <IconChipButton onClick={() => { void (s.model ? s.generate() : s.prepare()) }}>{s.model ? 'Retry geometry update' : 'Retry preparation'}</IconChipButton>}
+        {!s.saveTarget && !s.saveFailure && s.source && <IconChipButton onClick={() => { void s.retryGeneration() }}>{s.model ? 'Retry geometry update' : 'Retry generation'}</IconChipButton>}
         {!s.source && !s.asset && <IconChipButton onClick={() => { void s.retrySource() }}>Retry source</IconChipButton>}
       </NoticeCard>}
       {s.warnings.filter(warning => tab !== 'edit' || !/^Bevel/.test(warning)).map(warning => <NoticeCard key={warning} tone="warning" title="Model source">{warning}</NoticeCard>)}

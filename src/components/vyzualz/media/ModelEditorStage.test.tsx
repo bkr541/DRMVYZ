@@ -2,7 +2,7 @@
 ;(globalThis as Record<string, unknown>)['IS_REACT_ACT_ENVIRONMENT'] = true
 import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ModelEditorStage } from './ModelEditorStage'
 import { Group } from 'three'
 import { useModelEditorStore } from '../../../features/models/state/modelEditorStore'
@@ -17,19 +17,33 @@ describe('3D model stage message', () => {
   it('says why the model could not be made, not just that it is unavailable', async () => {
     useModelEditorStore.setState({ status: 'error', error: 'SVG exceeds the 1 MiB input budget.' })
     await act(async () => root.render(<ModelEditorStage />))
-    expect(message()).toBe('SVG exceeds the 1 MiB input budget.')
+    expect(message()).toContain('SVG exceeds the 1 MiB input budget.')
   })
   it('keeps the generic message when there is no specific reason', async () => {
     useModelEditorStore.setState({ status: 'error', error: null })
     await act(async () => root.render(<ModelEditorStage />))
-    expect(message()).toBe('Model unavailable. Retry loading or select another asset.')
+    expect(message()).toContain('Model unavailable. Retry loading or select another asset.')
+  })
+  it('provides a central Generate 3D Model button, gated by confirmation and wired to the shared action', async () => {
+    const recipe = createDefaultModelRecipe(), preview = new Blob(['preview'])
+    const generate = vi.spyOn(useModelEditorStore.getState(), 'generate').mockResolvedValue(undefined)
+    try {
+      useModelEditorStore.setState({ recipe, source: preview, preview, preparedTraceKey: JSON.stringify([recipe.foreground, recipe.trace, recipe.quality]), status: 'awaiting-generation', needsConfirmation: true, confirmed: false })
+      await act(async () => root.render(<ModelEditorStage />))
+      const button = () => [...container.querySelectorAll('button')].find(b => b.textContent === 'Generate 3D Model')!
+      expect(button().disabled).toBe(true)
+      await act(async () => { useModelEditorStore.setState({ confirmed: true }) })
+      expect(button().disabled).toBe(false)
+      await act(async () => button().click())
+      expect(generate).toHaveBeenCalledOnce()
+    } finally { generate.mockRestore() }
   })
   it('keeps the other states', async () => {
     useModelEditorStore.setState({ status: 'generating' })
     await act(async () => root.render(<ModelEditorStage />))
-    expect(message()).toBe('Generating 3D geometry…')
+    expect(message()).toContain('Generating 3D model')
     await act(async () => { useModelEditorStore.setState({ status: 'idle' }) })
-    expect(message()).toBe('Prepare the source, then generate a 3D model.')
+    expect(message()).toContain('Create your 3D model')
     expect(container.textContent).not.toContain('Drag to orbit')
   })
 })

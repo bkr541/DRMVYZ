@@ -28,7 +28,7 @@ export function twoSidedSupport(group: Group): TwoSidedSupport {
   return reason ? { ok: false, reason } : { ok: true }
 }
 
-interface Piece { geometry: BufferGeometry; material: Material | Material[]; name: string }
+interface Piece { geometry: BufferGeometry; material: Material | Material[]; name: string; componentId?: string }
 
 /** Keeps the part of a geometry on the +Z side of the plane, cutting the triangles that cross it and interpolating every attribute. Returns null when nothing is left. */
 export function clipGeometryToFront(source: BufferGeometry, planeZ: number): BufferGeometry | null {
@@ -99,7 +99,7 @@ export function buildTwoSidedMeshes(group: Group): TwoSidedResult | null {
     const geometry = mesh.geometry.clone().applyMatrix4(new Matrix4().multiplyMatrices(inverse, mesh.matrixWorld))
     geometry.computeBoundingBox()
     bounds.union(geometry.boundingBox!)
-    flat.push({ geometry, material: mesh.material, name: mesh.name || 'Mesh' })
+    flat.push({ geometry, material: mesh.material, name: mesh.name || 'Mesh', componentId: mesh.userData.modelComponentId })
   })
   if (!flat.length || bounds.isEmpty()) return null
   const centre = bounds.getCenter(new Vector3())
@@ -117,6 +117,7 @@ export function buildTwoSidedMeshes(group: Group): TwoSidedResult | null {
       const mesh = new Mesh(geometry, piece.material)
       mesh.name = `${piece.name}-${side}`
       mesh.userData.twoSided = true
+      if (piece.componentId) mesh.userData.modelComponentId = piece.componentId
       pieces.push(mesh)
       triangles += geometry.getAttribute('position').count / 3
       vertices += geometry.getAttribute('position').count

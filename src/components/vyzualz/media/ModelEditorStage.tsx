@@ -1,17 +1,21 @@
 import { useEffect, useRef, useState } from 'react'
-import { AxesHelper, Box3, Color, DirectionalLight, GridHelper, Group, HemisphereLight, LineSegments, Mesh, PerspectiveCamera, PlaneGeometry, PMREMGenerator, Scene, ShadowMaterial, Vector3, WebGLRenderer } from 'three'
+import { AxesHelper, Box3, Color, DirectionalLight, GridHelper, Group, HemisphereLight, LineSegments, Mesh, MeshBasicMaterial, Raycaster, Vector2, PerspectiveCamera, PlaneGeometry, PMREMGenerator, Scene, ShadowMaterial, Vector3, WebGLRenderer } from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
 import { registerModelViewport } from '../../../features/models/state/modelViewportBridge'
-import { selectBuiltinModelEdited, selectBuiltinModelNeedsExport, useModelEditorStore } from '../../../features/models/state/modelEditorStore'
+import { selectBuiltinModelEdited, selectBuiltinModelNeedsExport, selectModelCanCleanup, useModelEditorStore } from '../../../features/models/state/modelEditorStore'
 import { IconChipButton } from '../react/controls/IconChipButton'
 import { NoticeCard } from '../react/controls/NoticeCard'
+import { ModelCleanupControls } from './ModelCleanupControls'
+import { ModelGenerationGuide } from './ModelGenerationGuide'
 import { AppIcon } from '../../shared/icons/AppIcon'
 export function ModelEditorStage() {
   const group = useModelEditorStore(s => s.model?.group), status = useModelEditorStore(s => s.status)
   const sessionKey = useModelEditorStore(s => s.sessionKey)
   /** The reason the model could not be made or loaded, so the stage says why instead of a generic message. */
   const storeError = useModelEditorStore(s => s.error)
+  const pending = useModelEditorStore(s => s.generationPending)
+  const hasComponents = useModelEditorStore(s => !!s.artifact?.components)
   const exportError = useModelEditorStore(s => s.builtinExportError)
   const exportStatus = useModelEditorStore(s => {
     if (s.builtinExporting) return 'Preparing GLB…'
@@ -105,7 +109,65 @@ export function ModelEditorStage() {
       invalidate()
     }
     applyGuides.current = applyPreview
+    // Selection overlays are scene siblings, never model children: no export, material mutation or thumbnail contamination.
+    const highlights = new Group(); scene.add(highlights)
+    const selectedMaterial = new MeshBasicMaterial({ color: '#48d8e8', transparent: true, opacity: 0.75, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 })
+    const hoverMaterial = new MeshBasicMaterial({ color: '#48d8e8', transparent: true, opacity: 0.25, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 })
+    const raycaster = new Raycaster(), pointer = new Vector2()
+    let hovered: string | null = null, down: { x: number; y: number; id: number } | null = null
+    const componentMeshes = () => {
+      const meshes: Mesh[] = []
+      group.traverseVisible(object => { if (object instanceof Mesh && typeof object.userData.modelComponentId === 'string') meshes.push(object) })
+      return meshes
+    }
+    const refreshHighlights = () => {
+      highlights.clear()
+      const state = useModelEditorStore.getState()
+      const active = state.cleanupActive && selectModelCanCleanup(state) && state.model?.group === group
+      canvas.style.cursor = active ? 'crosshair' : ''
+      if (active) {
+        group.updateMatrixWorld(true)
+        for (const mesh of componentMeshes()) {
+          const id = mesh.userData.modelComponentId as string, selected = state.selectedComponents.includes(id)
+          if (!selected && id !== hovered) continue
+          const overlay = new Mesh(mesh.geometry, selected ? selectedMaterial : hoverMaterial)
+          overlay.matrixAutoUpdate = false; overlay.matrix.copy(mesh.matrixWorld); overlay.renderOrder = 10
+          highlights.add(overlay)
+        }
+      }
+      invalidate()
+    }
+    const pick = (event: PointerEvent) => {
+      const rect = canvas.getBoundingClientRect()
+      if (!rect.width || !rect.height) return null
+      pointer.set((event.clientX - rect.left) / rect.width * 2 - 1, 1 - (event.clientY - rect.top) / rect.height * 2)
+      group.updateMatrixWorld(true); camera.updateMatrixWorld(true); raycaster.setFromCamera(pointer, camera)
+      return (raycaster.intersectObjects(componentMeshes(), false)[0]?.object.userData.modelComponentId as string | undefined) ?? null
+    }
+    const canPick = () => { const state = useModelEditorStore.getState(); return state.cleanupActive && selectModelCanCleanup(state) }
+    const pointerDown = (event: PointerEvent) => { if (canPick() && event.button === 0 && event.isPrimary) down = { x: event.clientX, y: event.clientY, id: event.pointerId } }
+    const pointerMove = (event: PointerEvent) => {
+      if (down && Math.hypot(down.x - event.clientX, down.y - event.clientY) > 4) down = null
+      if (!canPick() || event.buttons) return
+      const next = pick(event); if (next !== hovered) { hovered = next; refreshHighlights() }
+    }
+    const pointerUp = (event: PointerEvent) => {
+      const start = down; down = null
+      if (canPick() && start && start.id === event.pointerId && Math.hypot(start.x - event.clientX, start.y - event.clientY) <= 4) {
+        canvas.focus({ preventScroll: true }); useModelEditorStore.getState().selectComponent(pick(event), event.shiftKey)
+      }
+    }
+    const clearPointer = () => { down = null; hovered = null; refreshHighlights() }
+    const keyDown = (event: KeyboardEvent) => {
+      const state = useModelEditorStore.getState(); if (!state.cleanupActive) return
+      if (event.key === 'Escape') { event.preventDefault(); state.setCleanupActive(false) }
+      if (event.key === 'Delete' || event.key === 'Backspace') { event.preventDefault(); state.removeSelectedComponents() }
+    }
+    canvas.addEventListener('pointerdown', pointerDown); canvas.addEventListener('pointermove', pointerMove); canvas.addEventListener('pointerup', pointerUp)
+    canvas.addEventListener('pointercancel', clearPointer); canvas.addEventListener('pointerleave', clearPointer); canvas.addEventListener('keydown', keyDown)
+    refreshHighlights()
     const unsubscribe = useModelEditorStore.subscribe((next, previous) => {
+      if (next.cleanupActive !== previous.cleanupActive || next.selectedComponents !== previous.selectedComponents || next.generationPending !== previous.generationPending || next.model !== previous.model || next.status !== previous.status) { hovered = null; refreshHighlights() }
       if (next.recipe?.preview !== previous.recipe?.preview) applyPreview()
       if (next.model?.group !== group || next.builtinEdit?.values === previous.builtinEdit?.values) return
       if (next.builtinEdit?.values.rotation !== previous.builtinEdit?.values.rotation || next.builtinEdit?.values.scale !== previous.builtinEdit?.values.scale) updateBounds()
@@ -122,6 +184,7 @@ export function ModelEditorStage() {
         let visibleGeometry = false
         group.traverse(object => { if (object instanceof Mesh && object.visible && (Array.isArray(object.material) ? object.material : [object.material]).some(material => material.opacity > 0.001)) visibleGeometry = true })
         if (!visibleGeometry) throw new Error('The model is invisible. Increase material opacity before saving.')
+        highlights.visible = false
         if (frameModel) { resources.visible = false; fit() }
         renderer.render(scene, camera)
         const ctx = thumbnail.getContext('2d'); if (!ctx) throw new Error('Preview PNG capture is unavailable.')
@@ -133,7 +196,7 @@ export function ModelEditorStage() {
         for (let i = 0; i < pixels.length; i += 4) variation = Math.max(variation, Math.abs(pixels[i] - pixels[0]), Math.abs(pixels[i + 1] - pixels[1]), Math.abs(pixels[i + 2] - pixels[2]))
         if (variation < 4) throw new Error('The model preview is blank. Adjust lighting before saving.')
         return await new Promise<Blob>((resolve, reject) => thumbnail.toBlob(blob => blob?.size ? resolve(blob) : reject(new Error('Could not encode a model preview PNG.')), 'image/png'))
-      } finally { resources.visible = helpersVisible; camera.position.copy(position); controls.target.copy(target); controls.autoRotate = automatic; controls.update(); thumbnail.width = thumbnail.height = 0; invalidate() }
+      } finally { highlights.visible = true; resources.visible = helpersVisible; camera.position.copy(position); controls.target.copy(target); controls.autoRotate = automatic; controls.update(); thumbnail.width = thumbnail.height = 0; invalidate() }
     } })
     controls.addEventListener('change', invalidate); document.addEventListener('visibilitychange', visibility)
     canvas.addEventListener('webglcontextlost', onLost); canvas.addEventListener('webglcontextrestored', onRestored)
@@ -145,6 +208,9 @@ export function ModelEditorStage() {
       disposed = true; cancelAnimationFrame(frame)
       observer.disconnect(); intersection?.disconnect(); controls.dispose(); document.removeEventListener('visibilitychange', visibility)
       canvas.removeEventListener('webglcontextlost', onLost); canvas.removeEventListener('webglcontextrestored', onRestored)
+      canvas.removeEventListener('pointerdown', pointerDown); canvas.removeEventListener('pointermove', pointerMove); canvas.removeEventListener('pointerup', pointerUp)
+      canvas.removeEventListener('pointercancel', clearPointer); canvas.removeEventListener('pointerleave', clearPointer); canvas.removeEventListener('keydown', keyDown)
+      highlights.clear(); scene.remove(highlights); selectedMaterial.dispose(); hoverMaterial.dispose()
       scene.remove(group)
       resources.traverse(object => { if (object instanceof Mesh || object instanceof LineSegments) { object.geometry.dispose(); (Array.isArray(object.material) ? object.material : [object.material]).forEach(material => material.dispose()) } })
       environment?.dispose(); pmrem.dispose(); key.shadow.map?.dispose(); renderer.dispose(); renderer.forceContextLoss(); canvas.remove()
@@ -154,7 +220,9 @@ export function ModelEditorStage() {
     <div className="mm-model-canvas" ref={root} />
     {group && <IconChipButton className="mm-model-guides-toggle" tone={showGuides ? 'primary' : 'default'} aria-label="Floor grid and axis lines" aria-pressed={showGuides}
       title={showGuides ? 'Hide floor grid and lines' : 'Show floor grid and lines'} icon={<AppIcon kind="grid" size={14} />} onClick={toggleGuides} />}
-    {!group && <div className="mm-model-stage-empty" role="status">{status === 'generating' ? 'Generating 3D geometry…' : status === 'loading-model' ? 'Loading saved model…' : status === 'error' ? (storeError ?? 'Model unavailable. Retry loading or select another asset.') : 'Prepare the source, then generate a 3D model.'}</div>}
+    {group && hasComponents && <ModelCleanupControls compact />}
+    {!group && <div className="mm-model-stage-empty"><ModelGenerationGuide /></div>}
+    {group && (pending || status === 'generating' || status === 'preparing' || storeError) && <div className="mm-model-generation-overlay"><ModelGenerationGuide overlay /></div>}
     <div className="sr-only" role="status">{exportStatus}</div>
     {(error || exportError) && <div className="mm-model-stage-notice">
       {error && <NoticeCard tone="error" role="alert" title="3D viewport unavailable">{error} <IconChipButton onClick={() => setEpoch(value => value + 1)}>Retry viewport</IconChipButton></NoticeCard>}

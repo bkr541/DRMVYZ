@@ -2,9 +2,10 @@ import { Box3, BufferGeometry, ExtrudeGeometry, Group, Mesh, Vector3 } from 'thr
 import { parseModelGeometryStats, parseModelRecipe, type ModelGeneratorRecipe, type ModelGeometryStats } from '../domain/modelAssetTypes'
 import { createModelMaterials } from '../materials/modelMaterials'
 import { createContourPreview, extractModelContours } from './extractContours'
+import { catalogModelComponents, resolveComponentCleanup, type ModelComponentCatalog } from './modelComponentCleanup'
 import { bakeTwoSided } from './twoSidedModel'
 import { checkAbort, MODEL_QUALITY, ModelGenerationError, type ModelDiagnostic, type ModelQuality } from './modelQualityBudget'
-export interface GeneratedModel { group: Group; contourPreview: Blob; recipe: ModelGeneratorRecipe; stats: ModelGeometryStats; materialCount: number; dimensions: [number, number, number]; warnings: ModelDiagnostic[]; dispose(): void }
+export interface GeneratedModel { components: ModelComponentCatalog; group: Group; contourPreview: Blob; recipe: ModelGeneratorRecipe; stats: ModelGeometryStats; materialCount: number; dimensions: [number, number, number]; warnings: ModelDiagnostic[]; dispose(): void }
 /** Releases everything the group owns: geometry, materials, and the textures those materials hold (an imported GLB carries multi-megapixel images). */
 export function disposeModelGroup(group: Group): void {
   const geometries = new Set<BufferGeometry>(), materials = new Set<import('three').Material>()
@@ -29,7 +30,15 @@ export function createExtrudedModel(svg: string, input: ModelGeneratorRecipe, qu
   recipe.quality = quality
   recipe.geometry.curveSegments = Math.min(recipe.geometry.curveSegments, budget.curveSegments)
   recipe.geometry.bevelSegments = Math.min(recipe.geometry.bevelSegments, budget.bevelSegments)
-  const contours = extractModelContours(svg, recipe.geometry.curveSegments, recipe.trace.smoothing)
+  const original = extractModelContours(svg, recipe.geometry.curveSegments, recipe.trace.smoothing)
+  const components = catalogModelComponents(original)
+  const { excluded, changed } = resolveComponentCleanup(components, recipe.cleanup)
+  if (changed) warnings.push({ code: 'cleanup_reconciled', message: 'Source contours changed. Only exactly matching removed elements remain excluded; review restored elements before saving.' })
+  if (excluded.size) recipe.cleanup = { version: 1, sourceTraceFingerprint: components.fingerprint, excludedComponentIds: [...excluded].sort() }
+  else delete recipe.cleanup
+  const retained = original.shapes.map((shape, index) => ({ shape, component: components.components[index] })).filter(({ component }) => !excluded.has(component.id))
+  // Retain conservative clearance/point estimates from the original outline; the actual stats and preview use retained geometry only.
+  const contours = { ...original, shapes: retained.map(part => part.shape), pointCount: retained.reduce((n, { shape }) => n + shape.getPoints(1).length + shape.holes.reduce((sum, hole) => sum + hole.getPoints(1).length, 0), 0) }
   const geometry = recipe.geometry
   if (geometry.bevelEnabled) {
     // XY clearance protects holes; Z thickness is independently bounded by depth.
@@ -56,12 +65,12 @@ export function createExtrudedModel(svg: string, input: ModelGeneratorRecipe, qu
   const group = new Group(); group.name = 'UserModel'
   const materials = createModelMaterials(recipe)
   try {
-    for (const shape of contours.shapes) {
+    for (const { shape, component } of retained) {
       checkAbort(signal)
       const geometry = new ExtrudeGeometry(shape, { depth: recipe.geometry.depth, bevelEnabled: recipe.geometry.bevelEnabled,
         bevelThickness: recipe.geometry.bevelThickness, bevelSize: recipe.geometry.bevelSize, bevelSegments: recipe.geometry.bevelSegments,
         curveSegments: 1, steps: 1 })
-      const mesh = new Mesh(geometry, materials); mesh.name = `ModelPart${group.children.length + 1}`; group.add(mesh)
+      const mesh = new Mesh(geometry, materials); mesh.name = `ModelPart${group.children.length + 1}`; mesh.userData.modelComponentId = component.id; group.add(mesh)
     }
     const bounds = new Box3().setFromObject(group), center = bounds.getCenter(new Vector3())
     const offset = new Vector3(-center.x, recipe.transform.pivot === 'bottom' ? -bounds.min.y : -center.y, -center.z)
@@ -75,7 +84,7 @@ export function createExtrudedModel(svg: string, input: ModelGeneratorRecipe, qu
     group.traverse(object => { if (object instanceof Mesh) { vertices += object.geometry.attributes.position.count; triangles += (object.geometry.index?.count ?? object.geometry.attributes.position.count) / 3 } })
     if (triangles > budget.triangles) throw new ModelGenerationError('geometry_budget', 'Generated model exceeds the selected triangle budget.')
     const stats = parseModelGeometryStats({ triangles, vertices, meshes: group.children.length, bounds: { min: finalBounds.min.toArray(), max: finalBounds.max.toArray() } })
-    return { group, contourPreview: createContourPreview(contours), recipe, stats, materialCount: materials.length, dimensions: finalBounds.getSize(new Vector3()).toArray(), warnings, dispose: () => disposeModelGroup(group) }
+    return { group, components, contourPreview: createContourPreview(contours), recipe, stats, materialCount: materials.length, dimensions: finalBounds.getSize(new Vector3()).toArray(), warnings, dispose: () => disposeModelGroup(group) }
   } catch (error) {
     const attached = group.children.length > 0
     disposeModelGroup(group); if (!attached) materials.forEach(m => m.dispose()); throw error

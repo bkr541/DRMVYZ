@@ -13,7 +13,10 @@ export interface ModelGeneratorRecipe {
   preview: { background: string; lightIntensity: number; environment: 'neutral' | 'studio'; grid?: boolean; shadows?: boolean; turntable?: boolean }
   /** Keep the front half and add a matching back, so the model reads correctly from both sides as it turns. Off when absent. */
   twoSided?: boolean
+  cleanup?: ModelCleanupRecipe
 }
+
+export interface ModelCleanupRecipe { version: 1; sourceTraceFingerprint: string; excludedComponentIds: string[] }
 
 /** Generated models are traced from an image; imported models are a GLB the user made elsewhere and are stored as-is. */
 export type ModelKind = 'generated' | 'imported'
@@ -140,8 +143,15 @@ export function parseModelRecipe(value: unknown): ModelGeneratorRecipe {
     }
   })
   if (new Set(materials.map(m => m.region)).size !== materials.length) invalid('Duplicate model material region.')
+  let cleanup: ModelCleanupRecipe | undefined
+  if (v.cleanup !== undefined) {
+    const c = record(v.cleanup)
+    if (c.version !== 1 || typeof c.sourceTraceFingerprint !== 'string' || !/^[a-f0-9]{16}$/.test(c.sourceTraceFingerprint) || !Array.isArray(c.excludedComponentIds) || c.excludedComponentIds.length > 256 || !c.excludedComponentIds.every(id => typeof id === 'string' && /^[a-f0-9]{16}$/.test(id))) invalid('Invalid geometry cleanup recipe.')
+    cleanup = { version: 1, sourceTraceFingerprint: c.sourceTraceFingerprint as string, excludedComponentIds: [...new Set(c.excludedComponentIds as string[])].sort() }
+  }
   return {
     schemaVersion: 1,
+    ...(cleanup?.excludedComponentIds.length ? { cleanup } : {}),
     ...(v.quality === undefined ? {} : { quality: choice(v.quality, ['draft', 'normal', 'high'] as const) }),
     engine: { name: text(engine.name), version: text(engine.version), threeVersion: text(engine.threeVersion) },
     foreground: { mode: choice(foreground.mode, ['alpha', 'luminance', 'prepared']), threshold: number(foreground.threshold, 0, 1), invert: boolean(foreground.invert) },

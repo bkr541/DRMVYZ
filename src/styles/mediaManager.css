@@ -1219,7 +1219,23 @@
 /* Icon-only toggle over the viewport's top-right corner. */
 .dv-icon-chip.mm-model-guides-toggle { position: absolute; top: 12px; right: 12px; z-index: 2; width: 34px; height: 34px; padding: 0; justify-content: center; backdrop-filter: blur(6px); }
 .dv-icon-chip.mm-model-guides-toggle .dv-icon-chip__icon { width: 16px; height: 16px; }
-.mm-model-stage-empty { position: absolute; inset: 45% 20px auto; text-align: center; pointer-events: none; }
+.mm-model-stage-empty { position: absolute; inset: 0; display: flex; align-items: safe center; justify-content: center; overflow: auto; padding: 24px; }
+.mm-model-generation-guide { max-width: 420px; width: 100%; display: flex; flex-direction: column; align-items: stretch; gap: 12px; text-align: center; }
+.mm-model-generation-guide h3 { margin: 0; font-size: 1.25rem; color: var(--color-text-primary, #e4eaf0); }
+.mm-model-generation-guide p, .mm-model-cleanup-controls p, .mm-model-cleanup-toolbar p { margin: 0; color: var(--color-text-muted, #a1adb9); line-height: 1.5; }
+.mm-model-generation-guide ol { text-align: left; padding-left: 24px; margin: 0; display: grid; gap: 8px; }
+.mm-model-generation-guide li[data-state='active'] { color: var(--az-accent, #4ac7db); }
+.mm-model-generation-guide li[data-state='done'] { color: #70bba6; }
+.mm-model-generation-guide li[data-state='pending'] { color: var(--color-text-muted, #8795a1); }
+.mm-model-generation-guide .dv-icon-chip { justify-content: center; min-height: 32px; }
+.mm-model-generation-overlay { position: absolute; left: 12px; right: 12px; bottom: 12px; display: flex; justify-content: center; pointer-events: none; }
+.mm-model-generation-overlay .mm-model-generation-guide { pointer-events: auto; background: var(--az-bg, #10181d); border: 1px solid var(--az-border, #273b45); border-radius: 6px; padding: 12px; max-height: 45vh; overflow: auto; }
+.mm-model-cleanup-toolbar { position: absolute; top: 12px; left: 12px; right: 58px; width: fit-content; max-width: calc(100% - 70px); padding: 8px; background: var(--az-bg, #10181d); border: 1px solid var(--az-border, #273b45); border-radius: 6px; }
+.mm-model-cleanup-controls, .mm-model-cleanup-toolbar { display: flex; flex-direction: column; gap: 8px; }
+.mm-model-cleanup-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.mm-model-cleanup-threshold { display: grid; grid-template-columns: 1fr auto; gap: 6px; }
+.mm-model-cleanup-threshold input { grid-column: 1 / -1; width: 100%; accent-color: var(--az-accent, #4ac7db); }
+.mm-model-remove:not(:disabled) { color: #ff969a; border-color: #87434a; }
 .mm-model-stage-notice { position: absolute; inset: 60px 12px auto; }
 .mm-model-inspector { overflow-y: auto; min-height: 0; }
 .mm-model-texture .drm-dropdown__value[style*="--model-texture-swatch"]::before,
