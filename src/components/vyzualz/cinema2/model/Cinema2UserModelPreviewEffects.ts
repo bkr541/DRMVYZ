@@ -1,3 +1,4 @@
+import { Cinema2PatternControlResolver } from '../conductor/Cinema2PatternControls'
 import type * as Three from 'three'
 import type { Cinema2RenderQualityLevel } from '../contracts/Cinema2NativePresetManifest'
 import type { Cinema2ThreeLibrary } from '../modules/three/Cinema2ThreeLibrary'
@@ -54,6 +55,7 @@ export class Cinema2UserModelPreviewEffects {
   private readonly attachments = new Map<Three.Object3D, Attached>()
   private readonly clock = new Cinema2MainframeBeatClockResolver()
   private readonly patterns: Cinema2MainframePatternController<string>
+  private readonly patternPolicy = new Cinema2PatternControlResolver<Cinema2AfterhoursTriggerId>()
   private previousTime: number | null = null
   private previousIdentity: string | null = null
   private previousGeneration: number | null = null
@@ -125,13 +127,15 @@ export class Cinema2UserModelPreviewEffects {
     const reset = this.previousIdentity !== null && identity !== this.previousIdentity || this.previousTime !== null && (time < this.previousTime - 1e-6 || time - this.previousTime > 0.75) || this.previousGeneration !== null && frame.contextGeneration !== this.previousGeneration || discontinuity !== null && discontinuity !== this.previousDiscontinuity
     const timing = sharedTiming?.timing ?? this.clock.resolve(frame, parameters.get('bpmSync') !== false)
     const names: readonly string[] = CINEMA2_USER_MODEL_PREVIEWS[this.kind], value = parameters.get('pattern'), authored = typeof value === 'string' && names.includes(value) ? value : names[0]
-    const triggerValue = parameters.get('trigger'), trigger = CINEMA2_AFTERHOURS_TRIGGER_IDS.includes(triggerValue as Cinema2AfterhoursTriggerId) ? triggerValue as Cinema2AfterhoursTriggerId : 'beat'
+    const triggerValue = parameters.get('trigger'), savedTrigger = CINEMA2_AFTERHOURS_TRIGGER_IDS.includes(triggerValue as Cinema2AfterhoursTriggerId) ? triggerValue as Cinema2AfterhoursTriggerId : 'beat'
+    const playing = resolveCinema2MainframePlaybackState(frame, audio) === 'playing' || (frame.transport?.playing === true && frame.transport.sourcePresent && !frame.transport.paused)
+    if (reset) this.patternPolicy.reset()
+    const { patternChange, trigger } = this.patternPolicy.update({ saved: { patternChange: parameters.get('patternChange') === true, trigger: savedTrigger }, mood: frame.mood, autoPerformance: parameters.get('autoPerformance') === true && playing })
     const acceptedFrame = audio ? { ...frame, audio } : { ...frame, audio: null }
     const event = resolveCinema2AfterhoursTriggerEventIdentity(acceptedFrame, trigger, this.previousTime)
     const edit = parameters.getEditRevision?.('pattern') ?? 0
     const sameValueEdit = this.previousEdit !== null && edit !== this.previousEdit
-    const selection = this.patterns.update({ authoredPattern: authored, patternChange: parameters.get('patternChange') === true, trigger, triggerEventId: event, absoluteBeat: timing.beats, reset: reset || sameValueEdit })
-    const playing = resolveCinema2MainframePlaybackState(frame, audio) === 'playing' || (frame.transport?.playing === true && frame.transport.sourcePresent && !frame.transport.paused)
+    const selection = this.patterns.update({ authoredPattern: authored, patternChange, trigger, triggerEventId: event, absoluteBeat: timing.beats, reset: reset || sameValueEdit })
     // Basic choreography follows actual playback even while analysis is unavailable.
     // No musical events or energy are invented; analyzed frames keep the shared clock.
     if (!audio) {
@@ -146,7 +150,7 @@ export class Cinema2UserModelPreviewEffects {
     const performing = this.autoPerformance.update({
       enabled: parameters.get('autoPerformance') === true && playing, absoluteBeat: timing.beats, buildCharge, dropEventId,
       patternEdited: this.previousAuthored != null && authored !== this.previousAuthored || sameValueEdit, reset,
-      mood: parameters.get('audioRepresentationDirector') === true ? frame.mood : null, deltaTimeSec: frame.deltaTimeSec, basePattern: selection.activePattern, patternChange: parameters.get('patternChange') === true, seed: identity,
+      mood: frame.mood, deltaTimeSec: frame.deltaTimeSec, basePattern: selection.activePattern, patternChange, seed: identity,
     })
     this.performancePattern = performing.pattern
     this.previousAuthored = authored
@@ -441,7 +445,7 @@ export class Cinema2UserModelPreviewEffects {
     root.remove(a.pivot); a.shatter?.dispose(); a.voxels?.dispose(); a.hologram?.dispose(); a.cutModel?.dispose(); a.dissolve?.dispose(); if (a.ownsPreparation) a.prepared.dispose(); for (const geometry of a.geometries) geometry.dispose(); for (const material of a.materials) material.dispose()
     this.attachments.delete(root)
   }
-  dispose(): void { for (const root of this.attachments.keys()) this.detach(root); this.patterns.reset(); this.clock.reset() }
+  dispose(): void { this.patternPolicy.reset(); for (const root of this.attachments.keys()) this.detach(root); this.patterns.reset(); this.clock.reset() }
   hasUsableRepresentation(root: Three.Object3D): boolean {
     const a = this.attachments.get(root)
     return !!a && !a.effectProblem && !a.sliceProblem
@@ -466,5 +470,5 @@ export class Cinema2UserModelPreviewEffects {
       return messages
     })
   }
-  inspect() { return { transformSpread: this.sliceSpread, fragments: [...this.attachments.values()].flatMap(a => a.shatter ? [{ count: a.shatter.fragments.length, triangles: a.shatter.triangles, bytes: a.shatter.bytes }] : []), voxels: [...this.attachments.values()].flatMap(a => a.voxels ? [{ solid: a.voxels.solid, grids: [...a.voxels.grids].map(([quality, grid]) => ({ quality, count: grid.count })) }] : []), sliceSpread: this.kind === 'slices' ? this.sliceSpread : null, sliceGeometry: [...this.attachments.values()].flatMap(a => a.cutModel ? [{ layers: a.cutModel.meshes.length, triangles: a.cutModel.triangleCount, capTriangles: a.cutModel.capTriangles, openContours: a.cutModel.openContours, bytes: a.cutModel.byteLength }] : []), dustCycle: this.kind === 'dust' ? this.dustCycle : null, hologramModes: [...this.attachments.values()].flatMap(a => a.hologram ? [a.hologram.mode.value] : []), kind: this.kind, pattern: CINEMA2_USER_MODEL_PREVIEWS[this.kind][this.controls.pattern], phase: this.controls.phase, reaction: this.controls.reaction, attachmentCount: this.attachments.size, preparations: [...this.attachments.values()].map(a => ({ triangles: a.prepared.triangleCount, samples: a.prepared.samplePositions.length / 3, sections: a.prepared.sections.length, cpuBytes: a.prepared.byteLength, center: a.prepared.center.toArray(), size: a.prepared.size.toArray(), scaleToUnit: a.prepared.scaleToUnit })), limits: CINEMA2_USER_MODEL_PROXY_LIMITS } }
+  inspect() { return { ...this.patternPolicy.inspect(), transformSpread: this.sliceSpread, fragments: [...this.attachments.values()].flatMap(a => a.shatter ? [{ count: a.shatter.fragments.length, triangles: a.shatter.triangles, bytes: a.shatter.bytes }] : []), voxels: [...this.attachments.values()].flatMap(a => a.voxels ? [{ solid: a.voxels.solid, grids: [...a.voxels.grids].map(([quality, grid]) => ({ quality, count: grid.count })) }] : []), sliceSpread: this.kind === 'slices' ? this.sliceSpread : null, sliceGeometry: [...this.attachments.values()].flatMap(a => a.cutModel ? [{ layers: a.cutModel.meshes.length, triangles: a.cutModel.triangleCount, capTriangles: a.cutModel.capTriangles, openContours: a.cutModel.openContours, bytes: a.cutModel.byteLength }] : []), dustCycle: this.kind === 'dust' ? this.dustCycle : null, hologramModes: [...this.attachments.values()].flatMap(a => a.hologram ? [a.hologram.mode.value] : []), kind: this.kind, pattern: CINEMA2_USER_MODEL_PREVIEWS[this.kind][this.controls.pattern], phase: this.controls.phase, reaction: this.controls.reaction, attachmentCount: this.attachments.size, preparations: [...this.attachments.values()].map(a => ({ triangles: a.prepared.triangleCount, samples: a.prepared.samplePositions.length / 3, sections: a.prepared.sections.length, cpuBytes: a.prepared.byteLength, center: a.prepared.center.toArray(), size: a.prepared.size.toArray(), scaleToUnit: a.prepared.scaleToUnit })), limits: CINEMA2_USER_MODEL_PROXY_LIMITS } }
 }

@@ -78,16 +78,10 @@ it('persists a triggered destination and reassembles on a fresh canonical event 
 })
 
 for (const kind of Object.keys(CINEMA2_USER_MODEL_PREVIEWS) as Cinema2UserModelPreviewKind[]) {
-  it(`routes a canonical kick through the registered ${kind} preview without mutating saved state`, () => {
+  it(`does not install the legacy audio mapping matrix for the registered ${kind} preview`, () => {
     const compiled = cinema2NativePresetRegistry.compile(createCinema2UserModelPreset(kind).id)
     if (!compiled.ok) throw new Error(JSON.stringify(compiled.diagnostics))
-    const h = harness(kind, compiled.plan)
-    h.enable(); h.frame(); h.frame({ event: 'kick', eventId: 2 })
-    assert.ok(Number(h.value('shardImpulse')) > .2)
-    // The persistent parameter has a .01 step; the module target retains continuous precision.
-    assert.ok(Math.abs(Number(h.value('shardImpulse')) - Number(h.value('shardImpulse', true))) <= .01)
-    assert.equal(h.state.getValue(h.id('shardImpulse')), 0)
-    h.edit('audioMappingsEnabled', false); h.frame()
-    assert.equal(h.value('shardImpulse'), 0)
+    assert.equal(compiled.plan.manifest.runtimeParameterConsumers, undefined)
+    assert.ok(!compiled.plan.manifest.parameters?.some(p => String(p.id).includes('-audio-map')))
   })
 }

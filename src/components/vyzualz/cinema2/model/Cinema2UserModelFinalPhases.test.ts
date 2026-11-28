@@ -167,11 +167,11 @@ describe.each(kinds)('Phase 9: %s integration', kind => {
     const legacy = JSON.parse(state.serialize())
     for (const key of ['tintModel', 'modelYaw', 'modelScale', 'transformCycleBeats']) delete legacy.values[id(key)]
     const restored = new Cinema2ParameterState(compiled.plan.parameters); expect(restored.restore(JSON.stringify(legacy)).ok).toBe(true)
-    expect(restored.getValue(id('model'))).toBe(binding); expect(restored.getValue(id('tintModel'))).toBe(false); expect(manifest.revision).toBe(1)
+    expect(restored.getValue(id('model'))).toBe(binding); expect(restored.getValue(id('modelScale'))).toBe(1); expect(manifest.revision).toBe(1)
     if (['shatter', 'hologram', 'voxel'].includes(kind)) {
-      restored.setPersistentValue(id('transformCycleBeats'), 32)
+      restored.setPersistentValue(id('modelScale'), .8)
       const copy = new Cinema2ParameterState(compiled.plan.parameters); expect(copy.restore(restored.serialize()).ok).toBe(true)
-      expect(copy.getValue(id('transformCycleBeats'))).toBe(32); expect(copy.getValue(id('model'))).toBe(binding)
+      expect(copy.getValue(id('modelScale'))).toBe(.8); expect(copy.getValue(id('model'))).toBe(binding)
     }
   })
 })

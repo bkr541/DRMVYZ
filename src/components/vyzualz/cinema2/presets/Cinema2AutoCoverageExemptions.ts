@@ -13,6 +13,15 @@ const MAPPED_BY_RULE = 'The preset maps this saved value to its targets through 
 const NEVER_ZOOMS = 'Open Decks never zooms or turns: its only camera movement is the slight left and right sway authored in the preset.'
 
 export const CINEMA2_AUTO_COVERAGE_EXEMPT: Readonly<Record<string, Readonly<Record<string, string>>>> = Object.freeze({
+  ...Object.fromEntries(['form', 'shatter', 'dust', 'hologram', 'slices', 'voxel'].map(kind => {
+    const prefix = `user-model-${kind}`
+    return [prefix, Object.freeze({
+      [`${prefix}-model-scale`]: 'User-owned model framing.',
+      [`${prefix}-model-yaw`]: 'User-owned model orientation.',
+      [`${prefix}-camera-zoom`]: 'User-owned inspection framing.',
+      ...(kind === 'dust' ? { [`${prefix}-dust-density`]: 'User-owned particle density and performance budget.' } : {}),
+    })]
+  })),
   'arc-angel': Object.freeze({
     'arc-angel-reactivity':'User-owned strength of all musical contributions.',
     'arc-angel-model-scale':'User-owned framing within the safe animated model envelope.',

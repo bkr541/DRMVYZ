@@ -93,26 +93,28 @@ describe('unified private-model representations', () => {
     const preset = createCinema2UserModelPreset(kind), compiled = cinema2NativePresetRegistry.compile(preset.id)
     if (!compiled.ok) throw new Error('Compatibility preset failed to compile')
     const state = new Cinema2ParameterState(compiled.plan.parameters), id = (key: string) => cinema2UserModelPreviewParameterId(kind, key)
-    const old = JSON.parse(state.serialize()); old.values = { [id('model')]: identity, [id('pattern')]: CINEMA2_USER_MODEL_PREVIEWS[kind][2], [id('modelYaw')]: 27 }
+    const old = JSON.parse(state.serialize()); old.values = { [id('model')]: identity, [id('pattern')]: CINEMA2_USER_MODEL_PREVIEWS[kind][2], [id('modelYaw')]: 27, [id('representation')]: 'voxel', [id('audioMap1Enabled')]: true, [id('cinematicLook')]: 'neonKaleidoscope' }
     expect(state.restore(old).ok).toBe(true)
-    expect(state.getSnapshot().persistentValues).toMatchObject({ [id('model')]: identity, [id('defaultRepresentation')]: kind, [id('representation')]: 'default' })
-    expect(state.setPersistentValues({ [id('representation')]: 'voxel', [id('cameraOrbit')]: 35, [id('cameraTarget')]: [.1, .2, .3] }).ok).toBe(true)
+    expect(state.getSnapshot().persistentValues).toMatchObject({ [id('model')]: identity, [id('pattern')]: CINEMA2_USER_MODEL_PREVIEWS[kind][2], [id('modelYaw')]: 27 })
+    expect(state.getValue(id('representation'))).toBeUndefined(); expect(state.setPersistentValue(id('cameraZoom'), 7).ok).toBe(true)
     const restored = new Cinema2ParameterState(compiled.plan.parameters); expect(restored.restore(state.serialize()).ok).toBe(true); expect(restored.getSnapshot().persistentValues).toEqual(state.getSnapshot().persistentValues)
   })
 })
 
-// Phase 04: verify the actual first-party manifest and resident geometry, not only the routing fixture.
-it.each(modes)('exposes persisted audio mapping targets and a musical director on %s', kind => {
-  const manifest = createCinema2UserModelPreset(kind)
-  const find = (key: string) => manifest.parameters!.find(p => p.id === cinema2UserModelPreviewParameterId(kind, key))!
-  expect(find('audioMappingsEnabled')).toMatchObject({ defaultValue: false, designParentGroup: 'effects', persistence: 'preset' })
-  expect(find('audioRepresentationDirector')).toMatchObject({ defaultValue: false, designParentGroup: 'design', persistence: 'preset' })
-  for (const key of ['shardImpulse', 'dustImpulse', 'hologramFlash', 'cinematicBloom', 'cameraZoom']) {
-    expect(find('audioMap1Target').options!.some(o => o.value === key)).toBe(true)
-    expect(find(key).choreographable).toBe(true)
-  }
-  const compiled = cinema2NativePresetRegistry.compile(manifest.id)
-  expect(compiled.ok).toBe(true)
+// Production previews are locked to one effect even when obsolete mode overrides are supplied.
+it.each(modes)('keeps the %s effect visible while paused and rejects the old modulation architecture', kind => {
+  const manifest = createCinema2UserModelPreset(kind), find = (key: string) => manifest.parameters!.find(p => p.id === cinema2UserModelPreviewParameterId(kind, key))
+  for (const key of ['representation', 'defaultRepresentation', 'audioMappingsEnabled', 'audioMap1Target', 'cinematicLook', 'effectPose']) expect(find(key)).toBeUndefined()
+  expect(manifest.runtimeParameterConsumers).toBeUndefined()
+  expect(manifest.parameters!.length).toBeLessThanOrEqual(25)
+  expect(manifest.modules![0].parameters?.effectPose).toBe('representation')
+  const root = logo(), controller = new Cinema2UnifiedUserModelEffects(library, kind, true)
+  controller.attach(root, true, [], identity)
+  draw(controller, kind === 'form' ? 'voxel' : 'form', 1, { effectPose: 'cycle', shatterSpread: 1, sliceSeparation: 1, voxelSeparation: 1 })
+  expect(controller.inspect().activeRepresentation).toBe(kind)
+  expect(visibleGeometry(root)).toBeGreaterThan(0)
+  expect(root.getObjectByName('CinematicModelStage')).toBeUndefined()
+  controller.dispose()
 })
 it('changes actual derived fragment geometry and reassembles it without mutating the source', () => {
   const root = car(), controller = new Cinema2UnifiedUserModelEffects(library, 'shatter')

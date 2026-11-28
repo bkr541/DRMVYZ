@@ -297,7 +297,7 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
             options.resourceKey ?? 'three-scene:bridge',
             'ThreeSceneBridge',
             gl => {
-              modelController = options.createModelController?.(library!, context) ?? (isCinema2UserModelPreview(context.module.config?.userModelPreview) ? new Cinema2UnifiedUserModelEffects(library!, context.module.config!.userModelPreview) : undefined)
+              modelController = options.createModelController?.(library!, context) ?? (isCinema2UserModelPreview(context.module.config?.userModelPreview) ? new Cinema2UnifiedUserModelEffects(library!, context.module.config!.userModelPreview, true) : undefined)
               if (latestControllerUpdate) modelController?.update?.(latestControllerUpdate)
               return new Cinema2ThreeSceneBridge(gl, library!, loaded, { modelController, panels: areaLightTables ? panels : [], areaLightTables, environmentUrl: environmentId ? quality => environments.resolveUrl(environmentId, quality) : null, ...(glowShares ? { glow: glowShares } : {}), ...(segmentRoles ? { segments: segmentRoles } : {}), ...(atlHoeRoles ? { atlHoe: atlHoeRoles } : {}), ...(atlHoeLights.length > 0 ? { atlHoeLights } : {}), conduitSemantics: context.module.config?.conduitSemantics === true, hdr: context.module.config?.hdr === true, ...(particles.length > 0 ? { particles } : {}), ...(shadowParts ? { shadows: shadowParts } : {}) })
             },

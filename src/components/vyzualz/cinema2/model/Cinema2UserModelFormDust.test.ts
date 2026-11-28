@@ -133,16 +133,16 @@ describe('Form and Dust production controls', () => {
     const restored = new Cinema2ParameterState(result.plan.parameters)
     expect(restored.restore(JSON.stringify(legacy)).ok).toBe(true)
     expect(restored.getValue(modelId)).toBe(binding)
-    expect(restored.getValue(cinema2UserModelPreviewParameterId(kind, 'tintModel'))).toBe(false)
+    expect(restored.getValue(cinema2UserModelPreviewParameterId(kind, 'tintModel'))).toBe(kind === 'form' ? false : undefined)
     expect(restored.getValue(cinema2UserModelPreviewParameterId(kind, 'modelScale'))).toBe(1)
   })
 
   it.each(['form', 'dust'] as const)('keeps model binding and shared control groups for %s while enabling neutral studio presentation', kind => {
     const manifest = createCinema2UserModelPreset(kind), find = (key: string) => manifest.parameters!.find(p => p.id === cinema2UserModelPreviewParameterId(kind, key))!
     expect(manifest.revision).toBe(1)
-    expect(find('tintModel')).toMatchObject({ defaultValue: false, designParentGroup: 'effects' })
+    if (kind === 'form') expect(find('tintModel')).toMatchObject({ defaultValue: false, designParentGroup: 'effects' })
     expect(find('modelScale')).toMatchObject({ min: .5, max: 1.2 })
     expect(manifest.modules![0].config).toMatchObject({ userModelPreview: kind, environment: 'cinema2-studio-environment-neutral', userModel: { neutralFloor: false } })
-    if (kind === 'dust') expect(find('cycleBeats')).toMatchObject({ min: 8, max: 64, defaultValue: 16 })
+    if (kind === 'dust') expect(find('cycleBeats')).toBeUndefined()
   })
 })

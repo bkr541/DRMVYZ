@@ -61,7 +61,7 @@ export function createCinema2ModelCinematicParameters(id: Id): Cinema2ParameterM
   return parameters
 }
 
-export function createCinema2ModelCinematicGraph(prefix:string, id:Id, root:Cinema2SceneNodeId): Pick<Cinema2NativePresetManifest,'effects'|'render'|'output'> {
+export function createCinema2ModelCinematicGraph(prefix:string, id:Id, root:Cinema2SceneNodeId, previewOnly = false): Pick<Cinema2NativePresetManifest,'effects'|'render'|'output'> {
   const passId=(name:string)=>cinema2StableId<Cinema2RenderPassId>(`${prefix}-${name}`), targetId=(name:string)=>cinema2StableId<Cinema2RenderTargetId>(`${prefix}-${name}-target`), slot=(name:string)=>cinema2StableId<Cinema2RenderSlotId>(`${prefix}-${name}`)
   const scenePass=passId('pass'), sceneTarget=cinema2StableId<Cinema2RenderTargetId>(`${prefix}-target`), sceneColor=slot('color'), sceneDepth=slot('depth')
   const targets:Cinema2RenderTargetManifest[]=[{id:sceneTarget,descriptor:{size:{kind:'viewport'},colorFormat:'rgba16f',fallbackColorFormat:'rgba8',depthFormat:'depth24'},ownership:'transient'}]
@@ -75,12 +75,19 @@ export function createCinema2ModelCinematicGraph(prefix:string, id:Id, root:Cine
     passes.push({id:pass,kind:'fullscreen',effect:cinema2Ref(effect),dependsOn:[cinema2Ref(previousPass)],inputs:[{id:slot(`${name}-source`),source:{pass:cinema2Ref(previousPass),output:previousColor},attachment:'color'},...(depth?[{id:slot(`${name}-depth`),source:{pass:cinema2Ref(scenePass),output:sceneDepth},attachment:'depth' as const}]:[])],outputs:[{id:color,target:cinema2Ref(target),attachment:'color'}]})
     previousPass=pass;previousColor=color
   }
+  if (!previewOnly) {
   append('floor',CINEMA2_REFLECTIVE_FLOOR_EFFECT_TYPE_ID,{mix:0,floorY:0,reflectivity:.65,roughness:.25,fresnel:2.4,baseColor:[.012,.016,.024,1],skyColor:[.012,.016,.024,1],maxReflection:12,fadeDistance:15},{mix:'cinematicFloor'},true)
   append('atmosphere',CINEMA2_VOLUMETRIC_ATMOSPHERE_EFFECT_TYPE_ID,{mix:0,density:.015,beamIntensity:.4,ambientHaze:.2,hazeColor:[.03,.05,.08,1],maxDistance:12,noiseScale:.6,noiseStrength:.35,drift:.15,reactivity:0},{mix:'cinematicHaze',density:'cinematicHazeDensity',hazeColor:'cinematicFogColor',maxDistance:'cinematicHazeDistance',drift:'cinematicHazeDrift'},true)
+  }
+  if (previewOnly) {
+    append('bloom',CINEMA2_HDR_BLOOM_EFFECT_TYPE_ID,{mix:1,threshold:1.05,knee:.25,intensity:.35,spread:.45,levels:5,clampMax:16},{intensity:'cinematicBloom'})
+    append('finish',CINEMA2_CINEMATIC_FINISH_EFFECT_TYPE_ID,{mix:1,toneMap:1,exposure:1,contrast:1,saturation:1,vignette:0,grain:0,aberration:0},{},false,true)
+  } else {
   append('bloom',CINEMA2_HDR_BLOOM_EFFECT_TYPE_ID,{mix:1,threshold:1.05,knee:.25,intensity:.5,spread:.45,levels:5,clampMax:16},{enabled:'cinematicBloomEnabled',threshold:'cinematicBloomThreshold',intensity:'cinematicBloom',spread:'cinematicBloomSpread'})
   append('optical',CINEMA2_MODEL_OPTICAL_EFFECT_ID,{mix:1,...opticalDefaults,symmetryEnabled:true,twistEnabled:true,meltEnabled:true,aberrationEnabled:true},{enabled:'cinematicOpticalEnabled',mix:'cinematicOpticalMix',...Object.fromEntries(Object.keys(opticalDefaults).map(key=>[key,opticalProperty(key)])),...Object.fromEntries(['symmetry','twist','melt','aberration'].map(key=>[`${key}Enabled`,`${opticalProperty(key)}Enabled`]))})
   append('finish',CINEMA2_CINEMATIC_FINISH_EFFECT_TYPE_ID,{mix:1,toneMap:1,exposure:1,contrast:1,saturation:1,vignette:0,grain:0,aberration:0},{mix:'cinematicFinish',exposure:'cinematicExposure'},false,true)
   append('trails',CINEMA2_FEEDBACK_TRAILS_EFFECT_TYPE_ID,{mix:.65,persistence:.94,drift:0,cinematic:true,decay:1,motionSensitivity:.1,trailColor:[1,1,1,1]},{enabled:'cinematicTrailsEnabled',mix:'cinematicTrails',persistence:'cinematicTrailLength',decay:'cinematicTrailDecay',motionSensitivity:'cinematicTrailMotion',trailColor:'cinematicTrailColor'},false,true)
+  }
   const output=passId('output'); passes.push({id:output,kind:'output',inputs:[{id:slot('input'),source:{pass:cinema2Ref(previousPass),output:previousColor},attachment:'color'}]})
   return {effects,render:{targets,passes,outputPass:cinema2Ref(output)},output:{renderPass:cinema2Ref(output),colorSpace:'srgb',alphaMode:'opaque'}}
 }

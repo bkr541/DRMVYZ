@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { cinema2StableId, type Cinema2NativePresetManifest, type Cinema2ParameterId } from '../contracts/Cinema2NativePresetManifest'
+import { createCinema2ModelAudioParameters } from '../model/Cinema2ModelAudioChoreography'
+import { createCinema2ModelCinematicParameters } from '../presets/Cinema2ModelCinematicAuthoring'
 import { modelAudioConsumerParameterIds } from '../model/Cinema2ModelAudioParameterContract'
 import { CINEMA2_USER_MODEL_PREVIEWS, type Cinema2UserModelPreviewKind } from '../model/Cinema2UserModelPreviewPatterns'
 import { CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS } from '../presets/Cinema2FirstPartyPresetCatalog'
@@ -12,13 +14,18 @@ const kinds = Object.keys(CINEMA2_USER_MODEL_PREVIEWS) as Cinema2UserModelPrevie
 const check = (manifest: Readonly<Cinema2NativePresetManifest>) => validateCinema2PresetAuthoringConventions({ role: 'reference', manifest })
 const invalid = 'CINEMA2_PRESET_RUNTIME_PARAMETER_CONSUMER_INVALID'
 const unconsumed = 'CINEMA2_PRESET_AUTHORING_CONTROL_UNCONSUMED'
+function legacyFixture(): Cinema2NativePresetManifest {
+  const raw = createCinema2UserModelPreset('form')
+  const id = (key: string) => cinema2UserModelPreviewParameterId('form', key)
+  const visual = [...raw.parameters!, ...createCinema2ModelCinematicParameters(id).filter(p => p.id === id('cinematicMaterial'))]
+  const audio = createCinema2ModelAudioParameters('form', visual)
+  return { ...raw, parameters: [...visual, ...audio], runtimeParameterConsumers: [{ owner: 'model-audio-choreography', parameterIds: modelAudioConsumerParameterIds('form') }] }
+}
 
 describe('Cinema 2.0 direct runtime parameter consumers', () => {
   it.each(kinds)('validates and compiles the real %s preview, before and after production auto coverage', kind => {
     const raw = createCinema2UserModelPreset(kind)
-    const expected = modelAudioConsumerParameterIds(kind)
-    expect(raw.runtimeParameterConsumers).toEqual([{ owner: 'model-audio-choreography', parameterIds: expected }])
-    expect(expected).toHaveLength(150)
+    expect(raw.runtimeParameterConsumers).toBeUndefined()
     expect(check(raw).diagnostics).toEqual([])
     const production = CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS.find(declaration => declaration.manifest.id === raw.id)!
     expect(production.manifest.runtimeParameterConsumers).toEqual(raw.runtimeParameterConsumers)
@@ -40,14 +47,14 @@ describe('Cinema 2.0 direct runtime parameter consumers', () => {
   })
 
   it('still rejects real direct inputs when their consumer declaration is absent', () => {
-    const raw = createCinema2UserModelPreset('form')
+    const raw = legacyFixture()
     const result = check({ ...raw, runtimeParameterConsumers: undefined })
     expect(result.ok).toBe(false)
     expect(result.diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({ code: unconsumed, message: expect.stringContaining('user-model-form-audio-map1-source') })]))
   })
 
   it('rejects fabricated inputs, unknown IDs, duplicate IDs and unregistered owners in both gates', () => {
-    const raw = createCinema2UserModelPreset('form')
+    const raw = legacyFixture()
     const declaration = raw.runtimeParameterConsumers![0]!
     const fake = cinema2StableId<Cinema2ParameterId>('user-model-form-audio-map1-fake')
     const extra = { ...raw, parameters: [...raw.parameters!, { id: fake, label: 'Fake control', type: 'boolean' as const, defaultValue: false }] }

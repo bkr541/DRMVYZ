@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { Cinema2ThreeLibrary } from '../modules/three/Cinema2ThreeLibrary'
 import type { Cinema2ModuleParameterReadFacet } from '../modules/Cinema2ModuleContracts'
 import type { Cinema2JsonValue } from '../contracts/Cinema2NativePresetManifest'
-import { Cinema2ModelCinematicMaterials, CINEMA2_MODEL_MATERIAL_STYLES, CINEMA2_MODEL_LOOKS } from './Cinema2ModelCinematicMaterials'
+import { Cinema2ModelCinematicMaterials, CINEMA2_MODEL_MATERIAL_STYLES } from './Cinema2ModelCinematicMaterials'
 import { Cinema2ModelCinematicStage, createCinema2Helix } from './Cinema2ModelCinematicStage'
 import { createCinema2UserModelPreset, cinema2UserModelPreviewParameterId } from '../presets/Cinema2UserModelPresetFactory'
 import { compileCinema2NativePreset } from '../presets/Cinema2PresetCompiler'
@@ -47,16 +47,15 @@ describe('cinematic model lighting and effects', () => {
     const initial = light.position.clone(), dispose = vi.spyOn(mesh.geometry,'dispose'); stage.update(values,.1,'low'); expect(light.position.equals(initial)).toBe(false); expect(light.intensity).toBe(5); expect(dispose).not.toHaveBeenCalled()
     stage.update(values,.1,'high'); expect(dispose).toHaveBeenCalledOnce(); const finalDispose = vi.spyOn(mesh.geometry,'dispose'); stage.dispose(); expect(finalDispose).toHaveBeenCalledOnce(); expect(root.children).toHaveLength(0)
   })
-  it.each(Object.keys(CINEMA2_USER_MODEL_PREVIEWS) as Cinema2UserModelPreviewKind[])('compiles %s effects in fixed order and persists editable look macros', kind => {
+  it.each(Object.keys(CINEMA2_USER_MODEL_PREVIEWS) as Cinema2UserModelPreviewKind[])('compiles %s only the essential glow and finish passes', kind => {
     const preset = createCinema2UserModelPreset(kind), result = compileCinema2NativePreset(preset)
     expect(result.ok).toBe(true); expect(cinema2NativeEffectRegistry.validateEffects(preset.effects!).ok).toBe(true)
     expect(preset.render!.targets![0].descriptor).toMatchObject({colorFormat:'rgba16f',fallbackColorFormat:'rgba8',depthFormat:'depth24'})
-    expect(preset.effects!.map(e=>e.typeId)).toEqual(['reflective-floor','volumetric-atmosphere','hdr-bloom','model-optical','cinematic-finish','feedback-trails'])
+    expect(preset.effects!.map(e=>e.typeId)).toEqual(['hdr-bloom','cinematic-finish'])
     if (!result.ok) throw new Error('preset compilation failed')
     const state = new Cinema2ParameterState(result.plan.parameters), id = (key:string)=>cinema2UserModelPreviewParameterId(kind,key)
-    for (const look of Object.keys(CINEMA2_MODEL_LOOKS)) expect(state.setPersistentValue(id('cinematicLook'),look).ok).toBe(true)
-    expect(state.getValue(id('cinematicMaterial'))).toBe('neon'); expect(state.getValue(id('opticalSymmetry'))).toBe(1)
-    expect(state.setPersistentValue(id('opticalTwist'),-2).ok).toBe(true)
+    expect(state.getValue(id('cinematicLook'))).toBeUndefined()
+    expect(state.setPersistentValue(id('cinematicBloom'), .7).ok).toBe(true)
     const restored = new Cinema2ParameterState(result.plan.parameters); expect(restored.restore(state.serialize()).ok).toBe(true); expect(restored.getSnapshot().persistentValues).toEqual(state.getSnapshot().persistentValues)
   })
 })

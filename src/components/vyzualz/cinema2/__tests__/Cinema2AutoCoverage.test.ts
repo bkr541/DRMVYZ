@@ -66,12 +66,7 @@ describe('the coverage drives move the controls they cover', () => {
   })
 })
 
-// The six user-model presets share one template: twelve Audio Mapping slots whose own settings configure the mapping rather than a visual property
-// (so there is nothing for Auto Performance to drive), plus the template's counts.
-const USER_MODEL_LEFT = [
-  ...Array.from({ length: 12 }, () => ['Attack', 'Mapping Intensity', 'Maximum (fraction of target range)', 'Minimum (fraction of target range)', 'Release', 'Smoothing'].map(label => `${label} (unbound)`)).flat(),
-  'Segments (structural)', 'Segments (structural)', 'Slice Count (structural)',
-].sort()
+const USER_MODEL_LEFT = ['Camera Distance (exempt)', 'Model Rotation (exempt)', 'Model Scale (exempt)']
 
 describe('what Auto Performance does not move, and why', () => {
   it('names every numeric control left out: counts, seeds, the controls that set the strength of the choreography, and the module changes still to make', () => {
@@ -120,11 +115,11 @@ describe('what Auto Performance does not move, and why', () => {
       hypnotize: ['Music Reactivity (authority)'],
       livewire: ['Camera Amount (unbound)'],
       purity: ['Camera Impact (authority)', 'Frame Thickness (exempt)', 'Music Reactivity (exempt)', 'Tunnel Depth (exempt)', 'Tunnel Width (exempt)'],
-      'user-model-dust': USER_MODEL_LEFT,
+      'user-model-dust': [...USER_MODEL_LEFT, 'Particle Density (exempt)'].sort(),
       'user-model-form': USER_MODEL_LEFT,
       'user-model-hologram': USER_MODEL_LEFT,
       'user-model-shatter': USER_MODEL_LEFT,
-      'user-model-slices': USER_MODEL_LEFT,
+      'user-model-slices': [...USER_MODEL_LEFT, 'Slice Count (structural)'].sort(),
       'user-model-voxel': USER_MODEL_LEFT,
     })
   })

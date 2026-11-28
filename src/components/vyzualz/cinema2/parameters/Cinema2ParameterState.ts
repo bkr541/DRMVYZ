@@ -9,6 +9,7 @@ import {
   type Cinema2CompiledParameterPlan,
   type Cinema2ParameterSchemaDiagnostic,
 } from './Cinema2ParameterSchema'
+import { isRetiredCinema2ModelPreviewParameter } from './Cinema2ModelPreviewParameterMigration'
 import { getCinema2AutoPerformanceUserDefault, isCinema2AutoPerformanceToggle } from './Cinema2AutoPerformanceDefault'
 
 export const CINEMA2_PARAMETER_STATE_SCHEMA_ID = 'drmvyz.cinema2.parameter-state' as const
@@ -133,6 +134,7 @@ export class Cinema2ParameterState {
       const parameterId = key as Cinema2ParameterId
       const definition = this.definitions.get(parameterId)
       if (!definition) {
+        if (isRetiredCinema2ModelPreviewParameter(this.plan.presetId, this.plan.presetRevision, key)) continue
         diagnostics.push({ code: 'CINEMA2_PARAMETER_STATE_UNKNOWN_ID', message: `Unknown Cinema 2.0 parameter "${key}".`, path: `values.${key}` })
         continue
       }
@@ -233,6 +235,7 @@ export class Cinema2ParameterState {
     for (const [key, candidate] of Object.entries(parsed.values)) {
       const definition = this.definitions.get(key as Cinema2ParameterId)
       if (!definition) {
+        if (isRetiredCinema2ModelPreviewParameter(this.plan.presetId, this.plan.presetRevision, key)) continue
         diagnostics.push({ code: 'CINEMA2_PARAMETER_STATE_UNKNOWN_ID', message: `Serialized state contains unknown parameter "${key}".`, path: `$.values.${key}` })
         continue
       }

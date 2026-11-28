@@ -118,16 +118,14 @@ describe('shared pattern authority and musical event reuse', () => {
   })
 })
 
-it('projects the selected and triggered destination modes, and persists a pinned model and cinematic bypasses', () => {
+it('projects a simple fixed Form preview and persists retained model and appearance values', () => {
   const kind = 'form', manifest = createCinema2UserModelPreset(kind), compiled = cinema2NativePresetRegistry.compile(manifest.id)
   if (!compiled.ok) throw new Error('Preview did not compile')
   const state = new Cinema2ParameterState(compiled.plan.parameters), id = (key: string) => cinema2UserModelPreviewParameterId(kind, key)
   const groups = () => createCinema2DesignParentGroupModel(compiled.plan, state.getSnapshot()).flatMap(parent => parent.groups.map(group => group.label))
-  expect(groups()).not.toContain('Shatter')
-  expect(state.setPersistentValue(id('representation'), 'shatter').ok).toBe(true); expect(groups()).toContain('Shatter'); expect(groups()).not.toContain('Dust')
-  expect(state.setPersistentValue(id('audioTransitionTrigger'), 'beat').ok).toBe(true)
-  expect(state.setPersistentValue(id('audioTransitionDestination'), 'dust').ok).toBe(true); expect(groups()).toContain('Dust')
-  const savedValues = { model: 'user-model:c0000000-0000-4000-8000-000000000001:3', cinematicMaterial: 'blackChrome', cinematicKeyIntensity: 2, cinematicOpticalEnabled: true, opticalTwistEnabled: false, cinematicTrailsEnabled: true, audioMappingsEnabled: true, audioMap1Intensity: .7, autoPerformance: true }
+  expect(groups()).not.toContain('Shatter'); expect(groups()).not.toContain('Audio Modulation')
+  expect(state.setPersistentValue(id('representation'), 'shatter').ok).toBe(false)
+  const savedValues = { model: 'user-model:c0000000-0000-4000-8000-000000000001:3', cinematicBloom: .7, modelScale: .8, autoPerformance: true }
   for (const [key, value] of Object.entries(savedValues)) expect(state.setPersistentValue(id(key), value).ok, key).toBe(true)
   const restored = new Cinema2ParameterState(compiled.plan.parameters)
   expect(restored.restore(state.serialize()).ok).toBe(true)

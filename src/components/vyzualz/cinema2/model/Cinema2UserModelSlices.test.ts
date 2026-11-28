@@ -118,7 +118,7 @@ describe('Phase 5 slicing choreography', () => {
 
   it('retains compatible IDs and exposes a bounded slice cycle in the canonical Design group', () => {
     const manifest = createCinema2UserModelPreset('slices'), parameter = manifest.parameters!.find(p => p.id === cinema2UserModelPreviewParameterId('slices', 'sliceCycleBeats'))!
-    expect(manifest.revision).toBe(1); expect(parameter).toMatchObject({ defaultValue: 16, min: 8, max: 64, designParentGroup: 'design' })
+    expect(manifest.revision).toBe(1); expect(parameter).toBeUndefined()
     expect(manifest.modules![0].config).toMatchObject({ userModelPreview: 'slices', userModel: { neutralFloor: false } })
     expect(cinema2SliceSpread(0)).toBe(0); expect(cinema2SliceSpread(8)).toBe(1); expect(cinema2SliceSpread(16)).toBe(0)
   })

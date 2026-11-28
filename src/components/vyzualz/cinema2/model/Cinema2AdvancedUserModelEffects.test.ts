@@ -116,10 +116,10 @@ describe('Phase 02 advanced model representations', () => {
     const pivot = f.root.getObjectByName('UserModelPreview')!; expect(pivot.scale.x).not.toBe(pivot.scale.y)
     controller.dispose(); expect(f.material.toJSON()).toEqual(source); expect(dispose).not.toHaveBeenCalled()
   })
-  it('registers additive effect controls and binds them to the unified scene module without changing preset revision', () => {
+  it('only registers Form effect controls without changing preset revision', () => {
     const preset = createCinema2UserModelPreset('form')
     expect(preset.revision).toBe(1)
-    for (const property of ['shardDebris', 'dustSize', 'dustOpacity', 'dustTurbulence', 'hologramThickness', 'hologramScanWidth', 'hologramRim', 'sliceCount', 'sliceAxis', 'voxelRotation', 'formDeformation']) {
+    for (const property of ['formDeformation', 'tintModel']) {
       const parameter = preset.parameters!.find(item => item.id === cinema2UserModelPreviewParameterId('form', property))
       expect(parameter?.designParentGroup).toBe('effects'); expect(preset.modules![0].parameterBindings).toHaveProperty(property)
     }
