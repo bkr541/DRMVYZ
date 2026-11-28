@@ -1,5 +1,5 @@
 import type { ReactPerformancePad } from '../../components/vyzualz/react/ReactTypes'
-import { PAD_SET_SCHEMA_VERSION, DEFAULT_PAD_SET_FINGERPRINT, padSetFingerprint, sanitizePadSet } from './performancePadSets'
+import { PAD_SET_SCHEMA_VERSION, isStockPadSetFingerprint, padSetFingerprint, sanitizePadSet } from './performancePadSets'
 
 export interface RemotePadSet { pads: unknown; revision: number; schemaVersion: number }
 
@@ -28,6 +28,11 @@ export interface PadSyncDeps {
   /** Keeps unsynced local pads that a newer cloud set replaced, so nothing is lost silently. */
   backupLocalPads(pads: ReactPerformancePad[]): void
   onError?(error: unknown): void
+  /**
+   * Whether the pads in the local store are this account's. False while another account's work (or none) is loaded: the sync then neither
+   * reads, pushes nor replaces local pads, so one account's pads can never reach another account's cloud set, or the reverse.
+   */
+  ownsLocalPads?(): boolean
   debounceMs?: number
   setTimer?(callback: () => void, ms: number): unknown
   clearTimer?(handle: unknown): void
@@ -89,17 +94,21 @@ export class PerformancePadSync {
     return padSetFingerprint(this.deps.getLocalPads()) !== state.syncedFingerprint
   }
 
+  private ownsLocal(): boolean {
+    return !this.disposed && this.deps.ownsLocalPads?.() !== false
+  }
+
   private async reconcile(): Promise<void> {
-    if (this.disposed || this.running) return
+    if (!this.ownsLocal() || this.running) return
     this.running = true
     try {
       const remote = await this.deps.fetchRemote()
-      if (this.disposed) return
+      if (!this.ownsLocal()) return
       const state = this.deps.readState()
       const remotePads = remote ? sanitizePadSet(remote.pads) : null
       if (!remote || !remotePads) {
         // Nothing usable in the cloud. Push real customisations, but never the stock pads.
-        if (padSetFingerprint(this.deps.getLocalPads()) !== DEFAULT_PAD_SET_FINGERPRINT) await this.pushAgainst(remote?.revision ?? 0)
+        if (!isStockPadSetFingerprint(padSetFingerprint(this.deps.getLocalPads()))) await this.pushAgainst(remote?.revision ?? 0)
         return
       }
       const localFingerprint = padSetFingerprint(this.deps.getLocalPads())
@@ -109,7 +118,7 @@ export class PerformancePadSync {
       }
       // The cloud has moved. Keep this device's unsynced edits (if any) in a backup, then take the cloud set.
       const unsynced = localFingerprint !== state.syncedFingerprint
-        && localFingerprint !== DEFAULT_PAD_SET_FINGERPRINT
+        && !isStockPadSetFingerprint(localFingerprint)
         && localFingerprint !== padSetFingerprint(remotePads)
       if (unsynced) this.deps.backupLocalPads(this.deps.getLocalPads())
       this.adopt(remotePads, remote.revision)
@@ -125,13 +134,14 @@ export class PerformancePadSync {
   }
 
   private async push(): Promise<void> {
-    if (this.disposed) return
+    if (!this.ownsLocal()) return
     const state = this.deps.readState()
     if (!this.dirty(state)) return
     await this.pushAgainst(state.revision)
   }
 
   private async pushAgainst(baseRevision: number): Promise<void> {
+    if (!this.ownsLocal()) return
     const pads = this.deps.getLocalPads()
     const fingerprint = padSetFingerprint(pads)
     try {

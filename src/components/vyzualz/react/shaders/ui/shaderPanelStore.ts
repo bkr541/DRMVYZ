@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
+import { registerAccountScopedStore, scopeStorageToAccount } from '../../../../../lib/accountScopedPersistence'
 import type { ShaderParamValue, ShaderParamValues } from '../registry/shaderRegistryTypes'
 import type { ShaderModulationRoute } from '../modulation/shaderModulationTypes'
 import type { ModulationEvaluationFrame } from '../modulation/shaderModulationTypes'
@@ -557,7 +558,7 @@ export const useShaderPanelStore = create<ShaderPanelState>()(
   }), {
     name: 'drmvyz:shader-panel',
     version: 4,
-    storage: createJSONStorage(() => localStorage),
+    storage: scopeStorageToAccount(createJSONStorage(() => localStorage)!),
     partialize: shaderPanelPartialize,
     migrate: persistedState => migrateShaderPanelPersistedState(persistedState),
     merge: mergeShaderPanelState,
@@ -573,3 +574,6 @@ export function getActiveRoutes(shaderId: string | null): ShaderModulationRoute[
   const targetShaderId = normalizeShaderSceneId(shaderId) ?? shaderId
   return useShaderPanelStore.getState().routesByShaderId[targetShaderId] ?? []
 }
+
+// Saved per signed-in account (lib/accountScopedPersistence.ts).
+registerAccountScopedStore('drmvyz:shader-panel', useShaderPanelStore)

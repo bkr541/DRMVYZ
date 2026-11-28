@@ -4,6 +4,7 @@ import { blockTextSceneNavigation, requestTextSceneNavigation } from '../feature
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { createSplitPersistStorage } from '../lib/splitPersistStorage'
+import { isPersistenceAccount, registerAccountScopedStore, scopeStorageToAccount } from '../lib/accountScopedPersistence'
 import {
   deleteShowManagerCloudShow,
   listShowManagerCloudBundles,
@@ -6692,10 +6693,11 @@ async function persistShowManagerAuthoredBundle(
   return saved.mode === 'cloud' ? true : cached
 }
 
-export const reactPersistStorage = createSplitPersistStorage<Record<string, unknown>>({
+// Saved per signed-in account (see lib/accountScopedPersistence.ts): projects, shows, pads and presets never cross accounts.
+export const reactPersistStorage = scopeStorageToAccount(createSplitPersistStorage<Record<string, unknown>>({
   projectKeys: REACT_PROJECT_STATE_KEYS,
   onStatusChange: handleReactPersistenceStatus,
-})
+})) as ReturnType<typeof createSplitPersistStorage<Record<string, unknown>>>
 
 export const useReactStore = create<ReactStoreState>()(
   persist(
@@ -8648,6 +8650,9 @@ export const useReactStore = create<ReactStoreState>()(
           return false
         }
         if (listed.mode === 'local-fallback') return true
+        // The loaded local library must be this account's own (it is filed per account). If the account changed while the
+        // library was listed, nothing here belongs to it: never upload one account's Shows into another account.
+        if (!isPersistenceAccount(listed.userId)) return false
 
         let bundles = listed.bundles.map(normalizeShowManagerCloudBundleForStore)
 
@@ -8670,6 +8675,8 @@ export const useReactStore = create<ReactStoreState>()(
             const cloudIds = new Set(bundles.map(bundle => bundle.show.id))
             for (const bundle of localBundles) {
               if (cloudIds.has(bundle.show.id)) continue
+              // Re-checked before every upload: an account switch mid-migration stops it (it resumes on that account's next load).
+              if (!isPersistenceAccount(listed.userId)) return false
               const saved = await saveShowManagerCloudBundle(bundle, null, 'create')
               if (!saved.ok) {
                 reportShowManagerCloudFailure(`Local Show migration failed: ${saved.message}`)
@@ -13264,6 +13271,8 @@ export const useReactStore = create<ReactStoreState>()(
     },
   ),
 )
+
+registerAccountScopedStore(REACT_STORE_PERSISTENCE_NAME, useReactStore)
 
 // ── The user's Auto Performance default (Settings > System Settings) ──────────
 // The default decides every Auto Performance toggle the React view owns outside Cinema 2.0 when the app loads, when a preset or engine is

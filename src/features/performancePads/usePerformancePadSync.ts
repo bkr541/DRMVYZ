@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { supabase, supabaseConfigured } from '../../lib/supabase'
 import { useReactStore } from '../../stores/reactStore'
+import { isPersistenceAccount, whenPersistenceAccountReady } from '../../lib/accountScopedPersistence'
 import type { ReactPerformancePad } from '../../components/vyzualz/react/ReactTypes'
 import { PerformancePadSync, StalePadRevisionError, type PadSyncState, type RemotePadSet } from './PerformancePadSync'
 
@@ -60,6 +61,7 @@ export function createPerformancePadSync(userId: string): PerformancePadSync {
     writeState: state => writeJson(STATE_KEY(userId), state),
     backupLocalPads: pads => writeJson(BACKUP_KEY(userId), { savedAt: new Date().toISOString(), pads }),
     onError: error => { console.warn('[pad sync]', error instanceof Error ? error.message : error) },
+    ownsLocalPads: () => isPersistenceAccount(userId),
   })
 }
 
@@ -76,7 +78,9 @@ export function usePerformancePadSync(userId: string | null): void {
       void sync.refresh()
     }
     lastRefresh = Date.now()
-    void sync.start()
+    // Start only once this account's own saved pads are loaded, never against the previous account's.
+    let cancelled = false
+    void whenPersistenceAccountReady(userId).then(ready => { if (ready && !cancelled) void sync.start() })
     const onVisible = () => { if (document.visibilityState === 'visible') refresh() }
     document.addEventListener('visibilitychange', onVisible)
     window.addEventListener('online', refresh)
@@ -87,6 +91,7 @@ export function usePerformancePadSync(userId: string | null): void {
       window.removeEventListener('online', refresh)
       window.removeEventListener('focus', refresh)
       window.clearInterval(poll)
+      cancelled = true
       sync.dispose()
     }
   }, [userId])

@@ -1,6 +1,7 @@
 import { lazy, Suspense, useState, useEffect } from 'react'
 import { supabase, supabaseConfigured } from './lib/supabase'
 import { peekCachedSessionUserId, isNetworkAuthError } from './lib/offlineSessionFallback'
+import { isAccountScopedPersistenceEnabled, switchPersistenceAccount } from './lib/accountScopedPersistence'
 import { AnnouncementPopover } from './features/announcements/AnnouncementPopover'
 import { AudioEngineProvider } from './context/AudioEngineContext'
 import { AuthPage, ResetPasswordCompletionScreen } from './components/auth/AuthPage'
@@ -39,7 +40,11 @@ export default function App() {
   // a phone by definition, so a desktop can see the mobile screens.
   const [useMobileApp] = useState(() => isMobileAppPreviewFrame() || resolveMobileApp())
   const [userId, setUserId] = useState<string | null>(null)
-  usePerformancePadSync(authGate === 'authenticated' ? userId : null)
+  // The account whose own saved projects, shows, pads and presets are loaded. The studio opens only once it is the
+  // signed-in account's, so nobody ever sees, or edits, the previous account's local work.
+  const [loadedAccount, setLoadedAccount] = useState<string | null>(null)
+  const accountDataReady = !isAccountScopedPersistenceEnabled() || (userId !== null && loadedAccount === userId)
+  usePerformancePadSync(authGate === 'authenticated' && accountDataReady ? userId : null)
 
   useEffect(() => {
     applyBrandAppAccent(activeBrandKit)
@@ -81,6 +86,7 @@ export default function App() {
       activeUserId = userId
       setUserId(userId)
       setAuthGate('authenticated')
+      void switchPersistenceAccount(userId).then(loaded => { if (loaded && activeUserId === userId) setLoadedAccount(userId) })
       void useBrandKitStore.getState().initializeForUser(userId)
       void useAppearanceStore.getState().initializeForUser(userId)
       void useSystemSettingsStore.getState().initializeForUser(userId)
@@ -90,6 +96,9 @@ export default function App() {
     function deactivateUser() {
       activeUserId = null
       setUserId(null)
+      setLoadedAccount(null)
+      // Unloads the previous account's work from memory; nothing is saved while no account is signed in.
+      void switchPersistenceAccount(null)
       setAuthGate('signed-out')
       useBrandKitStore.getState().clearForSignedOut()
       useAppearanceStore.getState().clearForSignedOut()
@@ -160,6 +169,9 @@ export default function App() {
   if (authGate !== 'authenticated') {
     return <AuthPage onAuth={() => setAuthGate('authenticated')} />
   }
+
+  // Signed in, but this account's own saved work is still loading.
+  if (!accountDataReady) return <div className="auth-loading" role="status" aria-label={`Loading ${BRAND_NAME}`} />
 
   // Authenticated — phones get the dedicated mobile screens
   if (useMobileApp) {

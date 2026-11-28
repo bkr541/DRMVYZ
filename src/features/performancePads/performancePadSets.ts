@@ -1,4 +1,5 @@
 import { DEFAULT_PERFORMANCE_PADS, type ReactPerformancePad, type ReactEngineDestination } from '../../components/vyzualz/react/ReactTypes'
+import { migrateLegacyPerformancePadsToCinema2 } from '../../components/vyzualz/cinema2/migration/Cinema2LegacyStateMigration'
 
 /** Version of the pad record shape stored in `performance_pad_sets`. */
 export const PAD_SET_SCHEMA_VERSION = 1
@@ -77,6 +78,20 @@ export function padSetFingerprint(pads: readonly ReactPerformancePad[]): string 
 }
 
 export const DEFAULT_PAD_SET_FINGERPRINT = padSetFingerprint(DEFAULT_PERFORMANCE_PADS)
+
+/**
+ * The stock pads as a new account or a fresh install starts with them: the shipped list after its Cinema 2.0 migration, which is what
+ * the React store holds before anyone edits a pad (and the raw shipped list, for older saved states).
+ */
+const STOCK_PAD_SET_FINGERPRINTS: ReadonlySet<string> = new Set([
+  DEFAULT_PAD_SET_FINGERPRINT,
+  padSetFingerprint(migrateLegacyPerformancePadsToCinema2(DEFAULT_PERFORMANCE_PADS)),
+])
+
+/** True for an unedited stock pad set, which the sync never pushes (a fresh device must not overwrite an account's custom pads). */
+export function isStockPadSetFingerprint(fingerprint: string): boolean {
+  return STOCK_PAD_SET_FINGERPRINTS.has(fingerprint)
+}
 
 /** A pad the phone can perform: it loads a Cinema 2.0 preset. Pads for other engines are shown but disabled on mobile. */
 export function isMobileUsablePad(pad: ReactPerformancePad): boolean {

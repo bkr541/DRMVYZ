@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
+import { registerAccountScopedStore, scopeStorageToAccount } from '../../../../../lib/accountScopedPersistence'
 import type { ShaderDefinition, ShaderParamValues } from '../registry/shaderRegistryTypes'
 import type { QualityTierWithAuto } from '../performance/shaderPerformanceTypes'
 import { shaderRegistry } from '../registry'
@@ -390,7 +391,7 @@ export const useShaderLibraryStore = create<ShaderLibraryState>()(
     {
       name:    'drmvyz:shader-library',
       version: 2,
-      storage: createJSONStorage(() => localStorage),
+      storage: scopeStorageToAccount(createJSONStorage(() => localStorage)!),
       migrate: persistedState => migrateShaderLibraryPersistedState(persistedState),
       // Never persist any WebGL objects or runtime state — only POJO data.
       partialize: (s): ShaderLibraryPersistedState => ({
@@ -418,3 +419,6 @@ export const useShaderLibraryStore = create<ShaderLibraryState>()(
 )
 
 export { USER_SCENE_PREFIX }
+
+// Saved per signed-in account (lib/accountScopedPersistence.ts).
+registerAccountScopedStore('drmvyz:shader-library', useShaderLibraryStore)

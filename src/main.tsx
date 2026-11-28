@@ -1,3 +1,5 @@
+// Must stay first: user-authored stores are created by the imports below and must be account-scoped from the start.
+import './lib/accountScopedPersistenceBoot'
 import { installPerformanceTelemetry } from './lib/performanceTelemetry'
 import { installRendererRecovery } from './lib/rendererRecovery'
 import { installHealthAlertFrame } from './lib/healthAlertFrame'

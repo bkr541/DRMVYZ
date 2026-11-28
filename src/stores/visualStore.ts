@@ -1,5 +1,6 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { createJSONStorage, persist } from 'zustand/middleware'
+import { registerAccountScopedStore, scopeStorageToAccount } from '../lib/accountScopedPersistence'
 import { supabaseConfigured } from '../lib/supabase'
 import { setAutoPerformanceUserDefault } from '../lib/autoPerformanceDefault'
 import { DEFAULT_PRESET_TRANSITION_CHOICE, isPresetTransitionChoice, type PresetTransitionChoice } from '../lib/presetTransitions'
@@ -1517,6 +1518,8 @@ export const useVisualStore = create<VisualState>()(
     }),
     {
       name: 'drmvyz-visual-store',
+      // Saved per signed-in account (lib/accountScopedPersistence.ts): user presets and sessions never cross accounts.
+      storage: scopeStorageToAccount(createJSONStorage(() => localStorage)!),
       partialize: (s) => ({
         effects:                    s.effects,
         effectParams:               s.effectParams,
@@ -1636,6 +1639,8 @@ export const useVisualStore = create<VisualState>()(
     }
   )
 )
+
+registerAccountScopedStore('drmvyz-visual-store', useVisualStore)
 
 // Every engine with an Auto Performance toggle reads the user's default through this tiny module, so none of them imports the store.
 setAutoPerformanceUserDefault(useVisualStore.getState().autoPerformanceDefault)
