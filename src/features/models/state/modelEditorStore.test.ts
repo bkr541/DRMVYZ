@@ -205,11 +205,31 @@ describe('model save and edit lifecycle', () => {
       expect(mocks.fromTrace).toHaveBeenCalledTimes(1)
       expect(mocks.fromTrace).toHaveBeenCalledWith(source, original.traceSvg, expect.objectContaining({
         geometry: expect.objectContaining({ depth: 3 }), transform: expect.objectContaining({ rotation: [0, Math.PI / 4, 0] }),
-      }), expect.any(AbortSignal), expect.any(Function))
+      }), expect.any(AbortSignal), expect.any(Function), true)
       const next = useModelEditorStore.getState().recipe!
       useModelEditorStore.getState().setRecipe({ preview: { ...next.preview, lightIntensity: 2 } })
       await vi.advanceTimersByTimeAsync(301)
       expect(mocks.fromTrace).toHaveBeenCalledTimes(1)
+    } finally { vi.useRealTimers() }
+  })
+  it('rotates and scales the existing model without regeneration and exports the current transform on save', async () => {
+    vi.useFakeTimers()
+    try {
+      await draft()
+      const original = useModelEditorStore.getState().artifact!
+      useModelEditorStore.setState({ model: original })
+      mocks.exportGlb.mockResolvedValue(new Blob(['transformed'], { type: 'model/gltf-binary' }))
+      useModelEditorStore.getState().setRecipe({ transform: { ...recipe.transform, rotation: [0, Math.PI / 2, 0], scale: [2, 2, 2] } })
+      expect(original.group.rotation.y).toBeCloseTo(Math.PI / 2)
+      expect(original.group.scale.toArray()).toEqual([2, 2, 2])
+      expect(useModelEditorStore.getState().model).toBe(original)
+      expect(useModelEditorStore.getState().generationPending).toBe(false)
+      await vi.advanceTimersByTimeAsync(301)
+      expect(mocks.fromTrace).not.toHaveBeenCalled()
+      expect(mocks.exportGlb).not.toHaveBeenCalled()
+      expect(await useModelEditorStore.getState().save()).toMatchObject({ ok: true })
+      expect(mocks.exportGlb).toHaveBeenCalledWith(original.group, expect.any(AbortSignal))
+      expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({ generatorRecipe: expect.objectContaining({ transform: expect.objectContaining({ rotation: [0, Math.PI / 2, 0] }) }), files: expect.objectContaining({ glb: expect.objectContaining({ data: expect.any(Blob) }) }) }))
     } finally { vi.useRealTimers() }
   })
   it('prepares the latest raster foreground when a trace change is followed by a geometry change during debounce', async () => {

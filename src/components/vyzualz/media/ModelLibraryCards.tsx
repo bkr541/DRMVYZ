@@ -7,7 +7,7 @@ import type { ModelAsset } from '../../../features/models/domain/modelAssetTypes
 import { useModelEditorStore } from '../../../features/models/state/modelEditorStore'
 import { useMediaStore } from '../../../stores/mediaStore'
 import { AppIcon } from '../../shared/icons/AppIcon'
-import { NoticeCard } from '../react/controls/NoticeCard'
+import { DrawerNotice } from '../shared/DrawerNotice'
 import { IconChipButton } from '../react/controls/IconChipButton'
 import { Collapsible } from '../react/ReactControlRows'
 import { computeVirtualMediaWindow, MEDIA_SHEET_GAP } from './mediaLibraryWindow'
@@ -105,7 +105,7 @@ export function ModelLibraryCards({ search, favorites, viewMode, activeId, onSel
     {searchControl}
     <div className="mm-model-card-scroll" ref={root}>
       {draftId && !favorites && !collectionId && draftName.toLowerCase().includes(search.toLowerCase()) && <div className="mm-model-draft-card" role="status"><AppIcon kind="layers" size={14} /> {draftName} · Draft / Unsaved</div>}
-      {error && <NoticeCard tone="error" title="Model library unavailable" role="alert">{error} <IconChipButton onClick={() => setRefresh(n => n + 1)}>Retry models</IconChipButton></NoticeCard>}
+      {error && <DrawerNotice tone="error" title="Model library unavailable" role="alert">{error} <IconChipButton onClick={() => setRefresh(n => n + 1)}>Retry models</IconChipButton></DrawerNotice>}
       {!loading && !error && !rows.length && <div className="vz-media-page-state">{search ? 'No models match this search.' : 'No saved 3D models.'}</div>}
       {windowed.topSpacer > 0 && <div style={{ height: windowed.topSpacer }} aria-hidden="true" />}
       <div className={grid ? 'vz-media-sheet' : 'vz-media-list mm-model-card-list'} style={cardLayout as CSSProperties}>

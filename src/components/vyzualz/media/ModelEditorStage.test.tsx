@@ -14,15 +14,16 @@ afterEach(() => { act(() => root.unmount()); container.remove(); useModelEditorS
 const message = () => container.querySelector('.mm-model-stage-empty')?.textContent
 
 describe('3D model stage message', () => {
-  it('says why the model could not be made, not just that it is unavailable', async () => {
+  it('keeps detailed failures out of the visualizer', async () => {
     useModelEditorStore.setState({ status: 'error', error: 'SVG exceeds the 1 MiB input budget.' })
     await act(async () => root.render(<ModelEditorStage />))
-    expect(message()).toContain('SVG exceeds the 1 MiB input budget.')
+    expect(message()).not.toContain('SVG exceeds the 1 MiB input budget.')
+    expect(message()).toContain('See Notifications for details.')
   })
   it('keeps the generic message when there is no specific reason', async () => {
     useModelEditorStore.setState({ status: 'error', error: null })
     await act(async () => root.render(<ModelEditorStage />))
-    expect(message()).toContain('Model unavailable. Retry loading or select another asset.')
+    expect(message()).toContain('Model unavailable. See Notifications for details.')
   })
   it('provides a central Generate 3D Model button, gated by confirmation and wired to the shared action', async () => {
     const recipe = createDefaultModelRecipe(), preview = new Blob(['preview'])
@@ -37,6 +38,20 @@ describe('3D model stage message', () => {
       await act(async () => button().click())
       expect(generate).toHaveBeenCalledOnce()
     } finally { generate.mockRestore() }
+  })
+  it('keeps the creation guide and button mounted while source settings are processed', async () => {
+    const recipe = createDefaultModelRecipe(), preview = new Blob(['preview'])
+    useModelEditorStore.setState({ recipe, source: preview, preview, preparedTraceKey: JSON.stringify([recipe.foreground, recipe.trace, recipe.quality]), status: 'awaiting-generation' })
+    await act(async () => root.render(<ModelEditorStage />))
+    const button = [...container.querySelectorAll('button')].find(b => b.textContent === 'Generate 3D Model')!
+    await act(async () => useModelEditorStore.setState({ status: 'preparing', generationPending: true }))
+    expect(container.contains(button)).toBe(true)
+    expect(button.disabled).toBe(true)
+    expect(message()).toContain('Create your 3D model')
+    expect(message()).not.toContain('Cancel operation')
+    await act(async () => useModelEditorStore.setState({ status: 'awaiting-generation', generationPending: false }))
+    expect(container.contains(button)).toBe(true)
+    expect(button.disabled).toBe(false)
   })
   it('keeps the other states', async () => {
     useModelEditorStore.setState({ status: 'generating' })

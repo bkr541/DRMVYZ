@@ -53,6 +53,11 @@ describe('model image preparation and SVG safety', () => {
     ['too many shapes', `<svg xmlns="http://www.w3.org/2000/svg">${'<path d="M0 0L1 1Z"/>'.repeat(300)}</svg>`],
     ['a file over 1 MiB', `<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0L1 1Z"/>${'<!-- -->'.repeat(140_000)}</svg>`],
   ])('marks %s as harmless but unsupported, so the file may be drawn as an image and traced', (_name, value) => expect(codeOf(value)).toBe('unsupported_svg'))
+  it('separates vector complexity from security and rejects unsafe content before raster fallback', () => {
+    const complex = `<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0 ${'L1 1 '.repeat(4200)}Z"/></svg>`
+    expect(codeOf(complex)).toBe('geometry_budget')
+    expect(codeOf('<svg xmlns="http://www.w3.org/2000/svg"><text>unsupported</text><script>alert(1)</script></svg>')).toBe('unsafe_svg')
+  })
   it('blocks malformed and giant SVG and retains the supported transformed fill subset', async () => {
     expect(() => sanitizeModelSvg('<svg>' + ' '.repeat(1024 * 1024))).toThrow()
     expect(() => sanitizeModelSvg('<svg xmlns="http://www.w3.org/2000/svg"><path')).toThrow()
@@ -165,7 +170,8 @@ describe('actual extruded geometry and material controls', () => {
     expect(draft.stats.triangles).toBeLessThan(high.stats.triangles)
     expect(draft.stats.triangles).toBeLessThanOrEqual(MODEL_QUALITY.draft.triangles)
     expect(high.recipe.quality).toBe('high')
-    expect(high.recipe.geometry.bevelSize).toBeLessThan(recipe.geometry.bevelSize)
+    expect(high.effectiveGeometry.bevelSize).toBeLessThan(recipe.geometry.bevelSize)
+    expect(high.recipe.geometry).toEqual(recipe.geometry)
     expect(high.warnings.some(w => w.code === 'bevel_clamped')).toBe(true)
     expect(() => createExtrudedModel('<svg xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100"/><rect x="10" y="10" width="20" height="20"/></svg>', recipe)).toThrow(/overlapping/)
     expect(() => createExtrudedModel('<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0L100 80L0 80L100 0L50 100Z"/></svg>', recipe)).toThrow()
@@ -189,7 +195,8 @@ describe('actual extruded geometry and material controls', () => {
   it('reports a disabled bevel explicitly when zero width prevents extrusion', async () => {
     const recipe = createDefaultModelRecipe(); recipe.geometry.bevelSize = 0
     const model = createExtrudedModel(await svg('solid.svg'), recipe)
-    expect(model.recipe.geometry.bevelEnabled).toBe(false)
+    expect(model.effectiveGeometry.bevelEnabled).toBe(false)
+    expect(model.recipe.geometry.bevelEnabled).toBe(true)
     expect(model.warnings.some(w => w.code === 'bevel_unavailable')).toBe(true)
     model.dispose()
   })

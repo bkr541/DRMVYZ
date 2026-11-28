@@ -56,9 +56,16 @@ export function createForegroundMask(pixels: Uint8ClampedArray, recipe: ModelGen
 function png(canvas: HTMLCanvasElement): Promise<Blob> {
   return new Promise((resolve, reject) => canvas.toBlob(blob => blob ? resolve(blob) : reject(new ModelGenerationError('input_decode', 'Could not encode model source PNG.')), 'image/png'))
 }
+let decoded: { blob: Blob; canvas: HTMLCanvasElement; snapshot: Blob; reason: string | null } | null = null
+let preparedCache: { blob: Blob; key: string; result: PreparedModelInput } | null = null
 export async function prepareModelInput(blob: Blob, inputRecipe: ModelGeneratorRecipe, quality: ModelQuality, signal?: AbortSignal): Promise<PreparedModelInput> {
   checkAbort(signal)
   if (!blob.size || blob.size > MODEL_INPUT_LIMITS.bytes) throw new ModelGenerationError('input_budget', 'Model source must be nonempty and at most 16 MiB.')
+  const key = JSON.stringify([inputRecipe.foreground, inputRecipe.trace, quality])
+  if (preparedCache?.blob === blob && preparedCache.key === key) {
+    const cached = preparedCache.result
+    return { ...cached, recipe: { ...inputRecipe, foreground: cached.recipe.foreground } }
+  }
   const bytes = new Uint8Array(await blob.arrayBuffer()), detected = sniffModelImage(bytes)
   if (blob.type && blob.type !== detected.mime && !(blob.type === 'image/jpg' && detected.mime === 'image/jpeg')) throw new ModelGenerationError('input_format', 'Declared image MIME does not match its bytes.')
   // A filled-vector SVG is extruded directly. An SVG that is only unsupported (a gradient, a stroke, a very large or detailed file) is drawn as an image and its
@@ -69,23 +76,29 @@ export async function prepareModelInput(blob: Blob, inputRecipe: ModelGeneratorR
       const svg = sanitizeModelSvg(new TextDecoder().decode(bytes))
       return { svg, width: 0, height: 0, sourceSnapshot: new Blob([svg], { type: 'image/svg+xml' }), requiresForegroundConfirmation: false, recipe: inputRecipe, warnings: [] }
     } catch (error) {
-      if (!(error instanceof ModelGenerationError) || error.code !== 'unsupported_svg') throw error
+      if (!(error instanceof ModelGenerationError) || !['unsupported_svg', 'geometry_budget'].includes(error.code)) throw error
       rasterizedSvgReason = error.message.replace(/\.$/, '')
     }
   } else checkDimensions(detected.width!, detected.height!)
   const url = URL.createObjectURL(new Blob([bytes], { type: detected.mime }))
-  const canvas = document.createElement('canvas'), previewCanvas = document.createElement('canvas')
+  const cached = decoded?.blob === blob && decoded.reason === rasterizedSvgReason ? decoded : null
+  const canvas = cached?.canvas ?? document.createElement('canvas'), previewCanvas = document.createElement('canvas')
   try {
-    const image = await loadImageElement(url, signal); checkAbort(signal)
-    // A drawn SVG has no pixel size of its own, so it is drawn at a fixed working size (its longest edge), keeping its proportions.
-    const sizeScale = rasterizedSvgReason === null ? 1 : SVG_RASTER_EDGE / Math.max(image.naturalWidth || SVG_RASTER_EDGE, image.naturalHeight || SVG_RASTER_EDGE)
-    const drawWidth = Math.max(1, Math.round((image.naturalWidth || SVG_RASTER_EDGE) * sizeScale)), drawHeight = Math.max(1, Math.round((image.naturalHeight || SVG_RASTER_EDGE) * sizeScale))
-    checkDimensions(drawWidth, drawHeight)
-    canvas.width = drawWidth; canvas.height = drawHeight
-    const ctx = canvas.getContext('2d', { willReadFrequently: true })
-    if (!ctx) throw new ModelGenerationError('input_decode', 'Image decoding canvas is unavailable.')
-    ctx.drawImage(image, 0, 0, drawWidth, drawHeight)
-    const sourceSnapshot = await png(canvas)
+    let sourceSnapshot = cached?.snapshot
+    if (!cached) {
+      const image = await loadImageElement(url, signal); checkAbort(signal)
+      // A drawn SVG has no pixel size of its own, so it is drawn at a fixed working size (its longest edge), keeping its proportions.
+      const sizeScale = rasterizedSvgReason === null ? 1 : SVG_RASTER_EDGE / Math.max(image.naturalWidth || SVG_RASTER_EDGE, image.naturalHeight || SVG_RASTER_EDGE)
+      const drawWidth = Math.max(1, Math.round((image.naturalWidth || SVG_RASTER_EDGE) * sizeScale)), drawHeight = Math.max(1, Math.round((image.naturalHeight || SVG_RASTER_EDGE) * sizeScale))
+      checkDimensions(drawWidth, drawHeight)
+      canvas.width = drawWidth; canvas.height = drawHeight
+      const ctx = canvas.getContext('2d', { willReadFrequently: true })
+      if (!ctx) throw new ModelGenerationError('input_decode', 'Image decoding canvas is unavailable.')
+      ctx.drawImage(image, 0, 0, drawWidth, drawHeight)
+      sourceSnapshot = await png(canvas); checkAbort(signal)
+      decoded = { blob, canvas, snapshot: sourceSnapshot, reason: rasterizedSvgReason }
+    }
+    if (!sourceSnapshot) throw new ModelGenerationError('input_decode', 'Source snapshot unavailable.')
     const scale = Math.min(1, MODEL_QUALITY[quality].traceEdge / Math.max(canvas.width, canvas.height))
     previewCanvas.width = Math.max(1, Math.round(canvas.width * scale)); previewCanvas.height = Math.max(1, Math.round(canvas.height * scale))
     const previewCtx = previewCanvas.getContext('2d', { willReadFrequently: true })
@@ -111,6 +124,8 @@ export async function prepareModelInput(blob: Blob, inputRecipe: ModelGeneratorR
     if (requiresForegroundConfirmation) warnings.push({ code: 'foreground_confirmation_required', message: 'Review the threshold foreground preview before generating this opaque image.' })
     if (rasterizedSvgReason !== null) warnings.push({ code: 'svg_rasterized', message: `This SVG can't be extruded as vector shapes (${rasterizedSvgReason}), so it was drawn as an image and its outline was traced. Gradients and fine detail are not kept.` })
     if (scale < 1) warnings.push({ code: 'trace_downsampled', message: 'Tracing resolution was reduced to the selected quality budget; the source snapshot is preserved.' })
-    return { pixels: mask.pixels, width: previewCanvas.width, height: previewCanvas.height, sourceSnapshot, foregroundPreview, requiresForegroundConfirmation, recipe, warnings }
-  } finally { URL.revokeObjectURL(url); canvas.width = canvas.height = previewCanvas.width = previewCanvas.height = 0 }
+    const result = { pixels: mask.pixels, width: previewCanvas.width, height: previewCanvas.height, sourceSnapshot, foregroundPreview, requiresForegroundConfirmation, recipe, warnings }
+    preparedCache = { blob, key, result }
+    return result
+  } finally { URL.revokeObjectURL(url); previewCanvas.width = previewCanvas.height = 0; if (decoded?.canvas !== canvas) canvas.width = canvas.height = 0 }
 }

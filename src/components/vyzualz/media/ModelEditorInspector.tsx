@@ -1,3 +1,4 @@
+import { modelGenerationRecovery } from './ModelGenerationGuide'
 import { ModelCleanupControls } from './ModelCleanupControls'
 import '../../../styles/reactView.css'
 import { useEffect, useState } from 'react'
@@ -11,7 +12,7 @@ import { MODEL_MATERIAL_PRESETS } from '../../../features/models/materials/model
 import { Collapsible, NumberInputRow, PaletteColorRow, SelectRow, SliderRow, TextAreaRow, TextInputRow, ToggleRow } from '../react/ReactControlRows'
 import { IconChipButton } from '../react/controls/IconChipButton'
 import { ConfirmDialog } from '../react/controls/ConfirmDialog'
-import { NoticeCard } from '../react/controls/NoticeCard'
+import { DrawerNotice } from '../shared/DrawerNotice'
 import { MediaDetailsHeader, TagsCollectionsGroup, type MediaInspectorTab } from './MediaManagerInspector'
 import { AppIcon } from '../../shared/icons/AppIcon'
 
@@ -80,7 +81,7 @@ function BuiltinModelEditPanel() {
   })))
   const [materialIndex, setMaterialIndex] = useState(0)
   if (!edit) return error
-    ? <NoticeCard tone="error" title="Model unavailable">{error}</NoticeCard>
+    ? <DrawerNotice tone="error" title="Model unavailable">{error}</DrawerNotice>
     : <p role="status">Loading model for editing…</p>
 
   const { scale, rotation, materials, twoSided } = edit.values, material = materials[materialIndex]
@@ -111,7 +112,7 @@ function BuiltinModelEditPanel() {
       <ModelTextureRow value={material.textureId} defaultLabel={originalTexture ? `Original · ${originalTexture}` : 'Original'} disabled={disabled}
         onChange={id => { void editBuiltinTexture(materialIndex, id) }} />
       {textureLoading && <span className="rv-ctrl-description" role="status">Loading texture…</span>}
-      {textureError && <NoticeCard tone="error" role="alert" title="Texture unavailable">{textureError}</NoticeCard>}
+      {textureError && <DrawerNotice tone="error" role="alert" title="Texture unavailable">{textureError}</DrawerNotice>}
       <PaletteColorRow label="Base color" value={material.color} disabled={disabled} onChange={color => changeMaterial({ color })} />
       <SliderRow label="Metalness" value={material.metalness} disabled={disabled} onChange={metalness => changeMaterial({ metalness })} />
       <SliderRow label="Roughness" value={material.roughness} disabled={disabled} onChange={roughness => changeMaterial({ roughness })} />
@@ -144,10 +145,10 @@ function BuiltinModelInspector({ model }: { model: BuiltinModel }) {
         <ModelInfoRow label="Viewport">Drag to orbit, scroll to zoom, or use Fit Model and Reset Camera.</ModelInfoRow>
       </Collapsible>
       {state.builtinOrganizationLoading && <div role="status">Loading tags and collections…</div>}
-      {state.builtinOrganizationError && <NoticeCard tone="error" role="alert" title="Model organization unavailable">
+      {state.builtinOrganizationError && <DrawerNotice tone="error" role="alert" title="Model organization unavailable">
         {state.builtinOrganizationError}
         {!state.savedMetadata && <IconChipButton onClick={() => { void state.loadBuiltinOrganization() }}>Retry tags and collections</IconChipButton>}
-      </NoticeCard>}
+      </DrawerNotice>}
     </div>}
     {tab === 'edit' && <div className="mmi-body mm-model-inspector"><BuiltinModelEditPanel key={state.sessionKey} /></div>}
   </>
@@ -175,7 +176,7 @@ function ModelSourcePreview({ blob }: { blob: Blob | null }) {
   useEffect(() => () => { if (url) URL.revokeObjectURL(url) }, [url])
   return <>
     <div className="mm-model-source-preview">{url && <img src={url} alt="Foreground and cutout preview" />}</div>
-    {failed && <NoticeCard tone="warning" title="Preview unavailable">Could not display the latest foreground preview.</NoticeCard>}
+    {failed && <DrawerNotice tone="warning" title="Preview unavailable">Could not display the latest foreground preview.</DrawerNotice>}
   </>
 }
 
@@ -183,7 +184,7 @@ function EditableModelInspector({ onSelectSource }: { onSelectSource?: () => voi
   const s = useModelEditorStore()
   const [tab, setTab] = useState<MediaInspectorTab>(() => useModelEditorStore.getState().asset ? 'info' : 'edit')
   const [pendingVersion, setPendingVersion] = useState<number | null>(null), [revertOpen, setRevertOpen] = useState(false)
-  const busy = s.status === 'saving' || s.status === 'deleting'
+  const busy = s.status === 'saving' || s.status === 'deleting' || s.builtinExporting
   const locked = busy || !!s.publishedVersion || !!s.pendingOperationId || !s.source
   const recipe = s.recipe
   const imported = s.asset?.kind === 'imported'
@@ -246,11 +247,11 @@ function EditableModelInspector({ onSelectSource }: { onSelectSource?: () => voi
       {tab === 'edit' && recipe && <>
         <Collapsible label="Source Preparation" icon={<AppIcon kind="image" size={14} />}>
           <ModelSourcePreview key={s.sessionKey} blob={s.preview} />
-          {s.generationPending ? <p role="status">{s.model ? 'Updating foreground and 3D geometry…' : 'Preparing source settings…'}</p>
+          {s.generationPending || s.status === 'preparing' ? <p role="status">{s.model ? 'Updating model…' : 'Updating source…'}</p>
             : s.status === 'error' && s.model ? <p>Showing the last successful model. The latest edits could not be applied.</p>
             : s.model && s.needsConfirmation && !s.confirmed ? <p>Review and confirm the foreground to update the 3D model.</p>
             : s.artifact?.contourPreview ? <p>Traced front-face outline of the current 3D model.</p>
-            : <p>White areas become solid geometry; transparent areas become openings. Adjust the settings until the silhouette is correct, then select Generate 3D Model in Media Preview. Fine details may change during tracing.</p>}
+            : <p>White: solid geometry. Transparent: openings.</p>}
           {s.sourceInfo?.mimeType === 'image/svg+xml' ? <p>SVG uses its filled paths directly. Raster foreground and smoothing controls are unavailable for vector sources.</p> : <>
           <SelectRow label="Foreground" value={recipe.foreground.mode} options={[{ value: 'alpha', label: 'Image alpha' }, { value: 'luminance', label: 'Threshold' }, { value: 'prepared', label: 'Prepared alpha' }]} disabled={locked}
             onChange={value => s.setRecipe({ foreground: { ...recipe.foreground, mode: value as 'alpha' | 'luminance' | 'prepared' } })} />
@@ -288,7 +289,7 @@ function EditableModelInspector({ onSelectSource }: { onSelectSource?: () => voi
               <NumberInputRow label="Bevel segments" value={geometry.bevelSegments} min={1} max={16} step={1} disabled={locked} onChange={bevelSegments => s.setRecipe({ geometry: { ...geometry, bevelSegments } })} />
             </>}
           </div>
-          {s.warnings.filter(warning => /^Bevel/.test(warning)).map(warning => <NoticeCard key={warning} tone="warning" title="Bevel adjustment">{warning}</NoticeCard>)}
+
         </Collapsible>}
         <Collapsible label="Materials" icon={<AppIcon kind="edit" size={14} />}>{material('front')}{material('side')}</Collapsible>
         {preview && <Collapsible label="Preview" icon={<AppIcon kind="image" size={14} />}>
@@ -302,17 +303,19 @@ function EditableModelInspector({ onSelectSource }: { onSelectSource?: () => voi
         </Collapsible>}
       </>}
       {tab === 'output' && <Collapsible label="Model Output" icon={<AppIcon kind="save" size={14} />}>
-        <p>{s.activeVersion ? `Viewing version ${s.activeVersion}` : 'Unsaved model'} · {s.artifact?.glb.size.toLocaleString() ?? s.versions.find(v => v.version === s.activeVersion)?.geometryStats.glbBytes?.toLocaleString() ?? '—'} GLB bytes</p>
+        <p>{s.activeVersion ? `Viewing version ${s.activeVersion}` : 'Unsaved model'} · {(s.artifact?.glb.size ? s.artifact.glb.size.toLocaleString() : undefined) ?? s.versions.find(v => v.version === s.activeVersion)?.geometryStats.glbBytes?.toLocaleString() ?? '—'} GLB bytes</p>
         {!!s.versions.length && <SelectRow label="Model version" value={String(s.activeVersion)} disabled={busy || s.builtinTextureLoading} options={s.versions.map(v => ({ value: String(v.version), label: `Version ${v.version}` }))} onChange={version => loadVersion(Number(version))} />}
         {s.versions.length >= 50 && <IconChipButton onClick={() => { void s.moreVersions() }}>Load older versions</IconChipButton>}
       </Collapsible>}
-      {(s.status === 'loading-source' || s.status === 'loading-model' || s.status === 'generating' || s.generationPending || busy) && <div role="status">{s.progress ?? s.generationStage ?? (s.generationPending ? 'Updating 3D geometry…' : 'Loading model source…')} <IconChipButton disabled={s.status === 'deleting'} onClick={s.cancel}>Cancel operation</IconChipButton></div>}
-      {s.error && <NoticeCard tone="error" role="alert" title="Model operation failed">{s.error}
+      {(s.status === 'loading-source' || s.status === 'loading-model' || s.status === 'generating' || busy) && <div role="status">{s.progress ?? s.generationStage ?? (s.generationPending ? 'Updating 3D geometry…' : 'Loading model source…')} <IconChipButton disabled={s.status === 'deleting'} onClick={s.cancel}>Cancel operation</IconChipButton></div>}
+      {s.cleanupNotice && <DrawerNotice tone="warning" title="Geometry cleanup">{s.cleanupNotice}</DrawerNotice>}
+      {s.error && <DrawerNotice tone="error" role="alert" title="Model operation failed">{s.error}
+        {s.generationErrorCode && <p>{modelGenerationRecovery(s.generationErrorCode, s.recipe, s.error).text}</p>}
         {(s.saveTarget || s.saveFailure) && <IconChipButton onClick={() => { void s.save() }}>Retry Save</IconChipButton>}
         {!s.saveTarget && !s.saveFailure && s.source && <IconChipButton onClick={() => { void s.retryGeneration() }}>{s.model ? 'Retry geometry update' : 'Retry generation'}</IconChipButton>}
         {!s.source && !s.asset && <IconChipButton onClick={() => { void s.retrySource() }}>Retry source</IconChipButton>}
-      </NoticeCard>}
-      {s.warnings.filter(warning => tab !== 'edit' || !/^Bevel/.test(warning)).map(warning => <NoticeCard key={warning} tone="warning" title="Model source">{warning}</NoticeCard>)}
+      </DrawerNotice>}
+      {[...new Set(s.warnings)].map(warning => <DrawerNotice key={warning} tone="warning" title={/^Bevel/.test(warning) ? 'Bevel adjustment' : 'Model source'}>{warning}</DrawerNotice>)}
     </div>
     {(pendingVersion !== null || revertOpen) && <ConfirmDialog title="Discard model edits?" message="Reloading a saved version replaces your current edits." confirmLabel="Discard and Reload" onCancel={() => { setPendingVersion(null); setRevertOpen(false) }} onConfirm={() => { if (pendingVersion !== null && s.asset) s.load(s.asset, pendingVersion); else if (s.error) void s.reloadLatest(); else s.revert(); setPendingVersion(null); setRevertOpen(false) }} />}
   </>

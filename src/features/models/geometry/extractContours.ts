@@ -1,6 +1,6 @@
 import { Box2, Path, Shape, ShapeUtils, Vector2 } from 'three'
 import { SVGLoader } from 'three/examples/jsm/loaders/SVGLoader.js'
-import { MODEL_INPUT_LIMITS, ModelGenerationError } from './modelQualityBudget'
+import { checkAbort, MODEL_INPUT_LIMITS, ModelGenerationError } from './modelQualityBudget'
 import { record } from '../domain/modelAssetTypes'
 import { sanitizeModelSvg } from '../trace/svgSanitize'
 
@@ -37,7 +37,8 @@ function crossing(a: Vector2, b: Vector2, c: Vector2, d: Vector2): boolean {
 }
 
 export interface ModelContours { shapes: Shape[]; pointCount: number; minimumDetail: number }
-export function extractModelContours(svg: string, curveSegments: number, smoothing: number): ModelContours {
+type NormalizedContour = { outer: Vector2[]; holes: Vector2[][] }
+function sampleModelContours(svg: string, curveSegments: number, smoothing: number): NormalizedContour[] {
   const parsed = new SVGLoader().parse(sanitizeModelSvg(svg))
   const source: Shape[] = []
   for (const path of parsed.paths) {
@@ -48,14 +49,23 @@ export function extractModelContours(svg: string, curveSegments: number, smoothi
   }
   if (!source.length || source.length > MODEL_INPUT_LIMITS.paths) throw new ModelGenerationError('empty_geometry', 'SVG has no usable filled geometry or too many shapes.')
   const sampled = source.map(shape => ({ outer: shape.getPoints(curveSegments), holes: shape.holes.map(h => h.getPoints(curveSegments)) }))
-  if (sampled.reduce((sum, s) => sum + s.outer.length + s.holes.reduce((n, h) => n + h.length, 0), 0) > MODEL_INPUT_LIMITS.points) throw new ModelGenerationError('geometry_budget', 'Sampled vector contours exceed the point budget.')
+  // Bound raw sampling independently; the lower point budget applies after simplification.
+  if (sampled.reduce((sum, s) => sum + s.outer.length + s.holes.reduce((n, h) => n + h.length, 0), 0) > MODEL_INPUT_LIMITS.sampledPoints) throw new ModelGenerationError('geometry_budget', 'Raw vector sampling exceeds the point budget.')
   const bounds = new Box2().setFromPoints(sampled.flatMap(s => s.outer))
   const size = bounds.getSize(new Vector2()), center = bounds.getCenter(new Vector2()), scale = 2 / Math.max(size.x, size.y)
   if (!Number.isFinite(scale) || size.x < 1e-9 || size.y < 1e-9) throw new ModelGenerationError('empty_geometry', 'Model silhouette has zero width or height.')
-  const normalize = (ring: Vector2[]) => cleanRing(ring.map(p => new Vector2((p.x - center.x) * scale, -(p.y - center.y) * scale)), 0.00001 + smoothing * 0.0005)
-  const normalized = sampled.map(s => ({ outer: normalize(s.outer), holes: s.holes.map(normalize) }))
+  const normalize = (ring: Vector2[]) => ring.map(p => new Vector2((p.x - center.x) * scale, -(p.y - center.y) * scale))
+  const raw = sampled.map(s => ({ outer: normalize(s.outer), holes: s.holes.map(normalize) }))
+  const tolerance = 0.00001 + smoothing * 0.0005
+  const normalized = raw.map(s => ({ outer: cleanRing(s.outer, tolerance), holes: s.holes.map(h => cleanRing(h, tolerance)) }))
     .filter(s => Math.abs(ShapeUtils.area(s.outer)) > 1e-6)
+  if (normalized.reduce((sum, s) => sum + s.outer.length + s.holes.reduce((n, h) => n + h.length, 0), 0) > MODEL_INPUT_LIMITS.points) throw new ModelGenerationError('geometry_budget', 'Simplified vector contours exceed the point budget.')
   if (!normalized.length) throw new ModelGenerationError('empty_geometry', 'Model contours are below the minimum area.')
+  return normalized
+}
+
+/** Numeric validation is also used in the worker; it needs no DOM or WebGL. */
+export function validateContourRings(normalized: NormalizedContour[]): { pointCount: number; minimumDetail: number } {
   for (const shape of normalized) for (const ring of [shape.outer, ...shape.holes]) {
     for (let i = 0; i < ring.length; i++) for (let j = i + 2; j < ring.length; j++) {
       if (i === 0 && j === ring.length - 1) continue
@@ -96,12 +106,48 @@ export function extractModelContours(svg: string, curveSegments: number, smoothi
     }
   }
   minimumDetail = Math.sqrt(minimumDetail)
+  return { pointCount, minimumDetail }
+}
+function finishContours(normalized: NormalizedContour[], result: { pointCount: number; minimumDetail: number }): ModelContours {
   const shapes = normalized.map(s => {
     const shape = new Shape(s.outer)
     shape.holes = s.holes.map(h => new Path(h))
     return shape
   })
-  return { shapes, pointCount, minimumDetail }
+  return { shapes, ...result }
+}
+
+
+export function extractModelContours(svg: string, curveSegments: number, smoothing: number): ModelContours {
+  const rings = sampleModelContours(svg, curveSegments, smoothing)
+  return finishContours(rings, validateContourRings(rings))
+}
+let cachedContours: { svg: string; segments: number; smoothing: number; value: ModelContours } | null = null
+/** Cache one validated contour set. SVGLoader requires DOMParser, but pairwise validation runs off the UI thread. */
+export async function extractModelContoursAsync(svg: string, segments: number, smoothing: number, signal?: AbortSignal): Promise<ModelContours> {
+  checkAbort(signal)
+  if (cachedContours?.svg === svg && cachedContours.segments === segments && cachedContours.smoothing === smoothing) return cachedContours.value
+  const rings = sampleModelContours(svg, segments, smoothing)
+  const result = typeof Worker === 'undefined' ? validateContourRings(rings) : await new Promise<{ pointCount: number; minimumDetail: number }>((resolve, reject) => {
+    const worker = new Worker(new URL('./contourValidationWorker.ts', import.meta.url), { type: 'module' })
+    const cleanup = () => { clearTimeout(timer); worker.terminate(); signal?.removeEventListener('abort', abort) }
+    const fail = (error: unknown) => { cleanup(); reject(error) }
+    const abort = () => fail(new DOMException('Contour validation cancelled.', 'AbortError'))
+    const timer = setTimeout(() => fail(new ModelGenerationError('geometry_budget', 'Contour validation exceeded its time budget.')), 15_000)
+    worker.onmessage = ({ data }) => {
+      cleanup()
+      if (data.error) reject(new ModelGenerationError(data.code ?? 'invalid_contour', data.error))
+      else resolve(data.result)
+    }
+    worker.onerror = event => fail(new ModelGenerationError('geometry_budget', event.message || 'Contour validation failed.'))
+    signal?.addEventListener('abort', abort, { once: true })
+    if (signal?.aborted) { abort(); return }
+    try { worker.postMessage(rings.map(r => ({ outer: r.outer.map(p => p.toArray()), holes: r.holes.map(h => h.map(p => p.toArray())) }))) } catch (error) { fail(error) }
+  })
+  checkAbort(signal)
+  const value = finishContours(rings, result)
+  cachedContours = { svg, segments, smoothing, value }
+  return value
 }
 
 /** The exact sampled front-cap contours supplied to ExtrudeGeometry, not the original raster mask. */

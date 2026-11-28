@@ -1,29 +1,24 @@
 import { useState } from 'react'
 import { selectModelCanCleanup, useModelEditorStore } from '../../../features/models/state/modelEditorStore'
 import { IconChipButton } from '../react/controls/IconChipButton'
+import { AppIcon } from '../../shared/icons/AppIcon'
 
-/** The stage and inspector share the same selection and non-destructive recipe actions. */
-export function ModelCleanupControls({ compact = false }: { compact?: boolean }) {
+export function ModelCleanupControls() {
   const s = useModelEditorStore(), [threshold, setThreshold] = useState(0.1)
-  const catalog = s.artifact?.components
-  const enabled = selectModelCanCleanup(s)
+  const catalog = s.artifact?.components, enabled = selectModelCanCleanup(s)
   if (!catalog) return null
   const removed = s.artifact?.recipe.cleanup?.excludedComponentIds.length ?? 0
   const selected = s.selectedComponents.length
-  const single = selected === 1 ? catalog.components.find(c => c.id === s.selectedComponents[0]) : undefined
-  return <div className={compact ? 'mm-model-cleanup-toolbar' : 'mm-model-cleanup-controls'}>
+  return <div className="mm-model-cleanup-controls">
     <div className="mm-model-cleanup-actions">
-      <IconChipButton tone={s.cleanupActive ? 'primary' : 'default'} aria-pressed={s.cleanupActive} disabled={!enabled && !s.cleanupActive} onClick={() => s.setCleanupActive(!s.cleanupActive)}>Geometry Cleanup</IconChipButton>
-      {s.cleanupActive && <IconChipButton className="mm-model-remove" disabled={!enabled || !selected || selected + removed >= catalog.components.length} onClick={s.removeSelectedComponents}>Remove{selected ? ` (${selected})` : ''}</IconChipButton>}
-      <IconChipButton disabled={!enabled || !s.cleanupUndo.length} onClick={s.undoCleanup}>Undo</IconChipButton>
-      <IconChipButton disabled={!enabled || !s.cleanupRedo.length} onClick={s.redoCleanup}>Redo</IconChipButton>
+      <IconChipButton icon={<AppIcon kind="pointer" size={16} />} tone={s.cleanupActive ? 'primary' : 'default'} aria-pressed={s.cleanupActive} title="Select solid elements (Shift-click for multiple)" aria-label="Select solid elements" disabled={!enabled && !s.cleanupActive} onClick={() => s.setCleanupActive(!s.cleanupActive)} />
+      <IconChipButton icon={<AppIcon kind="delete" size={16} />} title="Remove selected elements (Delete)" aria-label="Remove selected elements" disabled={!enabled || !selected || selected + removed >= catalog.components.length} onClick={s.removeSelectedComponents} />
+      <IconChipButton icon={<AppIcon kind="undo" size={16} />} title="Undo removal" aria-label="Undo removal" disabled={!enabled || !s.cleanupUndo.length} onClick={s.undoCleanup} />
+      <IconChipButton icon={<AppIcon kind="redo" size={16} />} title="Redo removal" aria-label="Redo removal" disabled={!enabled || !s.cleanupRedo.length} onClick={s.redoCleanup} />
+      <IconChipButton icon={<AppIcon kind="rotateLeft" size={16} />} title="Restore all removed elements" aria-label="Restore all removed elements" disabled={!enabled || !removed} onClick={s.restoreComponents} />
     </div>
-    {(!compact || s.cleanupActive) && <p role="status">{catalog.components.length - removed} solid elements · {selected} selected · {removed} removed{single ? ` · ${(single.relativeArea * 100).toFixed(3)}% of source area` : ''}</p>}
-    {s.cleanupNotice && <p role="alert">{s.cleanupNotice}</p>}
-    {s.cleanupActive && <p>Click an element to select it. Shift-click for multiple; drag to orbit. Delete removes selected elements; Escape exits cleanup. At least one element must remain.</p>}
-    {!compact && <><label className="mm-model-cleanup-threshold">Small element area (% of source) <output>{threshold.toFixed(2)}%</output><input type="range" min="0.01" max="5" step="0.01" value={threshold} onChange={event => setThreshold(Number(event.target.value))} disabled={!enabled} /></label>
-      <IconChipButton disabled={!enabled} onClick={() => s.selectSmallComponents(threshold)}>Select Small Elements</IconChipButton>
-      <IconChipButton disabled={!enabled || !removed} onClick={s.restoreComponents}>Restore All Removed Elements</IconChipButton>
-      <p>Only disconnected solid elements can be removed. Holes and details attached to a larger solid are not separate elements.</p></>}
+    <div className="mm-model-cleanup-stats" role="status"><span><strong>{catalog.components.length - removed}</strong>Elements</span><span><strong>{selected}</strong>Selected</span><span><strong>{removed}</strong>Removed</span></div>
+    <label className="mm-model-cleanup-threshold">Small element area <output>{threshold.toFixed(2)}%</output><input type="range" min="0.01" max="5" step="0.01" value={threshold} onChange={event => setThreshold(Number(event.target.value))} disabled={!enabled} /></label>
+    <IconChipButton disabled={!enabled} onClick={() => s.selectSmallComponents(threshold)}>Select Small Elements</IconChipButton>
   </div>
 }

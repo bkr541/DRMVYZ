@@ -1223,7 +1223,7 @@
 .mm-model-stage-empty { position: absolute; inset: 0; display: flex; align-items: safe center; justify-content: center; overflow: auto; padding: 24px; }
 .mm-model-generation-guide { max-width: 420px; width: 100%; display: flex; flex-direction: column; align-items: stretch; gap: 12px; text-align: center; }
 .mm-model-generation-guide h3 { margin: 0; font-size: 1.25rem; color: var(--color-text-primary, #e4eaf0); }
-.mm-model-generation-guide p, .mm-model-cleanup-controls p, .mm-model-cleanup-toolbar p { margin: 0; color: var(--color-text-muted, #a1adb9); line-height: 1.5; }
+.mm-model-generation-guide p, .mm-model-cleanup-controls p { margin: 0; color: var(--color-text-muted, #a1adb9); line-height: 1.5; }
 .mm-model-generation-guide ol { text-align: left; padding-left: 24px; margin: 0; display: grid; gap: 8px; }
 .mm-model-generation-guide li[data-state='active'] { color: var(--az-accent, #4ac7db); }
 .mm-model-generation-guide li[data-state='done'] { color: #70bba6; }
@@ -1231,8 +1231,7 @@
 .mm-model-generation-guide .dv-icon-chip { justify-content: center; min-height: 32px; }
 .mm-model-generation-overlay { position: absolute; left: 12px; right: 12px; bottom: 12px; display: flex; justify-content: center; pointer-events: none; }
 .mm-model-generation-overlay .mm-model-generation-guide { pointer-events: auto; background: var(--az-bg, #10181d); border: 1px solid var(--az-border, #273b45); border-radius: 6px; padding: 12px; max-height: 45vh; overflow: auto; }
-.mm-model-cleanup-toolbar { position: absolute; top: 12px; left: 12px; right: 58px; width: fit-content; max-width: calc(100% - 70px); padding: 8px; background: var(--az-bg, #10181d); border: 1px solid var(--az-border, #273b45); border-radius: 6px; }
-.mm-model-cleanup-controls, .mm-model-cleanup-toolbar { display: flex; flex-direction: column; gap: 8px; }
+.mm-model-cleanup-controls { display: flex; flex-direction: column; gap: 8px; }
 .mm-model-cleanup-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .mm-model-cleanup-threshold { display: grid; grid-template-columns: 1fr auto; gap: 6px; }
 .mm-model-cleanup-threshold input { grid-column: 1 / -1; width: 100%; accent-color: var(--az-accent, #4ac7db); }
@@ -1440,3 +1439,7 @@
   color: rgba(196, 207, 211, 0.55);
   font: var(--type-field-value);
 }
+
+.mm-model-cleanup-actions > button { flex: 1; min-width: 0; }
+.mm-model-cleanup-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); text-align: center; color: var(--color-text-muted); font-size: 11px; }
+.mm-model-cleanup-stats strong { display: block; font-size: 16px; color: var(--color-text); font-variant-numeric: tabular-nums; }

@@ -1,6 +1,6 @@
 import { AppIcon } from '../../shared/icons/AppIcon'
 import { BubbleRevealSlider } from '../react/controls/BubbleRevealSlider'
-import { NoticeCard } from '../react/controls/NoticeCard'
+import { DrawerNotice } from '../shared/DrawerNotice'
 import { IconChipButton } from '../react/controls/IconChipButton'
 import { useRef, useState, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
@@ -123,12 +123,12 @@ export function MediaPreviewModal({
 
         <div className={`mpm-media-area${hasAlpha ? ' mpm-media-area--transparent' : ''}`}>
           {!src ? (
-            <NoticeCard className="mpm-error" tone="error" role="status" title="Media unavailable">{recovering ? 'Refreshing media link…' : 'Media file unavailable'}</NoticeCard>
+            <DrawerNotice className="mpm-error" tone="error" role="status" title="Media unavailable">{recovering ? 'Refreshing media link…' : 'Media file unavailable'}</DrawerNotice>
           ) : isVideo && videoError ? (
-            <NoticeCard className="mpm-error" tone="error" role="alert" title="Video unavailable">
+            <DrawerNotice className="mpm-error" tone="error" role="alert" title="Video unavailable">
               {recovering ? 'Refreshing media link…' : 'Video could not be loaded'}{' '}
               {!recovering && <IconChipButton onClick={() => { void recoverAsset('original') }}>Retry</IconChipButton>}
-            </NoticeCard>
+            </DrawerNotice>
           ) : isVideo ? (
             <video
               ref={videoRef}
@@ -152,10 +152,10 @@ export function MediaPreviewModal({
               playsInline
             />
           ) : imageError ? (
-            <NoticeCard className="mpm-error" tone="error" role="alert" title="Image unavailable">
+            <DrawerNotice className="mpm-error" tone="error" role="alert" title="Image unavailable">
               {recovering ? 'Refreshing media link…' : 'Image could not be loaded'}{' '}
               {!recovering && <IconChipButton onClick={() => { void recoverAsset('original') }}>Retry</IconChipButton>}
-            </NoticeCard>
+            </DrawerNotice>
           ) : (
             <img
               src={src}

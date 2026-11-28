@@ -1,6 +1,6 @@
 import { ModelAssetError } from '../domain/modelAssetTypes'
 export type ModelQuality = 'draft' | 'normal' | 'high'
-export const MODEL_INPUT_LIMITS = { bytes: 16 * 1024 * 1024, svgBytes: 1024 * 1024, edge: 4096, pixels: 4_194_304, paths: 256, commands: 12_000, points: 6_000 } as const
+export const MODEL_INPUT_LIMITS = { bytes: 16 * 1024 * 1024, svgBytes: 1024 * 1024, edge: 4096, pixels: 4_194_304, paths: 256, commands: 12_000, points: 6_000, sampledPoints: 48_000 } as const
 export const MODEL_QUALITY = {
   draft: { curveSegments: 4, bevelSegments: 1, triangles: 20_000, traceEdge: 256 },
   normal: { curveSegments: 12, bevelSegments: 3, triangles: 80_000, traceEdge: 768 },

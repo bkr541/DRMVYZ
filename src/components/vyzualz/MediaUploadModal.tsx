@@ -4,7 +4,7 @@ import { AppIcon } from '../shared/icons/AppIcon'
 import { IconMorphCheckbox } from './react/controls/IconMorphToggle'
 import { DreamVizTextInput } from './react/controls/DreamVizTextInput'
 import { UnderlineDropdown } from './react/controls/UnderlineDropdown'
-import { NoticeCard } from './react/controls/NoticeCard'
+import { DrawerNotice } from './shared/DrawerNotice'
 import { IconChipButton } from './react/controls/IconChipButton'
 import { TagPill } from './react/controls/TagPill'
 import { useState, useRef, useEffect, useCallback, useId } from 'react'
@@ -1566,21 +1566,21 @@ export function MediaUploadModal({
         </div>{/* /mum-body */}
 
         {isEdit && editMutation?.status === 'conflict' && (
-          <NoticeCard className="mum-conflict-panel" tone="warning" role="alert" title="Newer media changes are available.">
+          <DrawerNotice className="mum-conflict-panel" tone="warning" role="alert" title="Newer media changes are available.">
             <p>{editMutation.message} Your attempted values are still in this form.</p>
             <div className="mum-conflict-actions">
               <IconChipButton disabled={saving} onClick={handleUseServerVersion}>Use Server Version</IconChipButton>
               <IconChipButton tone="primary" disabled={saving} onClick={handleReapplyEdit}>{saving ? 'Reapplying…' : 'Reapply My Changes'}</IconChipButton>
             </div>
-          </NoticeCard>
+          </DrawerNotice>
         )}
         {isEdit && editMutation?.status === 'failed' && (
-          <NoticeCard className="mum-conflict-panel" tone="error" role="alert" title="Media changes were not saved.">
+          <DrawerNotice className="mum-conflict-panel" tone="error" role="alert" title="Media changes were not saved.">
             <p>{editMutation.message?.trim() || 'Your media changes could not be saved. Retry to save the values still shown in this form.'}</p>
             <div className="mum-conflict-actions">
               <IconChipButton tone="primary" disabled={saving} onClick={handleRetryEdit}>{saving ? 'Retrying…' : 'Retry Save'}</IconChipButton>
             </div>
-          </NoticeCard>
+          </DrawerNotice>
         )}
 
         {uploading && progress.total > 0 && (

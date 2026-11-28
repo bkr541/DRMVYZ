@@ -1,11 +1,11 @@
 import { Box3, BufferGeometry, ExtrudeGeometry, Group, Mesh, Vector3 } from 'three'
 import { parseModelGeometryStats, parseModelRecipe, type ModelGeneratorRecipe, type ModelGeometryStats } from '../domain/modelAssetTypes'
 import { createModelMaterials } from '../materials/modelMaterials'
-import { createContourPreview, extractModelContours } from './extractContours'
+import { createContourPreview, extractModelContours, extractModelContoursAsync, type ModelContours } from './extractContours'
 import { catalogModelComponents, resolveComponentCleanup, type ModelComponentCatalog } from './modelComponentCleanup'
 import { bakeTwoSided } from './twoSidedModel'
 import { checkAbort, MODEL_QUALITY, ModelGenerationError, type ModelDiagnostic, type ModelQuality } from './modelQualityBudget'
-export interface GeneratedModel { components: ModelComponentCatalog; group: Group; contourPreview: Blob; recipe: ModelGeneratorRecipe; stats: ModelGeometryStats; materialCount: number; dimensions: [number, number, number]; warnings: ModelDiagnostic[]; dispose(): void }
+export interface GeneratedModel { effectiveGeometry: ModelGeneratorRecipe['geometry']; components: ModelComponentCatalog; group: Group; contourPreview: Blob; recipe: ModelGeneratorRecipe; stats: ModelGeometryStats; materialCount: number; dimensions: [number, number, number]; warnings: ModelDiagnostic[]; dispose(): void }
 /** Releases everything the group owns: geometry, materials, and the textures those materials hold (an imported GLB carries multi-megapixel images). */
 export function disposeModelGroup(group: Group): void {
   const geometries = new Set<BufferGeometry>(), materials = new Set<import('three').Material>()
@@ -23,14 +23,32 @@ export function disposeModelGroup(group: Group): void {
   })
   geometries.forEach(g => g.dispose()); materials.forEach(m => m.dispose()); group.clear()
 }
-export function createExtrudedModel(svg: string, input: ModelGeneratorRecipe, quality: ModelQuality = input.quality ?? 'normal', signal?: AbortSignal): GeneratedModel {
+export function createExtrudedModel(svg: string, input: ModelGeneratorRecipe, quality: ModelQuality = input.quality ?? 'normal', signal?: AbortSignal, prepared?: { contours: ModelContours; segments: number }): GeneratedModel {
   checkAbort(signal)
   const recipe = parseModelRecipe(input), budget = MODEL_QUALITY[quality], warnings: ModelDiagnostic[] = []
   if (!budget) throw new ModelGenerationError('quality', 'Unknown model quality.')
   recipe.quality = quality
-  recipe.geometry.curveSegments = Math.min(recipe.geometry.curveSegments, budget.curveSegments)
-  recipe.geometry.bevelSegments = Math.min(recipe.geometry.bevelSegments, budget.bevelSegments)
-  const original = extractModelContours(svg, recipe.geometry.curveSegments, recipe.trace.smoothing)
+  const geometry = { ...recipe.geometry, curveSegments: Math.min(recipe.geometry.curveSegments, budget.curveSegments), bevelSegments: Math.min(recipe.geometry.bevelSegments, budget.bevelSegments) }
+  // Try fewer curve samples before rejecting a usable source. Never change the requested recipe.
+  let original = prepared?.contours
+  if (prepared && prepared.segments !== geometry.curveSegments) {
+    warnings.push({ code: 'curve_optimized', message: 'Curve sampling was optimized to fit the geometry budget.' })
+    geometry.curveSegments = prepared.segments
+  }
+  if (!original) for (const segments of [...new Set([geometry.curveSegments, Math.max(1, Math.floor(geometry.curveSegments / 2)), 1])]) {
+    checkAbort(signal)
+    try {
+      const candidate = extractModelContours(svg, segments, recipe.trace.smoothing)
+      if (candidate.pointCount * 6 * (recipe.twoSided ? 2 : 1) > budget.triangles) throw new ModelGenerationError('geometry_budget', 'Contour exceeds the triangle budget.')
+      original = candidate
+      if (segments !== geometry.curveSegments) warnings.push({ code: 'curve_optimized', message: 'Curve sampling was optimized to fit the geometry budget.' })
+      geometry.curveSegments = segments
+      break
+    } catch (error) {
+      if (!(error instanceof ModelGenerationError) || error.code !== 'geometry_budget' || segments === 1) throw error
+    }
+  }
+  if (!original) throw new ModelGenerationError('geometry_budget', 'Model exceeds the geometry budget.')
   const components = catalogModelComponents(original)
   const { excluded, changed } = resolveComponentCleanup(components, recipe.cleanup)
   if (changed) warnings.push({ code: 'cleanup_reconciled', message: 'Source contours changed. Only exactly matching removed elements remain excluded; review restored elements before saving.' })
@@ -39,7 +57,6 @@ export function createExtrudedModel(svg: string, input: ModelGeneratorRecipe, qu
   const retained = original.shapes.map((shape, index) => ({ shape, component: components.components[index] })).filter(({ component }) => !excluded.has(component.id))
   // Retain conservative clearance/point estimates from the original outline; the actual stats and preview use retained geometry only.
   const contours = { ...original, shapes: retained.map(part => part.shape), pointCount: retained.reduce((n, { shape }) => n + shape.getPoints(1).length + shape.holes.reduce((sum, hole) => sum + hole.getPoints(1).length, 0), 0) }
-  const geometry = recipe.geometry
   if (geometry.bevelEnabled) {
     // XY clearance protects holes; Z thickness is independently bounded by depth.
     const safeWidth = Math.max(0, Math.min(contours.minimumDetail * 0.2, geometry.depth * 0.25))
@@ -51,12 +68,12 @@ export function createExtrudedModel(svg: string, input: ModelGeneratorRecipe, qu
     }
     const requestedSegments = geometry.bevelSegments
     // A simpler bevel is preferable to silently removing it entirely.
-    while (geometry.bevelSegments > 1 && contours.pointCount * (6 + 4 * geometry.bevelSegments) > budget.triangles) geometry.bevelSegments--
+    while (geometry.bevelSegments > 1 && contours.pointCount * (6 + 4 * geometry.bevelSegments) * (recipe.twoSided ? 2 : 1) > budget.triangles) geometry.bevelSegments--
     if (geometry.bevelSegments < requestedSegments) warnings.push({ code: 'bevel_segments_reduced', message: 'Bevel segments were reduced to fit the selected quality budget.' })
     if (!geometry.bevelSegments || geometry.bevelSize < 1e-7 || !geometry.bevelThickness) {
       geometry.bevelEnabled = false
       warnings.push({ code: 'bevel_unavailable', message: 'Bevel could not be applied safely. Increase bevel width/thickness or simplify the source to preserve its cutouts.' })
-    } else if (contours.pointCount * (6 + 4 * geometry.bevelSegments) > budget.triangles) {
+    } else if (contours.pointCount * (6 + 4 * geometry.bevelSegments) * (recipe.twoSided ? 2 : 1) > budget.triangles) {
       geometry.bevelEnabled = false
       warnings.push({ code: 'sharp_edge_fallback', message: 'Bevel could not fit the triangle budget. Select a higher quality or simplify the source.' })
     }
@@ -67,10 +84,10 @@ export function createExtrudedModel(svg: string, input: ModelGeneratorRecipe, qu
   try {
     for (const { shape, component } of retained) {
       checkAbort(signal)
-      const geometry = new ExtrudeGeometry(shape, { depth: recipe.geometry.depth, bevelEnabled: recipe.geometry.bevelEnabled,
-        bevelThickness: recipe.geometry.bevelThickness, bevelSize: recipe.geometry.bevelSize, bevelSegments: recipe.geometry.bevelSegments,
+      const meshGeometry = new ExtrudeGeometry(shape, { depth: geometry.depth, bevelEnabled: geometry.bevelEnabled,
+        bevelThickness: geometry.bevelThickness, bevelSize: geometry.bevelSize, bevelSegments: geometry.bevelSegments,
         curveSegments: 1, steps: 1 })
-      const mesh = new Mesh(geometry, materials); mesh.name = `ModelPart${group.children.length + 1}`; mesh.userData.modelComponentId = component.id; group.add(mesh)
+      const mesh = new Mesh(meshGeometry, materials); mesh.name = `ModelPart${group.children.length + 1}`; mesh.userData.modelComponentId = component.id; group.add(mesh)
     }
     const bounds = new Box3().setFromObject(group), center = bounds.getCenter(new Vector3())
     const offset = new Vector3(-center.x, recipe.transform.pivot === 'bottom' ? -bounds.min.y : -center.y, -center.z)
@@ -84,9 +101,26 @@ export function createExtrudedModel(svg: string, input: ModelGeneratorRecipe, qu
     group.traverse(object => { if (object instanceof Mesh) { vertices += object.geometry.attributes.position.count; triangles += (object.geometry.index?.count ?? object.geometry.attributes.position.count) / 3 } })
     if (triangles > budget.triangles) throw new ModelGenerationError('geometry_budget', 'Generated model exceeds the selected triangle budget.')
     const stats = parseModelGeometryStats({ triangles, vertices, meshes: group.children.length, bounds: { min: finalBounds.min.toArray(), max: finalBounds.max.toArray() } })
-    return { group, components, contourPreview: createContourPreview(contours), recipe, stats, materialCount: materials.length, dimensions: finalBounds.getSize(new Vector3()).toArray(), warnings, dispose: () => disposeModelGroup(group) }
+    return { group, components, effectiveGeometry: geometry, contourPreview: createContourPreview(contours), recipe, stats, materialCount: materials.length, dimensions: finalBounds.getSize(new Vector3()).toArray(), warnings, dispose: () => disposeModelGroup(group) }
   } catch (error) {
     const attached = group.children.length > 0
     disposeModelGroup(group); if (!attached) materials.forEach(m => m.dispose()); throw error
   }
+}
+
+/** The editor uses asynchronous numeric validation; synchronous callers retain the same geometry contract. */
+export async function createExtrudedModelAsync(svg: string, recipe: ModelGeneratorRecipe, quality: ModelQuality = recipe.quality ?? 'normal', signal?: AbortSignal): Promise<GeneratedModel> {
+  const budget = MODEL_QUALITY[quality]
+  const requested = Math.min(recipe.geometry.curveSegments, budget.curveSegments)
+  for (const segments of [...new Set([requested, Math.max(1, Math.floor(requested / 2)), 1])]) {
+    checkAbort(signal)
+    try {
+      const contours = await extractModelContoursAsync(svg, segments, recipe.trace.smoothing, signal)
+      if (contours.pointCount * 6 * (recipe.twoSided ? 2 : 1) > budget.triangles) throw new ModelGenerationError('geometry_budget', 'Contour exceeds the triangle budget.')
+      return createExtrudedModel(svg, recipe, quality, signal, { contours, segments })
+    } catch (error) {
+      if (!(error instanceof ModelGenerationError) || error.code !== 'geometry_budget' || segments === 1) throw error
+    }
+  }
+  throw new ModelGenerationError('geometry_budget', 'Model exceeds the geometry budget.')
 }

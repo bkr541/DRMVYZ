@@ -13,11 +13,20 @@ const hostileTags = new Set(['script', 'foreignobject', 'image', 'use', 'a', 'st
 
 /** Strict filled-vector subset. Unsupported visual features fail instead of silently changing the silhouette. */
 export function sanitizeModelSvg(source: string): string {
-  if (new TextEncoder().encode(source).length > MODEL_INPUT_LIMITS.svgBytes) unsupported('SVG exceeds the 1 MiB input budget.')
+  if (source.length > MODEL_INPUT_LIMITS.bytes) fail('SVG exceeds the absolute input budget.')
   if (/<!DOCTYPE|<!ENTITY|<\?xml-stylesheet|javascript:|data:/i.test(source) || /url\s*\(\s*['"]?\s*(?!#)/i.test(source)) fail('SVG contains unsafe resources or declarations.')
   const doc = new DOMParser().parseFromString(source, 'image/svg+xml')
   if (doc.querySelector('parsererror') || doc.documentElement.localName !== 'svg' || doc.documentElement.namespaceURI !== NS) fail('Invalid SVG document.')
   const elements = [doc.documentElement, ...doc.documentElement.querySelectorAll('*')]
+  // Check every element before any harmless unsupported feature can trigger raster fallback.
+  for (const node of elements) {
+    if (node.namespaceURI !== NS || hostileTags.has(node.localName.toLowerCase())) fail(`Unsupported SVG element: ${node.localName}.`)
+    for (const attr of [...node.attributes]) {
+      if (/^on/i.test(attr.name) || /href|src/i.test(attr.name) || attr.namespaceURI && attr.name !== 'xmlns') fail('SVG event handlers and references are forbidden.')
+      if (/\b(?:NaN|Infinity)\b/i.test(attr.value)) fail('Non-finite SVG coordinate.')
+    }
+  }
+  if (new TextEncoder().encode(source).length > MODEL_INPUT_LIMITS.svgBytes) unsupported('SVG exceeds the 1 MiB input budget.')
   if (elements.length > MODEL_INPUT_LIMITS.paths * 4) unsupported('SVG has too many elements.')
   let commands = 0
   for (const node of elements) {
@@ -54,7 +63,7 @@ export function sanitizeModelSvg(source: string): string {
       }
     }
   }
-  if (commands > MODEL_INPUT_LIMITS.commands) unsupported('SVG path complexity exceeds the model budget.')
+  if (commands > MODEL_INPUT_LIMITS.commands) throw new ModelGenerationError('geometry_budget', 'SVG path complexity exceeds the model budget.')
   const viewBox = doc.documentElement.getAttribute('viewBox')
   if (viewBox) {
     const values = viewBox.trim().split(/[\s,]+/).map(Number)

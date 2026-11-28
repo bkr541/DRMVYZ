@@ -5,17 +5,12 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import { registerModelViewport } from '../../../features/models/state/modelViewportBridge'
 import { selectBuiltinModelEdited, selectBuiltinModelNeedsExport, selectModelCanCleanup, useModelEditorStore } from '../../../features/models/state/modelEditorStore'
 import { IconChipButton } from '../react/controls/IconChipButton'
-import { NoticeCard } from '../react/controls/NoticeCard'
-import { ModelCleanupControls } from './ModelCleanupControls'
+import { DrawerNotice } from '../shared/DrawerNotice'
 import { ModelGenerationGuide } from './ModelGenerationGuide'
 import { AppIcon } from '../../shared/icons/AppIcon'
 export function ModelEditorStage() {
-  const group = useModelEditorStore(s => s.model?.group), status = useModelEditorStore(s => s.status)
+  const hasModel = useModelEditorStore(s => !!s.model?.group), status = useModelEditorStore(s => s.status)
   const sessionKey = useModelEditorStore(s => s.sessionKey)
-  /** The reason the model could not be made or loaded, so the stage says why instead of a generic message. */
-  const storeError = useModelEditorStore(s => s.error)
-  const pending = useModelEditorStore(s => s.generationPending)
-  const hasComponents = useModelEditorStore(s => !!s.artifact?.components)
   const exportError = useModelEditorStore(s => s.builtinExportError)
   const exportStatus = useModelEditorStore(s => {
     if (s.builtinExporting) return 'Preparing GLB…'
@@ -40,7 +35,9 @@ export function ModelEditorStage() {
   const root = useRef<HTMLDivElement>(null)
   const [error, setError] = useState<string | null>(null), [epoch, setEpoch] = useState(0)
   useEffect(() => {
-    if (!group || !root.current) return
+    const initial = useModelEditorStore.getState().model?.group
+    if (!hasModel || !initial || !root.current) return
+    let group = initial
     const host = root.current, scene = new Scene(), camera = new PerspectiveCamera(38, 1, 0.01, 10000)
     let renderer: WebGLRenderer
     try { renderer = new WebGLRenderer({ antialias: true, powerPreference: 'low-power', preserveDrawingBuffer: true }) }
@@ -167,6 +164,13 @@ export function ModelEditorStage() {
     canvas.addEventListener('pointercancel', clearPointer); canvas.addEventListener('pointerleave', clearPointer); canvas.addEventListener('keydown', keyDown)
     refreshHighlights()
     const unsubscribe = useModelEditorStore.subscribe((next, previous) => {
+      if (next.sessionKey !== sessionKey) return
+      if (next.model?.group && next.model.group !== group) {
+        scene.remove(group); group = next.model.group
+        group.traverse(object => { if (object instanceof Mesh) { object.castShadow = true; object.receiveShadow = true } })
+        scene.add(group); updateBounds(); unregister(); unregister = registerModelViewport({ group, fit, resetCamera: fit, capture }); hovered = null; refreshHighlights()
+      }
+      if (next.recipe?.transform !== previous.recipe?.transform && next.model?.group === group) { updateBounds(); refreshHighlights() }
       if (next.cleanupActive !== previous.cleanupActive || next.selectedComponents !== previous.selectedComponents || next.generationPending !== previous.generationPending || next.model !== previous.model || next.status !== previous.status) { hovered = null; refreshHighlights() }
       if (next.recipe?.preview !== previous.recipe?.preview) applyPreview()
       if (next.model?.group !== group || next.builtinEdit?.values === previous.builtinEdit?.values) return
@@ -175,7 +179,7 @@ export function ModelEditorStage() {
     })
     const stopTurntable = () => { const state = useModelEditorStore.getState(); if (state.recipe?.preview.turntable) state.setRecipe({ preview: { ...state.recipe.preview, turntable: false } }) }
     controls.addEventListener('start', stopTurntable)
-    const unregister = registerModelViewport({ group, fit, resetCamera: fit, capture: async (edge = 256, frameModel = true) => {
+    const capture = async (edge = 256, frameModel = true) => {
       if (lost || disposed || renderer.getContext().isContextLost() || !group.children.length) throw new Error('Restore the 3D viewport before capturing a model preview.')
       const position = camera.position.clone(), target = controls.target.clone(), automatic = controls.autoRotate, helpersVisible = resources.visible
       controls.autoRotate = false
@@ -197,7 +201,8 @@ export function ModelEditorStage() {
         if (variation < 4) throw new Error('The model preview is blank. Adjust lighting before saving.')
         return await new Promise<Blob>((resolve, reject) => thumbnail.toBlob(blob => blob?.size ? resolve(blob) : reject(new Error('Could not encode a model preview PNG.')), 'image/png'))
       } finally { highlights.visible = true; resources.visible = helpersVisible; camera.position.copy(position); controls.target.copy(target); controls.autoRotate = automatic; controls.update(); thumbnail.width = thumbnail.height = 0; invalidate() }
-    } })
+    }
+    let unregister = registerModelViewport({ group, fit, resetCamera: fit, capture })
     controls.addEventListener('change', invalidate); document.addEventListener('visibilitychange', visibility)
     canvas.addEventListener('webglcontextlost', onLost); canvas.addEventListener('webglcontextrestored', onRestored)
     observer.observe(host); intersection?.observe(host)
@@ -215,18 +220,17 @@ export function ModelEditorStage() {
       resources.traverse(object => { if (object instanceof Mesh || object instanceof LineSegments) { object.geometry.dispose(); (Array.isArray(object.material) ? object.material : [object.material]).forEach(material => material.dispose()) } })
       environment?.dispose(); pmrem.dispose(); key.shadow.map?.dispose(); renderer.dispose(); renderer.forceContextLoss(); canvas.remove()
     }
-  }, [group, epoch, sessionKey])
+  }, [hasModel, epoch, sessionKey])
   return <section className="mm-model-stage" aria-label="3D model editor">
     <div className="mm-model-canvas" ref={root} />
-    {group && <IconChipButton className="mm-model-guides-toggle" tone={showGuides ? 'primary' : 'default'} aria-label="Floor grid and axis lines" aria-pressed={showGuides}
+    {hasModel && <IconChipButton className="mm-model-guides-toggle" tone={showGuides ? 'primary' : 'default'} aria-label="Floor grid and axis lines" aria-pressed={showGuides}
       title={showGuides ? 'Hide floor grid and lines' : 'Show floor grid and lines'} icon={<AppIcon kind="grid" size={14} />} onClick={toggleGuides} />}
-    {group && hasComponents && <ModelCleanupControls compact />}
-    {!group && <div className="mm-model-stage-empty"><ModelGenerationGuide /></div>}
-    {group && (pending || status === 'generating' || status === 'preparing' || storeError) && <div className="mm-model-generation-overlay"><ModelGenerationGuide overlay /></div>}
+    {!hasModel && <div className="mm-model-stage-empty"><ModelGenerationGuide /></div>}
+    {hasModel && status === 'generating' && <div className="mm-model-generation-overlay"><ModelGenerationGuide overlay /></div>}
     <div className="sr-only" role="status">{exportStatus}</div>
-    {(error || exportError) && <div className="mm-model-stage-notice">
-      {error && <NoticeCard tone="error" role="alert" title="3D viewport unavailable">{error} <IconChipButton onClick={() => setEpoch(value => value + 1)}>Retry viewport</IconChipButton></NoticeCard>}
-      {exportError && <NoticeCard tone="error" role="alert" title="GLB download failed">{exportError}</NoticeCard>}
-    </div>}
+    {(error || exportError) && <>
+      {error && <DrawerNotice tone="error" role="alert" title="3D viewport unavailable">{error} <IconChipButton onClick={() => setEpoch(value => value + 1)}>Retry viewport</IconChipButton></DrawerNotice>}
+      {exportError && <DrawerNotice tone="error" role="alert" title="GLB download failed">{exportError}</DrawerNotice>}
+    </>}
   </section>
 }

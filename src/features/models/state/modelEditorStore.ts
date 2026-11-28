@@ -1,6 +1,6 @@
 import type { BuiltinModel } from '../domain/builtinModels'
 import { create } from 'zustand'
-import type { Group, Texture } from 'three'
+import { Box3, type Group, type Texture } from 'three'
 import type { UploadedMedia } from '../../../stores/mediaStore'
 import { useMediaStore } from '../../../stores/mediaStore'
 import { modelAssetRepository, parseModelOrganization, type ModelMetadata } from '../data/modelAssetRepository'
@@ -67,7 +67,28 @@ const baseline = () => ({ builtinModel: null, builtinEdit: null, builtinExportin
   saveTarget: null, publishedVersion: null, pendingOperationId: null })
 function message(error: unknown) { return error instanceof Error ? error.message : 'The model operation failed.' }
 const metadata = (state: ModelMetadata): ModelMetadata => ({ name: state.name, description: state.description, favorite: state.favorite, tags: [...state.tags], collectionIds: [...state.collectionIds] })
-const geometryKey = (recipe: ModelGeneratorRecipe) => JSON.stringify({ ...recipe, preview: undefined })
+const geometryKey = (recipe: ModelGeneratorRecipe) => JSON.stringify({ ...recipe, preview: undefined, transform: { pivot: recipe.transform.pivot } })
+const transformKey = (recipe: ModelGeneratorRecipe) => JSON.stringify(recipe.transform)
+function applyLiveTransform(model: PreviewModel, recipe: ModelGeneratorRecipe) {
+  const { group } = model, { position, rotation, scale } = recipe.transform
+  group.position.fromArray(position); group.rotation.set(...rotation, 'XYZ'); group.scale.fromArray(scale)
+  group.updateMatrixWorld(true)
+  const bounds = new Box3().setFromObject(group)
+  if (!bounds.isEmpty()) {
+    model.stats = { ...model.stats, bounds: { min: bounds.min.toArray(), max: bounds.max.toArray() } }
+  }
+}
+const exportedTransforms = new WeakMap<ModelArtifact, { key: string; blob: Blob }>()
+async function currentArtifactGlb(artifact: ModelArtifact, recipe: ModelGeneratorRecipe, signal?: AbortSignal): Promise<Blob> {
+  if (transformKey(artifact.recipe) === transformKey(recipe) && artifact.glb.size) return artifact.glb
+  const key = transformKey(recipe), cached = exportedTransforms.get(artifact)
+  if (cached?.key === key) return cached.blob
+  const { exportModelGlb } = await import('../export/exportGlb')
+  const glb = await exportModelGlb(artifact.group, signal)
+  checkAbort(signal)
+  exportedTransforms.set(artifact, { key, blob: glb })
+  return glb
+}
 const traceKey = (recipe: ModelGeneratorRecipe) => JSON.stringify([recipe.foreground, recipe.trace, recipe.quality])
 const busy = (state: ModelEditorState) => state.status === 'saving' || state.status === 'deleting' || state.builtinExporting || state.builtinTextureLoading
 const sameBuiltinEdits = (a: BuiltinModelEditValues, b: BuiltinModelEditValues | null) => a === b || JSON.stringify(a) === JSON.stringify(b)
@@ -355,7 +376,7 @@ export const useModelEditorStore = create<ModelEditorState>((set, get) => {
           set({ source: sourceResult.value, preview: sourceResult.value })
           if (traceResult.status === 'rejected') { set({ warnings: ['The stored trace is unavailable. Showing the saved GLB; Regenerate can rebuild the trace from the source snapshot.'] }); return }
           const { createModelArtifactFromTrace } = await import('../generator/createModelArtifact')
-          const artifact = await createModelArtifactFromTrace(sourceResult.value, await traceResult.value.text(), version.generatorRecipe, signal)
+          const artifact = await createModelArtifactFromTrace(sourceResult.value, await traceResult.value.text(), version.generatorRecipe, signal, undefined, true)
           if (!current(token)) { artifact.dispose(); return }
           loaded.dispose(); loaded = null
           set({ artifact, model: artifact, preview: artifact.contourPreview ?? sourceResult.value, preparedTraceKey: traceKey(artifact.recipe), recipe: artifact.recipe, savedRecipe: artifact.recipe, warnings: artifact.warnings.map(w => w.message), status: 'ready' }); set({ dirty: dirty() })
@@ -383,11 +404,13 @@ export const useModelEditorStore = create<ModelEditorState>((set, get) => {
         const changedTrace = traceKey(next) !== traceKey(recipe)
         // Keep the last good preview and model visible while the latest edit is processed.
         const previewOnly = Object.keys(patch).every(key => key === 'preview')
-        set({ recipe: next, dirty: true, error: null, generationErrorCode: null, saveFailure: false })
+        const transformOnly = !!state.artifact && !!state.model && Object.keys(patch).every(key => key === 'transform' || key === 'preview') && recipe.transform.pivot === next.transform.pivot
+        if (transformOnly) applyLiveTransform(state.model!, next)
+        set({ recipe: next, dirty: true, ...(!previewOnly && !transformOnly ? { error: null, generationErrorCode: null, saveFailure: false } : {}) })
         set({ dirty: dirty() })
-        if (previewOnly) return
+        if (previewOnly || transformOnly) return
         stopTimer(); controller?.abort(); revision++
-        set({ generationPending: true, selectedComponents: [], cleanupNotice: null, generationStage: null, ...(changedTrace || next.geometry.curveSegments !== recipe.geometry.curveSegments ? { cleanupUndo: [], cleanupRedo: [] } : {}), ...(changedTrace && !state.model ? { confirmed: false } : {}) })
+        set({ generationPending: true, cleanupNotice: null, generationStage: null, ...(changedTrace || next.geometry.curveSegments !== recipe.geometry.curveSegments ? { selectedComponents: [], cleanupUndo: [], cleanupRedo: [] } : {}), ...(changedTrace && !state.model ? { confirmed: false } : {}) })
         generationTimer = setTimeout(() => {
           generationTimer = null
           void (async () => {
@@ -425,8 +448,8 @@ export const useModelEditorStore = create<ModelEditorState>((set, get) => {
         if (!current(token)) return false
         const latest = get()
         // Preparation can switch alpha to luminance. Preserve preview-only edits made in flight.
-        const nextRecipe = { ...result.recipe, preview: latest.recipe!.preview }
-        set({ sourceInfo, preview: latest.model && (!result.requiresForegroundConfirmation || latest.confirmed) ? latest.preview : result.foregroundPreview ?? result.sourceSnapshot,
+        const nextRecipe = { ...result.recipe, preview: latest.recipe!.preview, transform: latest.recipe!.transform }
+        set({ sourceInfo, preview: result.foregroundPreview ?? result.sourceSnapshot,
           preparedTraceKey: traceKey(nextRecipe), recipe: nextRecipe, needsConfirmation: result.requiresForegroundConfirmation,
           warnings: result.warnings.filter(w => !latest.confirmed || w.code !== 'foreground_confirmation_required').map(w => w.message), status: latest.model ? 'ready' : 'awaiting-generation' })
         return true
@@ -460,19 +483,21 @@ export const useModelEditorStore = create<ModelEditorState>((set, get) => {
       const { source, recipe, confirmed, needsConfirmation, artifact: previous } = state
       if (!source || !recipe || !state.preview || (needsConfirmation && !confirmed)) { set({ generationPending: false }); return }
       stopTimer(); const { signal, token } = start(); const requestedKey = geometryKey(recipe)
-      set({ status: 'generating', generationPending: true, error: null, generationErrorCode: null, generationStage: null, selectedComponents: [] })
+      set({ status: 'generating', generationPending: true, error: null, generationErrorCode: null, generationStage: null })
       try {
         const engine = await import('../generator/createModelArtifact')
         const onProgress = (generationStage: import('../generator/createModelArtifact').ModelGenerationStage) => { if (current(token)) set({ generationStage }) }
         const artifact = previous && traceKey(previous.recipe) === traceKey(recipe)
-          ? await engine.createModelArtifactFromTrace(previous.sourceSnapshot, previous.traceSvg, recipe, signal, onProgress)
-          : await engine.createModelArtifact({ source, recipe, foregroundConfirmed: confirmed, signal, onProgress })
+          ? await engine.createModelArtifactFromTrace(previous.sourceSnapshot, previous.traceSvg, recipe, signal, onProgress, true)
+          : await engine.createModelArtifact({ source, recipe, foregroundConfirmed: confirmed, signal, onProgress, deferExport: true })
         if (!current(token) || !get().recipe || geometryKey(get().recipe!) !== requestedKey) { artifact.dispose(); return }
-        const nextRecipe = { ...artifact.recipe, preview: get().recipe!.preview }; artifact.recipe = nextRecipe
+        const nextRecipe = { ...artifact.recipe, preview: get().recipe!.preview, transform: get().recipe!.transform };
+        if (transformKey(artifact.recipe) !== transformKey(nextRecipe)) applyLiveTransform(artifact, nextRecipe)
+        const selectedComponents = get().selectedComponents.filter(id => artifact.components.components.some(c => c.id === id) && !artifact.recipe.cleanup?.excludedComponentIds.includes(id))
         disposeCurrent()
         // Swap the geometry and its exact traced front-cap preview in one state update.
         set({ artifact, model: artifact, preview: artifact.contourPreview ?? artifact.foregroundPreview ?? get().preview,
-          preparedTraceKey: traceKey(nextRecipe), recipe: nextRecipe, warnings: artifact.warnings.filter(w => !confirmed || w.code !== 'foreground_confirmation_required').map(w => w.message), generationPending: false, generationStage: null, generationErrorCode: null, status: 'ready', error: null, ...(artifact.warnings.some(w => w.code === 'cleanup_reconciled') ? { cleanupUndo: [], cleanupRedo: [] } : {}) })
+          preparedTraceKey: traceKey(nextRecipe), recipe: nextRecipe, selectedComponents, warnings: artifact.warnings.filter(w => !confirmed || w.code !== 'foreground_confirmation_required').map(w => w.message), generationPending: false, generationStage: null, generationErrorCode: null, status: 'ready', error: null, ...(artifact.warnings.some(w => w.code === 'cleanup_reconciled') ? { cleanupUndo: [], cleanupRedo: [] } : {}) })
         set({ dirty: dirty() })
       } catch (error) { if (current(token)) set({ status: 'error', generationPending: false, generationStage: null, generationErrorCode: error instanceof ModelGenerationError ? error.code : null, error: message(error) }) }
     },
@@ -514,13 +539,14 @@ export const useModelEditorStore = create<ModelEditorState>((set, get) => {
         if (!published && !metadataOnly) {
           const artifact = state.artifact
           if (!artifact || !state.source) throw new Error('The editable source or generated GLB is unavailable. Regenerate before saving.')
+          const glb = await currentArtifactGlb(artifact, recipe, signal)
           const thumbnail = await captureModelPreview(state.model!.group, signal)
           checkAbort(signal)
           const sourceInfo = await artifacts.inspectModelSource(artifact.sourceSnapshot)
           const operationId = crypto.randomUUID(); set({ pendingOperationId: operationId, saveTarget: target, progress: 'Uploading versioned artifacts…' })
           published = await modelAssetRepository.saveVersion({ modelAssetId: target.id, operationId, expectedVersion: target.currentVersion,
-            generatorRecipe: recipe, geometryStats: { ...artifact.stats, glbBytes: artifact.glb.size, materialCount: artifact.materialCount, source: sourceInfo },
-            files: { ...artifact.files, thumbnail: { data: thumbnail, contentType: 'image/png' } }, signal })
+            generatorRecipe: recipe, geometryStats: { ...artifact.stats, glbBytes: glb.size, materialCount: artifact.materialCount, source: sourceInfo },
+            files: { ...artifact.files, glb: { data: glb, contentType: 'model/gltf-binary' }, thumbnail: { data: thumbnail, contentType: 'image/png' } }, signal })
           if (!current(token)) return { ok: false }
           target = { ...target, currentVersion: published.version, status: 'ready' }
           set(state => ({ publishedVersion: published, saveTarget: target, pendingOperationId: null, libraryRevision: state.libraryRevision + 1 }))
@@ -574,7 +600,7 @@ export const useModelEditorStore = create<ModelEditorState>((set, get) => {
     async download(kind) {
       const state = get(), { builtinEdit, model } = state
       if (state.builtinTextureLoading) return
-      if (state.recipe && (state.generationPending || (state.artifact && geometryKey(state.artifact.recipe) !== geometryKey(state.recipe)) || (!state.artifact && state.savedRecipe && geometryKey(state.savedRecipe) !== geometryKey(state.recipe)))) {
+      if (state.recipe && (state.generationPending || (state.artifact && geometryKey(state.artifact.recipe) !== geometryKey(state.recipe)) || (!state.artifact && state.savedRecipe && (geometryKey(state.savedRecipe) !== geometryKey(state.recipe) || transformKey(state.savedRecipe) !== transformKey(state.recipe))))) {
         set({ error: 'Finish updating the 3D geometry before exporting.' }); return
       }
       const builtinModel = state.builtinModel ?? (state.asset?.kind === 'imported' ? { name: state.name } : null)
@@ -597,13 +623,17 @@ export const useModelEditorStore = create<ModelEditorState>((set, get) => {
         return
       }
       if (state.builtinModel && kind === 'glb') return
+      if (busy(state)) return
+      const exportingGenerated = kind === 'glb' && !!state.artifact
+      if (exportingGenerated) set({ builtinExporting: true })
       try {
         const s = get(), helpers = await import('../data/modelEditorArtifacts')
         const blob = kind === 'png' ? s.model ? await captureModelPreview(s.model.group, undefined, 1024, false) : null
-          : s.artifact?.glb ?? (s.asset ? await helpers.downloadModelArtifact(s.asset.id, s.activeVersion, 'glbPath') : null)
+          : s.artifact && s.recipe ? await currentArtifactGlb(s.artifact, s.recipe) : (s.asset ? await helpers.downloadModelArtifact(s.asset.id, s.activeVersion, 'glbPath') : null)
         if (!blob) throw new Error('No generated model is available to export.')
-        helpers.downloadModelBlob(blob, s.name, kind)
-      } catch (error) { set({ error: message(error) }) }
+        if (get().sessionKey === state.sessionKey) helpers.downloadModelBlob(blob, s.name, kind)
+      } catch (error) { if (get().sessionKey === state.sessionKey) set({ error: message(error) }) }
+      finally { if (exportingGenerated && get().sessionKey === state.sessionKey) set({ builtinExporting: false }) }
     },
   }
 })
