@@ -310,6 +310,7 @@ describe('Show Manager Audio Dock source lock integration', () => {
     const addTrack = container?.querySelector<HTMLElement>('.vz-dock-addtrack-btn')
     expect(addTrack?.getAttribute('aria-disabled')).toBe('true')
     expect(addTrack?.textContent).toContain('Track Locked')
+    expect(addTrack?.getAttribute('title')).toBe('')
 
     await dispatchAudioFile()
 
@@ -376,6 +377,7 @@ describe('Show Manager Audio Dock source lock integration', () => {
     const addTrack = container?.querySelector('.vz-dock-addtrack-btn')
     expect(addTrack?.getAttribute('aria-disabled')).toBe('false')
     expect(addTrack?.getAttribute('aria-label')).toBe('Add Track')
+    expect(addTrack?.getAttribute('title')).toBe('')
     expect(addTrack?.querySelector('img')).toBeNull()
     expect(addTrack?.querySelector('[data-app-icon="plus"]')).not.toBeNull()
     await dispatchAudioFile('outside-show-manager.wav')
@@ -441,6 +443,9 @@ describe('Show Manager Audio Dock source lock integration', () => {
     const trigger = container?.querySelector<HTMLButtonElement>('[aria-label="Playlist"]')
     expect(trigger?.closest('.vz-dock-left')).not.toBeNull()
     expect(trigger?.previousElementSibling).toBe(container?.querySelector('.vz-dock-addtrack-btn'))
+    const loadControl = container?.querySelector('.vz-dock-addtrack-btn')
+    expect(loadControl?.getAttribute('aria-label')).toBe('Replace Track')
+    expect(loadControl?.getAttribute('title')).toBe('')
     await act(async () => trigger?.click())
 
     const popover = container?.querySelector<HTMLElement>('[role="dialog"][aria-label="Playlist"]')
@@ -464,6 +469,7 @@ describe('Show Manager Audio Dock source lock integration', () => {
       .find(button => button.textContent === 'Append')
     await act(async () => append?.click())
     expect(container?.querySelector('.vz-dock-addtrack-btn')?.getAttribute('aria-label')).toBe('Append Track')
+    expect(container?.querySelector('.vz-dock-addtrack-btn')?.getAttribute('title')).toBe('')
 
     await dispatchAudioFile('appended-track.wav')
     expect(fixture.engine.addTracks).toHaveBeenCalledWith(

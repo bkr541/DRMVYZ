@@ -1147,7 +1147,7 @@ export function VyzualzAudioDock({
             htmlFor={trackSourceLocked ? undefined : fileInputId}
             aria-disabled={trackSourceLocked}
             aria-label={trackLoadActionLabel}
-            title={trackSourceLocked ? trackSourceLockTitle : hasTrack && playlistLoadMode === 'append' ? 'Append audio to playlist' : hasTrack ? `Replace: ${title}` : 'Add Track'}
+            title=""
             onClick={event => {
               if (!trackSourceLocked) return
               event.preventDefault()
