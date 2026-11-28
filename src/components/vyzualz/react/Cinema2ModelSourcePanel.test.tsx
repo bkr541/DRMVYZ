@@ -45,6 +45,11 @@ const flush = async () => { for (let i = 0; i < 6; i++) await act(async () => { 
 const button = (label: RegExp) => [...document.body.querySelectorAll('button')].find(item => label.test(item.textContent ?? ''))
 const openActions = async () => { await act(async () => { container.querySelector<HTMLButtonElement>('[aria-label="Source actions"]')!.click() }) }
 const text = () => (container.textContent ?? '') + drawerText()
+const expectNoVersionDetailsGroup = () => {
+  expect(container.textContent).not.toMatch(/Model versions and details/i)
+  expect(container.querySelector('[data-cinema2-model-selector]')).toBeNull()
+  expect(mocks.listVersions).not.toHaveBeenCalled()
+}
 const render = async (initial: string, diagnostics: { code: string; message: string }[] = [], presetId?: string) => {
   const fake = fakeRuntime(initial, diagnostics, presetId)
   const parameterId = presetId === CINEMA2_COLOSSUS_PRESET_MANIFEST.id ? 'colossus-model' : 'p'
@@ -81,6 +86,7 @@ describe('the model Source panel', () => {
     expect(container.querySelector('[data-testid="cards"]')).not.toBeNull()
     expect(mocks.selectProps.activeId).toBe(MODEL_ID)
     expect(container.querySelector('[data-cinema2-active-source]')).not.toBeNull()
+    expectNoVersionDetailsGroup()
     await openActions()
     expect(button(/Remove model|Open Media Manager/)).toBeUndefined()
     await act(async () => { (mocks.selectProps.onSelect as (asset: ModelAsset) => void)(asset({ currentVersion: 2 })) })
@@ -103,6 +109,7 @@ describe('the model Source panel', () => {
   it('keeps Colossus pinned to the chosen version through publication, removal and reselection', async () => {
     const source = () => container.querySelector('[data-cinema2-active-source]')!
     const fake = await render(`user-model:${MODEL_ID}:1`, [], CINEMA2_COLOSSUS_PRESET_MANIFEST.id)
+    expectNoVersionDetailsGroup()
     expect(source().textContent).toContain('Pure Diamond · v1')
     mocks.get.mockResolvedValue(asset({ currentVersion: 2 }))
     mocks.signedUrl.mockImplementation(async (_id, version) => ({ url: `https://example.test/v${version}.png` }))
@@ -125,6 +132,7 @@ describe('the model Source panel', () => {
   it('does not advertise a missing pinned Colossus version or silently advance it', async () => {
     const source = () => container.querySelector('[data-cinema2-active-source]')!
     const fake = await render(`user-model:${MODEL_ID}:1`, [], CINEMA2_COLOSSUS_PRESET_MANIFEST.id)
+    expectNoVersionDetailsGroup()
     mocks.get.mockResolvedValue(asset({ currentVersion: 2 }))
     mocks.getVersion.mockRejectedValue(new Error('Version not found'))
     await act(async () => useModelEditorStore.setState(s => ({ libraryRevision: s.libraryRevision + 1 }))); await flush()
@@ -147,6 +155,7 @@ describe('the model Source panel', () => {
     mocks.get.mockResolvedValue(asset())
     const fake = await render(`user-model:${MODEL_ID}:1`)
     expect(text()).toContain('Pure Diamond · v1'); expect(mocks.selectProps.activeId).toBe(MODEL_ID)
+    expectNoVersionDetailsGroup()
     await openActions()
     await act(async () => { button(/Remove model/)!.click() })
     expect(fake.state.setPersistentValue).toHaveBeenCalledWith('p', 'default-model')
@@ -212,6 +221,7 @@ describe('Monument typography and model source authority', () => {
     const snapshots: unknown[] = []
     const unsubscribe = state.subscribe(() => snapshots.push(state.getSnapshot().persistentValues))
     await select(asset())
+    expectNoVersionDetailsGroup()
     expect(snapshots).toHaveLength(1)
     expect(snapshots[0]).toMatchObject({ 'monument-content-type': 'model', 'monument-model': `user-model:${MODEL_ID}:1` })
     expect(source().textContent).toContain('Pure Diamond · v1')

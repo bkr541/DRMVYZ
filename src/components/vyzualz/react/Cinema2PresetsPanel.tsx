@@ -26,7 +26,7 @@ export function Cinema2PresetsPanel({ activePresetId, onSelectPreset, catalog }:
     id => catalog ? catalog.userIds.has(id) === (scope === 'user') : inScope(id), 'cinema2', id => onSelectPreset(id as Cinema2PresetId))
   const query = search.query
   const needle = query.trim()
-  const presets = scoped.filter(manifest => search.matchingIds.has(manifest.id))
+  const presets = search.sortByName(scoped.filter(manifest => search.matchingIds.has(manifest.id)), manifest => manifest.id, manifest => manifest.metadata.name)
 
   return (
     <section className="rv-engine-panel-list rv-engine-panel-list--rail-presets" aria-label="Cinema 2.0 presets" data-preset-scope={scope}>

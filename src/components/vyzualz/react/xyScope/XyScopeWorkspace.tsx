@@ -290,7 +290,7 @@ export function XyScopePresetsPanel() {
   const search = useVisualPresetSearch('xyScope', scoped.map(preset => ({ ...preset,
     category: preset.source ?? 'shared', tags: [preset.source ?? 'parameter', 'sound drawing'] })), scope, setScope, inScope, `xyScope:${category}`, id => setXyScopeSettings(applyXyScopePreset(useReactStore.getState().xyScopeSettings, id)))
   const query = search.query
-  const presets = scoped.filter(preset => search.matchingIds.has(preset.id))
+  const presets = search.sortByName(scoped.filter(preset => search.matchingIds.has(preset.id)), preset => preset.id, preset => preset.name)
 
   return (
     <section className="rv-engine-panel-list" aria-label="Sound Drawing XY presets" data-preset-scope={scope}>

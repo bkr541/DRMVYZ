@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { sortPresetsByName } from './presetOrder'
 import { useShallow } from 'zustand/react/shallow'
 import {
   resolveCinematicConfigForPreset,
@@ -353,7 +354,7 @@ function CanvasPresetCollection({ thumbnailGenerationKey, query, scope, inScope 
     () => `${thumbnailGenerationKey}:canvas:${CANVAS_TAB_PRESETS.map(item => item.id).join('|')}`,
     [thumbnailGenerationKey],
   )
-  const visibleCanvasPresets = CANVAS_TAB_PRESETS.filter(canvasPreset => inScope(canvasPreset.id))
+  const visibleCanvasPresets = sortPresetsByName(CANVAS_TAB_PRESETS.filter(canvasPreset => inScope(canvasPreset.id)), canvasPreset => cardById.get(canvasPreset.id)?.name ?? canvasPreset.name)
 
   return (
     <div className="rv-preset-group-cards rv-preset-group-cards--current rv-preset-group-cards--poster" data-preset-grid data-preset-columns="2">
@@ -410,11 +411,11 @@ function getShowDirectorTemplateChips(template: LaserDmxShowDirectorTemplate): R
 
 /** The Performance Show and Rig Layout cards that match the search and the SYSTEM / USER sub-tab. */
 function getVisibleShowDirectorPerformanceShows(inScope: (presetKey: string) => boolean) {
-  return LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.filter(preset => inScope(preset.id))
+  return sortPresetsByName(LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.filter(preset => inScope(preset.id)), preset => preset.name)
 }
 
 function getVisibleShowDirectorRigLayouts(inScope: (presetKey: string) => boolean) {
-  return LASER_DMX_SHOW_DIRECTOR_TEMPLATES.filter(template => inScope(template.id))
+  return sortPresetsByName(LASER_DMX_SHOW_DIRECTOR_TEMPLATES.filter(template => inScope(template.id)), template => template.name)
 }
 
 function ShowDirectorPerformanceCards({ presets }: { presets: readonly (typeof LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS)[number][] }) {
@@ -645,7 +646,7 @@ export function ReactPresetsPanel() {
   useEffect(() => { setPendingBeamPresetId(null) }, [searchContext])
   const presetQuery = search.query
   const matchesSearch = (id: string) => search.matchingIds.has(id)
-  const filteredPresets = visiblePresets.filter(preset => matchesSearch(preset.id))
+  const filteredPresets = search.sortByName(visiblePresets.filter(preset => matchesSearch(preset.id)), preset => preset.id, preset => preset.name)
   const activePresetProvenance = useMemo(() => resolveReactPresetProvenance({
     presets: reactPresets,
     activePresetId: activeReactPresetId,

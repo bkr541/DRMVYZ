@@ -2,6 +2,8 @@
 ;(globalThis as Record<string, unknown>)['IS_REACT_ACT_ENVIRONMENT'] = true
 
 import React, { act } from 'react'
+import { sortPresetsByName } from '../presetOrder'
+import { HEADLINER_PRESETS } from './HeadlinerEffectCatalog'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Recorder } from '../../../../hooks/useRecorder'
@@ -394,7 +396,9 @@ describe('Headliner production workspace controls', () => {
     await act(async () => root.render(<HeadlinerPresetsPanel />))
     const ids = [...container.querySelectorAll<HTMLElement>('[data-headliner-preset-id]')].map(card => card.dataset.headlinerPresetId)
     expect(container.querySelectorAll('[data-headliner-preset-id] [data-preset-engine-badge="headliner"]')).toHaveLength(ids.length)
-    expect(ids).toEqual(['motion-echo', 'ghost-trails', 'velocity-smear', 'motion-melt', 'freeze-ghost', 'strobe-clone', 'clone-spread', 'rgb-ghost', 'face-warp', 'face-echo', 'aura', 'energy-outline', 'outline-echo', 'particle-body', 'particle-shed', 'spark-skeleton', 'digital-silhouette', 'portal-body', 'x-ray', 'posterize-pulse', 'virtual-backdrop'])
+    // Alphabetical by name, like every Presets tab (presetOrder.ts), and every effect is listed.
+    expect(ids).toEqual(sortPresetsByName(HEADLINER_PRESETS, preset => preset.name).map(preset => preset.id))
+    expect(ids).toHaveLength(HEADLINER_PRESETS.length)
     expect(useReactStore.getState().headlinerSettings.presetId).toBe('motion-echo')
 
     await act(async () => container.querySelector<HTMLElement>('[data-headliner-preset-id="ghost-trails"]')?.click())

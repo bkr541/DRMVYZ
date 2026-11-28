@@ -1,4 +1,5 @@
 import { ConfirmDialog } from './controls/ConfirmDialog'
+import { sortPresetsByName } from './presetOrder'
 import { AppIcon } from '../../shared/icons/AppIcon'
 import { DreamVizTextInput } from './controls/DreamVizTextInput'
 import { IconChipButton } from './controls/IconChipButton'
@@ -140,13 +141,14 @@ export function LaserDmxBeamMatrixPresetBrowser({ externalQuery, presetFilter, s
     return Array.from(tags).sort()
   }, [])
 
+  // Alphabetical, like every Presets tab (presetOrder.ts); Previous and Next follow the same order.
   const filtered = useMemo(
-    () => filterLaserDmxBeamMatrixPresets(
+    () => sortPresetsByName(filterLaserDmxBeamMatrixPresets(
       presetFilter ? LASER_DMX_BEAM_MATRIX_PRESETS.filter(preset => presetFilter(preset.id)) : LASER_DMX_BEAM_MATRIX_PRESETS,
       effectiveQuery,
       activeCategory,
       activeTags,
-    ),
+    ), preset => preset.name),
     [presetFilter, effectiveQuery, activeCategory, activeTags],
   )
 
@@ -294,7 +296,7 @@ export function LaserDmxBeamMatrixPresetBrowser({ externalQuery, presetFilter, s
         <div className="rv-ctrl-info rv-laser-dmx-preset-empty">No presets match.</div>
       ) : (
         <div className="rv-preset-group-cards rv-preset-group-cards--poster rv-laser-dmx-preset-category-list" data-preset-grid data-preset-columns="2">
-          {grouped.flatMap(group => group.presets).map(preset => {
+          {filtered.map(preset => {
             const isActive = preset.id === activeLaserDmxBeamMatrixPresetId
             const isModified = isActive && activePresetProvenance.status === 'modified'
             return (

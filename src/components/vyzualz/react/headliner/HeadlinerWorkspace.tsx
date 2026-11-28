@@ -370,7 +370,7 @@ export function HeadlinerPresetsPanel() {
   })
   const query = search.query
   const needle = query.trim()
-  const presets = HEADLINER_PRESETS.filter(preset => search.matchingIds.has(preset.id))
+  const presets = search.sortByName(HEADLINER_PRESETS.filter(preset => search.matchingIds.has(preset.id)), preset => preset.id, preset => preset.name)
 
   return (
     <section className="rv-engine-panel-list" aria-label="Headliner presets" data-preset-scope={scope}>

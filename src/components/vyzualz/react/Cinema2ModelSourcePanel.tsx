@@ -12,10 +12,8 @@ import { ModelLibraryCards } from '../media/ModelLibraryCards'
 import { Cinema2ActiveSource, Cinema2SourceThumbnail } from './Cinema2ActiveSource'
 import { LibrarySearchRow } from './controls/LibrarySearchRow'
 import { LibraryViewToggle, type LibraryView } from './controls/LibraryViewToggle'
-import { Collapsible } from './ReactControlRows'
 import { monumentLines } from '../cinema2/modules/monument/MonumentGeometry'
 import type { Cinema2UserModelSlotSnapshot } from '../cinema2/model/Cinema2UserModelSlot'
-import { Cinema2ModelSelector } from '../cinema2/model/Cinema2ModelSelector'
 
 
 /** The preset parameter that holds the pinned model, when the preset has a model slot (its scene module declares `config.userModel`). */
@@ -148,13 +146,6 @@ export function Cinema2ModelSourcePanel({ runtime, parameterId }: { runtime: Cin
           ...(showSelectionControls && pinnedId ? [{ id: 'remove', label: monument ? 'Remove model / Restore typography' : 'Remove model / Restore built-in', onSelect: () => writeBinding(DEFAULT_MODEL_BINDING, 'text') }] : []),
           ...(typographyActive && mode === 'model' && !pinnedId ? [{ id: 'restore-text', label: 'Restore typography controls', onSelect: () => writeBinding(DEFAULT_MODEL_BINDING, 'text') }] : []),
         ]} />
-      {activePinnedId && <Collapsible label="Model versions and details" defaultOpen={false}>
-        <Cinema2ModelSelector key={`${accountId}:${pinnedId}:${libraryRevision}`} id={`cinema2-source-${parameterId}`} label="Saved model version" value={value} disabled={false} versionsOnly
-          onChange={next => {
-            if (state.getValue(parameterId) !== value) return
-            writeBinding(next, 'model')
-          }} />
-      </Collapsible>}
       <div className="rv-canvas-library-shell" ref={library}>
         <ModelLibraryCards
           search={search} favorites={false} viewMode={view} activeId={activePinnedId}

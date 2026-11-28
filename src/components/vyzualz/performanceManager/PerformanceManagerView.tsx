@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { sortPresetsByName } from '../react/presetOrder'
 import { getPerformanceManagerPresets } from './performanceManagerPresets'
 import { usePerformancePadActions } from './usePerformancePadActions'
 import { PerformancePadEditor } from './PerformancePadEditor'
@@ -39,7 +40,8 @@ export function PerformanceManagerView() {
   const inScope = usePresetScopeFilter(engine, scope)
   const { livePresets, laserMode } = useReactStore(useShallow(state => ({ livePresets: state.reactPresets, laserMode: state.laserDmxBeamMatrixAuthoringMode })))
   const presets = getPerformanceManagerPresets(engine, livePresets, laserMode)
-  const visible = presets.filter(p => inScope(p.id) && presetMatchesDiscoveryQuery(query.trim().toLowerCase(), p))
+  // Alphabetical, like every Presets tab (presetOrder.ts).
+  const visible = sortPresetsByName(presets.filter(p => inScope(p.id) && presetMatchesDiscoveryQuery(query.trim().toLowerCase(), p)), p => p.name)
   const padTools = usePerformanceManagerPads(engine, presets, selectedPreset)
   const padActions = usePerformancePadActions({ selectPad: padTools.editor.onSelect, showTab: tab => { setRightTab(tab); setRightCollapsed(false) } })
   const pickEngine = (id: ReactLiveEngineId) => { setEngine(id); setQuery(''); setSelectedPreset(null) }
