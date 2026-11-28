@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { existsSync, readFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { ARC_ANGEL_PATTERNS, arcAngelPatternWeights, arcAngelPose, blendArcAngelPose } from '../modules/arcAngel/ArcAngelDomain'
+import { arcAngelClipTime, arcAngelStageCue, blendArcAngelStage } from '../modules/arcAngel/ArcAngelPatterns'
 import { CINEMA2_ARC_ANGEL_PRESET_MANIFEST as manifest } from '../presets/Cinema2ArcAngelPreset'
 import { compileCinema2NativePreset } from '../presets/Cinema2PresetCompiler'
 import { MOOD_CAPABILITIES, moodTwin } from './support/MoodMigrationHarness'
@@ -27,6 +28,32 @@ describe('ARC ANGEL native authoring', () => {
       expect(pose.time).toBeGreaterThan(0)
       expect(pose.time).toBeLessThan(14.58)
       expect(Object.values(pose).every(Number.isFinite)).toBe(true)
+    }
+  })
+  it('authors distinct spatial programs and keeps spatial crossfades bounded', () => {
+    const signatures = ARC_ANGEL_PATTERNS.map(({value})=>JSON.stringify(Array.from({length:48},(_,i)=>arcAngelStageCue(value,i/4,i%12,i%4))))
+    expect(new Set(signatures).size).toBe(12)
+    for(const {value} of ARC_ANGEL_PATTERNS)for(let i=0;i<96;i++){
+      const cue=blendArcAngelStage(arcAngelPatternWeights(value,'awakening',i/96),i/4,i%12,i%4)
+      expect(Object.values(cue).every(v=>Number.isFinite(v)&&v>=-1e-8&&v<=1+1e-8)).toBe(true)
+    }
+  })
+  it('samples a broader authored clip range while retaining lockoff and duration bounds', () => {
+    expect(arcAngelClipTime(14.58,12,3,0)).toBeCloseTo(4)
+    expect(arcAngelClipTime(14.58,8,0,1)).toBeGreaterThan(10)
+    for(const duration of [3,14.58,20])for(const time of [-2,0,4,8,14,18]){
+      const sample=arcAngelClipTime(duration,time,2,1)
+      expect(sample).toBeGreaterThan(0);expect(sample).toBeLessThan(duration)
+    }
+  })
+  it('declares all six shared camera modes and keeps paths inside the chamber', () => {
+    const camera=manifest.cameras![0]!
+    expect(camera.rig?.kind).toBe('path')
+    expect(Object.keys(camera.rigVariants??{})).toHaveLength(6)
+    for(const rig of Object.values(camera.rigVariants??{}))if(rig.kind==='path')for(const point of rig.points){
+      expect(Math.hypot(point.position[0],point.position[2])).toBeLessThan(17)
+      expect(point.position[1]).toBeGreaterThan(-4)
+      expect(point.position[1]).toBeLessThan(9)
     }
   })
   it('preserves normalized weights through interrupted transitions', () => {

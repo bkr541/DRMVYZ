@@ -15,8 +15,8 @@ export const ARC_ANGEL_PALETTE = {
   secondary:[1,.075,.035,1], accent:[1,.85,.55,1], body:[1,.94,.84,1],
 } as const
 export const ARC_ANGEL_CAMERA = {
-  position:[0,0,11.8], target:[0,.1,0], fovDegrees:40,
-  minPosition:[-1.9,-.9,10.8], maxPosition:[1.9,.9,13.5], minFovDegrees:39,maxFovDegrees:45,
+  position:[0,1.5,14.5], target:[0,.35,0], fovDegrees:48,
+  minPosition:[-16,-2.2,-16], maxPosition:[16,7,16], minFovDegrees:40,maxFovDegrees:65,
 } as const
 export const clamp01=(x:number)=>Math.max(0,Math.min(1,x))
 const wave=(x:number)=>.5+.5*Math.sin(x*Math.PI*2)
