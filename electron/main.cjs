@@ -26,6 +26,7 @@ const { installDiagnosticsBridge } = require('../native/diagnostics/diagnosticsB
 const { redactUrlForLog } = require('../native/diagnostics/redactUrl.cjs')
 const { installSystemMetricsBridge } = require('../native/system/systemMetricsBridge.cjs')
 const { installCameraAccessBridge, readCameraAccessStatus } = require('../native/system/cameraAccessBridge.cjs')
+const { installRecordingBridge } = require('../native/recording/recordingBridge.cjs')
 const { createRendererRecovery } = require('../native/system/rendererRecovery.cjs')
 const { buildContentSecurityPolicy } = require('../native/security/contentSecurityPolicy.cjs')
 const { createTrustedIpcMain } = require('../native/security/trustedIpc.cjs')
@@ -292,6 +293,7 @@ if (!app.requestSingleInstanceLock()) {
     installDiagnosticsBridge({ ipcMain: trustedIpcMain, log, app })
     installSystemMetricsBridge({ app, ipcMain: trustedIpcMain, log })
     installCameraAccessBridge({ ipcMain: trustedIpcMain, shell, systemPreferences, log })
+    installRecordingBridge({ ipcMain: trustedIpcMain, app, log })
     if (useDevServer) {
       ipcMain.handle('drmvyz:review-notes:capture', async event => {
         if (event.sender !== mainWindow?.webContents || !event.senderFrame || event.senderFrame !== event.sender.mainFrame

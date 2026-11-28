@@ -1,6 +1,6 @@
 import { lazy, Suspense, useState, useEffect } from 'react'
 import { supabase, supabaseConfigured } from './lib/supabase'
-import { peekCachedSessionUserId, isNetworkAuthError } from './lib/offlineSessionFallback'
+import { clearVerifiedSession, isNetworkAuthError, offlineSessionUserId, recordVerifiedSession } from './lib/offlineSessionFallback'
 import { isAccountScopedPersistenceEnabled, switchPersistenceAccount } from './lib/accountScopedPersistence'
 import { AnnouncementPopover } from './features/announcements/AnnouncementPopover'
 import { AudioEngineProvider } from './context/AudioEngineContext'
@@ -135,12 +135,13 @@ export default function App() {
     supabase.auth.getSession().then(({ data, error }) => {
       const userId = data.session?.user.id ?? null
       useMediaStore.getState().clear()
-      if (userId) { activateUser(userId); return }
+      if (userId) { recordVerifiedSession(userId); activateUser(userId); return }
       // A refresh that failed purely because the network is down still
       // leaves the cached refresh token in storage — fall back to it instead
       // of forcing a sign-out the user can't recover from while offline.
       if (isNetworkAuthError(error)) {
-        const cachedUserId = peekCachedSessionUserId()
+        // Only an account confirmed online on this computer within the grace period (offlineSessionFallback.ts).
+        const cachedUserId = offlineSessionUserId()
         if (cachedUserId) { activateUser(cachedUserId); return }
       }
       deactivateUser()
@@ -161,8 +162,14 @@ export default function App() {
         productionOutputController.handleAuthChange()
         useMediaStore.getState().clear()
       }
-      if (userId) activateUser(userId)
-      else deactivateUser()
+      if (userId) {
+        // A session the server just issued or refreshed is a confirmed one; the INITIAL_SESSION event may be a cached copy.
+        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') recordVerifiedSession(userId)
+        activateUser(userId)
+      } else {
+        if (event === 'SIGNED_OUT') clearVerifiedSession()
+        deactivateUser()
+      }
     })
 
     return () => {

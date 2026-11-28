@@ -69,6 +69,13 @@ contextBridge.exposeInMainWorld('drmvyzNative', Object.freeze({
   system: Object.freeze({
     getCpuUsage: () => ipcRenderer.invoke('drmvyz:system:get-cpu-usage'),
   }),
+  // Performance recordings written to disk as they are made (native/recording/recordingBridge.cjs).
+  recording: Object.freeze({
+    start: fileName => ipcRenderer.invoke('drmvyz:recording:start', fileName),
+    append: (id, chunk) => ipcRenderer.invoke('drmvyz:recording:append', id, chunk),
+    finish: id => ipcRenderer.invoke('drmvyz:recording:finish', id),
+    abort: id => ipcRenderer.invoke('drmvyz:recording:abort', id),
+  }),
   recovery: Object.freeze({
     // Main tells the renderer when the GPU process died while it was still running, so it can shed load.
     onEvent: callback => {

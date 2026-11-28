@@ -2,11 +2,26 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { fileURLToPath } from 'node:url'
+import { execFileSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 import { arcAngelPreviewPlugin } from './src/dev/arcAngelPreviewPlugin.ts'
 import { reviewNotesPlugin } from './src/dev/reviewNotes/reviewNotesPlugin.ts'
 import { contentSecurityPolicyPlugin } from './src/dev/contentSecurityPolicyPlugin.ts'
 
+// Which build a tester is running (beta remediation DEP-03): the package version, the commit and when it was built, shown in Settings and sent
+// with issue reports (src/lib/buildInfo.ts).
+function readBuildInfo() {
+  const version = String(JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version)
+  let commit = 'unknown'
+  try {
+    commit = execFileSync('git', ['rev-parse', '--short', 'HEAD'], { encoding: 'utf8' }).trim()
+    if (execFileSync('git', ['status', '--porcelain', '--untracked-files=no'], { encoding: 'utf8' }).trim()) commit += '-modified'
+  } catch { /* Not a git checkout: the commit stays unknown. */ }
+  return { version, commit, builtAt: new Date().toISOString() }
+}
+
 export default defineConfig({
+  define: { __STAGELESS_BUILD__: JSON.stringify(readBuildInfo()) },
   // Relative asset URLs let the built renderer resolve its own JS/CSS bundle
   // entrypoints when Electron serves dist/ through the app's custom protocol
   // (see electron/main.cjs) instead of the dev server's HTTP origin.

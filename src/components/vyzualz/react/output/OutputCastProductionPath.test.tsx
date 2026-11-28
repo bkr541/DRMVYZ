@@ -135,7 +135,8 @@ describe('OutputCastControl production path', () => {
         if (request !== 'electron') throw new Error(`Unexpected preload dependency: ${request}`)
         return { contextBridge, ipcRenderer, webUtils: { getPathForFile: () => null } }
       },
-      { platform: 'linux' },
+      // A packaged launch: no extra Electron arguments (the dev-server-only review-notes flag is absent).
+      { platform: 'linux', argv: [] },
     )
     window.drmvyzNative = exposed.drmvyzNative as typeof window.drmvyzNative
 

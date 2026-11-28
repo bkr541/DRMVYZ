@@ -2,10 +2,22 @@ import { AppIcon } from '../shared/icons/AppIcon'
 import { DreamVizTextInput } from '../vyzualz/react/controls/DreamVizTextInput'
 import { IconMorphToggle } from '../vyzualz/react/controls/IconMorphToggle'
 import { AuthVisualizer } from './AuthVisualizer'
+import { BetaTermsDialog } from './BetaTermsDialog'
 import { useId, useState } from 'react'
 import { supabase, supabaseConfigured } from '../../lib/supabase'
 import { setRememberSession } from '../../lib/authSessionStorage'
 import '../../styles/auth.css'
+
+/** New passwords (sign-up and reset). Also set the same minimum under Supabase > Authentication > Policies, which is what actually enforces it. */
+export const MIN_PASSWORD_LENGTH = 10
+
+/** Sign-up is by invitation (migration 0065): Supabase reports a refused, uninvited email only as a database error, so it is explained here. */
+export function signUpErrorMessage(message: string): string {
+  if (/database error saving new user/i.test(message)) {
+    return 'This email has not been invited to the beta. Ask the STAGELESS team for an invite, then sign up with the same email.'
+  }
+  return message
+}
 import { BRAND_NAME } from '../../brand'
 
 // ── SVG emblem mark ───────────────────────────────────────────────────────────
@@ -298,6 +310,7 @@ function SignupForm({ onSuccess, onSwitch }: { onSuccess: () => void; onSwitch: 
   const [showPwd, setShowPwd]     = useState(false)
   const [showCfm, setShowCfm]     = useState(false)
   const [agreed, setAgreed]       = useState(false)
+  const [showTerms, setShowTerms] = useState(false)
   const [loading, setLoading]     = useState(false)
   const [error, setError]         = useState<string | null>(null)
   const [done, setDone]           = useState(false)
@@ -305,7 +318,7 @@ function SignupForm({ onSuccess, onSwitch }: { onSuccess: () => void; onSwitch: 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!name || !artistName || !email || !password || !confirm) { setError('Please fill in all fields'); return }
-    if (password.length < 6) { setError('Password must be at least 6 characters'); return }
+    if (password.length < MIN_PASSWORD_LENGTH) { setError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters`); return }
     if (password !== confirm) { setError('Passwords do not match'); return }
     if (!agreed) { setError('Please agree to the Terms & Privacy Policy'); return }
     setError(null)
@@ -316,7 +329,7 @@ function SignupForm({ onSuccess, onSwitch }: { onSuccess: () => void; onSwitch: 
       options: { data: { display_name: name, artist_name: artistName } },
     })
     setLoading(false)
-    if (err) { setError(err.message); return }
+    if (err) { setError(signUpErrorMessage(err.message)); return }
     // If email confirmation is disabled, session is returned immediately
     if (data.session) { onSuccess(); return }
     setDone(true)
@@ -378,9 +391,10 @@ function SignupForm({ onSuccess, onSwitch }: { onSuccess: () => void; onSwitch: 
       <div className="auth-form-row">
         <Checkbox checked={agreed} onChange={setAgreed}>
           I agree to the{' '}
-          <button type="button" className="auth-link">Terms &amp; Privacy Policy</button>
+          <button type="button" className="auth-link" onClick={event => { event.preventDefault(); event.stopPropagation(); setShowTerms(true) }}>Terms &amp; Privacy Policy</button>
         </Checkbox>
       </div>
+      {showTerms && <BetaTermsDialog onClose={() => setShowTerms(false)} />}
 
       {error && <p className="auth-error">{error}</p>}
 
@@ -494,7 +508,7 @@ export function ResetPasswordCompletionScreen() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (password.length < 6) { setError('Password must be at least 6 characters'); return }
+    if (password.length < MIN_PASSWORD_LENGTH) { setError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters`); return }
     if (password !== confirm) { setError('Passwords do not match'); return }
     setError(null)
     setLoading(true)

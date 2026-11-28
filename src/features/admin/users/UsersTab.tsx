@@ -6,6 +6,7 @@ import { NoticeCard } from '../../../components/vyzualz/react/controls/NoticeCar
 import { Collapsible, TextInputRow } from '../../../components/vyzualz/react/ReactControlRows'
 import { formatDate, formatDateTime } from '../formatting'
 import { loadAdminUsers } from './usersApi'
+import { BetaInvitesPanel } from './BetaInvitesPanel'
 import { filterUsers, sortUsers, userLabel, type AdminUser, type SortDirection, type UserSortKey } from './userDirectory'
 
 const NOOP = () => undefined
@@ -60,6 +61,7 @@ export function UsersTab() {
   const [sortKey, setSortKey] = useState<UserSortKey>('created')
   const [direction, setDirection] = useState<SortDirection>('desc')
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [showInvites, setShowInvites] = useState(false)
 
   const load = useCallback(() => {
     setStatus('loading'); setError(null)
@@ -84,6 +86,7 @@ export function UsersTab() {
           <span className="adm-count" role="status" aria-live="polite">
             <strong>{users.length.toLocaleString()}</strong> registered{visible.length !== users.length ? ` · ${visible.length.toLocaleString()} shown` : ''}
           </span>
+          <IconChipButton tone={showInvites ? 'primary' : 'default'} aria-pressed={showInvites} onClick={() => setShowInvites(value => !value)}>Beta Invites</IconChipButton>
         </div>
         {status === 'error' && <NoticeCard tone="warning" title="Users could not be loaded" role="alert">{error} <IconChipButton onClick={load}>Try again</IconChipButton></NoticeCard>}
         {status === 'loading' && <p className="adm-empty" role="status">Loading users…</p>}
@@ -103,9 +106,9 @@ export function UsersTab() {
               </thead>
               <tbody>
                 {visible.map(user => (
-                  <tr key={user.id} className={user.id === selectedId ? 'is-selected' : undefined} onClick={() => setSelectedId(user.id)}>
+                  <tr key={user.id} className={user.id === selectedId ? 'is-selected' : undefined} onClick={() => { setSelectedId(user.id); setShowInvites(false) }}>
                     <td>
-                      <button type="button" className="adm-row-button" aria-pressed={user.id === selectedId} onClick={event => { event.stopPropagation(); setSelectedId(user.id) }}>
+                      <button type="button" className="adm-row-button" aria-pressed={user.id === selectedId} onClick={event => { event.stopPropagation(); setSelectedId(user.id); setShowInvites(false) }}>
                         <Avatar user={user} /><span>{userLabel(user)}</span>
                       </button>
                     </td>
@@ -122,8 +125,8 @@ export function UsersTab() {
           </div>
         )}
       </section>
-      <aside className="adm-detail" aria-label="User profile">
-        {selected ? <UserDetail user={selected} /> : <p className="adm-empty">Select a user to see their profile.</p>}
+      <aside className="adm-detail" aria-label={showInvites ? 'Beta invites' : 'User profile'}>
+        {showInvites ? <BetaInvitesPanel /> : selected ? <UserDetail user={selected} /> : <p className="adm-empty">Select a user to see their profile.</p>}
       </aside>
     </div>
   )

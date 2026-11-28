@@ -27,3 +27,38 @@ export function isNetworkAuthError(error: unknown): boolean {
   if ('name' in error && (error as { name?: unknown }).name === 'AuthRetryableFetchError') return true
   return typeof navigator !== 'undefined' && navigator.onLine === false
 }
+
+// ── Offline grace period (beta remediation AUTH-03) ─────────────────────────────
+// A performer who loses the network can keep working, but only as an account the server confirmed recently on this computer. The cached
+// session alone is not enough: its user id is only read from local storage.
+
+/** How long after the last confirmed sign-in the app still opens offline. */
+export const OFFLINE_GRACE_PERIOD_MS = 14 * 24 * 60 * 60 * 1000
+const LAST_VERIFIED_KEY = 'drmvyz:auth:last-verified:v1'
+
+/** Records that the server has just confirmed `userId`'s session (called on every confirmed session and token refresh). */
+export function recordVerifiedSession(userId: string, now = Date.now()): void {
+  try { localStorage.setItem(LAST_VERIFIED_KEY, JSON.stringify({ userId, at: now })) } catch { /* Offline use is then simply unavailable. */ }
+}
+
+/** Forgets the confirmation (sign-out), so the app cannot be opened offline as that account until it signs in online again. */
+export function clearVerifiedSession(): void {
+  try { localStorage.removeItem(LAST_VERIFIED_KEY) } catch { /* Nothing to clear. */ }
+}
+
+/**
+ * The account to open while offline, or null: the cached session's account, only if the server confirmed that same account on this computer
+ * within the grace period. Admin access and other server-checked actions stay unavailable until the session is confirmed online again.
+ */
+export function offlineSessionUserId(now = Date.now()): string | null {
+  const cached = peekCachedSessionUserId()
+  if (!cached) return null
+  try {
+    const record = JSON.parse(localStorage.getItem(LAST_VERIFIED_KEY) ?? 'null') as { userId?: unknown; at?: unknown } | null
+    if (!record || record.userId !== cached || typeof record.at !== 'number') return null
+    const age = now - record.at
+    return age >= 0 && age <= OFFLINE_GRACE_PERIOD_MS ? cached : null
+  } catch {
+    return null
+  }
+}

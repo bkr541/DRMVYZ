@@ -5,6 +5,8 @@ import { BRAND_FILE_PREFIX } from '../brand'
 import type { OutputAspectRatio } from '../native/outputBridge'
 import type { MutableRefObject } from 'react'
 import { createRecordingFrame, captureRecordingPng } from './recordingFrame'
+import { getNativeRecordingBridge } from '../native/recordingBridge'
+import { createDiskRecordingSink, createMemoryRecordingSink, MEMORY_RECORDING_LIMIT_BYTES, type RecordingSink, type RecordingSinkOutcome } from './recordingSink'
 
 export type RecordingFps = 24 | 30 | 60
 export type RecordingFormat = 'WebM' | 'MP4' | 'MOV'
@@ -160,7 +162,6 @@ export function useRecorder(): Recorder {
     }
 
     let mr: MediaRecorder
-    const chunks: Blob[] = []
     try {
       mr = new MediaRecorder(stream, {
         mimeType,
@@ -173,21 +174,42 @@ export function useRecorder(): Recorder {
       return
     }
 
+    // Desktop: written to disk as it records; browser: held in memory up to a limit (recordingSink.ts).
+    const fileName = `${BRAND_FILE_PREFIX}-performance-${Date.now()}.${format.toLowerCase()}`
+    const expectedType = mimeType.split(';')[0].trim().toLowerCase()
+    const mustStop = (reason: 'low-disk' | 'memory-limit' | 'write-failed', detail?: string) => {
+      if (mediaRecorderRef.current === mr) stopRecording()
+      const message = reason === 'low-disk'
+        ? `The recording stopped because the disk is nearly full${detail ? ` (${detail})` : ''}. What was recorded is kept.`
+        : reason === 'memory-limit'
+          ? `Browser recordings stop at ${Math.round(MEMORY_RECORDING_LIMIT_BYTES / 1024 ** 3 * 10) / 10} GB. What was recorded is saved; use the desktop app for longer sets.`
+          : `The recording could not be written to disk${detail ? `: ${detail}` : ''}. What was recorded is kept.`
+      notify('react', { tone: 'warning', title: 'Recording stopped', message })
+    }
+    const bridge = getNativeRecordingBridge()
+    const sink: RecordingSink = bridge
+      ? createDiskRecordingSink(bridge, fileName, { onMustStop: mustStop })
+      : createMemoryRecordingSink(expectedType, blob => downloadBlob(blob, fileName), { onMustStop: mustStop })
+    const report = (outcome: RecordingSinkOutcome) => {
+      if (outcome.kind === 'saved-to-disk') notify('react', { tone: 'success', title: 'Recording saved', message: `Saved to ${outcome.path}` })
+      else if (outcome.kind === 'kept-partial') notify('react', { tone: 'warning', title: 'Recording kept', message: `What was recorded is in ${outcome.path}` })
+      else if (outcome.kind === 'empty') notify('react', { tone: 'warning', title: 'Recording empty', message: 'No video data was produced.' })
+    }
+    const fail = (error: unknown) => notify('react', { tone: 'error', title: 'Recording not saved', message: error instanceof Error ? error.message : String(error) })
+
     mr.ondataavailable = (e) => {
-      if (e.data.size > 0) chunks.push(e.data)
+      if (e.data.size > 0) sink.write(e.data)
     }
     mr.onstop = () => {
       if (mediaRecorderRef.current === mr) stopRecording()
       const actualType = (mr.mimeType || mimeType).split(';')[0].trim().toLowerCase()
-      const expectedType = mimeType.split(';')[0].trim().toLowerCase()
       if (actualType !== expectedType) {
+        // In memory nothing is saved under the wrong name; on disk the recording is kept under its .partial name rather than lost.
         notify('react', { tone: 'error', title: 'Recording format mismatch', message: `Encoder returned ${actualType} instead of ${expectedType}. No mislabeled file was saved.` })
+        if (bridge) void sink.abort().then(report, fail)
         return
       }
-      const extension = format.toLowerCase()
-      const blob = new Blob(chunks, { type: actualType })
-      if (blob.size) downloadBlob(blob, `${BRAND_FILE_PREFIX}-performance-${Date.now()}.${extension}`)
-      else notify('react', { tone: 'warning', title: 'Recording empty', message: 'No video data was produced.' })
+      void sink.finish().then(report, fail)
     }
     mr.onerror = (e) => {
       const msg = (e as Event & { error?: DOMException }).error?.message ?? 'unknown'

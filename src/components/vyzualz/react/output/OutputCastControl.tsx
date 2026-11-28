@@ -6,6 +6,8 @@ import { BRAND_RECEIVERS } from '../../../../brand'
 import { isCanvasFrameReady } from '../../../../lib/canvasFrameReadiness'
 import { FrameCadence } from '../../../../lib/frameCadence'
 import { startRelayFramePump } from './relayFramePump'
+import { castSendQueueState } from './castBackpressure'
+import { notify } from '../../../../stores/notificationStore'
 import { copyPerformanceFrame, performanceOutputSize } from './performanceOutputGeometry'
 import { recordPerformanceEvent, setPerformanceCastActive } from '../../../../lib/performanceTelemetry'
 import { CastLoadShedder, bindCadenceToPressure } from '../../../../lib/castLoadShedding'
@@ -386,6 +388,10 @@ function useGoogleCastBroadcaster(
     lastStatsBytes: number
     lastStatsAt: number
     publishChain: Promise<void>
+    /** Encoded chunks waiting to be sent, bounded by castBackpressure.ts. */
+    pendingChunks: number
+    pendingBytes: number
+    warnedBehind: boolean
   } | null>(null)
 
   useLayoutEffect(() => {
@@ -446,6 +452,9 @@ function useGoogleCastBroadcaster(
           lastStatsBytes: 0,
           lastStatsAt: Date.now(),
           publishChain: Promise.resolve(),
+          pendingChunks: 0,
+          pendingBytes: 0,
+          warnedBehind: false,
         }
         activeRef.current = active
         previewSourceRef.current = relay.canvas
@@ -460,12 +469,28 @@ function useGoogleCastBroadcaster(
 
         recorder.addEventListener('dataavailable', event => {
           if (!event.data || event.data.size === 0) return
+          const size = event.data.size
+          active.pendingChunks += 1
+          active.pendingBytes += size
+          const queue = castSendQueueState(active.pendingChunks, active.pendingBytes)
+          if (queue === 'overflow') {
+            void fail('Casting stopped because the network could not keep up with the video. Check the connection to the Cast device, then cast again.')
+            return
+          }
+          if (queue === 'behind' && !active.warnedBehind) {
+            active.warnedBehind = true
+            notify('react', { tone: 'warning', title: 'Casting is falling behind', message: 'The network to the Cast device is slower than the video. The picture on the TV may lag; casting stops if it falls too far behind.' })
+          }
           active.publishChain = active.publishChain.then(async () => {
             if (cancelled || activeRef.current !== active) return
             const bytes = new Uint8Array(await event.data.arrayBuffer())
             const accepted = await bridge.publishGoogleCastChunk?.(sessionId, bytes)
             if (accepted === false) throw new Error('Google Cast live media transport stopped accepting encoded frames')
             active.publishedBytes += bytes.byteLength
+          }).finally(() => {
+            active.pendingChunks -= 1
+            active.pendingBytes -= size
+            if (active.pendingChunks === 0) active.warnedBehind = false
           }).catch(error => {
             void fail(error instanceof Error ? error.message : 'Google Cast live media transport failed')
           })

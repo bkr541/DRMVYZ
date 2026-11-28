@@ -16,6 +16,9 @@ import { AppearanceSettingsPanel } from '../../../features/appearance/Appearance
 import { getRecentLogEntries } from '../../../lib/logger'
 import { DeveloperPanel } from './developer/DeveloperPanel'
 import { DjSoftwareSettingsPanel } from './DjSoftwareSettingsPanel'
+import { BetaSupportPanel } from './BetaSupportPanel'
+import { sanitizeDiagnosticText } from '../../../features/beta/issueReport'
+import { buildLabel } from '../../../lib/buildInfo'
 
 // ── AccountPanel ──────────────────────────────────────────────────────────────
 
@@ -292,6 +295,7 @@ function buildDiagnosticsReport(): string {
   const entries = getRecentLogEntries()
   const lines = [
     `STAGELESS diagnostics — ${new Date().toISOString()}`,
+    `Build: ${buildLabel()}`,
     `Platform: ${window.drmvyzNative?.runtime?.platform ?? 'unknown'} (electron: ${window.drmvyzNative?.runtime?.isElectron ? 'yes' : 'no'})`,
     `User agent: ${navigator.userAgent}`,
     '',
@@ -299,7 +303,8 @@ function buildDiagnosticsReport(): string {
     ...entries.map(entry => {
       const time = new Date(entry.timestamp).toISOString()
       const context = entry.context !== undefined ? ` ${safeStringify(entry.context)}` : ''
-      return `${time} [${entry.level.toUpperCase()}] [${entry.category}] ${entry.message}${context}`
+      // Links, file paths, tokens and email addresses are removed before anything is copied.
+      return sanitizeDiagnosticText(`${time} [${entry.level.toUpperCase()}] [${entry.category}] ${entry.message}${context}`)
     }),
   ]
   return lines.join('\n')
@@ -620,7 +625,7 @@ export function SystemSettingsView({
   )
 }
 
-export type SettingsTab = 'account' | 'appearance' | 'brand' | 'system' | 'dj-software' | 'developer'
+export type SettingsTab = 'account' | 'appearance' | 'brand' | 'system' | 'dj-software' | 'beta' | 'developer'
 
 export const SETTINGS_TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: 'account', label: 'Account' },
@@ -628,6 +633,7 @@ export const SETTINGS_TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: 'brand', label: 'Brand Kit' },
   { id: 'system', label: 'System Settings' },
   { id: 'dj-software', label: 'DJ Software' },
+  { id: 'beta', label: 'Beta & Support' },
   { id: 'developer', label: 'Developer' },
 ]
 
@@ -770,6 +776,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
         {tab === 'brand' && <BrandKitSettingsPanel />}
         {tab === 'system' && <SystemSettingsPanel />}
         {tab === 'dj-software' && <DjSoftwareSettingsPanel />}
+        {tab === 'beta' && <BetaSupportPanel />}
         {tab === 'developer' && developerAccess && <DeveloperPanel />}
       </SettingsModalFrame>
     </div>

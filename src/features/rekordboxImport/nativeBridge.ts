@@ -76,6 +76,7 @@ export interface DrmvyzNativeBridge {
   system?: NativeSystemBridge
   camera?: NativeCameraBridge
   recovery?: NativeRecoveryBridge
+  recording?: import('../../native/recordingBridge').NativeRecordingBridge
   reviewNotes?: { capturePage: () => Promise<string | null> }
 }
 
