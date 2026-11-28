@@ -2,7 +2,7 @@
 
 ID `drmvyz.cinema2.fracture`, revision 1. Selectable reference, not a keeper. Procedural geometry and blueprint are original repository-local code; no external assets, licenses, dependencies or network services added.
 
-> The scene, motion, camera and visual controls described below are historical FRA-01/initial-reference details. See [FRA-02 volumetric media rupture](cinema2-fracture-spatial-rupture.md) for the current implementation and validation handoff. The source and shared authority contracts still apply.
+> The scene, motion, camera and visual controls described below are historical FRA-01/initial-reference details. See [FRA-03 cinematic volumetric media rupture](cinema2-fracture-spatial-rupture.md) for the current implementation and validation handoff. The source and shared authority contracts still apply.
 
 ## Visual and geometry specification (historical)
 

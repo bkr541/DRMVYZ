@@ -15,7 +15,7 @@ import { FRACTURE_PATTERNS, FRACTURE_COLORS, PANEL_WIDTH, PANEL_HEIGHT, tessella
 import { FracturePerformance } from '../modules/Cinema2FractureNativeModule'
 import type { Cinema2ModuleUpdateContext } from '../modules/Cinema2ModuleContracts'
 const parameter=(name:string)=>manifest.parameters!.find(p=>p.id===`fracture-${name}`)!
-const motion:FractureMotion={pattern:'fracture',phase:1.8,spread:.5,depthTravel:.45,rotation:25,reassemblyTime:1.1,active:true,intensity:.75,safe:true,locked:false,readability:true,vocal:0,kick:0,snare:0,drop:0,bass:0,mid:0,build:0,downbeat:0,phrase:0,impact:0,high:0,energy:0,beat:0,crackEmission:.45,sphereExpansion:.75,orbitalMotion:.45,shardVibration:.60,clusterReconstruction:.70,sub:0}
+const motion:FractureMotion={pattern:'fracture',phase:1.8,spread:.82,depthTravel:.85,rotation:42,reassemblyTime:.75,active:true,intensity:.88,safe:true,locked:false,readability:true,vocal:0,kick:0,snare:0,drop:0,bass:0,mid:0,build:0,downbeat:0,phrase:0,impact:0,high:0,energy:0,beat:0,crackEmission:.68,sphereExpansion:.94,orbitalMotion:.65,shardVibration:.60,clusterReconstruction:.70,sub:0}
 describe('FRACTURE native preset',()=>{
   it('compiles authored and covered manifests and uses canonical schema and triggers',()=>{
     for(const m of [manifest,withCinema2AutoCoverage(manifest,{exempt:CINEMA2_AUTO_COVERAGE_EXEMPT.fracture})]){
@@ -24,7 +24,7 @@ describe('FRACTURE native preset',()=>{
     }
     // Every preset control sits in one of the four Design parents; the shared engine-level Quality / Performance control lives in Advanced.
     expect(new Set(manifest.parameters!.filter(p=>p.id!==CINEMA2_QUALITY_MODE_PARAMETER_ID).map(p=>p.designParentGroup))).toEqual(new Set(['master-controls','design','effects','palette']))
-    for(const [name,value] of Object.entries({'sphere-expansion':.75,'orbital-motion':.45,'shard-vibration':.6,'debris-density':.5,'cluster-reconstruction':.7,'fracture-lighting':.65}))expect(parameter(name).defaultValue).toBe(value)
+    for(const [name,value] of Object.entries({'sphere-expansion':.94,'orbital-motion':.65,'shard-vibration':.6,'debris-density':.72,'cluster-reconstruction':.7,'fracture-lighting':.85}))expect(parameter(name).defaultValue).toBe(value)
     expect(parameter('pattern').options).toEqual(FRACTURE_PATTERNS)
     expect(parameter('trigger').options).toEqual(CINEMA2_AFTERHOURS_TRIGGER_OPTIONS)
     expect(parameter('pool-trigger').options).toEqual(CANVAS_POOL_AUTOMATION_TRIGGER_OPTIONS)
@@ -48,50 +48,69 @@ describe('FRACTURE native preset',()=>{
     }
     for(const s of shards){const p=shardPose(s,{...motion,active:false,drop:1});expect(Math.abs(p.x)+Math.abs(p.y)+Math.abs(p.z)+Math.abs(p.rx)+Math.abs(p.ry)+Math.abs(p.rz)).toBe(0)}
   })
-  it('creates three deterministic depth layers with irregular geometry surrounding and behind the intact media plane',()=>{
-    const field=ruptureField(17);expect(field).toEqual(ruptureField(17));expect(field).not.toEqual(ruptureField(18));expect(field).toHaveLength(48)
+  it('creates irregular thin debris throughout an ellipsoid, not side columns',()=>{
+    const field=ruptureField(17);expect(field).toEqual(ruptureField(17));expect(field).not.toEqual(ruptureField(18));expect(field).toHaveLength(72)
     expect(new Set(field.map(f=>f.layer)).size).toBe(3)
-    expect(field.some(f=>f.z>0)).toBe(true);expect(field.some(f=>f.z<-6)).toBe(true)
-    expect(field.every(f=>f.thickness>0)).toBe(true)
-    for(const layer of [0,1,2]){const cells=field.filter(f=>f.layer===layer);expect(new Set(cells.map(f=>`${Math.sign(f.x)},${Math.sign(f.y)}`)).size).toBe(4)}
+    expect(field.some(f=>f.z>3)).toBe(true);expect(field.some(f=>f.z< -3)).toBe(true)
+    expect(field.every(f=>f.thickness>0&&f.thickness<.12&&f.width<1.1&&f.height<.7)).toBe(true)
     expect(field.some(f=>Math.abs(f.x)<2&&f.y>2)).toBe(true)
     expect(field.some(f=>Math.abs(f.x)<2&&f.y< -2)).toBe(true)
-    expect(field.some(f=>Math.abs(f.x)<4&&Math.abs(f.y)<2.25&&f.z<0)).toBe(true)
+    expect(field.some(f=>Math.abs(f.x)<2&&Math.abs(f.y)<1.5&&f.z< -2)).toBe(true)
     for(const f of field){const pose=fieldPose(f,{...motion,locked:true,drop:1});expect(pose).toEqual({x:f.x,y:f.y,z:f.z,rx:f.rx,ry:f.ry,rz:f.rz})}
     expect(field.filter(f=>f.lit).length).toBeLessThan(field.length/2)
-    expect(new Set(tessellate(48,17).map(s=>obsidianRest(s).z)).size).toBeGreaterThan(20)
+    expect(new Set(tessellate(40,17).map(s=>obsidianRest(s).z)).size).toBeGreaterThan(20)
   })
-  it('has intact, cracking, separated, suspended and restored stages, with shared musical overrides',()=>{
+  it('keeps seven connected major regions, highly variable areas and rigid early plate transforms',()=>{
+    const shards=tessellate(40,17),groups=new Set(shards.map(s=>s.group))
+    expect(groups.size).toBe(7)
+    expect(Math.max(...shards.map(s=>s.area))/Math.min(...shards.map(s=>s.area))).toBeGreaterThan(8)
+    expect(shards.some(s=>s.polygon.length===3)).toBe(true)
+    for(const id of groups){const cells=shards.filter(s=>s.group===id),seen=new Set([cells[0]!.id]),queue=[cells[0]!]
+      for(let i=0;i<queue.length;i++)for(const n of queue[i]!.neighbors)if(shards[n]!.group===id&&!seen.has(n)){seen.add(n);queue.push(shards[n]!)}
+      expect(seen.size).toBe(cells.length)
+      const poses=cells.map(s=>shardPose(s,{...motion,phase:2*Math.PI*.22}))
+      for(const p of poses){expect(p.z).toBeCloseTo(poses[0]!.z,10);expect(p.rz).toBeCloseTo(poses[0]!.rz,10);expect(p.rx).toBeCloseTo(0,10);expect(p.ry).toBeCloseTo(0,10)}
+    }
+  })
+  it('uses the shared cycle and gives each pattern a distinct program and exact quiet endpoint',()=>{
     expect(ruptureEnvelope(0)).toEqual({crack:0,open:0,suspend:0})
     expect(ruptureEnvelope(.20).crack).toBeGreaterThan(0);expect(ruptureEnvelope(.20).open).toBe(0)
     expect(ruptureEnvelope(.40).open).toBeGreaterThan(0);expect(ruptureEnvelope(.60).suspend).toBe(1)
     expect(ruptureEnvelope(.98)).toEqual({crack:0,open:0,suspend:0})
-    const shards=tessellate(48,17),sample={...motion,phase:Math.PI*1.05}
+    const shards=tessellate(40,17),sample={...motion,phase:Math.PI}
     const signature=FRACTURE_PATTERNS.map(({value})=>JSON.stringify(shards.map(s=>{const {light,...pose}=shardPose(s,{...sample,pattern:value});return pose})))
     expect(new Set(signature).size).toBe(6)
-    const s=shards[0]!,p={...sample,pattern:'scatter' as const},size=(m:FractureMotion)=>{const v=shardPose(s,m);return Math.hypot(v.x,v.y,v.z)}
-    expect(size({...p,phrase:1})).toBeLessThan(size(p));expect(size({...p,phase:0,drop:1})).toBeGreaterThan(size({...p,phase:0}));expect(size({...p,phase:0,kick:1})).toBeGreaterThan(0)
+    const extent=(m:FractureMotion)=>shards.reduce((sum,s)=>{const p=shardPose(s,m);return sum+Math.hypot(p.x,p.y,p.z)},0)
+    const p={...sample,pattern:'scatter' as const}
+    expect(extent({...p,phrase:1})).toBeLessThan(extent(p));expect(extent({...p,phase:0,drop:1})).toBeGreaterThan(extent({...p,phase:0}));expect(extent({...p,phase:0,kick:1})).toBeGreaterThan(0)
+    expect(extent({...p,build:1})).toBeLessThan(extent(p))
     for(const {value} of FRACTURE_PATTERNS)for(const shard of shards){const {light,...pose}=shardPose(shard,{...sample,pattern:value,phase:Math.PI*2*.99});expect(Object.values(pose).every(x=>Math.abs(x)<1e-8)).toBe(true)}
   })
-  it('expands the media through both depth directions and rebuilds a connected central island',()=>{
-    const shards=tessellate(48,17),sorted=[...shards].sort((a,b)=>a.assemblyRank-b.assemblyRank),seen=new Set<number>()
-    for(const s of sorted){if(seen.size)expect(s.neighbors.some(id=>seen.has(id))).toBe(true);seen.add(s.id)}
-    const expanded={...motion,pattern:'scatter' as const,phase:Math.PI*.98,drop:1,spread:1,depthTravel:1,intensity:1,safe:false}
-    const poses=shards.map(s=>shardPose(s,expanded))
-    expect(Math.max(...poses.map(p=>p.z))).toBeGreaterThan(2)
-    expect(Math.min(...poses.map(p=>p.z))).toBeLessThan(-2)
-    expect(Math.max(...poses.map(p=>Math.hypot(p.x,p.y)))).toBeGreaterThan(3)
-    const reveal={...motion,pattern:'suspension' as const,phase:Math.PI*2*.68}
+  it('expands actual media centers at authored defaults and reconstructs contiguous source area',()=>{
+    const shards=tessellate(40,17),sorted=[...shards].sort((a,b)=>a.assemblyRank-b.assemblyRank),seen=new Set<number>()
+    let area=0
+    for(const s of sorted){if(seen.size)expect(s.neighbors.some(id=>seen.has(id))).toBe(true);seen.add(s.id);area+=s.area;expect(s.assemblyRank).toBeCloseTo(area/36,10)}
+    const expanded={...motion,pattern:'scatter' as const,phase:Math.PI}
+    const poses=shards.map(s=>shardPose(s,expanded)),depth=poses.map(p=>p.z)
+    expect(Math.max(...depth)).toBeGreaterThan(3);expect(Math.min(...depth)).toBeLessThan(-3)
+    expect(depth.filter(z=>Math.abs(z)>1.5).length).toBeGreaterThan(15)
+    expect(Math.max(...poses.map((p,i)=>Math.abs(shards[i]!.center.x+p.x)))).toBeGreaterThan(4.5)
     const distance=(s:typeof shards[number],m:FractureMotion)=>{const p=shardPose(s,m);return Math.hypot(p.x,p.y,p.z,p.rx,p.ry,p.rz)}
-    const home=sorted.filter(s=>distance(s,reveal)<1e-8)
-    expect(home.length).toBeGreaterThan(15);expect(home.length).toBeLessThan(40)
+    const reveal={...motion,pattern:'reconstruction' as const,phase:Math.PI*2*.63}
+    const home=sorted.filter(s=>distance(s,reveal)<1e-8),fraction=home.reduce((sum,s)=>sum+s.area,0)/36
+    expect(fraction).toBeGreaterThan(.4);expect(fraction).toBeLessThan(.7)
     expect(home.map(s=>s.id)).toEqual(sorted.slice(0,home.length).map(s=>s.id))
-    const moving={...expanded,drop:0,bass:1,sub:1}
+    const mostly=sorted.filter(s=>distance(s,{...reveal,phase:Math.PI*2*.73})<1e-8).reduce((sum,s)=>sum+s.area,0)/36
+    expect(mostly).toBeGreaterThan(.70);expect(mostly).toBeLessThan(.85)
+    const moving={...expanded,bass:1,sub:1}
     expect(shards.some(s=>Math.abs(distance(s,moving)-distance(s,{...moving,shardVibration:0}))>.01)).toBe(true)
+    expect(shards.some(s=>Math.abs(distance(s,expanded)-distance(s,{...expanded,orbitalMotion:0}))>.01)).toBe(true)
+    const flat=shards.map(s=>shardPose(s,{...expanded,sphereExpansion:0}))
+    expect(Math.max(...flat.map(p=>Math.abs(p.z)))).toBeLessThan(Math.max(...depth)*.25)
   })
   it('honors hard lock and zero authored extents, with vocal restraint',()=>{
     const s=tessellate(48,17)[0]!,p=shardPose(s,{...motion,spread:0,depthTravel:0,rotation:0,crackEmission:0,kick:1,bass:1,high:1,mid:1});expect(Math.abs(p.x)+Math.abs(p.y)+Math.abs(p.z)+Math.abs(p.rx)+Math.abs(p.ry)+Math.abs(p.rz)+p.light).toBe(0)
-    const a=shardPose(s,{...motion,pattern:'scatter'}),b=shardPose(s,{...motion,pattern:'scatter',vocal:1});expect(Math.abs(b.x)).toBeLessThan(Math.abs(a.x))
+    const sum=(m:FractureMotion)=>tessellate(40,17).reduce((n,s)=>{const p=shardPose(s,m);return n+Math.hypot(p.x,p.y,p.z)},0);expect(sum({...motion,phase:Math.PI,pattern:'scatter',vocal:1})).toBeLessThan(sum({...motion,phase:Math.PI,pattern:'scatter'}))
     const locked=shardPose(s,{...motion,locked:true,drop:1});expect(Math.abs(locked.x)+Math.abs(locked.y)+Math.abs(locked.z)).toBe(0)
   })
   it('builds full source UV caps, reuses geometry, restores exact media plane and disposes all meshes',()=>{
@@ -114,6 +133,12 @@ describe('FRACTURE native preset',()=>{
       const geometries=faces.map(f=>f.geometry),rest=cells.map(g=>g.position.clone())
       scene.apply({...look,active:true,reset:false,phase:Math.PI,pattern:'scatter',drop:1},[resource],0,'medium')
       expect(cells.some((g,i)=>g.position.distanceTo(rest[i]!)>0)).toBe(true);expect(faces.some(f=>f.scale.x<1)).toBe(true)
+      const paused=cells.map(g=>({position:g.position.clone(),rotation:g.quaternion.clone()}))
+      scene.apply({...look,active:false,paused:true,reset:false},[resource],0,'medium')
+      expect(cells.every((g,i)=>g.position.equals(paused[i]!.position)&&g.quaternion.equals(paused[i]!.rotation))).toBe(true)
+      const shards=world.children.filter(g=>g instanceof THREE.Group&&!cells.includes(g))
+      scene.apply({...look,reset:false,debrisDensity:0},[resource],0,'high')
+      expect(shards.every(g=>!g.visible)).toBe(true)
       for(let i=0;i<200;i++)scene.apply({...look,reset:false},[resource],0,'low')
       expect(cells.every((g,i)=>g.position.equals(rest[i]!))).toBe(true);expect(faces.every((f,i)=>f.geometry===geometries[i]&&f.scale.x===1)).toBe(true)
       scene.apply({...look,reset:false},[],0,'high');expect(cells.some(g=>g.position.z!==0)).toBe(true)
