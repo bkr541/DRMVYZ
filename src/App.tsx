@@ -17,6 +17,9 @@ import { useAppearanceStore } from './features/appearance/appearanceStore'
 import { useSystemSettingsStore } from './features/systemSettings/systemSettingsStore'
 import './stores/mediaDeletionGuardBootstrap'
 import { usePerformancePadSync } from './features/performancePads/usePerformancePadSync'
+import { useAdminAccess } from './lib/adminAccess'
+import { startPresetMetadataRefresh, usePresetMetadataStore } from './features/presetCatalog/presetMetadataStore'
+import { startPresetAvailabilityGuard } from './features/presetCatalog/presetAvailabilityGuard'
 import { resolveMobileApp } from './components/vyzualz/mobile/mobileDevice'
 import { isMobileAppPreviewFrame } from './components/vyzualz/layout/mobileAppPreview'
 import { BRAND_NAME } from './brand'
@@ -45,6 +48,17 @@ export default function App() {
   const [loadedAccount, setLoadedAccount] = useState<string | null>(null)
   const accountDataReady = !isAccountScopedPersistenceEnabled() || (userId !== null && loadedAccount === userId)
   usePerformancePadSync(authGate === 'authenticated' && accountDataReady ? userId : null)
+  const studioOpen = authGate === 'authenticated' && accountDataReady
+  // Admins also see and use Designing and Draft presets; everyone else sees only released presets (presetAvailability.ts).
+  const viewerIsAdmin = useAdminAccess()
+  useEffect(() => { usePresetMetadataStore.getState().setViewerIsAdmin(viewerIsAdmin) }, [viewerIsAdmin])
+  // While the studio is open: keep the admin's preset statuses and off switches current, and never let an unavailable preset stay active.
+  useEffect(() => {
+    if (!studioOpen) return
+    const stopRefresh = startPresetMetadataRefresh()
+    const stopGuard = startPresetAvailabilityGuard()
+    return () => { stopRefresh(); stopGuard() }
+  }, [studioOpen])
 
   useEffect(() => {
     applyBrandAppAccent(activeBrandKit)

@@ -121,6 +121,8 @@
 .adm-status[data-status='draft'] { color: var(--adm-draft); }
 .adm-status[data-status='archived'] { color: var(--adm-archived); }
 .adm-status[data-status='unset'] { color: var(--adm-unset); }
+.adm-status[data-status='off'] { color: #e0687d; }
+.adm-status-cell { display: inline-flex; align-items: center; gap: 6px; }
 
 .adm-bulk { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--color-border-subtle, rgba(154, 178, 188, 0.18)); background: var(--color-panel-alt, #0b1115); }
 .adm-bulk-count { flex: 1 0 100%; margin-right: auto; color: var(--color-text-muted, rgba(196, 212, 220, 0.66)); font: var(--type-field-value); }

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { PresetManagerRecord } from '../../../components/vyzualz/presetManager/presetManagerCatalog'
 import type { PresetMetadataRow } from '../../presetCatalog/presetMetadata'
 import {
-  ALL, NO_PACK, STATUS_DESCRIPTIONS, STATUS_LABELS, STATUS_ORDER, buildAdminPresets, currentEdit, editFromPreset, filterAdminPresets, groupByEngine, groupByPack, isEditChanged, parseTags, rowFromEdit, rowWithStatus, sharedStatus, sortAdminPresets, statusCounts, validateEdit,
+  ALL, NO_PACK, STATUS_DESCRIPTIONS, STATUS_LABELS, STATUS_ORDER, SWITCHED_OFF, buildAdminPresets, currentEdit, editFromPreset, filterAdminPresets, groupByEngine, groupByPack, isEditChanged, parseTags, rowFromEdit, rowWithStatus, sharedStatus, sortAdminPresets, statusCounts, validateEdit,
   type CatalogPack, type PackMember, type PresetFilter,
 } from './presetAdmin'
 
@@ -17,6 +17,8 @@ const row = (engine: string, key: string, patch: Partial<PresetMetadataRow> = {}
 })
 const PACKS: CatalogPack[] = [{ id: 'p2', name: 'Second', description: null, display_order: 2 }, { id: 'p1', name: 'First', description: null, display_order: 1 }, { id: 'p3', name: 'Empty', description: null, display_order: 3 }]
 const MEMBERS: PackMember[] = [{ pack_id: 'p1', engine_id: 'cinema2', preset_key: 'x', position: 1 }, { pack_id: 'p2', engine_id: 'cinema2', preset_key: 'x', position: 1 }, { pack_id: 'p2', engine_id: 'canvas', preset_key: 'c', position: 2 }]
+const RECORDS_FOR_OFF_SWITCH = [record('cinema2', 'off', 'Offline', 'Cinema 2.0')]
+const OFF_ROW = row('cinema2', 'off', { disabled: true, disabled_reason: 'being fixed', publication_status: 'published' })
 const OPEN: PresetFilter = { query: '', engine: ALL, category: ALL, packId: ALL, status: ALL }
 const names = (list: { name: string }[]) => list.map(item => item.name)
 
@@ -80,8 +82,8 @@ describe('admin preset catalog', () => {
   })
 
   it('counts presets by status for the filter chips', () => {
-    expect(statusCounts(presets)).toEqual({ all: 3, unset: 2, designing: 0, draft: 1, published: 0, archived: 0 })
-    expect(statusCounts([])).toEqual({ all: 0, unset: 0, designing: 0, draft: 0, published: 0, archived: 0 })
+    expect(statusCounts(presets)).toEqual({ all: 3, unset: 2, designing: 0, draft: 1, published: 0, archived: 0, off: 0 })
+    expect(statusCounts([])).toEqual({ all: 0, unset: 0, designing: 0, draft: 0, published: 0, archived: 0, off: 0 })
   })
 
   it('tells a changed draft from an unchanged one, ignoring spacing', () => {
@@ -124,5 +126,21 @@ describe('admin preset catalog', () => {
     const designing = buildAdminPresets(RECORDS, [row('cinema2', 'a', { publication_status: 'designing' })], MEMBERS)
     expect(designing[1]).toMatchObject({ status: 'designing' })
     expect(statusCounts(designing).designing).toBe(1)
+  })
+
+  it('stores the off switch with its note, keeps the status, and treats "off" like an unchanged column', () => {
+    const [preset] = buildAdminPresets(RECORDS_FOR_OFF_SWITCH, [], [])
+    const edit = { ...editFromPreset(preset!), disabled: true, disabledReason: '  being fixed  ' }
+    expect(rowFromEdit(preset!.record, edit)).toMatchObject({ disabled: true, disabled_reason: 'being fixed', publication_status: null })
+    expect(rowFromEdit(preset!.record, { ...edit, disabled: false })).toBeNull()
+    expect(rowFromEdit(preset!.record, { ...edit, disabled: false, status: 'published' })).toMatchObject({ disabled: false, disabled_reason: null, publication_status: 'published' })
+    expect(validateEdit({ ...edit, disabledReason: 'x'.repeat(281) }).disabledReason).toBe('At most 280 characters.')
+  })
+
+  it('finds switched-off presets with their own filter and counts them', () => {
+    const presets = buildAdminPresets(RECORDS_FOR_OFF_SWITCH, [{ ...OFF_ROW }], [])
+    expect(presets[0]!.disabled).toBe(true)
+    expect(filterAdminPresets(presets, { query: '', engine: ALL, category: ALL, packId: ALL, status: SWITCHED_OFF })).toHaveLength(1)
+    expect(statusCounts(presets).off).toBe(1)
   })
 })

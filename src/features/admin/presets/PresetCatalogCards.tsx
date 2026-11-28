@@ -9,6 +9,11 @@ export function StatusBadge({ status }: { status: AdminPreset['status'] }) {
   return <span className="adm-status" data-status={key}>{STATUS_LABELS[key]}</span>
 }
 
+/** Shown beside the status while the preset's off switch is on. */
+export function SwitchedOffBadge() {
+  return <span className="adm-status" data-status="off" title="Switched off: no user can see or use this preset">Off</span>
+}
+
 /** The preset as users will see it once the admin's edits are saved: the stored record with the name, description, category and tags of the edit applied. */
 export interface ShownPreset { record: PresetManagerRecord; name: string; description: string }
 
@@ -35,7 +40,7 @@ export function AdminPresetTile({ preset, shown, active, checked, changed, onSel
         title={shown.name}
         description={shown.description}
         backdrop={presetArtworkBackdrop(shown.record)}
-        chips={[{ label: STATUS_LABELS[preset.status ?? 'unset'] }]}
+        chips={[{ label: STATUS_LABELS[preset.status ?? 'unset'] }, ...(preset.disabled ? [{ label: 'Off' }] : [])]}
         isActive={active}
         isModified={changed}
         activateLabel={`Select ${shown.name}`}
@@ -70,7 +75,7 @@ export function AdminPresetTableRow({ preset, shown, active, checked, changed, o
       </td>
       <td>{record.engineName}</td>
       <td className="adm-ellipsis" title={preset.category}>{shown.record.category}</td>
-      <td><StatusBadge status={preset.status} /></td>
+      <td><span className="adm-status-cell"><StatusBadge status={preset.status} />{preset.disabled && <SwitchedOffBadge />}</span></td>
     </tr>
   )
 }

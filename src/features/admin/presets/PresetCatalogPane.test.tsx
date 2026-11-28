@@ -112,7 +112,7 @@ describe('Preset Catalog: library', () => {
     expect(q('[data-preset-id="cinema2:charlie"]')!.getAttribute('data-status')).toBe('unset')
     expect(q('.adm-status-chip')).toBeNull()
     await openStatus()
-    expect(statusLabels()).toEqual(['All Statuses (4)', 'Not set (2)', 'Designing (0)', 'Draft (1)', 'Published (1)', 'Archived (0)'])
+    expect(statusLabels()).toEqual(['All Statuses (4)', 'Not set (2)', 'Designing (0)', 'Draft (1)', 'Published (1)', 'Archived (0)', 'Switched Off (0)'])
     await click(statusOptions()[0]!)
     expect(q('.adm-count')!.textContent).toBe('4 of 4 presets')
   })
@@ -149,7 +149,7 @@ describe('Preset Catalog: library', () => {
     expect(names()).toEqual(['charlie'])
     // With a search active, the chips count only what matches it.
     await openStatus()
-    expect(statusLabels()).toEqual(['All Statuses (1)', 'Not set (1)', 'Designing (0)', 'Draft (0)', 'Published (0)', 'Archived (0)'])
+    expect(statusLabels()).toEqual(['All Statuses (1)', 'Not set (1)', 'Designing (0)', 'Draft (0)', 'Published (0)', 'Archived (0)', 'Switched Off (0)'])
     await click(statusOptions()[0]!)
     await type(q<HTMLInputElement>('.dv-library-search-input')!, 'zzz')
     expect(q('.pmv-empty')!.textContent).toBe('No presets match.')
@@ -321,7 +321,8 @@ describe('Preset Catalog: publishing', () => {
     expect(options.map(option => option.querySelector('.drm-dropdown__option-label')?.textContent)).toEqual(['Not set', 'Designing', 'Draft', 'Published', 'Archived'])
     const sentences = options.map(option => option.querySelector('.drm-dropdown__option-description')?.textContent ?? '')
     for (const sentence of sentences) { expect(sentence.length).toBeGreaterThan(10); expect(sentence.endsWith('.')).toBe(true); expect(sentence.split('. ').length).toBe(1) }
-    expect(sentences[1]).toBe('Still being designed and not ready for anyone to review.')
+    // Each status now says what it does in the app (presetAvailability.ts).
+    expect(sentences[1]).toBe('Still being designed, so only admins can see and use it.')
     await click(options[1]!)
     expect(calls.saveMany).toHaveLength(0)
     expect(q('[data-preset-id="cinema2:alpha"]')!.getAttribute('data-status')).toBe('published')

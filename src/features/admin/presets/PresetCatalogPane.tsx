@@ -15,13 +15,13 @@ import { AdminPresetTableRow, AdminPresetTile, type ShownPreset } from './Preset
 import { PresetCatalogInspector } from './PresetCatalogInspector'
 import { PresetCatalogSummary } from './PresetCatalogSummary'
 import {
-  ALL, NO_PACK, STATUS_LABELS, STATUS_ORDER, currentEdit, filterAdminPresets, isEditChanged, parseTags, rowFromEdit, rowWithStatus, sortAdminPresets, statusCounts, validateEdit,
+  ALL, NO_PACK, STATUS_LABELS, STATUS_ORDER, SWITCHED_OFF, currentEdit, filterAdminPresets, isEditChanged, parseTags, rowFromEdit, rowWithStatus, sortAdminPresets, statusCounts, validateEdit,
   type AdminPreset, type CatalogPack, type PresetEdit, type PresetFilter, type PresetSortKey, type PublicationStatus,
 } from './presetAdmin'
 
 const SORTS: { value: PresetSortKey; label: string }[] = [{ value: 'name', label: 'Sort: Name' }, { value: 'engine', label: 'Sort: Engine' }, { value: 'category', label: 'Sort: Category' }, { value: 'order', label: 'Sort: Display order' }]
 /** The status filter options, in publication order. */
-const STATUS_FILTERS: readonly { value: string; label: string }[] = [{ value: ALL, label: 'All' }, ...STATUS_ORDER.map(value => ({ value: value || 'unset', label: STATUS_LABELS[value || 'unset'] }))]
+const STATUS_FILTERS: readonly { value: string; label: string }[] = [{ value: ALL, label: 'All' }, ...STATUS_ORDER.map(value => ({ value: value || 'unset', label: STATUS_LABELS[value || 'unset'] })), { value: SWITCHED_OFF, label: 'Switched Off' }]
 /** What the toast says after a status is saved, and the label on the confirm button for a change to several presets. */
 const STATUS_DONE: Readonly<Record<PublicationStatus, string>> = { designing: 'set to designing', draft: 'set to draft', published: 'published', archived: 'archived' }
 

@@ -5,6 +5,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { createSplitPersistStorage } from '../lib/splitPersistStorage'
 import { isPersistenceAccount, registerAccountScopedStore, scopeStorageToAccount } from '../lib/accountScopedPersistence'
+import { presetUsableOrReport } from '../features/presetCatalog/presetAvailabilityNotice'
 import {
   deleteShowManagerCloudShow,
   listShowManagerCloudBundles,
@@ -31,6 +32,7 @@ import { normalizeSoundDrawingScopeState } from '../audio/scope/scopeStateNormal
 import {
   activateCinema2Workspace as activateCinema2WorkspaceDocument,
   archiveLegacyCinemaDocument,
+  cinema2NativePresetRegistry,
   createEmptyCinema2WorkspaceDocument,
   normalizeCinema2WorkspaceDocument,
   storeCinema2WorkspacePresetState as storeCinema2WorkspacePresetDocumentState,
@@ -6706,9 +6708,12 @@ export const useReactStore = create<ReactStoreState>()(
       activeReactEngineId: INITIAL_ENGINE_ID,
       reactPresets: DEFAULT_REACT_PRESETS,
       headlinerSettings: normalizeHeadlinerSettings(DEFAULT_HEADLINER_SETTINGS),
-      setHeadlinerSettings: (patch) => set((state) => ({
-        headlinerSettings: normalizeHeadlinerSettings({ ...state.headlinerSettings, ...patch }),
-      })),
+      setHeadlinerSettings: (patch) => set((state) => {
+        // Choosing an effect an admin has not released or has switched off keeps the current one.
+        const blocked = patch.presetId != null && !presetUsableOrReport('headliner', patch.presetId)
+        const { presetId: _presetId, ...rest } = patch
+        return { headlinerSettings: normalizeHeadlinerSettings({ ...state.headlinerSettings, ...(blocked ? rest : patch) }) }
+      }),
       xyScopeSettings: normalizeXyScopeSettings(DEFAULT_XY_SCOPE_SETTINGS),
       setXyScopeSettings: (patch) => set((state) => ({
         xyScopeSettings: normalizeXyScopeSettings({ ...state.xyScopeSettings, ...patch }),
@@ -6719,6 +6724,9 @@ export const useReactStore = create<ReactStoreState>()(
       activateCinema2Workspace: (request) => {
         if (blockTextSceneNavigation(() => { get().activateCinema2Workspace(request) })) {
           return { ok: false, document: get().cinema2Workspace, state: null, diagnostics: [{ code: 'CINEMA2_TEXT_SCENE_NAVIGATION_PENDING', message: 'Resolve unsaved Text Scene changes before switching presets.', path: '$.activePresetId' }] }
+        }
+        if (!presetUsableOrReport('cinema2', request.presetId, cinema2NativePresetRegistry.get(request.presetId)?.metadata.name)) {
+          return { ok: false, document: get().cinema2Workspace, state: null, diagnostics: [{ code: 'CINEMA2_PRESET_UNAVAILABLE', message: 'This preset is not available.', path: '$.activePresetId' }] }
         }
         const result = activateCinema2WorkspaceDocument(get().cinema2Workspace, request)
         if (result.ok) set({ cinema2Workspace: result.document })
@@ -8366,6 +8374,7 @@ export const useReactStore = create<ReactStoreState>()(
 
       selectCanvasPreset: (id) => set(() => {
         if (isCanvasLegacyEffectPresetId(id)) return {}
+        if (!presetUsableOrReport('canvas', id, CANVAS_PRESET_BY_ID[id]?.name)) return {}
         const preset = CANVAS_PRESET_BY_ID[id] ?? CANVAS_PRESET_BY_ID[DEFAULT_CANVAS_PRESET_ID]
         return {
           selectedCanvasPresetId: preset.id,
@@ -9417,6 +9426,7 @@ export const useReactStore = create<ReactStoreState>()(
           if (id != null) {
             const preset = s.reactPresets.find(p => p.id === id)
             if (preset && isSelectableReactEngineId(preset.engine)) {
+              if (!presetUsableOrReport(preset.engine, preset.id, preset.name)) return {}
               return { ...buildPresetPatchForState(preset, s), performancePadTransition: null }
             }
             const legacySelection = resolveLegacyPresetSelectionMigration(s.reactPresets, id)
@@ -9582,6 +9592,7 @@ export const useReactStore = create<ReactStoreState>()(
           const safePresetId = replaceLockedLaserDmxPresetId(id) ?? id
           const selected = s.reactPresets.find((p) => p.id === safePresetId)
           if (!selected) return {}
+          if (!presetUsableOrReport(selected.engine, selected.id, selected.name)) return {}
           if (!isSelectableReactEngineId(selected.engine)) {
             const legacySelection = resolveLegacyPresetSelectionMigration(s.reactPresets, selected.id)
             if (!legacySelection?.legacySourceId) return {}
@@ -11911,6 +11922,7 @@ export const useReactStore = create<ReactStoreState>()(
       },
 
       applyLaserDmxShowDirectorPerformancePreset: (preset) => {
+        if (!presetUsableOrReport('laserDmx', preset.id, preset.name)) return false
         const current = get()
         const loaded = createLaserDmxShowDirectorPerformancePresetLoadResult(
           current.laserDmxShowDirector,
@@ -12547,6 +12559,7 @@ export const useReactStore = create<ReactStoreState>()(
         })),
 
       applyLaserDmxShowDirectorTemplate: (templateId) => {
+        if (!presetUsableOrReport('laserDmx', templateId)) return false
         const next = createLaserDmxShowDirectorTemplateState(templateId, createLaserDmxShowDirectorId)
         if (!next) return false
         set(s => {
@@ -12891,6 +12904,7 @@ export const useReactStore = create<ReactStoreState>()(
       applyLaserDmxBeamMatrixPreset: (presetId) => {
         const preset = getLaserDmxBeamMatrixPreset(presetId)
         if (!preset) return
+        if (!presetUsableOrReport('laserDmx', preset.id, preset.name)) return
         const fresh = preset.createSettings()
         const clampedBeams = fresh.beams
           .slice(0, LASER_DMX_MATRIX_MAX_BEAMS)

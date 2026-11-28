@@ -17,6 +17,8 @@ export interface AdminPreset {
   tags: readonly string[]
   order: number | null
   status: PublicationStatus | null
+  /** The emergency off switch is on: no user can see or use the preset, whatever its status. */
+  disabled: boolean
   packIds: readonly string[]
 }
 
@@ -32,7 +34,7 @@ export function buildAdminPresets(records: readonly PresetManagerRecord[], rows:
     return {
       record, row,
       name: row?.name ?? record.name, description: row?.description ?? record.description, category: row?.category ?? record.category, tags: row?.tags ?? record.tags,
-      order: row?.display_order ?? null, status: row?.publication_status ?? null, packIds: packsByKey.get(record.id) ?? [],
+      order: row?.display_order ?? null, status: row?.publication_status ?? null, disabled: row?.disabled === true, packIds: packsByKey.get(record.id) ?? [],
     }
   })
 }
@@ -40,6 +42,8 @@ export function buildAdminPresets(records: readonly PresetManagerRecord[], rows:
 export interface PresetFilter { query: string; engine: string; category: string; packId: string; status: string }
 export const ALL = 'all'
 export const NO_PACK = 'none'
+/** The status filter value for presets whose off switch is on. */
+export const SWITCHED_OFF = 'off'
 
 export function filterAdminPresets(presets: readonly AdminPreset[], filter: PresetFilter): AdminPreset[] {
   const query = filter.query.trim().toLowerCase()
@@ -47,7 +51,7 @@ export function filterAdminPresets(presets: readonly AdminPreset[], filter: Pres
     if (filter.engine !== ALL && preset.record.engineName !== filter.engine) return false
     if (filter.category !== ALL && preset.category !== filter.category) return false
     if (filter.packId === NO_PACK ? preset.packIds.length > 0 : filter.packId !== ALL && !preset.packIds.includes(filter.packId)) return false
-    if (filter.status !== ALL && (preset.status ?? 'unset') !== filter.status) return false
+    if (filter.status === SWITCHED_OFF ? !preset.disabled : filter.status !== ALL && (preset.status ?? 'unset') !== filter.status) return false
     return !query || [preset.name, preset.description, preset.record.id, preset.record.sourceId, preset.record.engineName, preset.category, ...preset.tags].some(value => value.toLowerCase().includes(query))
   })
 }
@@ -93,16 +97,19 @@ export function parseTags(text: string): string[] {
 export interface PresetEdit {
   name: string; description: string; category: string; tagsText: string; orderText: string; status: PublicationStatus | ''
   storeTitle: string; storeSubtitle: string; storeCover: string; storePreview: string
+  /** The emergency off switch, and the note users see while it is on. */
+  disabled: boolean; disabledReason: string
 }
 
 export function editFromPreset(preset: AdminPreset): PresetEdit {
   return {
     name: preset.name, description: preset.description, category: preset.category, tagsText: preset.tags.join(', '), orderText: preset.order === null ? '' : String(preset.order),
     status: preset.status ?? '', storeTitle: preset.row?.store_title ?? '', storeSubtitle: preset.row?.store_subtitle ?? '', storeCover: preset.row?.store_cover_ref ?? '', storePreview: preset.row?.store_preview_ref ?? '',
+    disabled: preset.row?.disabled === true, disabledReason: preset.row?.disabled_reason ?? '',
   }
 }
 
-export interface EditProblems { name?: string; order?: string; tags?: string; storeTitle?: string }
+export interface EditProblems { name?: string; order?: string; tags?: string; storeTitle?: string; disabledReason?: string }
 
 export function validateEdit(edit: PresetEdit): EditProblems {
   const problems: EditProblems = {}
@@ -113,6 +120,7 @@ export function validateEdit(edit: PresetEdit): EditProblems {
   const tags = parseTags(edit.tagsText)
   if (tags.length > 32) problems.tags = 'At most 32 tags.'
   else if (tags.some(tag => tag.length > 40)) problems.tags = 'Each tag can be at most 40 characters.'
+  if (edit.disabledReason.trim().length > 280) problems.disabledReason = 'At most 280 characters.'
   return problems
 }
 
@@ -131,37 +139,42 @@ export function rowFromEdit(record: PresetManagerRecord, edit: PresetEdit): Pres
     name: differs(edit.name, record.name), description: differs(edit.description, record.description), category: differs(edit.category, record.category),
     tags: sameTags ? null : tags, display_order: edit.orderText.trim() ? Number(edit.orderText) : null, publication_status: edit.status || null,
     store_title: blank(edit.storeTitle), store_subtitle: blank(edit.storeSubtitle), store_cover_ref: blank(edit.storeCover), store_preview_ref: blank(edit.storePreview),
+    disabled: edit.disabled, disabled_reason: edit.disabled ? blank(edit.disabledReason) : null,
   }
-  const { engine_id: _engine, preset_key: _key, updated_at: _at, ...columns } = row
+  const { engine_id: _engine, preset_key: _key, updated_at: _at, disabled: _disabled, ...columns } = row
   void _engine; void _key; void _at
-  return Object.values(columns).every(value => value === null) ? null : row
+  // The off switch defaults to off (false), which, like a NULL, changes nothing.
+  return !_disabled && Object.values(columns).every(value => value === null) ? null : row
 }
 
 export const STATUS_LABELS: Readonly<Record<PublicationStatus | 'unset', string>> = { unset: 'Not set', designing: 'Designing', draft: 'Draft', published: 'Published', archived: 'Archived' }
 
 /** One sentence on what each status means, shown under it in the status dropdown. */
 export const STATUS_DESCRIPTIONS: Readonly<Record<PublicationStatus | 'unset', string>> = {
-  unset: 'No status is recorded; the preset is just as it ships.',
-  designing: 'Still being designed and not ready for anyone to review.',
-  draft: 'Designed and ready to review, but not published yet.',
-  published: 'Live: recorded as released for the store.',
-  archived: 'Retired from the store, with its saved details kept.',
+  unset: 'No status is recorded, so the preset is available to everyone as it ships.',
+  designing: 'Still being designed, so only admins can see and use it.',
+  draft: 'Ready to review but not released, so only admins can see and use it.',
+  published: 'Released and available to everyone.',
+  archived: 'Retired and hidden from everyone, with its saved details kept.',
 }
 
 /** The statuses in the order they are offered: from nothing recorded, through the work, to done. */
 export const STATUS_ORDER: readonly (PublicationStatus | '')[] = ['', 'designing', 'draft', 'published', 'archived']
 
-export type StatusCounts = Record<PublicationStatus | 'unset' | 'all', number>
+export type StatusCounts = Record<PublicationStatus | 'unset' | 'all' | typeof SWITCHED_OFF, number>
 
 /** How many presets are in each status, for the status dropdown. The counts follow the other filters, so each option says what selecting it will show. */
 export function statusCounts(presets: readonly AdminPreset[]): StatusCounts {
-  const counts: StatusCounts = { all: presets.length, unset: 0, designing: 0, draft: 0, published: 0, archived: 0 }
-  for (const preset of presets) counts[preset.status ?? 'unset'] += 1
+  const counts: StatusCounts = { all: presets.length, unset: 0, designing: 0, draft: 0, published: 0, archived: 0, off: 0 }
+  for (const preset of presets) {
+    counts[preset.status ?? 'unset'] += 1
+    if (preset.disabled) counts.off += 1
+  }
   return counts
 }
 
 const editKey = (edit: PresetEdit) => JSON.stringify([edit.name.trim(), edit.description.trim(), edit.category.trim(), parseTags(edit.tagsText), edit.orderText.trim(), edit.status,
-  edit.storeTitle.trim(), edit.storeSubtitle.trim(), edit.storeCover.trim(), edit.storePreview.trim()])
+  edit.storeTitle.trim(), edit.storeSubtitle.trim(), edit.storeCover.trim(), edit.storePreview.trim(), edit.disabled, edit.disabled ? edit.disabledReason.trim() : ''])
 
 /** True when a draft differs from what is stored. Whitespace and tag spacing do not count. */
 export const isEditChanged = (preset: AdminPreset, edit: PresetEdit | undefined): boolean => edit !== undefined && editKey(edit) !== editKey(editFromPreset(preset))

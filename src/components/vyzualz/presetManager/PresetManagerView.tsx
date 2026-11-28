@@ -6,7 +6,8 @@ import { useRecorder } from '../../../hooks/useRecorder'
 import { EMPTY_PRESET_ORGANIZATION, usePresetOrganizationStore } from '../../../features/presetOrganization/presetOrganizationStore'
 import { usePresetCatalogStore, usePresetScopeFilter } from '../../../features/presetCatalog/presetCatalogStore'
 import { applyPresetMetadata } from '../../../features/presetCatalog/presetMetadata'
-import { usePresetMetadata } from '../../../features/presetCatalog/presetMetadataStore'
+import { usePresetMetadata, usePresetMetadataStore } from '../../../features/presetCatalog/presetMetadataStore'
+import { presetAvailabilityFor } from '../../../features/presetCatalog/presetAvailability'
 import type { ReactPreset } from '../react/ReactTypes'
 import { useMediaStore } from '../../../stores/mediaStore'
 import { useReactStore } from '../../../stores/reactStore'
@@ -213,9 +214,12 @@ export function PresetManagerView() {
   const reactGlow = useReactStore(state => state.reactGlow)
   const reactBassReactivity = useReactStore(state => state.reactBassReactivity)
   const deckRecords = useMemo(() => reactPresets.filter(isPixGridDeckGeneratedPreset).map(pixGridDeckPresetRecord), [reactPresets])
+  // Presets an admin has not released, archived or switched off are left out (see presetAvailability.ts).
+  const viewerIsAdmin = usePresetMetadataStore(state => state.viewerIsAdmin)
   const presetList = useMemo(
-    () => applyPresetMetadata([...PRESET_MANAGER_PRESETS, ...deckRecords], presetMetadata),
-    [deckRecords, presetMetadata],
+    () => applyPresetMetadata([...PRESET_MANAGER_PRESETS, ...deckRecords], presetMetadata)
+      .filter(preset => presetAvailabilityFor(presetMetadata, preset.artwork, preset.sourceId, viewerIsAdmin).listed),
+    [deckRecords, presetMetadata, viewerIsAdmin],
   )
   const deckBuilder = usePixGridDeckBuilder({
     // The popover stays open on its "Preset created" confirmation; Done closes it.

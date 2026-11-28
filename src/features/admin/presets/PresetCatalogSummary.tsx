@@ -5,7 +5,7 @@ import { presetArtworkBackdrop, PresetLibraryCard } from '../../../components/vy
 import { Cinema2Stage } from '../../../components/vyzualz/react/Cinema2Stage'
 import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
 import { ReactPresetArtwork, ReactPresetCard } from '../../../components/vyzualz/react/ReactPresetCard'
-import { StatusBadge, type ShownPreset } from './PresetCatalogCards'
+import { StatusBadge, SwitchedOffBadge, type ShownPreset } from './PresetCatalogCards'
 import { type AdminPreset, type CatalogPack } from './presetAdmin'
 import { activationLabel, presetVersionInfo } from './presetTechnical'
 
@@ -53,6 +53,7 @@ export function PresetCatalogSummary({ preset, shown, packs, changed, active = t
         <div className="adm-preview-title">
           <h2>{shown.name}{changed ? <span className="adm-edited" title="Has changes that are not saved yet"> •</span> : null}</h2>
           <StatusBadge status={preset.status} />
+          {preset.disabled && <SwitchedOffBadge />}
         </div>
         <p className="adm-preview-description">{shown.description || 'No description.'}</p>
         <dl className="adm-facts">

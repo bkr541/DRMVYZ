@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { DreamVizTextInput } from '../../../components/vyzualz/react/controls/DreamVizTextInput'
 import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
 import { TagPill } from '../../../components/vyzualz/react/controls/TagPill'
-import { Collapsible, SelectRow, TextAreaRow, TextInputRow } from '../../../components/vyzualz/react/ReactControlRows'
+import { Collapsible, SelectRow, TextAreaRow, TextInputRow, ToggleRow } from '../../../components/vyzualz/react/ReactControlRows'
 import { parseTags, STATUS_DESCRIPTIONS, STATUS_LABELS, STATUS_ORDER, type AdminPreset, type CatalogPack, type EditProblems, type PresetEdit, type PublicationStatus } from './presetAdmin'
 import type { ShownPreset } from './PresetCatalogCards'
 import { PresetInAppCards } from './PresetCatalogSummary'
@@ -73,6 +73,13 @@ export function PresetCatalogInspector({ preset, shown, edit, problems, busy, pa
         <div className="rv-ctrl-group">
           <Collapsible label="Publishing">
             <SelectRow label="Status" value={edit.status || 'unset'} onChange={value => onPatch({ status: value === 'unset' ? '' : value as PublicationStatus })} options={STATUS_OPTIONS} showOptionDescriptions disabled={busy} />
+            <ToggleRow label="Switched Off" value={edit.disabled} onChange={value => onPatch({ disabled: value })} disabled={busy}
+              description="Takes the preset out of every app, including pads, cues and saved work, within minutes of saving, whatever its status." />
+            {edit.disabled && (
+              <TextInputRow label="Note for Users" value={edit.disabledReason} onChange={value => onPatch({ disabledReason: value })} maxLength={280}
+                placeholder="Optional, for example: being fixed for a display issue" description="Shown to anyone who tries to use the preset while it is off." />
+            )}
+            {problems.disabledReason && <p className="adm-field-error" role="alert">{problems.disabledReason}</p>}
           </Collapsible>
           <Collapsible label="Preset Info">
             <TextInputRow label="Name" value={edit.name} onChange={value => onPatch({ name: value })} maxLength={160} />

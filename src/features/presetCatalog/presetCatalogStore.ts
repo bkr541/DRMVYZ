@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react'
 import { create } from 'zustand'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { supabase, supabaseConfigured } from '../../lib/supabase'
+import { usePresetListedFilter } from './presetMetadataStore'
 import {
   EMPTY_PRESET_CATALOG,
   createPresetScopeFilter,
@@ -61,10 +62,17 @@ function ensureCatalogLoaded() {
   })
 }
 
-/** For a Presets tab: a filter that keeps the presets belonging under `tab` for `engineId`. Keys are each engine's own preset ids. */
+/**
+ * For a Presets tab: a filter that keeps the presets belonging under `tab` for `engineId` and shown to this user (an admin's publication status and
+ * off switch, see presetAvailability.ts). Keys are each engine's own preset ids. Every preset list, picker and search goes through this filter.
+ */
 export function usePresetScopeFilter(engineId: string, tab: PresetScopeTab): (presetKey: string) => boolean {
   useEffect(ensureCatalogLoaded, [])
   const entries = usePresetCatalogStore(state => state.entries)
   const heldPresetIds = usePresetCatalogStore(state => state.heldPresetIds)
-  return useMemo(() => createPresetScopeFilter({ entries, heldPresetIds }, engineId, tab), [entries, heldPresetIds, engineId, tab])
+  const listed = usePresetListedFilter(engineId)
+  return useMemo(() => {
+    const inScope = createPresetScopeFilter({ entries, heldPresetIds }, engineId, tab)
+    return (presetKey: string) => inScope(presetKey) && listed(presetKey)
+  }, [entries, heldPresetIds, engineId, tab, listed])
 }

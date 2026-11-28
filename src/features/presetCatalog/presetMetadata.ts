@@ -3,7 +3,8 @@
  *
  * A row is keyed like a Preset Manager record (`<engine>:<sourceId>`, which is `engine_id` and `preset_key` joined by a colon). Each column is an
  * override: NULL means "keep what the app ships", so a row only ever says what an admin changed. The app applies name, description, category, tags and
- * display order; the publication status and the store fields are kept for the store and for the admin to read.
+ * display order; the publication status and the off switch decide who may see and use the preset (presetAvailability.ts); the store fields are kept
+ * for the store.
  */
 export interface PresetMetadataRow {
   engine_id: string
@@ -18,6 +19,10 @@ export interface PresetMetadataRow {
   store_subtitle: string | null
   store_cover_ref: string | null
   store_preview_ref: string | null
+  /** The emergency off switch (migration 0064): hides the preset from everyone and stops it being used, whatever its status. */
+  disabled?: boolean | null
+  /** A short note shown to users while the preset is switched off. */
+  disabled_reason?: string | null
   updated_at?: string
 }
 
