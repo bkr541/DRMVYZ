@@ -1,24 +1,40 @@
-# FRACTURE: spatial rupture (FRA-01)
+# FRACTURE: volumetric media rupture (FRA-02)
 
-This replaces the rectangular chamber with a fault through irregular obsidian plates and three seeded depth strata. Front fragments sit outside the central source rectangle; deep fragments use dark reflective bevels, with isolated accent edges rather than an illuminated grid. No-media composition has an asymmetric diagonal fault and static staggered depth. Media uses the complete original-plane cap at rest; the same cap moves and contracts during separation, with unchanged UVs. Media opacity, fit, brightness, grouping, pool selection and reset retain the existing authority. No catalog image was regenerated without verified WebGL output.
+FRA-02 supersedes the FRA-01 side-biased rupture layout. It modifies the existing native FRACTURE reference preset, retaining the preset/module IDs, source slot, shared transport, pool authority and render graph. No new renderer or external assets. ANCIENT MACHINE is a movement reference only; its code is not changed.
 
-## Motion vocabulary
+## Scene and movement
 
-| Existing pattern ID | Geometry behavior |
+- Forty-eight seeded environmental fragments form three staggered depth layers, with azimuthal spacing, irregular sizes, orientations and near/far depth. Density is a stable visibility selection (default .50 selects 36 of 48, zero hides all); low quality further reduces far-field debris. The near field is pushed outward when Media Readability is enabled. Rear fragments can sit behind the media.
+- The existing 16–120 Voronoi cells retain their exact original-plane UVs and geometry. Their seeded depth latitude, radial axes and two-axis orbital transforms produce independent near/far travel, beat-phase vibration and tumbling. These are deterministic choreography, not collision simulation. Media caps contract only when displaced and return to their complete original UV coverage at rest.
+- Source adjacency is traversed breadth-first from the cell nearest the center. The prefix is a connected island, returned progressively during reveal windows; phrase and vocal signals strengthen the reveal. A drop can override this restraint. Without event contributions, each pattern returns to its rest target by the end of a cycle. Reassembly remains eased by the existing time control.
+- The existing shared beat phase and signals drive all six patterns; no local event detector or independent music clock.
+
+| Pattern ID | Spatial program |
 | --- | --- |
-| fracture | Diagonal split with a localized crack front |
-| suspension | Alternating near/far depth strata and restrained spread |
-| scatter | Radial outward separation, pivot and deep retreat |
-| contour-chase | Narrow adjacency-driven illuminated chain with physical lift |
-| reconstruction | Staggered adjacency-driven restoration |
-| shatter-wave | Traveling coherent crest across the plane |
+| fracture | Diagonal plate split, then independent depth and outward separation |
+| suspension | Slow multi-axis suspension, tumbling and connected core reveal |
+| scatter | Strong radial/depth release, orbital suspension and return |
+| contour-chase | Traveling adjacency-driven light and physical lift; faster fronts during builds |
+| reconstruction | Center-first connected restoration and continuing environmental motion |
+| shatter-wave | Direction-changing coherent shockwave across the source plane |
 
-The existing Cinema2BeatClock supplies phase. The normalized cycle has an intact opening, cracking from .12, separation from .25, suspension from .47, reconstruction from .70 and an intact target from .93. Pattern-specific envelopes vary these stages. No independent music clock or event detector. Shared kick adds local impulse, bass increases authored nonzero extent, phrase attenuates the rupture and drop takes priority. Existing choreography, pattern change/trigger resolution and Auto Performance remain unchanged. Manual selection and stored IDs/ranges/defaults are unchanged; camera uses existing Design controls and a pulled-back baseline (12.3 world units), constrained to 11.7–13.1 on Z. Motion safety and readability reduce amplitude; lockoff removes animated offsets.
+Build charge compresses the opening before release; drop overrides the reveal restraint. Kick adds displacement; bass/sub add seeded vibration; mids and snare influence rotation, highs and energy influence exposed edges. Motion safety and lockoff remain in authority, including the existing camera controls. Field transforms are eased and freeze during pause; reset/lockoff restore deterministic targets. The camera now starts at Z 10.1 with FOV 42°, stronger bounded sway and shared build push-in/drop pullback/phrase recenter rules. The camera amount default changes from .25 to .55; stored explicit values are not migrated. Safety limits Z to 8.8–14.5 and FOV to 40–50°.
 
-## Controls and ownership
+## Inspector and rendering
 
-All existing authored values and stable IDs retained. Spread (0–1, default .50) now scales up to 1.65 world units X / 1.05 Y; depth travel (0–1, default .45) up to 1.45 forward / 2.65 rear; rotation (0–70°, default 25°) is clearance-scaled. Thickness (.01–.12, default .04, panel-height fraction) multiplies seeded variation .55–1.80; crack width (0–.04, default .004, panel-width fraction) controls bevel shoulder gap and opened cap contraction. The intact media cap overrides gap to preserve image pixels. Reassembly time (.25–3 seconds, default 1.1) governs exponential return. Existing shared mood drives retain their bounded ownership over spread, depth, rate, crack emission and effects. Geometry count/seed/width rebuild core geometry; seed also rebuilds field; thickness and pose use transforms. Low quality hides a subset of far field only; full media geometry is retained. Structural palette colors mineral material; primary controls fault edges and local spill; secondary controls deep edges and procedural vein; accent controls peripheral edges; background remains shared environment. Reflection now affects bevels instead of a removed rectangular floor. All four Inspector groups, saved controls and source IDs remain unchanged.
+All previous control IDs, ranges and four parent groups are retained. Spread and Depth Travel now scale offsets up to ±5.8 X, ±4.1 Y and ±5.4 Z before intensity/safety/expansion scaling. Shard Rotation remains bounded by the authored angle (plus the existing mid boost, capped at 70°). Sphere Expansion scales additional travel; at zero it retains a smaller fracture. The new controls are:
 
-## Validation handoff
+| Control | Default | Ownership |
+| --- | ---: | --- |
+| Sphere Expansion | .75 | Design, shared shock modulation |
+| Orbital Motion | .45 | Design, shared momentum modulation |
+| Shard Vibration | .60 | Design, shared energy modulation |
+| Debris Density | .50 | Design, manual structural/performance budget |
+| Cluster Reconstruction | .70 | Design, shared calm modulation |
+| Fracture Lighting | .65 | Effects, shared peak modulation |
 
-Run `npm run test:e2e:cinema2-release -- --presets fracture` or use existing production `cinema2-quality-review.html?preset=drmvyz.cinema2.fracture&quality=high&release=1` harness (Vite dev server); its API supports reference/idle/build/drop/breakdown, media fixture, parameter changes, reset and quality switching. Compare baseline/updated renders at matching viewport, quality and fixture; inspect all six patterns, pause/seek, Auto, media quadrant orientation and intact coverage, pool and source reset, extreme settings, near-plane and inter-fragment crossings. Capture verified output before updating the catalog. Targeted unit tests cover source geometry, UVs, phase envelopes, physical pattern differences, resource reuse, reconstruction and disposal. Numerical/geometry tests do not establish perceptual acceptance or GPU performance.
+All numeric ranges 0–1. Media Readability favors connected reveal and conservative near-field clearance rather than globally flattening motion. The body prism now separates emissive exposed side/bevel material from the structural cap. Per-shard side energy fades with reassembly; two bounded colored point lights supplement the existing central spill. The original media face shader, source UV and grouped/pool mapping are unchanged. Existing palette roles, bloom and finish remain. Side materials and lights are disposed alongside existing geometry; no new external textures. The extra material group and lights add render cost; performance requires measurement.
+
+## Validation and handoff
+
+Run `npx vitest run src/components/vyzualz/cinema2/__tests__/Cinema2FracturePreset.test.ts` after installing the locked dependencies. Run the existing quality review harness (`cinema2-quality-review.html?preset=drmvyz.cinema2.fracture&quality=high&release=1`) and the release test `npm run test:e2e:cinema2-release -- --presets fracture` if supported by the checkout. Verify all six patterns, manual/Auto controls, image/video and grouped/pool UV orientation, partial and full reveals, near-plane crossings and occlusion at high intensity, silence/pause/seek, quality transitions, cast/recording parity, and GPU performance. Compare to the supplied recording at equivalent viewport and source. No catalog thumbnail or keeper promotion without rendered acceptance. No collision-free or pixel-perfect dynamic occlusion guarantee.

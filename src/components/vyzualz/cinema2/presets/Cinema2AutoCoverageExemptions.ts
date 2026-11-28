@@ -32,6 +32,7 @@ export const CINEMA2_AUTO_COVERAGE_EXEMPT: Readonly<Record<string, Readonly<Reco
     'spectrum-transition': 'User-owned alignment, media presentation or modulation authority.',
   }),
   fracture: Object.freeze({
+    'fracture-debris-density': 'User-owned environment density and performance budget.',
     'fracture-reactivity': 'User-owned physical geometry, presentation or modulation authority.',
     'fracture-crack-width': 'User-owned physical geometry, presentation or modulation authority.',
     'fracture-shard-thickness': 'User-owned physical geometry, presentation or modulation authority.',

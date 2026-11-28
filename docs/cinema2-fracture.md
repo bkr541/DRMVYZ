@@ -2,7 +2,9 @@
 
 ID `drmvyz.cinema2.fracture`, revision 1. Selectable reference, not a keeper. Procedural geometry and blueprint are original repository-local code; no external assets, licenses, dependencies or network services added.
 
-## Visual and geometry specification
+> The scene, motion, camera and visual controls described below are historical FRA-01/initial-reference details. See [FRA-02 volumetric media rupture](cinema2-fracture-spatial-rupture.md) for the current implementation and validation handoff. The source and shared authority contracts still apply.
+
+## Visual and geometry specification (historical)
 
 A coherent 8 × 4.5 world-unit display centered at the origin is cut into 16–120 convex irregular Voronoi cells. Right-handed Y-up, front +Z, camera looks toward origin. Seeded jittered sites are clipped against every pairwise bisector and the outer rectangle. Adjacency is identified by shared endpoints; breadth-first graph distance from leftmost cell drives contour travel. Each shard uses its area centroid pivot and outward axis. Uniform inset is capped by centroid clearance; four matched rings form chamfer, shoulder, thickness and rear cap. Dark metal backs/sides and a separate front shader retain media readability. Front UV = `(restXY / (8,4.5)) + .5`, never transformed with motion. Actual width gap, bevel and thickness create dark seams; no rectangular tile mesh or alpha-only fracture. Changing seed/count/gap rebuilds geometry; thickness scales depth; media changes do not rebuild geometry. Full rectangle area before gaps = 36.
 
