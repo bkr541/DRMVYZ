@@ -1,6 +1,5 @@
 import {
   DEFAULT_REACT_PRESET_RENDER_SETTINGS,
-  type OscillatorSettings,
   type ReactEngineId,
   type ReactPreset,
   type ReactPresetControlValues,
@@ -20,27 +19,11 @@ function equalNumber(a: unknown, b: unknown): boolean {
   return typeof a === 'number' && typeof b === 'number' && Math.abs(a - b) <= 1e-9
 }
 
-function authoredSubsetMatches(expected: unknown, actual: unknown): boolean {
-  if (expected === null || typeof expected !== 'object') {
-    return typeof expected === 'number' ? equalNumber(expected, actual) : Object.is(expected, actual)
-  }
-  if (Array.isArray(expected)) {
-    if (!Array.isArray(actual) || expected.length !== actual.length) return false
-    return expected.every((value, index) => authoredSubsetMatches(value, actual[index]))
-  }
-  if (actual === null || typeof actual !== 'object') return false
-  return Object.entries(expected as Record<string, unknown>).every(([key, value]) =>
-    authoredSubsetMatches(value, (actual as Record<string, unknown>)[key]),
-  )
-}
-
 export function resolveReactPresetProvenance(input: {
   presets: readonly ReactPreset[]
   activePresetId: string | null
   activeEngineId: ReactEngineId
   controls: ReactPresetControlValues
-  oscillatorSettings?: OscillatorSettings
-  expectedOscillatorSettings?: OscillatorSettings
   engineSpecificModified?: boolean
 }): ReactPresetProvenance {
   if (!input.activePresetId) {
@@ -81,21 +64,6 @@ export function resolveReactPresetProvenance(input: {
     .filter(key => !equalNumber(expected[key], input.controls[key]))
     .map(String)
 
-  if (
-    preset.engine === 'oscilloscope' &&
-    input.oscillatorSettings &&
-    input.expectedOscillatorSettings &&
-    !authoredSubsetMatches(input.expectedOscillatorSettings, input.oscillatorSettings)
-  ) {
-    changedFields.push('oscillatorSettings')
-  } else if (
-    preset.engine === 'oscilloscope' &&
-    preset.oscillatorSettings &&
-    input.oscillatorSettings &&
-    !authoredSubsetMatches(preset.oscillatorSettings, input.oscillatorSettings)
-  ) {
-    changedFields.push('oscillatorSettings')
-  }
   if (input.engineSpecificModified) changedFields.push('engineSpecificState')
 
   if (changedFields.length === 0) {

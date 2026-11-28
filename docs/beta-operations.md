@@ -4,7 +4,7 @@ Beta remediation packages 05 (authentication and beta access) and 06 (performanc
 
 ## Before handing out a build
 
-1. **Apply migrations** `0064_preset_catalog_off_switch.sql`, `0065_beta_invites.sql` and `0066_beta_issue_reports.sql` (each has a rollback in `supabase/rollback/`). Run `supabase/tests/beta_invites_security.sql` and `beta_issue_reports_security.sql` on a staging database first.
+1. **Apply migrations** `0064_preset_catalog_off_switch.sql`, `0065_beta_invites.sql`, `0066_beta_issue_reports.sql` and `0067_retire_sound_drawing_catalog.sql` (each has a rollback in `supabase/rollback/`; 0067 deletes rows, so back them up first if you want to keep them). Run `supabase/tests/beta_invites_security.sql` and `beta_issue_reports_security.sql` on a staging database first.
 2. **Supabase dashboard › Authentication:**
    - **Policies:** set the minimum password length to 10 (the app asks for 10; only the server enforces it).
    - **Emails › Templates:** paste `supabase/templates/recovery.html` into *Reset password*. The app's reset screen asks for the 6-digit code (`{{ .Token }}`); a template that only sends a link leaves testers stuck. Paste the other templates too (see `supabase/templates/README.md`).

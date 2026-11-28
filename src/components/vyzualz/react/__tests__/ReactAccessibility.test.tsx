@@ -106,27 +106,6 @@ describe('React-view control accessibility', () => {
 })
 
 describe('React right-rail groups', () => {
-  it('renders FX and MOD child sections as independent disclosure controls', async () => {
-    const state = useReactStore.getState()
-    useReactStore.setState({
-      activeReactEngineId: 'oscilloscope',
-      oscillatorSettings: { ...state.oscillatorSettings, sourceType: 'classic' },
-    })
-
-    await act(async () => root.render(<ReactFxPanel />))
-    const fxGroups = [...container.querySelectorAll<HTMLButtonElement>('.rv-ctrl-collapsible-hdr')]
-      .map(button => button.textContent?.trim())
-    expect(fxGroups).toContain('Master▾')
-    expect(fxGroups).toContain('Sound Drawing▾')
-
-    await act(async () => root.render(<ReactModulationPanel />))
-    const modGroups = [...container.querySelectorAll<HTMLButtonElement>('.rv-ctrl-collapsible-hdr')]
-      .map(button => button.textContent?.trim())
-    expect(modGroups).toContain('Audio Reactivity▾')
-    expect(modGroups).toContain('Frequency Response▾')
-
-  })
-
   it('renders the two active LaserDMX React Master trims', async () => {
     useReactStore.setState({ activeReactEngineId: 'laserDmx' })
 
@@ -189,14 +168,11 @@ describe('LaserDMX preset library', () => {
 
 describe('React visualization canvas accessibility', () => {
   it('names the active non-shader visual and includes static fallback text', () => {
-    const preset = DEFAULT_REACT_PRESETS.find(candidate => candidate.engine === 'oscilloscope')
-      ?? DEFAULT_REACT_PRESETS[0]
+    const preset = DEFAULT_REACT_PRESETS.find(candidate => candidate.engine === 'laserDmx')!
     const markup = renderToStaticMarkup(
       <ReactPlaceholderCanvas
         analyser={null}
-        engine={preset.engine === 'cinematicPortal' || preset.engine === 'oscilloscope' || preset.engine === 'laserDmx'
-          ? preset.engine
-          : 'oscilloscope'}
+        engine="laserDmx"
         activePreset={preset}
         intensity={1}
         motion={1}

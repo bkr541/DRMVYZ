@@ -358,28 +358,4 @@ describe('canonical React preset card architecture', () => {
     expect(cards.every(card => card.querySelector('[data-preset-engine-badge="pixGrid"]'))).toBe(true)
   })
 
-  it('renders Sound Drawing presets through the shared Spotlight card, same as every other engine', async () => {
-    await act(async () => {
-      useReactStore.getState().selectReactEngine('oscilloscope')
-    })
-    await render(<ReactPresetsPanel />)
-
-    const card = container.querySelector<HTMLElement>('[data-preset-card]')!
-    expect(card.querySelector('[data-preset-engine-badge="oscilloscope"]')).not.toBeNull()
-    expect(card.classList.contains('rv-preset-card')).toBe(true)
-    expect(card.classList.contains('rv-preset-spotlight-card')).toBe(true)
-    expect(card.classList.contains('rv-shader-scene-card')).toBe(false)
-    expect(card.querySelector('.rv-preset-spotlight-thumb')).not.toBeNull()
-    expect(card.querySelector('.rv-preset-spotlight-caption')).not.toBeNull()
-    expect(card.querySelector('.rv-preset-frame-scene [data-thumbnail-kind="standard"]')).not.toBeNull()
-    expect(card.querySelector('.rv-preset-spotlight-caption .rv-preset-poster-chip')).toBeNull()
-    expect(card.querySelector('.rv-preset-desc')).toBeNull()
-    expect(card.querySelector('.rv-preset-palette')).toBeNull()
-    expect(container.querySelector('.rv-preset-more-btn')).toBeNull()
-    expect(container.querySelector('.rv-preset-spotlight-action')).not.toBeNull()
-
-    await click(card)
-    expect(useReactStore.getState().activeReactPresetId).not.toBeNull()
-    expect(card.getAttribute('aria-pressed')).toBe('true')
-  })
 })

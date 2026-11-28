@@ -42,7 +42,6 @@ const runtimeMocks = vi.hoisted(() => ({
     uploadAndSaveTrack: vi.fn(),
   },
   analyzeAudioFile: vi.fn(),
-  cleanupRemovedSvgMedia: vi.fn(),
 }))
 
 vi.mock('../lib/supabase', () => ({
@@ -61,10 +60,6 @@ vi.mock('../components/vyzualz/media/generateThumbnail', () => ({
   generateThumbnail: vi.fn().mockResolvedValue({ thumbnailObjectUrl: null, analyzedAt: null }),
   clearFilmstripCache: vi.fn(),
   clearMediaGenerationCaches: vi.fn(),
-}))
-vi.mock('../components/vyzualz/react/services/svgMediaBridge', () => ({
-  cleanupRemovedSvgMedia: runtimeMocks.cleanupRemovedSvgMedia,
-  precacheUploadedSvgGlyph: vi.fn(),
 }))
 vi.mock('../features/personalization/mediaPaletteMetadata', () => ({
   analyzePaletteForMediaFile: vi.fn().mockResolvedValue({}),

@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { useReactStore } from '../../../../stores/reactStore'
 import {
-  DEFAULT_OSCILLATOR_SETTINGS,
   DEFAULT_PERFORMANCE_PADS,
   DEFAULT_REACT_PRESETS,
   createDefaultLaserDmxBeamMatrixSettings,
@@ -13,8 +12,6 @@ import type {
   ReactPreset,
   ReactPresetAutomationCue,
   ReactTrackSection,
-  SoundDrawingClip,
-  SoundDrawingLayer,
 } from '../ReactTypes'
 
 const manualSection = {
@@ -33,20 +30,6 @@ const automationCue = {
   timeSec: 10,
   presetId: DEFAULT_REACT_PRESETS[0].id,
 } as ReactPresetAutomationCue
-
-const soundLayer = {
-  id: 'layer-1',
-  name: 'Logo',
-  enabled: true,
-} as unknown as SoundDrawingLayer
-
-const soundClip = {
-  id: 'clip-1',
-  layerId: soundLayer.id,
-  startSec: 10,
-  endSec: 20,
-  zIndex: 0,
-} as unknown as SoundDrawingClip
 
 const matrixBeam = {
   id: 'beam-1',
@@ -93,13 +76,10 @@ function seedAuthoredState() {
     selectedSectionByTrackId: { 'track-1': manualSection.id },
     suppressedAutoSectionsByTrackId: { 'track-1': ['auto-1'] },
     presetAutomationCuesByTrackId: { 'track-1': [automationCue] },
-    soundDrawingLayersByTrackId: { 'track-1': [soundLayer] },
-    soundDrawingClipsByTrackId: { 'track-1': [soundClip] },
     performancePads: DEFAULT_PERFORMANCE_PADS.map((pad, index) =>
       index === 0 ? { ...pad, label: 'Edited Pad', transitionTimeMs: 1337 } : pad,
     ),
     activePadId: DEFAULT_PERFORMANCE_PADS[0].id,
-    oscillatorSettings: { ...DEFAULT_OSCILLATOR_SETTINGS, pathScale: 1.31, sourceType: 'text', text: 'AUTHORED' },
     laserDmxSettings: legacyRig,
     laserDmxWorkspaceMode: 'beamMatrix',
     laserDmxBeamMatrix: matrix,
@@ -125,11 +105,8 @@ beforeEach(() => {
     selectedSectionByTrackId: {},
     suppressedAutoSectionsByTrackId: {},
     presetAutomationCuesByTrackId: {},
-    soundDrawingLayersByTrackId: {},
-    soundDrawingClipsByTrackId: {},
     performancePads: DEFAULT_PERFORMANCE_PADS,
     activePadId: null,
-    oscillatorSettings: { ...DEFAULT_OSCILLATOR_SETTINGS },
     laserDmxSettings: createDefaultLaserDmxSettings(),
     laserDmxWorkspaceMode: 'beamMatrix',
     laserDmxBeamMatrix: createDefaultLaserDmxBeamMatrixSettings(),
@@ -147,8 +124,6 @@ describe('scoped React reset actions', () => {
       manual: before.manualTrackSectionsByTrackId,
       suppressed: before.suppressedAutoSectionsByTrackId,
       automation: before.presetAutomationCuesByTrackId,
-      layers: before.soundDrawingLayersByTrackId,
-      clips: before.soundDrawingClipsByTrackId,
       pads: before.performancePads,
       fixtures: before.laserDmxSettings.fixtures,
       beams: before.laserDmxBeamMatrix.beams,
@@ -169,31 +144,12 @@ describe('scoped React reset actions', () => {
     expect(after.manualTrackSectionsByTrackId).toEqual(authored.manual)
     expect(after.suppressedAutoSectionsByTrackId).toEqual(authored.suppressed)
     expect(after.presetAutomationCuesByTrackId).toEqual(authored.automation)
-    expect(after.soundDrawingLayersByTrackId).toEqual(authored.layers)
-    expect(after.soundDrawingClipsByTrackId).toEqual(authored.clips)
     expect(after.performancePads).toEqual(authored.pads)
     expect(after.laserDmxSettings.fixtures).toEqual(authored.fixtures)
     expect(after.laserDmxBeamMatrix.beams).toEqual(authored.beams)
     expect(after.laserDmxBeamMatrix.groups).toEqual(authored.groups)
     expect(after.laserDmxBeamMatrix.globalModulationRoutes).toEqual(authored.routes)
     expect(after.laserDmxBeamMatrix.cues).toEqual(authored.cues)
-  })
-
-  it('resets Sound Drawing settings without deleting authored track content', () => {
-    seedAuthoredState()
-    useReactStore.setState({ activeReactEngineId: 'oscilloscope' })
-    const before = useReactStore.getState()
-
-    before.resetCurrentEngineSettings()
-    const after = useReactStore.getState()
-
-    expect(after.oscillatorSettings).toEqual(DEFAULT_OSCILLATOR_SETTINGS)
-    expect(after.manualTrackSectionsByTrackId).toEqual(before.manualTrackSectionsByTrackId)
-    expect(after.presetAutomationCuesByTrackId).toEqual(before.presetAutomationCuesByTrackId)
-    expect(after.soundDrawingLayersByTrackId).toEqual(before.soundDrawingLayersByTrackId)
-    expect(after.soundDrawingClipsByTrackId).toEqual(before.soundDrawingClipsByTrackId)
-    expect(after.performancePads).toEqual(before.performancePads)
-    expect(after.reactPresets).toEqual(before.reactPresets)
   })
 
   it('resets React-view preferences while preserving authored content and engine programs', () => {
@@ -220,8 +176,6 @@ describe('scoped React reset actions', () => {
     expect(after.manualTrackSectionsByTrackId).toEqual(before.manualTrackSectionsByTrackId)
     expect(after.suppressedAutoSectionsByTrackId).toEqual(before.suppressedAutoSectionsByTrackId)
     expect(after.presetAutomationCuesByTrackId).toEqual(before.presetAutomationCuesByTrackId)
-    expect(after.soundDrawingLayersByTrackId).toEqual(before.soundDrawingLayersByTrackId)
-    expect(after.soundDrawingClipsByTrackId).toEqual(before.soundDrawingClipsByTrackId)
     expect(after.performancePads).toEqual(before.performancePads)
     expect(after.reactPresets).toEqual(before.reactPresets)
   })
@@ -229,7 +183,6 @@ describe('scoped React reset actions', () => {
   it('clears only the authored project-content boundary', () => {
     seedAuthoredState()
     const before = useReactStore.getState()
-    const oscillatorBefore = before.oscillatorSettings
 
     before.clearReactProjectContent()
     const after = useReactStore.getState()
@@ -238,14 +191,11 @@ describe('scoped React reset actions', () => {
     expect(after.manualTrackSectionsByTrackId).toEqual({})
     expect(after.suppressedAutoSectionsByTrackId).toEqual({})
     expect(after.presetAutomationCuesByTrackId).toEqual({})
-    expect(after.soundDrawingLayersByTrackId).toEqual({})
-    expect(after.soundDrawingClipsByTrackId).toEqual({})
     expect(after.performancePads).toEqual(DEFAULT_PERFORMANCE_PADS)
     expect(after.laserDmxSettings).toEqual(createDefaultLaserDmxSettings())
     expect(after.laserDmxBeamMatrix).toEqual(createDefaultLaserDmxBeamMatrixSettings())
     expect(after.activeLaserDmxBeamMatrixPresetId).toBeNull()
     expect(after.laserDmxBeamMatrixPresetDirty).toBe(false)
-    expect(after.oscillatorSettings).toEqual(oscillatorBefore)
     expect(after.reactIntensity).toBe(0.11)
   })
 })

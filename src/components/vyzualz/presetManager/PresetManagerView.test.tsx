@@ -83,7 +83,7 @@ describe('Preset Manager view', () => {
 
   it('keeps preview identity, selection and Inspector tabs when both existing rails collapse', () => {
     renderView()
-    const preset = PRESET_MANAGER_PRESETS.find(candidate => candidate.artwork === 'soundDrawing')!
+    const preset = PRESET_MANAGER_PRESETS.find(candidate => candidate.artwork === 'canvas')!
     act(() => container?.querySelector<HTMLButtonElement>(`.pmv-card[data-preset-id="${preset.sourceId}"] .pmv-card-main`)?.click())
     const preview = container?.querySelector('.pmv-stage')
     const previewGroup = preview?.querySelector('[role="group"][aria-label="Preset preview"]')
@@ -194,7 +194,6 @@ describe('Preset Manager view', () => {
     expect(metadata?.querySelector('[role="img"][aria-label="3D Environment"]')).toBeNull()
     expect(card?.querySelector('.pmv-card-main')?.getAttribute('aria-describedby')).toBe(metadata?.id)
     expect(container?.textContent).toContain('Cinema 2.0')
-    expect(container?.textContent).toContain('Sound Drawing')
     expect(container?.textContent).toContain('CANVAS')
     expect(container?.textContent).toContain('LaserDMX')
     expect(container?.textContent).toContain('PixGrid')
@@ -229,7 +228,7 @@ describe('Preset Manager view', () => {
     const inspectorTabs = [...(container?.querySelectorAll<HTMLButtonElement>('[aria-label="Preset Manager inspector panels"] [role="tab"]') ?? [])]
     expect(inspectorTabs.map(tab => tab.textContent)).toEqual(['INFO', 'DESIGN', 'REACT', 'OUTPUT'])
 
-    const preset = PRESET_MANAGER_PRESETS.find(candidate => candidate.artwork === 'soundDrawing')
+    const preset = PRESET_MANAGER_PRESETS.find(candidate => candidate.artwork === 'pixGrid')
     expect(preset).toBeDefined()
     act(() => usePresetOrganizationStore.setState({
       records: preset ? { [preset.id]: { tags: ['user-authored'], collectionIds: [] } } : {},
@@ -237,7 +236,7 @@ describe('Preset Manager view', () => {
     const card = container?.querySelector<HTMLElement>(`.pmv-card[data-preset-id="${preset?.sourceId}"]`)
     act(() => card?.querySelector<HTMLButtonElement>('.pmv-card-main')?.click())
 
-    expect(useReactStore.getState().activeReactEngineId).toBe('oscilloscope')
+    expect(useReactStore.getState().activeReactEngineId).toBe('pixGrid')
     expect(useReactStore.getState().activeReactPresetId).toBe(preset?.sourceId)
     expect(card?.classList.contains('is-active')).toBe(true)
     expect(container?.querySelector('.pmv-inspector-body')?.getAttribute('data-selected-preset')).toBe(preset?.sourceId)
@@ -269,7 +268,7 @@ describe('Preset Manager view', () => {
     expect(container?.querySelector('.pmv-inspector-body .rv-workspace-panel')).not.toBeNull()
 
     act(() => inspectorTabs.find(tab => tab.textContent === 'REACT')?.click())
-    expect(container?.querySelector('[aria-label="Reactivity surfaces"]')).not.toBeNull()
+    expect(container?.querySelector('[aria-label="PixGrid reactivity surfaces"]')).not.toBeNull()
     expect(container?.textContent).toContain('ROUTING')
     expect(container?.textContent).toContain('ANALYSIS')
   })

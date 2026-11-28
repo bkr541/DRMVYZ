@@ -1,7 +1,7 @@
 import type { AppIconKind } from '../../shared/icons/AppIcon'
 import type { ReactEngineId } from './ReactTypes'
 
-export type ReactLiveEngineId = Exclude<ReactEngineId, 'shaderPads' | 'cinematicPortal' | 'cinema'>
+export type ReactLiveEngineId = Exclude<ReactEngineId, 'shaderPads' | 'cinematicPortal' | 'cinema' | 'oscilloscope'>
 
 export interface ReactEngineCatalogEntry {
   id: ReactEngineId
@@ -27,7 +27,6 @@ export const REACT_KNOWN_ENGINE_IDS: ReactEngineId[] = [
 /** User-facing engine choices. Retired identities remain known only for restore/import compatibility. */
 export const REACT_ENGINE_IDS: ReactLiveEngineId[] = [
   'cinema2',
-  'oscilloscope',
   'xyScope',
   'canvas',
   'laserDmx',
@@ -69,7 +68,7 @@ export const REACT_ENGINE_CATALOG: Record<ReactEngineId, ReactEngineCatalogEntry
     label: 'Sound Drawing',
     shortLabel: 'Draw',
     icon: 'waveform',
-    description: 'Live audio waveform drawing with glyph, SVG and text rendering.',
+    description: 'Retired compatibility identity migrated to Sound Drawing XY.',
   },
   xyScope: {
     id: 'xyScope',

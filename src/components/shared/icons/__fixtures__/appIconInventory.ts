@@ -125,11 +125,6 @@ export const APP_ICON_INVENTORY: readonly AppIconEntry[] = [
     ['Shader Pads', 'shader'], ['Cinematic Worlds', 'orbit'], ['Cinema 2.0', 'cinema'],
     ['Sound Drawing', 'waveform'], ['CANVAS', 'canvas'], ['LaserDMX', 'laser'], ['PixGrid', 'pixGrid'], ['HEADLINER', 'headliner'],
   ]),
-  ...inventory('Sound Drawing', ['src/components/vyzualz/react/ReactEnginePanel.tsx', 'src/components/vyzualz/react/FontLibraryPanel.tsx', 'src/components/vyzualz/react/SoundDrawingTimelineLane.tsx'], [
-    ['Classic Scope', 'scope'], ['Built-in Shape', 'shape'], ['Text', 'text'], ['SVG', 'svg'],
-    ['Font Library', 'font'], ['Import', 'plus'], ['Search fonts…', 'search'], ['Clear font search', 'close'], ['Remove font', 'delete'],
-    ['Cancel', 'close'], ['Add', 'plus'],
-  ]),
   ...inventory('Cinematic Worlds', ['src/components/vyzualz/react/ReactEnginePanel.tsx', 'src/components/vyzualz/react/CinematicWorldControlSchema.ts'], [
     ['Event Horizon', 'orbit'], ['Mirror Dimension', 'mirror'], ['Reactive Constellation', 'constellation'],
     ['Infinite Corridor', 'corridor'], ['Fracture Rift', 'energy'], ['Ancient Machine', 'settings'],

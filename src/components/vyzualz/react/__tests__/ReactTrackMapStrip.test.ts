@@ -1046,7 +1046,7 @@ function resetStore() {
 function ensureTestPreset(presetId: string, presetName = 'Test Preset'): void {
   const state = useReactStore.getState()
   if (state.reactPresets.some(preset => preset.id === presetId)) return
-  const base = state.reactPresets.find(preset => preset.engine === 'oscilloscope')
+  const base = state.reactPresets.find(preset => preset.engine === 'pixGrid')
   if (!base) throw new Error('Missing live test preset fixture')
   useReactStore.setState({
     reactPresets: [...state.reactPresets, { ...base, id: presetId, name: presetName }],

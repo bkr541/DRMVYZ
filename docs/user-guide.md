@@ -304,29 +304,6 @@ Cinema quality tiers budget textures, geometry, effects and render targets. Curr
 
 Further reference: [cinema2-crate-previews.md](cinema2-crate-previews.md), [model-preview-phase06.md](model-preview-phase06.md), and [cinema2-rendering-architecture-upgrade.md](cinema2-rendering-architecture-upgrade.md).
 
-## Sound Drawing
-
-Sound Drawing is the `oscilloscope` engine, distinct from Sound Drawing XY. It supports classic scopes, built-in shapes, text, prepared SVG artwork, lyric sources, and authored drawing performances. Source preparation is cached outside the continuous drawing loop.
-
-### Workflow
-
-1. Choose the intended **Engine Mode** and provide its source.
-2. For text, choose the text/font; for SVG, select the uploaded artwork; for classic scope, select its scope behavior.
-3. Use Design to set rendering and appearance.
-4. Review React routing/analysis, then choose a performance show or enable its supported automatic behavior.
-5. If source ownership changes, inspect whether the show is using **Generated Show Visuals** or **Use Current Engine Source**.
-6. Use the Sound Drawing timeline for supported drawing clips; this timeline is a sibling of Track Map, not a second audio clock.
-
-Choosing a Performance Show starts it immediately. Missing text/SVG content can produce a disclosed generated fallback. A section change should not silently replace a stable user-selected source identity.
-
-### Geometry and scope controls
-
-Classic modes include waveform, Lissajous, radial and spiral scope behavior. Rendering modes include Outline, Multi Trace, Dots and Ribbon where supported. Shapes, font outlines and SVG geometry follow different preparation paths; a selected rendering style is not a new audio source.
-
-Pro Scope adds signal-calibration controls. Review axis linking and trigger stability together with visual size; signal calibration is not the same operation as making the finished graphic larger. Trail decay and the authored trail recipe can also have separate ownership.
-
-Further reference: [sound-drawing.md](sound-drawing.md) and [sound-drawing-control-ownership-and-provenance.md](sound-drawing-control-ownership-and-provenance.md).
-
 ## Sound Drawing XY
 
 ### Visual concept
@@ -1042,8 +1019,6 @@ This guide intentionally does not invent a universal Space/record/blackout keybo
 | Cinema imported scenes and removals | [Cinema crate previews](cinema2-crate-previews.md) |
 | User-model effects and later corrections | [Model preview implementation](model-preview-phase06.md) |
 | Native Cinema rendering | [Rendering architecture](cinema2-rendering-architecture-upgrade.md) |
-| Original drawing engine | [Sound Drawing](sound-drawing.md) |
-| Parameter ownership | [Sound Drawing ownership](sound-drawing-control-ownership-and-provenance.md) |
 | XY performance | [Sound Drawing XY](sound-drawing-xy.md) |
 | Media performances | [CANVAS](canvas.md) |
 | Pixel authoring and Decks | [PixGrid](pixgrid.md) |

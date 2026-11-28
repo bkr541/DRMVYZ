@@ -17,16 +17,12 @@ const mocks = vi.hoisted(() => ({
   disposeCinematicPortalRenderer: vi.fn(),
   resetCinematicPortalRenderer: vi.fn(),
   resolveCinematicPortalBackend: vi.fn(() => 'webgl2'),
-  disposeSoundDrawingRenderer: vi.fn(),
 }))
 
 vi.mock('../ReactEngineRenderer', () => ({ renderReactEngine: mocks.renderReactEngine }))
 vi.mock('../LaserDmxRenderer', () => ({
   clearLaserDmxVisualState: mocks.clearLaserDmxVisualState,
   disposeLaserDmxRenderer: mocks.disposeLaserDmxRenderer,
-}))
-vi.mock('../SoundDrawingRenderer', () => ({
-  disposeSoundDrawingRenderer: mocks.disposeSoundDrawingRenderer,
 }))
 vi.mock('../CinematicPortalRenderer', () => ({
   disposeCinematicPortalRenderer: mocks.disposeCinematicPortalRenderer,
@@ -129,7 +125,6 @@ describe('React preset thumbnail renderer scheduling', () => {
     mocks.clearLaserDmxVisualState.mockClear()
     mocks.disposeLaserDmxRenderer.mockClear()
     mocks.disposeCinematicPortalRenderer.mockClear()
-    mocks.disposeSoundDrawingRenderer.mockClear()
     mocks.resetCinematicPortalRenderer.mockClear()
     mocks.resolveCinematicPortalBackend.mockClear()
     mocks.resolveCinematicPortalBackend.mockReturnValue('webgl2')
@@ -195,25 +190,15 @@ describe('React preset thumbnail renderer scheduling', () => {
     expect(mocks.renderReactEngine).toHaveBeenCalledTimes(budget)
     expect(mocks.renderReactEngine.mock.calls[0][1]).toMatchObject({ timingDiscontinuity: true, isPlaying: true })
     const previewFrame = mocks.renderReactEngine.mock.calls[0][1]
-    expect(previewFrame.scopeStereo.left.some((sample: number) => Math.abs(sample) > .5)).toBe(true)
-    expect(previewFrame.scopeStereo.left).not.toEqual(previewFrame.scopeStereo.right)
     expect(previewFrame.timeDomainData.some((sample: number) => sample !== 128)).toBe(true)
 
     expect(mocks.renderReactEngine.mock.calls[0][2]).toMatchObject({
       cinematicConfig: expect.objectContaining({ qualityTier: 'low' }),
     })
-    expect(mocks.renderReactEngine.mock.calls[0][3]).toMatchObject({
-      soundDrawingRuntimeMode: 'thumbnail',
-      soundDrawingPerformanceSettings: expect.objectContaining({ quality: 'low' }),
-    })
     expect(source.cinematicConfig?.qualityTier).toBe(originalQuality)
     expect(mocks.disposeCinematicPortalRenderer).not.toHaveBeenCalled()
     expect(mocks.resetCinematicPortalRenderer).toHaveBeenCalled()
     expect(mocks.disposeLaserDmxRenderer).toHaveBeenCalled()
-    expect(mocks.disposeSoundDrawingRenderer).toHaveBeenCalledWith(
-      expect.anything(),
-      { affectProductionDiagnostics: false },
-    )
     expect(useReactStore.getState().laserDmxSettings).toBe(laserBefore)
     expect(canvases[0]).toMatchObject({ width: 240, height: 135 })
     expect(getReactPresetThumbnailDiagnosticsForTests()).toMatchObject({
@@ -429,7 +414,7 @@ describe('React preset thumbnail renderer scheduling', () => {
     const canvasPreset: ReactPreset = {
       ...preset('preset-cyan-reverie'),
       id: 'test-canvas-family',
-      engine: 'oscilloscope',
+      engine: 'pixGrid',
     }
 
     await renderReactPresetThumbnail(webglPreset)
@@ -437,7 +422,6 @@ describe('React preset thumbnail renderer scheduling', () => {
 
     expect(canvases).toHaveLength(1)
     expect(mocks.disposeCinematicPortalRenderer).toHaveBeenCalledWith(expect.anything(), 'terminal-retire')
-    expect(mocks.disposeSoundDrawingRenderer).toHaveBeenCalled()
     expect(getReactPresetThumbnailDiagnosticsForTests()).toMatchObject({
       pooledCanvasActive: true,
       pooledFamily: 'canvas2d',

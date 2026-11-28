@@ -22,7 +22,7 @@ import {
 } from './reactStore'
 
 const NEON_PRESET_ID = 'preset-nl-acid-magenta'
-const NON_NEON_PRESET = DEFAULT_REACT_PRESETS.find(preset => preset.engine === 'oscilloscope')!
+const NON_NEON_PRESET = DEFAULT_REACT_PRESETS.find(preset => preset.engine === 'pixGrid')!
 const SRC_ROOT = join(process.cwd(), 'src')
 const DELETED_NEON_PRODUCTION_MODULES = [
   'NeonLatticeConfig',
@@ -78,7 +78,7 @@ function customPreset(id: string, engine: ReactEngineId | 'neonLattice'): ReactP
 function makeMigrationFixture() {
   const customNeon = customPreset('custom-neon-import', 'neonLattice')
   const customNeonId = 'custom-neon-import'
-  const customSoundDrawing = customPreset('custom-sound-drawing', 'oscilloscope')
+  const customSoundDrawing = customPreset('custom-sound-drawing', 'pixGrid')
   return {
     activeReactPresetId: customNeonId,
     activeReactEngineId: 'neonLattice',
@@ -250,7 +250,7 @@ describe('Neon Lattice persisted-data retirement', () => {
   })
 
   it('sanitizes legacy spelling variants and old nl-trigger action residue', () => {
-    const safePreset = customPreset('custom-safe-variant', 'oscilloscope') as ReactPreset
+    const safePreset = customPreset('custom-safe-variant', 'pixGrid') as ReactPreset
     const variantPreset = {
       ...BASE_NEON_PRESET,
       id: 'custom-variant-import',

@@ -31,7 +31,7 @@ export function PerformancePadStudies() {
       <div className={`rv-pads-section rv-pads-section--embedded${size.density === 'expanded' ? ' rv-pads-section--expanded' : ''}`}>
         <div className="rv-pads-grid" role="group" aria-label={`${size.name} performance pads`}>
           {ROW.map((pad, index) => {
-            const hasDestination = Boolean(pad.presetId)
+            const hasDestination = Boolean(pad.presetId || pad.destination)
             return <PerformancePad key={pad.id} density={size.density} label={pad.label} shortcut={pad.keyBinding.toUpperCase()} color={getPerformancePadColor(pad, index)}
               data-pad-study-item={`${size.id}-${pad.id}`} data-empty={!hasDestination || undefined} className={!hasDestination ? 'rv-pad--empty' : ''}
               selected={hasDestination && selected[size.id] === pad.id} disabled={!hasDestination} aria-disabled={!hasDestination} title={hasDestination ? `${pad.label} [${pad.keyBinding.toUpperCase()}]` : 'Empty pad'}

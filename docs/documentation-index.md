@@ -56,8 +56,7 @@ When a historical document conflicts with canonical current documentation or the
 | `docs/cinema2-relic.md` | RELIC native geometry, dynamic shadows, shared choreography and review checkpoints |
 | `docs/cinema2-monolith.md` | MONOLITH native geometry, dynamic shadows, shared choreography and review checkpoints |
 | `docs/cinema2-purity.md` | PURITY native architectural tunnel, controls, lighting patterns, audio authority and acceptance plan |
-| `docs/sound-drawing.md` | Sound Drawing sources, timeline, performance programs, Living Ribbon, professional scope signal core, and rendering |
-| `docs/sound-drawing-xy.md` | Sound Drawing XY: the text-first phosphor-beam engine, its musical events, scope window, inspector standard, fonts, lifecycle, and limits |
+| `docs/sound-drawing-xy.md` | Sound Drawing XY (which replaced the retired legacy Sound Drawing engine): the text-first phosphor-beam engine, its musical events, scope window, inspector standard, fonts, lifecycle, and limits |
 | `docs/canvas.md` | CANVAS media, authored composition, playback, effects, transitions, and limits |
 | `docs/pixgrid.md` | PixGrid state, canonical controls, media, groups, routing, choreography, rendering, diagnostics, and acceptance |
 | `docs/laser-dmx-production-rig-architecture.md` | Current LaserDMX normalized rig, fixture, cue, stage, and output boundary |
@@ -109,7 +108,6 @@ Each specification tracks its preset’s implementation status and requirements.
 | `docs/contracts/CROSS_ENGINE_CONTROL_SCOPES.md` | Canonical LaserDMX, Shader Pads, CANVAS, Cinematic camera, and preset-provenance control scopes |
 | `docs/contracts/APPEARANCE_CONTRACT.md` | Canonical Dark/Light/CDJ ownership, startup bootstrap, persistence, and legacy appearance compatibility |
 | `docs/visual-simulation.md` | Shared bounded visual-simulation utilities |
-| `docs/living-ribbon-production-validation.md` | Living Ribbon production limits and acceptance |
 | `docs/lyric-manager.md` | Lyric Manager behavior |
 | `docs/rekordbox-import.md` | Rekordbox XML and USB import behavior |
 
@@ -129,7 +127,6 @@ These documents remain active only for the acceptance gate they define.
 | Document | Scope |
 | --- | --- |
 | `docs/PIXGRID_SCREEN_RECORDING_ACCEPTANCE.md` | Human-visible PixGrid recording evidence |
-| `docs/living-ribbon-production-validation.md` | Living Ribbon measured production acceptance |
 
 ## Historical patch records
 

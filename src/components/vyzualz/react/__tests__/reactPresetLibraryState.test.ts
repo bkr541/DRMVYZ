@@ -58,14 +58,14 @@ describe('React preset library state', () => {
 
   it('keeps all-engine browsing explicit and favorites engine-agnostic', () => {
     const cinematic = DEFAULT_REACT_PRESETS.find(preset => preset.engine === 'cinematicPortal')!
-    const oscilloscope = DEFAULT_REACT_PRESETS.find(preset => preset.engine === 'oscilloscope')!
-    const favorites = new Set([cinematic.id, oscilloscope.id])
+    const pixGrid = DEFAULT_REACT_PRESETS.find(preset => preset.engine === 'pixGrid')!
+    const favorites = new Set([cinematic.id, pixGrid.id])
 
     const visibleDefaultPresets = DEFAULT_REACT_PRESETS.filter(preset => preset.engine !== 'laserDmx' || preset.id === LASER_DMX_BEAM_MATRIX_REACT_PRESET_ID)
     expect(filterReactPresetLibrary(DEFAULT_REACT_PRESETS, 'laserDmx', 'all', favorites))
       .toHaveLength(visibleDefaultPresets.length)
     expect(filterReactPresetLibrary(DEFAULT_REACT_PRESETS, 'laserDmx', 'favorites', favorites).map(preset => preset.id))
-      .toEqual([cinematic.id, oscilloscope.id])
+      .toEqual([cinematic.id, pixGrid.id])
   })
 
   it('persists unique favorite ids and tolerates malformed storage', () => {

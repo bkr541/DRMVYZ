@@ -1,5 +1,4 @@
 import {
-  DEFAULT_OSCILLATOR_SETTINGS,
   DEFAULT_REACT_PRESET_RENDER_SETTINGS,
   createDefaultLaserDmxSettings,
   type ReactPreset,
@@ -9,7 +8,6 @@ import { renderReactEngine } from './ReactEngineRenderer'
 import type { ReactFrameContext, ReactRenderParams } from './reactRenderUtils'
 import { DEFAULT_REACT_RENDER_PARAMS } from './reactRenderUtils'
 import { clearLaserDmxVisualState, disposeLaserDmxRenderer } from './LaserDmxRenderer'
-import { disposeSoundDrawingRenderer } from './SoundDrawingRenderer'
 import {
   disposeCinematicPortalRenderer,
   resetCinematicPortalRenderer,
@@ -157,7 +155,6 @@ export function fingerprintReactPresetThumbnail(preset: ReactPreset): string {
     palette: preset.palette,
     params: preset.params,
     renderSettings: preset.renderSettings ?? null,
-    oscillatorSettings: preset.oscillatorSettings ?? null,
     laserDmxSettings: preset.laserDmxSettings ?? null,
     productionPreset: preset.productionPreset ?? null,
     cinematicConfig: preset.cinematicConfig ?? null,
@@ -602,7 +599,6 @@ function prepareThumbnailRendererPool(
   if (canvas.height !== height) canvas.height = height
   resetCanvas2DState(context)
   resetCinematicPortalRenderer(context, 'thumbnailReuse')
-  disposeSoundDrawingRenderer(context, { affectProductionDiagnostics: false })
   clearLaserDmxVisualState(context, width, height, { affectProductionOutput: false })
   disposeLaserDmxRenderer(context, { affectProductionOutput: false })
   context.clearRect(0, 0, width, height)
@@ -611,7 +607,6 @@ function prepareThumbnailRendererPool(
 function resetThumbnailRendererPoolAfterJob(pool: ThumbnailRendererPool): void {
   if (thumbnailRendererPool !== pool) return
   resetCinematicPortalRenderer(pool.context, 'thumbnailReuse')
-  disposeSoundDrawingRenderer(pool.context, { affectProductionDiagnostics: false })
   clearLaserDmxVisualState(pool.context, pool.canvas.width, pool.canvas.height, { affectProductionOutput: false })
   disposeLaserDmxRenderer(pool.context, { affectProductionOutput: false })
   resetCanvas2DState(pool.context)
@@ -626,7 +621,6 @@ function retireIncompatibleThumbnailFamily(pool: ThumbnailRendererPool): void {
   } else {
     resetCinematicPortalRenderer(pool.context, 'thumbnailReuse')
   }
-  disposeSoundDrawingRenderer(pool.context, { affectProductionDiagnostics: false })
   clearLaserDmxVisualState(pool.context, pool.canvas.width, pool.canvas.height, { affectProductionOutput: false })
   disposeLaserDmxRenderer(pool.context, { affectProductionOutput: false })
   resetCanvas2DState(pool.context)
@@ -644,7 +638,6 @@ function terminallyDisposeThumbnailRendererPool(expectedPool: ThumbnailRendererP
     return
   }
   try { disposeCinematicPortalRenderer(pool.context, 'terminal-retire') } catch { /* Best effort. */ }
-  try { disposeSoundDrawingRenderer(pool.context, { affectProductionDiagnostics: false }) } catch { /* Best effort. */ }
   try {
     clearLaserDmxVisualState(pool.context, pool.canvas.width, pool.canvas.height, { affectProductionOutput: false })
     disposeLaserDmxRenderer(pool.context, { affectProductionOutput: false })
@@ -716,7 +709,6 @@ function createLowCostThumbnailPreset(preset: ReactPreset): ReactPreset {
 function resolveThumbnailFrameBudget(preset: ReactPreset): number {
   switch (preset.engine) {
     case 'shaderPads': return 1
-    case 'oscilloscope': return 2
     case 'laserDmx': return 5
     case 'pixGrid': return 3
     case 'cinematicPortal':
@@ -759,15 +751,6 @@ function buildRenderParams(preset: ReactPreset): ReactRenderParams {
     trailDecay: renderSettings.trailDecay,
     fogDensity: renderSettings.fogDensity,
     particleDensity: renderSettings.particleDensity,
-    oscillator: {
-      ...DEFAULT_OSCILLATOR_SETTINGS,
-      ...(preset.oscillatorSettings ?? {}),
-    },
-    soundDrawingPerformanceSettings: {
-      ...DEFAULT_REACT_RENDER_PARAMS.soundDrawingPerformanceSettings,
-      quality: 'low',
-    },
-    soundDrawingRuntimeMode: 'thumbnail',
     thumbnailLaserDmxSettings: preset.laserDmxSettings
       ? {
           ...createDefaultLaserDmxSettings(),
@@ -810,15 +793,11 @@ function buildFrame(
   // Preview-only signals let the real scope/spectrum renderers show their authored
   // geometry. They never enter the shared audio bus or the live transport.
   const sampleCount = 512
-  const left = new Float32Array(sampleCount)
-  const right = new Float32Array(sampleCount)
   const timeDomainData = new Uint8Array(sampleCount)
   const freqData = new Uint8Array(256)
   for (let sample = 0; sample < sampleCount; sample++) {
     const phase = sample / sampleCount * Math.PI * 2
-    left[sample] = Math.sin(phase * 3) * .72 + Math.sin(phase * 7) * .12
-    right[sample] = Math.sin(phase * 2 + .65) * .68
-    timeDomainData[sample] = Math.round(128 + left[sample] * 120)
+    timeDomainData[sample] = Math.round(128 + (Math.sin(phase * 3) * .72 + Math.sin(phase * 7) * .12) * 120)
   }
   for (let bin = 0; bin < freqData.length; bin++) {
     freqData[bin] = Math.round(220 * Math.exp(-bin / 90) * (.55 + .45 * Math.sin(bin * .13 + timeSec) ** 2))
@@ -842,10 +821,6 @@ function buildFrame(
     audio: { bass, mid, high, volume },
     freqData,
     timeDomainData,
-    scopeStereo: {
-      left, right, channelCount: 2, sampleRate: 48000, startFrame: index * sampleCount,
-      sequenceNumber: index + 1, audioTimeSeconds: timeSec,
-    },
     musicIntelligence: null,
     resolvedSection: sectionType ? {
       type: sectionType,

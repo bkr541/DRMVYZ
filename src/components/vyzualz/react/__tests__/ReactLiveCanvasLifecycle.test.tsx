@@ -14,8 +14,6 @@ import {
 const mocks = vi.hoisted(() => ({
   renderReactEngine: vi.fn(),
   disposeReactEngineRenderer: vi.fn(),
-  clearSoundDrawingRuntimeCaches: vi.fn(),
-  setSoundDrawingClipsForFrame: vi.fn(),
   compositeBrandAsset: vi.fn(),
 }))
 
@@ -36,10 +34,6 @@ vi.mock('../renderers/ReactEngineRenderer', () => ({
 vi.mock('../renderers/CinematicPortalRenderer', () => ({
   resolveCinematicPortalBackend: vi.fn(() => 'webgl2'),
 }))
-vi.mock('../renderers/SoundDrawingRenderer', () => ({
-  clearSoundDrawingRuntimeCaches: mocks.clearSoundDrawingRuntimeCaches,
-  setSoundDrawingClipsForFrame: mocks.setSoundDrawingClipsForFrame,
-}))
 vi.mock('../../../../features/personalization/brandAssetCompositor', () => ({
   compositeBrandAsset: mocks.compositeBrandAsset,
 }))
@@ -57,11 +51,13 @@ let host: HTMLDivElement | null = null
 let nextRafId = 1
 let rafCallbacks = new Map<number, FrameRequestCallback>()
 
-type LiveCanvasEngineId = Extract<ReactEngineId, 'cinematicPortal' | 'oscilloscope' | 'laserDmx'>
+type LiveCanvasEngineId = Extract<ReactEngineId, 'cinematicPortal' | 'laserDmx'>
 
-const LIVE_CANVAS_ENGINE_IDS = REACT_ENGINE_IDS.filter((engine): engine is Extract<typeof REACT_ENGINE_IDS[number], LiveCanvasEngineId> => (
-  engine !== 'canvas' && engine !== 'pixGrid' && engine !== 'cinema2' && engine !== 'headliner' && engine !== 'xyScope'
-))
+// LaserDMX is the only live engine on this canvas; the retired Cinematic Worlds id still renders through it for compatibility.
+const LIVE_CANVAS_ENGINE_IDS: LiveCanvasEngineId[] = [
+  ...REACT_ENGINE_IDS.filter((engine): engine is 'laserDmx' => engine === 'laserDmx'),
+  'cinematicPortal',
+]
 
 function findPreset(engine: LiveCanvasEngineId): ReactPreset {
   const found = DEFAULT_REACT_PRESETS.find(preset => preset.engine === engine)
@@ -96,8 +92,6 @@ beforeEach(() => {
   nextRafId = 1
   mocks.renderReactEngine.mockClear()
   mocks.disposeReactEngineRenderer.mockClear()
-  mocks.clearSoundDrawingRuntimeCaches.mockClear()
-  mocks.setSoundDrawingClipsForFrame.mockClear()
   mocks.compositeBrandAsset.mockClear()
 
   class ResizeObserverMock {
@@ -197,10 +191,10 @@ describe('ReactPlaceholderCanvas live ownership boundary', () => {
   it('keeps file transport stopped while exposing Live Input analysis activity to renderer consumers', async () => {
     await act(async () => root?.render(
       <ReactPlaceholderCanvas
-        key="live-input-oscilloscope"
+        key="live-input-cinematic"
         analyser={null}
-        engine="oscilloscope"
-        activePreset={findPreset('oscilloscope')}
+        engine="cinematicPortal"
+        activePreset={findPreset('cinematicPortal')}
         intensity={1}
         motion={1}
         glow={0.5}
@@ -305,10 +299,10 @@ describe('ReactPlaceholderCanvas live ownership boundary', () => {
 
   it('returns ownership and scheduled frames to baseline across repeated mount cycles', async () => {
     for (let index = 0; index < 6; index += 1) {
-      await act(async () => root?.render(renderCanvas('oscilloscope')))
+      await act(async () => root?.render(renderCanvas('cinematicPortal')))
       expect(getReactLiveEngineOwnershipDiagnosticsForTests()).toMatchObject({
         activeOwnerCount: 1,
-        activeEngine: 'oscilloscope',
+        activeEngine: 'cinematicPortal',
       })
 
       await act(async () => root?.render(null))

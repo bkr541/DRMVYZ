@@ -68,16 +68,16 @@ describe('persist migration', () => {
 
 describe('preset application preserves the locked Beam Matrix workspace', () => {
   it('buildPresetPatch coerces LaserDMX presets to the Beam Matrix workspace', () => {
-    const { reactPresets, oscillatorSettings, laserDmxSettings } = useReactStore.getState()
+    const { reactPresets, laserDmxSettings } = useReactStore.getState()
     const ldxPreset = reactPresets.find(p => p.engine === 'laserDmx')!
-    const patch = buildPresetPatch(ldxPreset, oscillatorSettings, laserDmxSettings)
+    const patch = buildPresetPatch(ldxPreset, laserDmxSettings)
     expect(patch.laserDmxWorkspaceMode).toBe('beamMatrix')
   })
 
   it('buildPresetPatch does not include laserDmxBeamMatrix', () => {
-    const { reactPresets, oscillatorSettings, laserDmxSettings } = useReactStore.getState()
+    const { reactPresets, laserDmxSettings } = useReactStore.getState()
     const ldxPreset = reactPresets.find(p => p.engine === 'laserDmx')!
-    const patch = buildPresetPatch(ldxPreset, oscillatorSettings, laserDmxSettings)
+    const patch = buildPresetPatch(ldxPreset, laserDmxSettings)
     expect(patch).not.toHaveProperty('laserDmxBeamMatrix')
   })
 

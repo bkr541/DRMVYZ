@@ -121,52 +121,6 @@ describe('Help Center registry', () => {
     })
   })
 
-  it('documents the explicit Sound Drawing workspace and preset-library regions', () => {
-    expect(getHelpEntry('react.soundDrawing.workspace.tabs')).toMatchObject({
-      title: 'Source, Media, and Fonts',
-      componentType: 'selection',
-    })
-    expect(getHelpEntry('react.soundDrawing.presetLibrary')).toMatchObject({
-      title: 'Sound Drawing Presets',
-      componentType: 'selection',
-    })
-    expect(getHelpEntry('react.soundDrawing.engineMode.visualSize')).toMatchObject({
-      title: 'Visual Size',
-      componentType: 'slider',
-    })
-  })
-
-  it('documents the Sound Drawing React-tab audio controls', () => {
-    expect(getHelpEntry('react.soundDrawing.audioReactivity.displaceMode')).toMatchObject({
-      title: 'Displace Mode',
-      componentType: 'select',
-    })
-    expect(getHelpEntry('react.soundDrawing.audioReactivity.displacement')).toMatchObject({
-      title: 'Displacement',
-      componentType: 'slider',
-    })
-    expect(getHelpEntry('react.soundDrawing.audioReactivity.bassScale')).toMatchObject({
-      title: 'Bass → Scale',
-      componentType: 'slider',
-    })
-    expect(getHelpEntry('react.soundDrawing.audioReactivity.midTwist')).toMatchObject({
-      title: 'Mid → Twist',
-      componentType: 'slider',
-    })
-    expect(getHelpEntry('react.soundDrawing.audioReactivity.alternate')).toMatchObject({
-      title: 'Alternate',
-      componentType: 'toggle',
-    })
-    expect(getHelpEntry('react.soundDrawing.audioReactivity.highJitter')).toMatchObject({
-      title: 'High → Jitter',
-      componentType: 'slider',
-    })
-    expect(getHelpEntry('react.soundDrawing.audioReactivity.beatBloom')).toMatchObject({
-      title: 'Beat → Bloom',
-      componentType: 'slider',
-    })
-  })
-
   it('documents the explicit CANVAS source, preset, display, performance, timing, and React controls', () => {
     expect(getHelpEntry('react.canvas.workspace.tabs')).toMatchObject({
       title: 'CANVAS Source',

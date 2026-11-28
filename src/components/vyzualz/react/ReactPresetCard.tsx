@@ -16,7 +16,6 @@ import soundDrawingIcon from '../../../assets/preset-engine-icons/icon_sounddraw
 // Keyed by the owning engine, never by preset ID, title, palette, or active engine.
 const PRESET_ENGINE_ICONS: Record<ReactLiveEngineId, string> = {
   cinema2: cinema2Icon,
-  oscilloscope: soundDrawingIcon,
   xyScope: soundDrawingIcon,
   canvas: canvasIcon,
   laserDmx: laserDmxIcon,

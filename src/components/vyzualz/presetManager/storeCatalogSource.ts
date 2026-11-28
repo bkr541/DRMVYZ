@@ -36,7 +36,6 @@ export interface StoreCatalogRows {
 
 const ENGINE_NAMES: Readonly<Record<string, string>> = {
   cinema2: 'Cinema 2.0',
-  oscilloscope: 'Sound Drawing',
   canvas: 'CANVAS',
   laserDmx: 'LaserDMX',
   pixGrid: 'PixGrid',

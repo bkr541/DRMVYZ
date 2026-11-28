@@ -69,7 +69,6 @@ import { WorkspaceRail } from '../layout/WorkspaceRail'
 import { RailWindowHeader } from '../layout/RailWindowHeader'
 
 import { MediaDeckPanel } from '../media/MediaDeckPanel'
-import { FontLibraryPanel } from './FontLibraryPanel'
 import { ReactEngineBrowser } from './ReactEngineBrowser'
 import { useActiveEnginePresetName, useStageIdentity } from './activeEnginePresetName'
 import { StageTransitionLayer, type StageTransitionTempoHints } from './StageTransitionLayer'
@@ -92,7 +91,6 @@ import { readCinema2LastPresetId, writeCinema2LastPresetId } from './cinema2Work
 import { useCinema2WorkspaceRestoreState } from './useCinema2WorkspaceRestoreState'
 import { REACT_ENGINE_CATALOG } from './reactEngineCatalog'
 import { useCinema2LegacyPersistenceMigration } from './useCinema2LegacyPersistenceMigration'
-import { useSvgVisualRehydration } from './useSvgVisualRehydration'
 import { useFontLibraryHydration } from './useFontLibraryHydration'
 import { useReactPresetAutomation } from './useReactPresetAutomation'
 import { useShaderPanelStore } from './shaders/ui/shaderPanelStore'
@@ -136,11 +134,6 @@ import {
 const ReactTrackMapStrip = lazy(() =>
   import('./ReactTrackMapStrip').then((module) => ({
     default: module.ReactTrackMapStrip,
-  })),
-)
-const SoundDrawingTimelineLane = lazy(() =>
-  import('./SoundDrawingTimelineLane').then((module) => ({
-    default: module.SoundDrawingTimelineLane,
   })),
 )
 const LaserDmxLayersPanel = lazy(() =>
@@ -207,7 +200,6 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager, onOpenPreset
 
   // Rehydrate SVG Visual cache whenever the selected visual changes or the view mounts.
   // Placed here so it runs regardless of which right-panel tab is open.
-  useSvgVisualRehydration()
   useFontLibraryHydration()
   useCinema2LegacyPersistenceMigration()
   useReactPresetAutomation()
@@ -228,22 +220,12 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager, onOpenPreset
     reactFogDensity,
     reactParticleDensity,
     performancePadTransition,
-    oscillatorSettings,
-    oscillatorFontAssets,
-    oscillatorGlyphAssets,
-    oscillatorGlyphPointCache,
-    oscillatorTextPointCache,
-    soundDrawingTrailResetRevision,
-    soundDrawingRibbonResetRevision,
-    soundDrawingPerformanceSettings,
     performanceActionEvent,
     performanceActionEvents,
     performanceActionToggleStates,
     manualTrackSectionsByTrackId,
     suppressedAutoSectionsByTrackId,
     beamEditorVisible,
-    soundDrawingLayersByTrackId,
-    soundDrawingClipsByTrackId,
     laserDmxBeamMatrix,
     laserDmxBeamMatrixAuthoringMode,
     laserDmxShowDirector,
@@ -254,7 +236,6 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager, onOpenPreset
     pixGridActionCuesByTrackId,
     setPixGridState,
     applyPixGridAuthoringState,
-    selectSvgAsset,
     cinema2Workspace,
     activateCinema2Workspace,
     storeCinema2WorkspacePresetState,
@@ -275,22 +256,12 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager, onOpenPreset
     reactFogDensity:        s.reactFogDensity,
     reactParticleDensity:   s.reactParticleDensity,
     performancePadTransition: s.performancePadTransition,
-    oscillatorSettings:             s.oscillatorSettings,
-    oscillatorFontAssets:            s.oscillatorFontAssets,
-    oscillatorGlyphAssets:          s.oscillatorGlyphAssets,
-    oscillatorGlyphPointCache:      s.oscillatorGlyphPointCache,
-    oscillatorTextPointCache:       s.oscillatorTextPointCache,
-    soundDrawingTrailResetRevision: s.soundDrawingTrailResetRevision,
-      soundDrawingRibbonResetRevision: s.soundDrawingRibbonResetRevision,
-    soundDrawingPerformanceSettings: s.soundDrawingPerformanceSettings,
     performanceActionEvent:         s.performanceActionEvent,
     performanceActionEvents:        s.performanceActionEvents,
     performanceActionToggleStates:  s.performanceActionToggleStates,
     manualTrackSectionsByTrackId:   s.manualTrackSectionsByTrackId,
     suppressedAutoSectionsByTrackId: s.suppressedAutoSectionsByTrackId,
     beamEditorVisible:              s.laserDmxBeamMatrix.editor.beamEditorVisible,
-    soundDrawingLayersByTrackId:    s.soundDrawingLayersByTrackId,
-    soundDrawingClipsByTrackId:     s.soundDrawingClipsByTrackId,
     laserDmxBeamMatrix:             s.laserDmxBeamMatrix,
     laserDmxBeamMatrixAuthoringMode: s.laserDmxBeamMatrixAuthoringMode,
     laserDmxShowDirector:           s.laserDmxShowDirector,
@@ -301,7 +272,6 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager, onOpenPreset
     pixGridActionCuesByTrackId:       s.pixGridActionCuesByTrackId,
     setPixGridState:                  s.setPixGridState,
     applyPixGridAuthoringState:       s.applyPixGridAuthoringState,
-    selectSvgAsset:                  s.selectSvgAsset,
     cinema2Workspace:                s.cinema2Workspace,
     activateCinema2Workspace:        s.activateCinema2Workspace,
     storeCinema2WorkspacePresetState: s.storeCinema2WorkspacePresetState,
@@ -390,7 +360,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager, onOpenPreset
   const [trackMapLaneIconsExpanded, setTrackMapLaneIconsExpanded] = useState(false)
   const [trackTimelineOpen, setTrackTimelineOpen] = useState(false)
   const mediaSourceCapability = getReactMediaSourceCapability(activeReactEngineId)
-  const activeMediaId = getReactMediaSourceId(mediaSourceCapability, oscillatorSettings, pixGridState)
+  const activeMediaId = getReactMediaSourceId(mediaSourceCapability, pixGridState)
   const getMediaDisabledReason = useCallback(
     (media: Parameters<typeof getReactMediaDisabledReason>[1]) =>
       getReactMediaDisabledReason(mediaSourceCapability, media),
@@ -412,11 +382,9 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager, onOpenPreset
             },
           })
       }
-      return
     }
-    void selectSvgAsset(mediaId)
     },
-    [applyPixGridAuthoringState, mediaSourceCapability, pixGridState, selectSvgAsset, setPixGridState],
+    [applyPixGridAuthoringState, mediaSourceCapability, pixGridState, setPixGridState],
   )
 
   // Recording — useRecorder lives at view level so active recordings survive tab switches
@@ -510,13 +478,11 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager, onOpenPreset
     retainSharedPerformanceDiagnosticsEngine(
       activeReactEngineId === 'laserDmx'
         ? 'laserDmx'
-        : activeReactEngineId === 'oscilloscope'
-          ? 'soundDrawing'
-          : activeReactEngineId === 'canvas'
-            ? 'canvas'
-            : activeReactEngineId === 'pixGrid'
-              ? 'pixGrid'
-              : null,
+        : activeReactEngineId === 'canvas'
+          ? 'canvas'
+          : activeReactEngineId === 'pixGrid'
+            ? 'pixGrid'
+            : null,
     )
   }, [activeReactEngineId])
 
@@ -559,12 +525,11 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager, onOpenPreset
       resolveReactInspectorSelection({
       activeReactEngineId,
       activeShaderId,
-      oscillatorSettings,
       selectedCanvasLayerId,
         laserDmxWorkspaceMode,
       laserDmxBeamMatrix,
     }),
-    [activeReactEngineId, activeShaderId, oscillatorSettings, selectedCanvasLayerId, laserDmxWorkspaceMode, laserDmxBeamMatrix],
+    [activeReactEngineId, activeShaderId, selectedCanvasLayerId, laserDmxWorkspaceMode, laserDmxBeamMatrix],
   )
 
   const rightTabs: RailTabOption<ReactRightPanel>[] = REACT_RIGHT_BASE_TABS
@@ -683,10 +648,6 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager, onOpenPreset
     if (!trackTimelineAvailability.enabled) setTrackTimelineOpen(false)
   }, [trackTimelineAvailability.enabled])
 
-  // Sound Drawing layers and clips for the active track — forwarded to canvas for per-frame rendering
-  const activeTrackId        = engine.currentTrack?.id ?? null
-  const activeSdLayers       = activeTrackId ? (soundDrawingLayersByTrackId[activeTrackId] ?? []) : []
-  const activeSdClips        = activeTrackId ? (soundDrawingClipsByTrackId[activeTrackId]   ?? []) : []
   const laserDmxAuthoringOverlayVisibility = useMemo(
     () =>
       resolveLaserDmxAuthoringOverlayVisibility({
@@ -809,7 +770,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager, onOpenPreset
                       title={
                         mediaSourceCapability === 'pixGridStill'
                           ? 'PixGrid Image & SVG Media'
-                          : 'Sound Drawing SVG Media'
+                          : 'Media'
                       }
                       getDisabledReason={getMediaDisabledReason}
                     />
@@ -818,7 +779,6 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager, onOpenPreset
                     <Suspense fallback={<LazyWorkspaceFallback label="LaserDMX layers" />}><LaserDmxLayersPanel /></Suspense>
                   ) : null)}
                   {leftTab === 'pool' && activeReactEngineId === 'cinema2' && <Cinema2TextLibraryPanel runtime={cinema2Runtime} mode="pool" />}
-                  {leftTab === 'fonts' && <FontLibraryPanel />}
                 </div>
               </div>
             </section>
@@ -917,11 +877,10 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager, onOpenPreset
                   durationSec: audioDurationSec,
                 }}
               />
-            ) : activeReactEngineId === 'oscilloscope' || activeReactEngineId === 'laserDmx' ? (
+            ) : activeReactEngineId === 'laserDmx' ? (
               <ReactPlaceholderCanvas
                 key={`react-live-${activeReactEngineId}`}
                 analyser={analyser}
-                scopeStereoTap={engine.scopeStereoTap}
                 engine={activeReactEngineId}
                 activePreset={renderPreset}
                 intensity={reactIntensity}
@@ -932,14 +891,6 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager, onOpenPreset
                 fogDensity={reactFogDensity}
                 particleDensity={reactParticleDensity}
                 performancePadTransition={performancePadTransition}
-                oscillatorSettings={oscillatorSettings}
-                oscillatorFontAssets={oscillatorFontAssets}
-                oscillatorGlyphAssets={oscillatorGlyphAssets}
-                oscillatorGlyphPointCache={oscillatorGlyphPointCache}
-                oscillatorTextPointCache={oscillatorTextPointCache}
-                soundDrawingTrailResetRevision={soundDrawingTrailResetRevision}
-                soundDrawingRibbonResetRevision={soundDrawingRibbonResetRevision}
-                soundDrawingPerformanceSettings={soundDrawingPerformanceSettings}
                 performanceActionEvent={performanceActionEvent}
                 performanceActionEvents={performanceActionEvents}
                 performanceActionToggleStates={performanceActionToggleStates}
@@ -954,8 +905,6 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager, onOpenPreset
                 onLiveFps={setLiveFps}
                 brandOverlay={activeBrandOverlay}
                 durationSec={audioDurationSec}
-                soundDrawingLayers={activeSdLayers}
-                soundDrawingClips={activeSdClips}
                 activeAudioTrackId={engine.currentAudioTrackId}
                 laserDmxSectionRuntimePrograms={activeReactEngineId === 'laserDmx' ? activeLaserDmxSectionRuntimePrograms : undefined}
                 laserDmxEmptyRuntimeShowDirector={activeReactEngineId === 'laserDmx' ? activeLaserDmxEmptyRuntimeShowDirector : null}
@@ -1088,19 +1037,6 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager, onOpenPreset
                 )}
               </div>
 
-              {workspaceComposition.showSoundDrawingTimeline && (
-                <div
-                  hidden={activeLowerSurface !== 'soundDrawing' || lowerWorkspaceCollapsed || stageFocus}
-                  className="rv-lower-workspace-surface rv-lower-workspace-surface--sound-drawing"
-                >
-                  <Suspense fallback={<LazyWorkspaceFallback label="Sound Drawing timeline" />}>
-                    <SoundDrawingTimelineLane
-                      audioDurationSec={audioDurationSec}
-                      trackSections={resolvedTrackSections}
-                    />
-                  </Suspense>
-                </div>
-              )}
 
               {workspaceComposition.showPerformancePads && (
                 <div
@@ -1190,7 +1126,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager, onOpenPreset
         compact={stageFocus}
         expandable
         unifiedTimeline={
-          (activeLowerSurface === 'trackMap' || activeLowerSurface === 'soundDrawing') &&
+          activeLowerSurface === 'trackMap' &&
           !lowerWorkspaceCollapsed &&
           !stageFocus
         }

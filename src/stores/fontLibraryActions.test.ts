@@ -3,9 +3,8 @@
  *
  * Covers:
  *   uploadOscillatorFont   — validation, auth guard, Storage→DB flow, rollback
- *   loadOscillatorFonts    — metadata list, idempotency, textFontId validation
- *   selectOscillatorFont   — cache hit fast-path, lazy download, failure isolation
- *   removeOscillatorFontAsset — DB-first deletion, cache eviction, textFontId clear
+ *   loadOscillatorFonts    — metadata list, idempotency
+ *   removeOscillatorFontAsset — DB-first deletion, cache eviction
  *
  * Supabase, fontDb helpers, opentype, and fontGlyphUtils are all mocked so no
  * network or filesystem calls are made.  The Zustand store runs against real
@@ -75,7 +74,6 @@ vi.mock('../components/vyzualz/react/renderers/fontGlyphUtils', () => ({
 }))
 
 import { useReactStore } from './reactStore'
-import { DEFAULT_OSCILLATOR_SETTINGS } from '../components/vyzualz/react/ReactTypes'
 import type { OscillatorFontAsset } from '../components/vyzualz/react/ReactTypes'
 import type { FontAssetRow } from '../types/database'
 
@@ -136,14 +134,10 @@ function makeInspection(id = FNV_ID) {
 
 const BLANK_FONT_STATE = {
   oscillatorFontAssets:     [] as OscillatorFontAsset[],
-  oscillatorSettings:       { ...DEFAULT_OSCILLATOR_SETTINGS, textFontId: null },
-  oscillatorTextPointCache: {} as Record<string, never[]>,
   fontsLoadState:           'idle' as const,
   fontLoadError:            null,
   fontUploadPending:        false,
   fontUploadError:          null,
-  fontSelectPending:        null,
-  fontSelectError:          null,
   fontRemovePending:        null,
   fontRemoveError:          null,
 }
@@ -264,7 +258,7 @@ describe('uploadOscillatorFont', () => {
     expect(useReactStore.getState().oscillatorFontAssets).toHaveLength(0)
   })
 
-  it('adds asset to store and sets textFontId on success', async () => {
+  it('adds asset to the Font Library on success', async () => {
     h.mockInspectFontFile.mockResolvedValue(makeInspection())
     h.mockUploadFontFile.mockResolvedValue({ error: null })
     h.mockCreateFontAsset.mockResolvedValue({ id: ASSET_ID, error: null })
@@ -276,7 +270,6 @@ describe('uploadOscillatorFont', () => {
     expect(state.fontUploadError).toBeNull()
     expect(state.oscillatorFontAssets).toHaveLength(1)
     expect(state.oscillatorFontAssets[0].id).toBe(ASSET_ID)
-    expect(state.oscillatorSettings.textFontId).toBe(ASSET_ID)
   })
 
   it('migrates runtime cache from FNV id to DB UUID on success', async () => {
@@ -358,113 +351,11 @@ describe('loadOscillatorFonts', () => {
     expect(useReactStore.getState().fontsLoadState).toBe('loaded')
   })
 
-  it('clears textFontId when the persisted font is not in the returned list', async () => {
-    useReactStore.setState({
-      oscillatorSettings: { ...DEFAULT_OSCILLATOR_SETTINGS, textFontId: 'stale-id' },
-    })
-    // Cloud returns a different font, not 'stale-id'
-    h.mockListFontAssets.mockResolvedValue({ rows: [makeRow(ASSET_ID)], error: null })
-    await useReactStore.getState().loadOscillatorFonts()
-    expect(useReactStore.getState().oscillatorSettings.textFontId).toBeNull()
-  })
-
-  it('preserves textFontId when the font still exists in the cloud list', async () => {
-    useReactStore.setState({
-      oscillatorSettings: { ...DEFAULT_OSCILLATOR_SETTINGS, textFontId: ASSET_ID },
-    })
-    h.mockListFontAssets.mockResolvedValue({ rows: [makeRow(ASSET_ID)], error: null })
-    // Font already in runtime cache — lazy rehydration is a no-op (no download needed)
-    h.mockHasFontRuntime.mockReturnValue(true)
-    await useReactStore.getState().loadOscillatorFonts()
-    expect(useReactStore.getState().oscillatorSettings.textFontId).toBe(ASSET_ID)
-  })
-
   it('sets error state and message on list failure', async () => {
     h.mockListFontAssets.mockResolvedValue({ rows: [], error: 'RLS denied' })
     await useReactStore.getState().loadOscillatorFonts()
     expect(useReactStore.getState().fontsLoadState).toBe('error')
     expect(useReactStore.getState().fontLoadError).toBe('RLS denied')
-  })
-})
-
-// ── selectOscillatorFont ───────────────────────────────────────────────────────
-
-describe('selectOscillatorFont', () => {
-  it('clears textFontId synchronously when called with null', async () => {
-    useReactStore.setState({
-      oscillatorSettings: { ...DEFAULT_OSCILLATOR_SETTINGS, textFontId: ASSET_ID },
-    })
-    await useReactStore.getState().selectOscillatorFont(null)
-    expect(useReactStore.getState().oscillatorSettings.textFontId).toBeNull()
-    expect(h.mockDownloadFontFile).not.toHaveBeenCalled()
-  })
-
-  it('returns without state change when the asset is not in the store', async () => {
-    // No assets in store → call is a no-op
-    await useReactStore.getState().selectOscillatorFont('missing-id')
-    expect(h.mockDownloadFontFile).not.toHaveBeenCalled()
-    expect(useReactStore.getState().oscillatorSettings.textFontId).toBeNull()
-  })
-
-  it('sets textFontId immediately on cache hit, without downloading', async () => {
-    useReactStore.setState({ oscillatorFontAssets: [makeAsset()] })
-    h.mockHasFontRuntime.mockReturnValue(true)
-
-    await useReactStore.getState().selectOscillatorFont(ASSET_ID)
-
-    expect(useReactStore.getState().oscillatorSettings.textFontId).toBe(ASSET_ID)
-    expect(h.mockDownloadFontFile).not.toHaveBeenCalled()
-    expect(useReactStore.getState().fontSelectPending).toBeNull()
-  })
-
-  it('downloads binary on cache miss, parses it, and sets textFontId', async () => {
-    useReactStore.setState({ oscillatorFontAssets: [makeAsset()] })
-    h.mockHasFontRuntime.mockReturnValue(false)
-
-    const blob = { arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(8)) }
-    h.mockDownloadFontFile.mockResolvedValue({ data: blob, error: null })
-    const mockFont = {}
-    h.mockParse.mockReturnValue(mockFont)
-
-    await useReactStore.getState().selectOscillatorFont(ASSET_ID)
-
-    expect(h.mockDownloadFontFile).toHaveBeenCalledWith(makeAsset().storagePath)
-    expect(h.mockStoreFontRuntime).toHaveBeenCalledWith(ASSET_ID, mockFont, expect.any(ArrayBuffer))
-    expect(useReactStore.getState().oscillatorSettings.textFontId).toBe(ASSET_ID)
-    expect(useReactStore.getState().fontSelectPending).toBeNull()
-    expect(useReactStore.getState().fontSelectError).toBeNull()
-  })
-
-  it('sets fontSelectError and preserves previous textFontId when download fails', async () => {
-    useReactStore.setState({
-      oscillatorFontAssets: [makeAsset()],
-      oscillatorSettings:   { ...DEFAULT_OSCILLATOR_SETTINGS, textFontId: ASSET_ID2 },
-    })
-    h.mockHasFontRuntime.mockReturnValue(false)
-    h.mockDownloadFontFile.mockResolvedValue({ data: null, error: 'network error' })
-
-    await useReactStore.getState().selectOscillatorFont(ASSET_ID)
-
-    expect(useReactStore.getState().fontSelectError).toMatch('network error')
-    // Previous selection is unchanged
-    expect(useReactStore.getState().oscillatorSettings.textFontId).toBe(ASSET_ID2)
-    expect(useReactStore.getState().fontSelectPending).toBeNull()
-  })
-
-  it('sets fontSelectError and preserves textFontId when opentype parse throws', async () => {
-    useReactStore.setState({
-      oscillatorFontAssets: [makeAsset()],
-      oscillatorSettings:   { ...DEFAULT_OSCILLATOR_SETTINGS, textFontId: ASSET_ID2 },
-    })
-    h.mockHasFontRuntime.mockReturnValue(false)
-    const blob = { arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(8)) }
-    h.mockDownloadFontFile.mockResolvedValue({ data: blob, error: null })
-    h.mockParse.mockImplementation(() => { throw new Error('corrupt font data') })
-
-    await useReactStore.getState().selectOscillatorFont(ASSET_ID)
-
-    expect(useReactStore.getState().fontSelectError).toMatch('corrupt font data')
-    expect(useReactStore.getState().oscillatorSettings.textFontId).toBe(ASSET_ID2)
   })
 })
 
@@ -521,31 +412,6 @@ describe('removeOscillatorFontAsset', () => {
     expect(h.mockEvictFontFromCache).toHaveBeenCalledWith(ASSET_ID)
   })
 
-  it('clears textFontId when the removed font was selected', async () => {
-    useReactStore.setState({
-      oscillatorSettings: { ...DEFAULT_OSCILLATOR_SETTINGS, textFontId: ASSET_ID },
-    })
-    h.mockDeleteFontAsset.mockResolvedValue({ error: null })
-    h.mockRemoveFontFile.mockResolvedValue({ error: null })
-
-    await useReactStore.getState().removeOscillatorFontAsset(ASSET_ID)
-
-    expect(useReactStore.getState().oscillatorSettings.textFontId).toBeNull()
-  })
-
-  it('preserves textFontId when a different font was selected', async () => {
-    useReactStore.setState({
-      oscillatorFontAssets: [makeAsset(), makeAsset(ASSET_ID2)],
-      oscillatorSettings:   { ...DEFAULT_OSCILLATOR_SETTINGS, textFontId: ASSET_ID2 },
-    })
-    h.mockDeleteFontAsset.mockResolvedValue({ error: null })
-    h.mockRemoveFontFile.mockResolvedValue({ error: null })
-
-    await useReactStore.getState().removeOscillatorFontAsset(ASSET_ID)
-
-    expect(useReactStore.getState().oscillatorSettings.textFontId).toBe(ASSET_ID2)
-  })
-
   it('surfaces a soft warning when Storage deletion fails (asset still removed)', async () => {
     h.mockDeleteFontAsset.mockResolvedValue({ error: null })
     h.mockRemoveFontFile.mockResolvedValue({ error: 'object not found' })
@@ -567,107 +433,6 @@ describe('removeOscillatorFontAsset', () => {
 
 // ── loadOscillatorFonts — lazy rehydration ─────────────────────────────────────
 
-describe('loadOscillatorFonts — lazy rehydration', () => {
-  it('downloads the persisted textFontId after loading fonts when not yet cached', async () => {
-    useReactStore.setState({
-      oscillatorSettings: { ...DEFAULT_OSCILLATOR_SETTINGS, textFontId: ASSET_ID },
-    })
-    const blob = { arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(8)) }
-    h.mockListFontAssets.mockResolvedValue({ rows: [makeRow(ASSET_ID)], error: null })
-    h.mockHasFontRuntime.mockReturnValue(false)
-    h.mockDownloadFontFile.mockResolvedValue({ data: blob, error: null })
-    h.mockParse.mockReturnValue({})
-
-    await useReactStore.getState().loadOscillatorFonts()
-
-    expect(h.mockDownloadFontFile).toHaveBeenCalledWith(makeRow(ASSET_ID).storage_path)
-    expect(useReactStore.getState().oscillatorSettings.textFontId).toBe(ASSET_ID)
-  })
-
-  it('skips download for persisted textFontId when already in runtime cache', async () => {
-    useReactStore.setState({
-      oscillatorSettings: { ...DEFAULT_OSCILLATOR_SETTINGS, textFontId: ASSET_ID },
-    })
-    h.mockListFontAssets.mockResolvedValue({ rows: [makeRow(ASSET_ID)], error: null })
-    h.mockHasFontRuntime.mockReturnValue(true)
-
-    await useReactStore.getState().loadOscillatorFonts()
-
-    expect(h.mockDownloadFontFile).not.toHaveBeenCalled()
-    expect(useReactStore.getState().oscillatorSettings.textFontId).toBe(ASSET_ID)
-  })
-
-  it('does not download any font when textFontId is null after load', async () => {
-    h.mockListFontAssets.mockResolvedValue({ rows: [makeRow(ASSET_ID)], error: null })
-    // textFontId is null (default)
-
-    await useReactStore.getState().loadOscillatorFonts()
-
-    expect(h.mockDownloadFontFile).not.toHaveBeenCalled()
-  })
-})
-
-// ── selectOscillatorFont — stale result protection ─────────────────────────────
-
-describe('selectOscillatorFont — stale result protection', () => {
-  it('discards result of font A when font B (cache hit) is selected while A is downloading', async () => {
-    useReactStore.setState({ oscillatorFontAssets: [makeAsset(), makeAsset(ASSET_ID2)] })
-
-    let resolveA!: (v: { data: Blob; error: null }) => void
-    const downloadA = new Promise<{ data: Blob; error: null }>(res => { resolveA = res })
-
-    // A is not cached, B is cached
-    h.mockHasFontRuntime.mockImplementation((id: string) => id === ASSET_ID2)
-    h.mockDownloadFontFile.mockReturnValueOnce(downloadA)
-    h.mockParse.mockReturnValue({})
-
-    // Start selecting A (won't complete until resolveA fires)
-    const selectA = useReactStore.getState().selectOscillatorFont(ASSET_ID)
-    expect(useReactStore.getState().fontSelectPending).toBe(ASSET_ID)
-
-    // Select B (cache hit) — supersedes A by clearing fontSelectPending
-    await useReactStore.getState().selectOscillatorFont(ASSET_ID2)
-    expect(useReactStore.getState().oscillatorSettings.textFontId).toBe(ASSET_ID2)
-    expect(useReactStore.getState().fontSelectPending).toBeNull()
-
-    // Now let A's download complete
-    resolveA({ data: { arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(8)) } as unknown as Blob, error: null })
-    await selectA
-
-    // A's result is discarded — B's selection is unchanged
-    expect(useReactStore.getState().oscillatorSettings.textFontId).toBe(ASSET_ID2)
-    expect(useReactStore.getState().fontSelectPending).toBeNull()
-    expect(useReactStore.getState().fontSelectError).toBeNull()
-  })
-
-  it('discards A error and preserves current selection when null is selected while A loads', async () => {
-    useReactStore.setState({
-      oscillatorFontAssets: [makeAsset()],
-      oscillatorSettings:   { ...DEFAULT_OSCILLATOR_SETTINGS, textFontId: ASSET_ID2 },
-    })
-
-    let resolveA!: (v: { data: null; error: string }) => void
-    const downloadA = new Promise<{ data: null; error: string }>(res => { resolveA = res })
-    h.mockHasFontRuntime.mockReturnValue(false)
-    h.mockDownloadFontFile.mockReturnValueOnce(downloadA)
-
-    // Start selecting A
-    const selectA = useReactStore.getState().selectOscillatorFont(ASSET_ID)
-
-    // Select null — clears fontSelectPending, cancels in-flight work
-    await useReactStore.getState().selectOscillatorFont(null)
-    expect(useReactStore.getState().oscillatorSettings.textFontId).toBeNull()
-    expect(useReactStore.getState().fontSelectPending).toBeNull()
-
-    // Resolve A with an error — should be silently discarded
-    resolveA({ data: null, error: 'network error' })
-    await selectA
-
-    // Error from stale A must not pollute the current state
-    expect(useReactStore.getState().fontSelectError).toBeNull()
-    expect(useReactStore.getState().oscillatorSettings.textFontId).toBeNull()
-  })
-})
 
 // ── uploadOscillatorFont — storage path safety ─────────────────────────────────
 
@@ -782,18 +547,6 @@ describe('unexpected thrown errors always clear pending state', () => {
     expect(useReactStore.getState().fontUploadError).toMatch('storage SDK crash')
   })
 
-  it('clears fontSelectPending when blob.arrayBuffer() throws unexpectedly', async () => {
-    useReactStore.setState({ oscillatorFontAssets: [makeAsset()] })
-    h.mockHasFontRuntime.mockReturnValue(false)
-    const explodingBlob = { arrayBuffer: vi.fn().mockRejectedValue(new Error('blob read error')) }
-    h.mockDownloadFontFile.mockResolvedValue({ data: explodingBlob, error: null })
-
-    await useReactStore.getState().selectOscillatorFont(ASSET_ID)
-
-    expect(useReactStore.getState().fontSelectPending).toBeNull()
-    expect(useReactStore.getState().fontSelectError).toMatch('blob read error')
-  })
-
   it('clears fontRemovePending when deleteFontAsset throws unexpectedly', async () => {
     useReactStore.setState({ oscillatorFontAssets: [makeAsset()] })
     h.mockDeleteFontAsset.mockRejectedValue(new Error('DB connection lost'))
@@ -813,60 +566,6 @@ describe('unexpected thrown errors always clear pending state', () => {
 })
 
 // ── selectOscillatorFont — stale result does not enter runtime cache ───────────
-
-describe('selectOscillatorFont — stale result not entering runtime caches', () => {
-  it('does not call storeFontRuntime for a stale selection superseded by null', async () => {
-    useReactStore.setState({ oscillatorFontAssets: [makeAsset()] })
-    h.mockHasFontRuntime.mockReturnValue(false)
-
-    let resolveA!: (v: { data: { arrayBuffer: ReturnType<typeof vi.fn> }; error: null }) => void
-    const downloadA = new Promise<{ data: { arrayBuffer: ReturnType<typeof vi.fn> }; error: null }>(
-      res => { resolveA = res },
-    )
-    h.mockDownloadFontFile.mockReturnValueOnce(downloadA)
-    h.mockParse.mockReturnValue({})
-
-    // Start A
-    const selectA = useReactStore.getState().selectOscillatorFont(ASSET_ID)
-
-    // Supersede with null
-    await useReactStore.getState().selectOscillatorFont(null)
-    expect(useReactStore.getState().fontSelectPending).toBeNull()
-
-    // Resolve A's download
-    resolveA({ data: { arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(8)) }, error: null })
-    await selectA
-
-    // storeFontRuntime must NOT have been called for the stale A
-    expect(h.mockStoreFontRuntime).not.toHaveBeenCalled()
-  })
-
-  it('does not call storeFontRuntime for stale A when B (cache hit) supersedes it', async () => {
-    useReactStore.setState({ oscillatorFontAssets: [makeAsset(), makeAsset(ASSET_ID2)] })
-
-    // A is downloading; B is cached
-    h.mockHasFontRuntime.mockImplementation((id: string) => id === ASSET_ID2)
-    let resolveA!: (v: { data: { arrayBuffer: ReturnType<typeof vi.fn> }; error: null }) => void
-    const downloadA = new Promise<{ data: { arrayBuffer: ReturnType<typeof vi.fn> }; error: null }>(
-      res => { resolveA = res },
-    )
-    h.mockDownloadFontFile.mockReturnValueOnce(downloadA)
-    h.mockParse.mockReturnValue({})
-
-    const selectA = useReactStore.getState().selectOscillatorFont(ASSET_ID)
-
-    // B supersedes A
-    await useReactStore.getState().selectOscillatorFont(ASSET_ID2)
-
-    // Resolve A
-    resolveA({ data: { arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(8)) }, error: null })
-    await selectA
-
-    // storeFontRuntime must NOT be called with A's id
-    const calls = h.mockStoreFontRuntime.mock.calls
-    expect(calls.every(([calledId]) => calledId !== ASSET_ID)).toBe(true)
-  })
-})
 
 // ── uploadOscillatorFont — details from the media upload dialog ───────────────
 

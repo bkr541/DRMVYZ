@@ -6,14 +6,14 @@ import { cinema2NativePresetRegistry } from '../cinema2/presets/Cinema2PresetReg
 import { filterReactPresetLibrary } from '../react/reactPresetLibraryState'
 import { useReactStore } from '../../../stores/reactStore'
 
-const ARTWORK_ENGINE = { cinema2: 'cinema2', soundDrawing: 'oscilloscope', canvas: 'canvas', laserDmx: 'laserDmx', pixGrid: 'pixGrid', headliner: 'headliner' } as const
+const ARTWORK_ENGINE = { cinema2: 'cinema2', canvas: 'canvas', laserDmx: 'laserDmx', pixGrid: 'pixGrid', headliner: 'headliner' } as const
 export type PerformancePreset = { id: string; name: string; description: string; tags: readonly string[]; engineId: ReactLiveEngineId }
 
 export function getPerformanceManagerPresets(engineId: ReactLiveEngineId, livePresets: ReactPreset[], laserMode?: string): PerformancePreset[] {
   const entries = (() => {
     if (engineId === 'cinema2') return cinema2NativePresetRegistry.list().filter(p => !p.metadata.tags?.includes('internal')).map(p => ({ id: p.id, name: p.metadata.name, description: p.metadata.description ?? p.metadata.name, tags: p.metadata.tags ?? [] }))
     if (engineId === 'xyScope') return XY_SCOPE_PRESETS.map(p => ({ id: p.id, name: p.name, description: p.description, tags: [] as readonly string[] }))
-    if (engineId === 'oscilloscope' || engineId === 'pixGrid') return filterReactPresetLibrary(livePresets, engineId, 'current', new Set()).map(p => ({ id: p.id, name: p.name, description: p.description, tags: p.tags ?? [] }))
+    if (engineId === 'pixGrid') return filterReactPresetLibrary(livePresets, engineId, 'current', new Set()).map(p => ({ id: p.id, name: p.name, description: p.description, tags: p.tags ?? [] }))
     return PRESET_MANAGER_PRESETS.filter(p => ARTWORK_ENGINE[p.artwork] === engineId && (engineId !== 'laserDmx' || !laserMode || (laserMode === 'showDirector' ? p.activation !== 'laserDmxBeamMatrix' : p.activation === 'laserDmxBeamMatrix'))).map(p => ({ id: p.sourceId, name: p.name, description: p.description, tags: p.tags }))
   })()
   return entries.map(p => ({ ...p, engineId }))

@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs'
 import { describe, it, expect } from 'vitest'
 import { groupPointsByPathIndex } from '../oscillatorPathUtils'
 import { parseSvgToGlyphPoints } from '../svgGlyphUtils'
@@ -123,16 +122,5 @@ describe('parseSvgToGlyphPoints + groupPointsByPathIndex', () => {
     const groups = groupPointsByPathIndex(pts)
     const total = groups.reduce((sum, g) => sum + g.length, 0)
     expect(total).toBe(pts.length)
-  })
-})
-
-// ── SoundDrawingRenderer does not import parseSvgToGlyphPoints ────────────────
-
-describe('SoundDrawingRenderer import guard', () => {
-  it('does not import parseSvgToGlyphPoints (renderer must consume prepared points)', () => {
-    const source = readFileSync(new URL('../SoundDrawingRenderer.ts', import.meta.url), 'utf8')
-    expect(source).not.toMatch(
-      /import\s*\{[^}]*\bparseSvgToGlyphPoints\b[^}]*\}\s*from\s*['"]\.\/svgGlyphUtils['"]/s,
-    )
   })
 })

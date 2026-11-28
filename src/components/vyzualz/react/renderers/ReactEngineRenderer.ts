@@ -3,7 +3,6 @@ import { PixGridStructuralChoreographer } from '../pixGrid/PixGridStructuralChor
 import type { ReactFrameContext, ReactRenderParams } from './reactRenderUtils'
 import { resolveSectionAtTime, effectiveSectionIntensity, DEFAULT_REACT_RENDER_PARAMS } from './reactRenderUtils'
 import { disposeCinematicPortalRenderer, renderCinematicPortal } from './CinematicPortalRenderer'
-import { disposeSoundDrawingRenderer, pauseSoundDrawingRenderer, renderSoundDrawing } from './SoundDrawingRenderer'
 import {
   clearLaserDmxVisualState,
   disposeLaserDmxRenderer,
@@ -161,7 +160,6 @@ export function renderReactEngine(
         affectProductionOutput: shouldAffectLaserDmxProductionOutput(params),
       })
     }
-    if (preset.engine === 'oscilloscope') pauseSoundDrawingRenderer(ctx)
     return
   }
 
@@ -189,9 +187,6 @@ export function renderReactEngine(
         ctx, frame, preset, effectiveParams, sectionType,
         options.webglLifetime ?? 'live-reusable',
       )
-      break
-    case 'oscilloscope':
-      renderSoundDrawing(ctx, frame, preset, effectiveParams, sectionType)
       break
     case 'canvas':
       // CANVAS owns a dedicated placeholder surface until media playback lands.
@@ -301,9 +296,6 @@ export function disposeReactEngineRenderer(
       disposeLaserDmxRenderer(ctx, {
         affectProductionOutput: options.affectProductionOutput,
       })
-      break
-    case 'oscilloscope':
-      disposeSoundDrawingRenderer(ctx)
       break
     case 'shaderPads':
       // Shader Pads owns a dedicated canvas and ShaderEngineRenderer lifecycle.

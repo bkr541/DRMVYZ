@@ -29,7 +29,7 @@ afterEach(() => {
 describe('Shared Performance Living Ribbon diagnostics', () => {
   it('renders compact physical, capability, occurrence, quality, lock, and recovery state', () => {
     publishSharedPerformanceDiagnostics({
-      engine: 'soundDrawing',
+      engine: 'canvas',
       active: true,
       performanceShow: 'Living Ribbon System',
       scene: 'lrs-drop-2',
@@ -63,7 +63,7 @@ describe('Shared Performance Living Ribbon diagnostics', () => {
       runtimeIdentity: 'ribbon-runtime-2',
     })
 
-    act(() => root.render(<SharedPerformanceDiagnosticsPanel engine="soundDrawing" />))
+    act(() => root.render(<SharedPerformanceDiagnosticsPanel engine="canvas" />))
     const header = container.querySelector<HTMLButtonElement>('.rv-ctrl-collapsible-hdr')
     act(() => header?.click())
 

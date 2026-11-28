@@ -14,7 +14,7 @@ import type { LaserDmxBeamMatrixAuthoringMode, ReactEngineId } from './ReactType
  * Where each engine keeps its selection (the same value its PRESETS tab highlights):
  * - Cinema 2.0: the workspace's preset id (a local state of ReactView), named by the native preset registry.
  * - CANVAS: `selectedCanvasPresetId`.
- * - Sound Drawing and PixGrid: `activeReactPresetId`, if that preset belongs to the engine.
+ * - PixGrid: `activeReactPresetId`, if that preset belongs to the engine.
  * - LaserDMX: in Beam Matrix (manual) mode the active Beam Matrix preset; in Show Director mode the active Performance Show if one is applied, otherwise
  *   the Rig Layout it was built from.
  */
@@ -36,7 +36,6 @@ export function resolveActiveEnginePresetName(input: Readonly<ActiveEnginePreset
       return input.cinema2PresetId ? cinema2NativePresetRegistry.get(input.cinema2PresetId)?.metadata.name ?? null : null
     case 'canvas':
       return input.selectedCanvasPresetId ? CANVAS_PRESET_BY_ID[input.selectedCanvasPresetId]?.name ?? null : null
-    case 'oscilloscope':
     case 'pixGrid': {
       const active = input.activeReactPresetId
         ? input.reactPresets.find(preset => preset.id === input.activeReactPresetId && preset.engine === input.engineId)
@@ -84,7 +83,6 @@ export function resolveStageIdentity(input: Readonly<ActiveEnginePresetInput>): 
       return `cinema2:${input.cinema2PresetId ?? ''}`
     case 'canvas':
       return `canvas:${input.selectedCanvasPresetId ?? ''}`
-    case 'oscilloscope':
     case 'pixGrid': {
       const active = input.activeReactPresetId
         ? input.reactPresets.find(preset => preset.id === input.activeReactPresetId && preset.engine === input.engineId)

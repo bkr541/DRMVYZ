@@ -4,7 +4,7 @@ import type { Cinema2MediaPoolSource } from '../cinema2/media/Cinema2MediaPoolSo
 import { cinema2MediaSourceFromLibraryItem, getCinema2MediaDisabledReason } from './Cinema2LibraryMediaSource'
 import { cinema2NativePresetRegistry } from '../cinema2/presets/Cinema2PresetRegistry'
 import { cinema2SlotSupportsPool } from '../cinema2/media/Cinema2SourceCapabilities'
-import { isUnifiedSvgMediaItem } from './svgSourceLifecycle'
+import { isUnifiedSvgMediaItem } from '../../../lib/svgMediaEligibility'
 
 import type { Cinema2PresetId } from '../cinema2/contracts/Cinema2NativePresetManifest'
 

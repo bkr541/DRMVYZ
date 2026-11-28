@@ -15,7 +15,7 @@ function makeKit(id: string, palette: ReactPalette = BRAND): BrandKit {
     id, userId: 'user-a', name: id, palette,
     extractedPalette: null, extractionMetadata: null, defaultStrength: 1,
     engineRules: {
-      oscilloscope: { mode: 'brand', strength: 1 },
+      pixGrid: { mode: 'brand', strength: 1 },
       cinematicPortal: { mode: 'brand', strength: 1 },
     },
     presetRules: {}, useForAppAccent: false, autoApply: true,
@@ -47,9 +47,9 @@ describe('ReactView Brand Kit boundary', () => {
     expect(preset.cinematicConfig).toEqual(originalConfig)
   })
 
-  it('delivers the effective palette to Sound Drawing', () => {
-    const result = resolveBrandedReactPreset(presetFor('oscilloscope'), {}, makeKit('kit-a'))
-    expect(result?.engine).toBe('oscilloscope')
+  it('delivers the effective palette to PixGrid', () => {
+    const result = resolveBrandedReactPreset(presetFor('pixGrid'), {}, makeKit('kit-a'))
+    expect(result?.engine).toBe('pixGrid')
     expect(result?.palette).toEqual(BRAND)
   })
 
@@ -65,24 +65,8 @@ describe('ReactView Brand Kit boundary', () => {
     expect(result?.palette).toEqual(BRAND)
   })
 
-  it('keeps Sound Drawing SVG original-color mode unchanged', () => {
-    const base = presetFor('oscilloscope')
-    const preset: ReactPreset = {
-      ...base,
-      id: 'svg-original-color-test',
-      oscillatorSettings: {
-        ...base.oscillatorSettings,
-        sourceType: 'svgGlyph',
-        svgUseReactPalette: false,
-      },
-    }
-    const result = resolveBrandedReactPreset(preset, {}, makeKit('kit-a'))
-    expect(result?.palette).toEqual(BRAND)
-    expect(result?.oscillatorSettings?.svgUseReactPalette).toBe(false)
-  })
-
   it('keeps the thumbnail fingerprint stable when a kit switch resolves to the same effective palette', () => {
-    const preset = presetFor('oscilloscope')
+    const preset = presetFor('pixGrid')
     const brandedA = resolveBrandedReactPreset(preset, {}, makeKit('kit-a')) as ReactPreset
     const brandedB = resolveBrandedReactPreset(preset, {}, makeKit('kit-b')) as ReactPreset
     expect(fingerprintReactPresetThumbnail(brandedA)).toBe(fingerprintReactPresetThumbnail(brandedB))
@@ -111,7 +95,7 @@ describe('ReactView Brand Kit boundary', () => {
   })
 
   it('changes the thumbnail fingerprint when Brand Kits produce different effective palettes', () => {
-    const preset = presetFor('oscilloscope')
+    const preset = presetFor('pixGrid')
     const kitA = makeKit('kit-a')
     const kitB = makeKit('kit-b', {
       primary: '#00E5FF', secondary: '#2979FF', accent: '#18FFFF',

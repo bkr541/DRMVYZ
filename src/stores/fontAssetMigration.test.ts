@@ -6,7 +6,6 @@
  *  - Legacy rawFontDataBase64 entries are discarded on upgrade to v11
  *  - Cloud metadata entries (no rawFontDataBase64) are preserved
  *  - Absent oscillatorFontAssets field is a no-op
- *  - oscillatorSettings.textFontId survives (cloud list validates it at runtime)
  *  - Unrelated state keys are untouched
  *  - Full migration chain from v0 reaches the same result
  *  - partialize output excludes runtime/binary data and non-persisted assets
@@ -92,18 +91,6 @@ describe('fontAssetMigration — v10 → v11', () => {
     expect(result.oscillatorFontAssets).toEqual([])
   })
 
-  it('preserves oscillatorSettings.textFontId through the migration', () => {
-    const state = {
-      oscillatorFontAssets: [makeLegacyFont('font-abc')],
-      oscillatorSettings:   { textFontId: 'font-abc', text: 'DRMVYZ' },
-    }
-    const result = migrateReactStore(state, 10)
-    const settings = result.oscillatorSettings as Record<string, unknown>
-    // textFontId is kept — loadOscillatorFonts() validates it against the cloud list at runtime
-    expect(settings.textFontId).toBe('font-abc')
-    expect(settings.text).toBe('DRMVYZ')
-  })
-
   it('does not strip unrelated state keys', () => {
     const state = {
       oscillatorFontAssets: [makeLegacyFont()],
@@ -136,13 +123,7 @@ describe('reactStorePartialize — runtime and binary data excluded from persist
   beforeEach(() => {
     useReactStore.setState({
       oscillatorFontAssets: [makeCloudFont()],
-      oscillatorSettings:   { textFontId: 'uuid-1234-5678', text: 'DRMVYZ' } as ReturnType<typeof useReactStore.getState>['oscillatorSettings'],
     })
-  })
-
-  it('persists oscillatorSettings.textFontId', () => {
-    const persisted = reactStorePartialize(useReactStore.getState())
-    expect(persisted.oscillatorSettings.textFontId).toBe('uuid-1234-5678')
   })
 
   it('does not include oscillatorFontAssets in persisted output', () => {
@@ -168,9 +149,4 @@ describe('reactStorePartialize — runtime and binary data excluded from persist
     expect(persisted).not.toHaveProperty('fontUploadPending')
   })
 
-  it('round-trips through JSON without losing textFontId', () => {
-    const persisted = reactStorePartialize(useReactStore.getState())
-    const roundTripped = JSON.parse(JSON.stringify(persisted))
-    expect(roundTripped.oscillatorSettings.textFontId).toBe('uuid-1234-5678')
-  })
 })

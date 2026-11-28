@@ -7,12 +7,12 @@ import type { PresetManagerRecord } from './presetManagerCatalog'
 
 const LIVE_ARTWORK_PRESETS = new Map(
   DEFAULT_REACT_PRESETS
-    .filter(preset => preset.engine === 'oscilloscope' || preset.engine === 'pixGrid')
+    .filter(preset => preset.engine === 'pixGrid')
     .map(preset => [preset.id, preset]),
 )
 
 /**
- * The live artwork behind a preset's card, when it has one: oscilloscope and PixGrid presets render their own thumbnail, and a user-built PixGrid Deck (no
+ * The live artwork behind a preset's card, when it has one: PixGrid presets render their own thumbnail, and a user-built PixGrid Deck (no
  * shipped artwork) renders one from its first image. Every other preset uses its shipped artwork image, so this returns undefined.
  */
 export function presetArtworkBackdrop(preset: PresetManagerRecord): ReactNode | undefined {

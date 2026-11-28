@@ -6,14 +6,7 @@ import { useReactStore } from '../../../stores/reactStore'
 import { ConnectedShaderModulationPanel } from './shaders/ui/ConnectedShaderModulationPanel'
 import { CinematicWorldsModulationControls } from './CinematicWorldsControls'
 import { SliderRow, NumberInputRow, SelectRow, TextInputRow, ToggleRow, Collapsible } from './ReactControlRows'
-import { DualRailCollapsible } from './DualRailCollapsible'
-import { Dropdown } from '../../shared/Dropdown/Dropdown'
 import {
-  type OscillatorAudioDisplaceMode,
-  type OscillatorTextLetterReactionMode,
-  type LetterReactionAssignment,
-  type LetterReactionSource,
-  type LetterReactionTarget,
   type LaserDmxModulationRoute,
   type LaserDmxTriggerTimingFilter,
   type LaserDmxTriggerTimingFilterMode,
@@ -21,8 +14,6 @@ import {
 import { BEATS_PER_BAR } from './ReactTypes'
 import { TRIGGER_TIMING_EVENT_SOURCES } from './renderers/LaserDmxModulationEngine'
 import { laserDmxRouteConsumesCurve, laserDmxRouteConsumesSmoothing } from './laserDmxBeamMatrixParameterCapabilities'
-import { getUnifiedSvgPointCount, resolveSvgUiCapabilities, resolveUnifiedSvgSource } from './svgSourceLifecycle'
-import { resolveSoundDrawingControlCapabilities } from './soundDrawing/SoundDrawingControlVisibility'
 import { CanvasAddEffectsControls, CanvasPerformanceAutomationControls, CanvasPresetFxControls, CanvasPresetMotionControls, CanvasPresetParticleControls, FracturesReactControls, LaserImageFxReactControls } from './ReactCanvasEngineShell'
 import { ShiftgridReactControls } from './renderers/shiftgrid/ShiftgridControls'
 
@@ -88,16 +79,6 @@ const MODE_OPTIONS = [
   { value: 'add',      label: 'Add'      },
   { value: 'multiply', label: 'Multiply' },
   { value: 'trigger',  label: 'Trigger'  },
-]
-
-const SOUND_DRAWING_DISPLACE_MODE_OPTIONS: Array<{
-  value: OscillatorAudioDisplaceMode
-  label: string
-}> = [
-  { value: 'normal',  label: 'Normal'  },
-  { value: 'radial',  label: 'Radial'  },
-  { value: 'tangent', label: 'Tangent' },
-  { value: 'xy',      label: 'XY'      },
 ]
 
 // ── Trigger timing filter UI ──────────────────────────────────────────────────
@@ -487,344 +468,40 @@ function LaserDmxBeamMatrixModPanel() {
   )
 }
 
-// ── Custom letter assignment editor ──────────────────────────────────────────
-
-const LETTER_SOURCE_OPTIONS: { value: LetterReactionSource; label: string }[] = [
-  { value: 'bass', label: 'Bass'  },
-  { value: 'mid',  label: 'Mid'   },
-  { value: 'high', label: 'High'  },
-  { value: 'beat', label: 'Beat'  },
-]
-
-const LETTER_TARGET_OPTIONS: { value: LetterReactionTarget; label: string }[] = [
-  { value: 'scale',    label: 'Scale'    },
-  { value: 'rotation', label: 'Rotation' },
-  { value: 'offsetX',  label: 'Offset X' },
-  { value: 'offsetY',  label: 'Offset Y' },
-  { value: 'jitter',   label: 'Jitter'   },
-]
-
-const DEFAULT_ASSIGNMENT: Omit<LetterReactionAssignment, 'characterIndex'> = {
-  source: 'bass', target: 'scale', amount: 0.5, invert: false, phaseOffset: 0,
-}
-
-export function LetterAssignmentEditor({
-  text,
-  assignments,
-  onChange,
-}: {
-  text:        string
-  assignments: LetterReactionAssignment[]
-  onChange:    (next: LetterReactionAssignment[]) => void
-}) {
-  const [selIdx, setSelIdx] = useState<number | null>(null)
-
-  const chars = Array.from(text)
-
-  // Count how many times each character has appeared before position ci
-  function repeatNum(ci: number): number | null {
-    const ch = chars[ci]
-    const prev = chars.slice(0, ci).filter(c => c === ch).length
-    const total = chars.filter(c => c === ch).length
-    return total > 1 ? prev + 1 : null
-  }
-
-  function getAssignment(ci: number): LetterReactionAssignment | undefined {
-    return assignments.find(a => a.characterIndex === ci)
-  }
-
-  function setAssignment(patch: Partial<LetterReactionAssignment> & { characterIndex: number }) {
-    const next = assignments.filter(a => a.characterIndex !== patch.characterIndex)
-    next.push({ ...DEFAULT_ASSIGNMENT, ...getAssignment(patch.characterIndex), ...patch })
-    onChange(next)
-  }
-
-  function clearAssignment(ci: number) {
-    onChange(assignments.filter(a => a.characterIndex !== ci))
-  }
-
-  function copyToAll(ci: number) {
-    const src = getAssignment(ci)
-    if (!src) return
-    const nonWs = chars.reduce<number[]>((acc, ch, i) => {
-      if (ch.trim() !== '') acc.push(i)
-      return acc
-    }, [])
-    const rest = assignments.filter(a => !nonWs.includes(a.characterIndex))
-    onChange([
-      ...rest,
-      ...nonWs.map(i => ({ ...src, characterIndex: i })),
-    ])
-  }
-
-  const sel = selIdx != null ? selIdx : null
-  const selAsgn = sel != null ? getAssignment(sel) : undefined
-
-  return (
-    <>
-      <div className="rv-letter-row">
-        {chars.map((ch, ci) => {
-          if (ch.trim() === '') return null
-          const isSel = selIdx === ci
-          const hasCfg = !!getAssignment(ci)
-          const rn = repeatNum(ci)
-          return (
-            <button
-              key={ci}
-              type="button"
-              className={[
-                'rv-letter-btn',
-                isSel  ? 'rv-letter-btn--sel' : '',
-                hasCfg ? 'rv-letter-btn--cfg' : '',
-              ].join(' ').trim()}
-              onClick={() => setSelIdx(isSel ? null : ci)}
-              title={`Character ${ci}: ${ch}`}
-            >
-              {ch}{rn != null && <sup>{rn}</sup>}
-            </button>
-          )
-        })}
-      </div>
-
-      {sel != null && (
-        <>
-          <SelectRow
-            label="Source"
-            value={selAsgn?.source ?? DEFAULT_ASSIGNMENT.source}
-            onChange={v => setAssignment({ characterIndex: sel, source: v as LetterReactionSource })}
-            options={LETTER_SOURCE_OPTIONS}
-          />
-          <SelectRow
-            label="Target"
-            value={selAsgn?.target ?? DEFAULT_ASSIGNMENT.target}
-            onChange={v => setAssignment({ characterIndex: sel, target: v as LetterReactionTarget })}
-            options={LETTER_TARGET_OPTIONS}
-          />
-          <SliderRow
-            label="Amount"
-            value={selAsgn?.amount ?? DEFAULT_ASSIGNMENT.amount}
-            onChange={v => setAssignment({ characterIndex: sel, amount: v })}
-            min={0} max={2} step={0.01}
-            color="#4ac7db"
-          />
-          <ToggleRow
-            label="Invert"
-            value={selAsgn?.invert ?? DEFAULT_ASSIGNMENT.invert}
-            onChange={v => setAssignment({ characterIndex: sel, invert: v })}
-          />
-          <SliderRow
-            label="Phase"
-            value={selAsgn?.phaseOffset ?? DEFAULT_ASSIGNMENT.phaseOffset}
-            onChange={v => setAssignment({ characterIndex: sel, phaseOffset: v })}
-            min={-0.5} max={0.5} step={0.01}
-            color="#b84fc9"
-          />
-          <div className="rv-letter-actions">
-            <IconChipButton
-              onClick={() => copyToAll(sel)}
-              disabled={!selAsgn}
-            >
-              Copy to All
-            </IconChipButton>
-            <IconChipButton
-              onClick={() => { clearAssignment(sel); setSelIdx(null) }}
-              disabled={!selAsgn}
-            >
-              Clear Letter
-            </IconChipButton>
-          </div>
-        </>
-      )}
-
-      <div className="rv-letter-actions">
-        <IconChipButton
-          className="rv-glyph-upload-btn--danger"
-          onClick={() => { onChange([]); setSelIdx(null) }}
-          disabled={assignments.length === 0}
-        >
-          Reset All
-        </IconChipButton>
-      </div>
-    </>
-  )
-}
-
 // ── MOD panel ─────────────────────────────────────────────────────────────────
 
 export function ReactModulationPanel() {
-  const {
-    activeReactEngineId,
-    oscillatorSettings, setOscillatorSettings,
-    oscillatorGlyphAssets, oscillatorGlyphPointCache,
-    soundDrawingPerformanceSettings,
-  } = useReactStore(useShallow(s => ({
-    activeReactEngineId:   s.activeReactEngineId,
-    oscillatorSettings:    s.oscillatorSettings,
-    setOscillatorSettings: s.setOscillatorSettings,
-    oscillatorGlyphAssets: s.oscillatorGlyphAssets,
-    oscillatorGlyphPointCache: s.oscillatorGlyphPointCache,
-    soundDrawingPerformanceSettings: s.soundDrawingPerformanceSettings,
-  })))
-
-  const osc = oscillatorSettings
-  const set = setOscillatorSettings
-
-  const isSoundDrawing = activeReactEngineId === 'oscilloscope'
-  const isCinematic    = activeReactEngineId === 'cinematicPortal'
-  const isLaserDmx     = activeReactEngineId === 'laserDmx'
-  const svgPointCount = getUnifiedSvgPointCount(osc, oscillatorGlyphAssets, oscillatorGlyphPointCache)
-  const svgCapabilities = resolveSvgUiCapabilities(osc, svgPointCount)
-  const isSvgOriginalArtwork = svgCapabilities.isOriginalArtwork && resolveUnifiedSvgSource(osc)?.mediaId != null
-  const soundDrawingCapabilities = resolveSoundDrawingControlCapabilities({
-    oscillator: osc,
-    performanceSettings: soundDrawingPerformanceSettings,
-    isSvgOriginalArtwork,
-  })
+  const activeReactEngineId = useReactStore(s => s.activeReactEngineId)
 
   // ── Shader: delegate to ConnectedShaderModulationPanel ───────────────────
   if (activeReactEngineId === 'shaderPads') {
     return <ConnectedShaderModulationPanel />
   }
 
-  if (isCinematic) {
+  if (activeReactEngineId === 'cinematicPortal') {
     return <div className="rv-ctrl-group"><CinematicWorldsModulationControls /></div>
   }
 
   // ── LaserDMX: Beam Matrix modulation only ────────────────────────────────
-  if (isLaserDmx) {
+  if (activeReactEngineId === 'laserDmx') {
     return <div className="rv-ctrl-group"><LaserDmxBeamMatrixModPanel /></div>
   }
 
-  // ── CANVAS: preset control groups only (this branch is CANVAS-only in
-  //    practice; every other non-oscilloscope engine is handled upstream). ────
-  if (!isSoundDrawing) {
-    if (activeReactEngineId !== 'canvas') return null
-    return (
-      <div className="rv-ctrl-group">
-        {/* Preset-specific control groups lead Routing for Particle Aura /
-            Fractures / Laser Image FX. Each self-gates to its own preset and
-            renders nothing for the base Clean Playback look. */}
-        <FracturesReactControls />
-        <LaserImageFxReactControls />
-        <ShiftgridReactControls />
-        <CanvasPresetParticleControls />
-        <CanvasAddEffectsControls />
-        <CanvasPerformanceAutomationControls />
-        <CanvasPresetMotionControls />
-        <CanvasPresetFxControls />
-      </div>
-    )
-  }
-
-  // ── Oscilloscope: only controls consumed by the active runtime branch ───────
-  const showAudioReactivity =
-    soundDrawingCapabilities.audioDisplaceMode || soundDrawingCapabilities.audioDisplacement
-  const showFrequencyResponse =
-    soundDrawingCapabilities.bassScale ||
-    soundDrawingCapabilities.midTwist ||
-    soundDrawingCapabilities.altTwist ||
-    soundDrawingCapabilities.highJitter ||
-    soundDrawingCapabilities.beatBloom
-  const showTextControls =
-    soundDrawingCapabilities.textLetterMotion || soundDrawingCapabilities.textWaveformMode
-
-  if (!showAudioReactivity && !showFrequencyResponse && !showTextControls) return null
-
+  // ── CANVAS: preset control groups only (every other engine owns its own React panel). ────
+  if (activeReactEngineId !== 'canvas') return null
   return (
     <div className="rv-ctrl-group">
-      {showAudioReactivity && (
-        <DualRailCollapsible label="Audio Reactivity" defaultOpen>
-          {soundDrawingCapabilities.audioDisplaceMode && (
-            <div className="rv-ctrl-row">
-              <Dropdown
-                id="sound-drawing-displace-mode"
-                label="Displace Mode"
-                menuLabel="Displace Modes"
-                value={osc.audioDisplaceMode}
-                onChange={v => set({ audioDisplaceMode: v as OscillatorAudioDisplaceMode })}
-                options={SOUND_DRAWING_DISPLACE_MODE_OPTIONS}
-                size="compact"
-              />
-            </div>
-          )}
-          {soundDrawingCapabilities.audioDisplacement && (
-            <SliderRow label="Displacement" value={osc.audioDisplacement} onChange={v => set({ audioDisplacement: v })} color="#4ac7db" />
-          )}
-        </DualRailCollapsible>
-      )}
-
-      {soundDrawingCapabilities.textLetterMotion && (
-        <DualRailCollapsible label="Text Letter Motion" defaultOpen>
-          <SelectRow
-            label="Letter Reaction"
-            value={osc.textLetterReactionMode}
-            onChange={v => set({ textLetterReactionMode: v as OscillatorTextLetterReactionMode })}
-            options={[
-              { value: 'uniform',        label: 'Uniform'         },
-              { value: 'alternating',    label: 'Alternating'     },
-              { value: 'frequencySplit', label: 'Frequency Split' },
-              { value: 'ripple',         label: 'Ripple'          },
-              { value: 'custom',         label: 'Custom'          },
-            ]}
-          />
-          {osc.textLetterReactionMode === 'custom' && (
-            <LetterAssignmentEditor
-              text={osc.text}
-              assignments={osc.textLetterAssignments}
-              onChange={next => set({ textLetterAssignments: next })}
-            />
-          )}
-        </DualRailCollapsible>
-      )}
-
-      {soundDrawingCapabilities.textWaveformMode && (
-        <DualRailCollapsible label="Text Waveform Distortion" defaultOpen>
-          <SelectRow
-            label="Text Wave"
-            value={osc.textWaveformMode}
-            onChange={v => set({ textWaveformMode: v as import('./ReactTypes').OscillatorTextWaveformMode })}
-            options={[
-              { value: 'off',     label: 'Off'     },
-              { value: 'normal',  label: 'Normal'  },
-              { value: 'radial',  label: 'Radial'  },
-              { value: 'tangent', label: 'Tangent' },
-              { value: 'xy',      label: 'XY'      },
-            ]}
-          />
-          {soundDrawingCapabilities.textWaveformDetails && (
-            <>
-              <SliderRow label="Text Wave Amount" value={osc.textWaveformAmount} onChange={v => set({ textWaveformAmount: v })} min={0} max={0.30} step={0.005} color="#4ac7db" />
-              <SliderRow label="Text Wave Cycles" value={osc.textWaveformCycles} onChange={v => set({ textWaveformCycles: v })} min={1} max={16} step={1} color="#61d6aa" />
-              <SliderRow label="Text Wave Scroll" value={osc.textWaveformScroll} onChange={v => set({ textWaveformScroll: v })} min={0} max={2} step={0.01} color="#b84fc9" />
-            </>
-          )}
-        </DualRailCollapsible>
-      )}
-
-      {showFrequencyResponse && (
-        <DualRailCollapsible label="Frequency Response" defaultOpen>
-          {soundDrawingCapabilities.bassScale && (
-            <SliderRow label="Bass → Scale" value={osc.bassScale} onChange={v => set({ bassScale: v })} color="#d8b95a" />
-          )}
-          {soundDrawingCapabilities.midTwist && (
-            <SliderRow label="Mid → Twist" value={osc.midTwist} onChange={v => set({ midTwist: v })} color="#61d6aa" />
-          )}
-          {soundDrawingCapabilities.altTwist && (
-            <ToggleRow
-              label="Alternate"
-              value={osc.altTwist}
-              onChange={v => set({ altTwist: v })}
-              title="Randomly alternate twist direction on each beat"
-            />
-          )}
-          {soundDrawingCapabilities.highJitter && (
-            <SliderRow label="High → Jitter" value={osc.highJitter} onChange={v => set({ highJitter: v })} color="#b84fc9" />
-          )}
-          {soundDrawingCapabilities.beatBloom && (
-            <SliderRow label="Beat → Bloom" value={osc.beatBloom} onChange={v => set({ beatBloom: v })} color="#c0314a" />
-          )}
-        </DualRailCollapsible>
-      )}
+      {/* Preset-specific control groups lead Routing for Particle Aura /
+          Fractures / Laser Image FX. Each self-gates to its own preset and
+          renders nothing for the base Clean Playback look. */}
+      <FracturesReactControls />
+      <LaserImageFxReactControls />
+      <ShiftgridReactControls />
+      <CanvasPresetParticleControls />
+      <CanvasAddEffectsControls />
+      <CanvasPerformanceAutomationControls />
+      <CanvasPresetMotionControls />
+      <CanvasPresetFxControls />
     </div>
   )
 }

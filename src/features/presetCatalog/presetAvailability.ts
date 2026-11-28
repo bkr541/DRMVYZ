@@ -16,12 +16,10 @@ import { presetMetadataKey, type PresetMetadataRow } from './presetMetadata'
  */
 
 /** The catalog engines the Admin Console keys presets by (Preset Manager `artwork`). */
-export type PresetCatalogEngine = 'cinema2' | 'soundDrawing' | 'canvas' | 'laserDmx' | 'pixGrid' | 'headliner'
+export type PresetCatalogEngine = 'cinema2' | 'canvas' | 'laserDmx' | 'pixGrid' | 'headliner'
 
 const CATALOG_ENGINE_BY_APP_ENGINE: Readonly<Record<string, PresetCatalogEngine>> = Object.freeze({
   cinema2: 'cinema2',
-  oscilloscope: 'soundDrawing',
-  soundDrawing: 'soundDrawing',
   canvas: 'canvas',
   laserDmx: 'laserDmx',
   pixGrid: 'pixGrid',

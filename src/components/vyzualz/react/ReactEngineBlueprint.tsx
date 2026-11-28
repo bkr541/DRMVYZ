@@ -92,19 +92,6 @@ export function ReactEngineBlueprint({ engineId }: { engineId: ReactEngineId }) 
   return (
     <svg viewBox="0 0 140 150" fill="none" focusable="false">
       <g stroke="currentColor" strokeWidth={ENGINE_BLUEPRINT_STROKE_WIDTH}>
-        {engineId === 'oscilloscope' && <>
-          {/* A phase portrait suspended in an oscilloscope's calibration cage. */}
-          <path d="M70 8 138 46 138 112 70 150 2 112 2 46Z" fill="currentColor" fillOpacity=".025" />
-          <path d="M2 46 70 84 138 46M70 84V150M70 8V84M2 112 70 74 138 112" opacity=".25" />
-          <ellipse cx="70" cy="72" rx="61" ry="44" transform="rotate(-28 70 72)" opacity=".4" />
-          <path d="M12 80C24 6 114 137 128 64C116 0 28 149 12 80Z" fill="currentColor" fillOpacity=".045" />
-          <path d="M17 84C29 10 119 141 133 68C121 4 33 153 17 84Z" opacity=".45" />
-          <path d="M22 88C34 14 124 145 138 72C126 8 38 157 22 88Z" opacity=".2" />
-          <path d="M12 80 22 88M35 40 45 48M70 72 80 80M107 101 117 109M128 64 138 72" opacity=".45" />
-          <path d="M6 72H134M70 14V134M18 108 122 36" strokeDasharray="3 4" opacity=".3" />
-          <path d="M28 69V75M49 69V75M91 69V75M112 69V75M67 30H73M67 114H73" opacity=".5" />
-          <circle cx="70" cy="72" r="2.5" fill="currentColor" fillOpacity=".2" />
-        </>}
         {engineId === 'canvas' && <>
           {/* Exploded image planes with registration marks and projection lines. */}
           <path d="M4 83 88 55 138 89 54 117ZM4 89 54 123 138 95M4 83V89M54 117V123M138 89V95" opacity=".3" />

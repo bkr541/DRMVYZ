@@ -1,21 +1,11 @@
 import type {
   ReactTrackSection,
   ReactSectionType,
-  OscillatorSettings,
-  OscillatorFontAsset,
-  OscillatorGlyphAsset,
-  OscillatorGlyphPoint,
   LaserDmxSettings,
   LaserDmxShowDirectorState,
 } from '../ReactTypes'
-import { DEFAULT_OSCILLATOR_SETTINGS } from '../ReactTypes'
 import type { MusicIntelligenceFrame, TrackIntelligenceAnalysis } from '../../../../features/musicIntelligence/types'
 import type { ReactPerformanceActionEvent } from '../ReactPerformanceActions'
-import {
-  DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS,
-  type SoundDrawingPerformanceSettings,
-} from '../soundDrawing/SoundDrawingPerformanceTypes'
-import type { VisualSimulationRuntimeMode } from '../../../../features/visualSimulation'
 import { resolveSectionAtTime as resolveCanonicalSectionAtTime } from '../../../../features/trackIntelligence/authoritativeTimeline'
 
 // ── React frame context ───────────────────────────────────────────────────────
@@ -58,28 +48,6 @@ export interface ReactFrameContext {
   }
   freqData:       Uint8Array<ArrayBuffer> | null
   timeDomainData: Uint8Array<ArrayBuffer> | null
-  /**
-   * Synchronized stereo capture for the professional scope core.
-   *
-   * Present only when the stereo tap is running; absent for thumbnail renders,
-   * tests, and hosts where AudioWorklet is unavailable. Consumers must fall back
-   * to `timeDomainData` rather than assuming stereo is always there.
-   *
-   * `left`/`right` are views into capture-owned buffers, valid for this frame
-   * only. Float samples rather than the analyser's 8-bit bytes: 8-bit
-   * quantisation is visible as stair-stepping on a low-amplitude scope trace.
-   */
-  scopeStereo?: {
-    left: Float32Array
-    right: Float32Array
-    sampleRate: number
-    /** Absolute capture-frame index of left[0]/right[0]. */
-    startFrame: number
-    sequenceNumber: number
-    audioTimeSeconds: number
-    /** 1 when the source is genuinely mono and R was duplicated from L. */
-    channelCount: number
-  } | null
   /** Current music intelligence frame; null when MI engine has not produced data yet. */
   musicIntelligence: MusicIntelligenceFrame | null
   /** Offline analysis used only to resolve authored musical placement. audioTime remains the canonical clock. */
@@ -121,21 +89,6 @@ export interface ReactRenderParams {
   trailDecay:      number  // 0–1 trail fade speed (0=long, 1=instant)
   fogDensity:            number  // 0–1 fog/particle density
   particleDensity:       number  // 0–1 particle count scale
-  oscillator:            OscillatorSettings
-  oscillatorFontAssets:  OscillatorFontAsset[]
-  oscillatorGlyphAssets: OscillatorGlyphAsset[]
-  /** Pre-parsed SVG glyph points keyed by "${assetId}:${resolution}:v${compilerVersion}:${contentHash}". Populated at upload/select time; never by the renderer. */
-  oscillatorGlyphPointCache: Record<string, OscillatorGlyphPoint[]>
-  /** Pre-sampled OpenType text points keyed by "${fontId}:${text}:${fontSize}:${letterSpacing}:${resolution}". Populated at upload/select/settings-change time; never by the renderer. */
-  oscillatorTextPointCache: Record<string, OscillatorGlyphPoint[]>
-  /** Incremented by the store when source/font/artwork changes should clear the persistent trail canvas. */
-  soundDrawingTrailResetRevision?: number
-  /** Incremented for a renderer-owned deterministic Living Ribbon reset. */
-  soundDrawingRibbonResetRevision?: number
-  /** Persisted authored Sound Drawing performance controls. */
-  soundDrawingPerformanceSettings: SoundDrawingPerformanceSettings
-  /** Volatile renderer ownership mode; thumbnails and previews receive isolated budgets. */
-  soundDrawingRuntimeMode?: VisualSimulationRuntimeMode
   /** Isolated preset-preview override. Never persisted and never read by the live control surface. */
   thumbnailLaserDmxSettings?: LaserDmxSettings
   /** Isolated Show Manager runtime preview rig. Never persisted and never allowed to affect physical output. */
@@ -156,15 +109,6 @@ export const DEFAULT_REACT_RENDER_PARAMS: ReactRenderParams = {
   trailDecay:      0.08,
   fogDensity:            0.5,
   particleDensity:       0.5,
-  oscillator:            DEFAULT_OSCILLATOR_SETTINGS,
-  oscillatorFontAssets:  [],
-  oscillatorGlyphAssets: [],
-  oscillatorGlyphPointCache: {},
-  oscillatorTextPointCache:  {},
-  soundDrawingTrailResetRevision: 0,
-  soundDrawingRibbonResetRevision: 0,
-  soundDrawingPerformanceSettings: DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS,
-  soundDrawingRuntimeMode: 'live',
 }
 
 // ── Math helpers ──────────────────────────────────────────────────────────────

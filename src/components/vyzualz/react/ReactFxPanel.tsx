@@ -2,13 +2,10 @@ import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
 import {
   SliderRow, SelectRow, ToggleRow,
-  Collapsible, CtrlSection,
+  Collapsible,
 } from './ReactControlRows'
-import { DualRailCollapsible } from './DualRailCollapsible'
-import { getUnifiedSvgPointCount, resolveSvgUiCapabilities, resolveUnifiedSvgSource } from './svgSourceLifecycle'
 import {
   type LaserDmxFogSettings,
-  type OscillatorRenderMode,
 } from './ReactTypes'
 import { ShaderParameterPanel } from './shaders/ui/ShaderParameterPanel'
 import { useShaderPanelStore } from './shaders/ui/shaderPanelStore'
@@ -17,8 +14,6 @@ import { getReactFxMasterControls } from './reactFxMasterControls'
 import { ReactResetActions } from './ReactResetActions'
 import { CinematicWorldsDesignControls, CinematicWorldsFxControls } from './CinematicWorldsControls'
 import { CanvasEngineFxPanel } from './ReactCanvasEngineShell'
-import { resolveSoundDrawingOwnership, soundDrawingOwnershipTooltip } from './soundDrawing/SoundDrawingOwnership'
-import { resolveSoundDrawingControlCapabilities } from './soundDrawing/SoundDrawingControlVisibility'
 
 // ── FX panel ──────────────────────────────────────────────────────────────────
 // Styles the currently active visual engine.
@@ -30,13 +25,7 @@ export function ReactFxPanel() {
     reactMotion,          setReactMotion,
     reactGlow,            setReactGlow,
     reactBassReactivity,  setReactBassReactivity,
-    reactTrailDecay,      setReactTrailDecay,
-    reactFogDensity,      setReactFogDensity,
-    reactParticleDensity, setReactParticleDensity,
     activeReactEngineId,
-    oscillatorSettings, oscillatorGlyphAssets, oscillatorGlyphPointCache,
-    soundDrawingPerformanceSettings,
-    setOscillatorSettings, resetOscillatorSettings,
     laserDmxBeamMatrix,   setLaserDmxBeamMatrixSettings,
   } = useReactStore(useShallow(s => ({
     reactIntensity:              s.reactIntensity,
@@ -47,28 +36,12 @@ export function ReactFxPanel() {
     setReactGlow:                s.setReactGlow,
     reactBassReactivity:         s.reactBassReactivity,
     setReactBassReactivity:      s.setReactBassReactivity,
-    reactTrailDecay:             s.reactTrailDecay,
-    setReactTrailDecay:          s.setReactTrailDecay,
-    reactFogDensity:             s.reactFogDensity,
-    setReactFogDensity:          s.setReactFogDensity,
-    reactParticleDensity:        s.reactParticleDensity,
-    setReactParticleDensity:     s.setReactParticleDensity,
     activeReactEngineId:         s.activeReactEngineId,
-    oscillatorSettings:          s.oscillatorSettings,
-    soundDrawingPerformanceSettings: s.soundDrawingPerformanceSettings,
-    oscillatorGlyphAssets:        s.oscillatorGlyphAssets,
-    oscillatorGlyphPointCache:    s.oscillatorGlyphPointCache,
-    setOscillatorSettings:       s.setOscillatorSettings,
-    resetOscillatorSettings:     s.resetOscillatorSettings,
     laserDmxBeamMatrix:            s.laserDmxBeamMatrix,
     setLaserDmxBeamMatrixSettings: s.setLaserDmxBeamMatrixSettings,
   })))
 
-  const osc = oscillatorSettings
-  const set = setOscillatorSettings
-
   const isShader        = activeReactEngineId === 'shaderPads'
-  const isSoundDrawing  = activeReactEngineId === 'oscilloscope'
   const isCinematic     = activeReactEngineId === 'cinematicPortal'
   const isLaserDmx      = activeReactEngineId === 'laserDmx'
   const isCanvas        = activeReactEngineId === 'canvas'
@@ -78,25 +51,12 @@ export function ReactFxPanel() {
   const shaderMasterCapabilities = isShader && activeShaderId
     ? shaderRegistry.get(activeShaderId)?.masterCapabilities
     : undefined
-  const soundDrawingOwnership = resolveSoundDrawingOwnership(soundDrawingPerformanceSettings)
-  const svgPointCount = getUnifiedSvgPointCount(
-    osc,
-    oscillatorGlyphAssets,
-    oscillatorGlyphPointCache,
-  )
-  const svgCapabilities = resolveSvgUiCapabilities(osc, svgPointCount)
-  const isSvgOriginalArtwork = svgCapabilities.isOriginalArtwork && resolveUnifiedSvgSource(osc)?.mediaId != null
-  const soundDrawingCapabilities = resolveSoundDrawingControlCapabilities({
-    oscillator: osc,
-    performanceSettings: soundDrawingPerformanceSettings,
-    isSvgOriginalArtwork,
-  })
 
   const masterControls = getReactFxMasterControls(activeReactEngineId)
   const showMasterIntensity = masterControls.includes('intensity')
-  const showMasterMotion = masterControls.includes('motion') && (!isSoundDrawing || soundDrawingCapabilities.masterMotion)
-  const showMasterGlow = masterControls.includes('glow') && (!isSoundDrawing || soundDrawingCapabilities.masterGlow)
-  const showMasterBassReactivity = masterControls.includes('bassReactivity') && (!isSoundDrawing || soundDrawingCapabilities.masterBassReactivity)
+  const showMasterMotion = masterControls.includes('motion')
+  const showMasterGlow = masterControls.includes('glow')
+  const showMasterBassReactivity = masterControls.includes('bassReactivity')
 
   const masterControlRows = (
     <>
@@ -122,9 +82,7 @@ export function ReactFxPanel() {
                 ? 'Not used by this scene.'
                 : isShader
                   ? 'Global scene output intensity. Scene-local brightness controls retain their authored scope.'
-                  : isSoundDrawing
-                    ? soundDrawingOwnershipTooltip(soundDrawingOwnership.domains.performanceIntensity)
-                    : undefined}
+                  : undefined}
           />
         )
       )}
@@ -139,7 +97,7 @@ export function ReactFxPanel() {
             ? 'Not used by this scene.'
             : isShader
               ? 'Global animation-rate trim. Scene-local motion parameters keep their authored behavior.'
-              : isSoundDrawing ? soundDrawingOwnershipTooltip(soundDrawingOwnership.domains.motion) : undefined}
+              : undefined}
         />
       )}
       {showMasterGlow && (
@@ -164,9 +122,7 @@ export function ReactFxPanel() {
                 ? 'Not used by this scene.'
                 : isShader
                   ? 'Global post or scene glow trim. Scene-local glow controls remain independent.'
-                  : isSoundDrawing
-                    ? soundDrawingOwnershipTooltip(soundDrawingOwnership.domains.glow)
-                    : undefined}
+                  : undefined}
           />
         )
       )}
@@ -181,7 +137,7 @@ export function ReactFxPanel() {
             ? 'Not used by this scene.'
             : isShader
               ? 'Global bass-response trim. Scene-local audio parameters retain their authored sensitivity.'
-              : isSoundDrawing ? soundDrawingOwnershipTooltip(soundDrawingOwnership.domains.reaction) : undefined}
+              : undefined}
         />
       )}
     </>
@@ -233,95 +189,6 @@ export function ReactFxPanel() {
         <Collapsible label={isLaserDmx ? 'React Master' : 'Master'} defaultOpen>
           {masterControlRows}
         </Collapsible>
-
-
-        {/* ── Engine Appearance: Oscilloscope ─────────────────────────── */}
-        {isSoundDrawing && (
-          <DualRailCollapsible
-            label={soundDrawingPerformanceSettings.selectedShowId == null && isSvgOriginalArtwork
-              ? 'SVG Original Artwork'
-              : 'Sound Drawing'}
-            defaultOpen
-          >
-            {soundDrawingCapabilities.trailDecay && (
-              <SliderRow
-                label="Trail Decay"
-                value={reactTrailDecay}
-                onChange={setReactTrailDecay}
-                color="#4ac7db"
-                disabled={!soundDrawingOwnership.domains.trails.editable}
-                description={`${soundDrawingOwnershipTooltip(soundDrawingOwnership.domains.trails)} Trail Decay sets fade speed; authored Trail Intensity sets performance persistence demand.`}
-              />
-            )}
-            {soundDrawingCapabilities.renderMode && (
-              <SelectRow
-                label="Render Mode"
-                value={osc.renderMode}
-                onChange={v => set({ renderMode: v as OscillatorRenderMode })}
-                disabled={!soundDrawingOwnership.domains.topology.editable}
-                description={soundDrawingOwnershipTooltip(soundDrawingOwnership.domains.topology)}
-                options={[
-                  { value: 'outline',    label: 'Outline' },
-                  { value: 'multiTrace', label: 'Multi Trace' },
-                  { value: 'dots',       label: 'Dots' },
-                  { value: 'ribbon',     label: 'Ribbon' },
-                ]}
-              />
-            )}
-            {soundDrawingCapabilities.duplicateTraces && (
-              <SliderRow
-                label="Duplicate Traces"
-                value={osc.duplicateTraces}
-                onChange={v => set({ duplicateTraces: Math.round(v) })}
-                min={1} max={6} step={1}
-                color="#61d6aa"
-                disabled={!soundDrawingOwnership.domains.echo.editable}
-                description={soundDrawingOwnershipTooltip(soundDrawingOwnership.domains.echo)}
-              />
-            )}
-            {(soundDrawingCapabilities.rotationSpeed || soundDrawingCapabilities.mirror) && (
-              <DualRailCollapsible label={svgCapabilities.isOriginalArtwork ? 'Transform' : 'Path'}>
-                {soundDrawingCapabilities.rotationSpeed && (
-                  <SliderRow
-                    label="Rotation Speed"
-                    value={osc.rotationSpeed}
-                    onChange={v => set({ rotationSpeed: v })}
-                    min={-1} max={1} step={0.01}
-                    color="#d8b95a"
-                    disabled={!soundDrawingOwnership.domains.presentation.editable}
-                    description={soundDrawingOwnershipTooltip(soundDrawingOwnership.domains.presentation)}
-                  />
-                )}
-                {soundDrawingCapabilities.mirror && (
-                  <>
-                    <ToggleRow
-                      label="Mirror X"
-                      value={osc.mirrorX}
-                      onChange={v => set({ mirrorX: v })}
-                      disabled={!soundDrawingOwnership.domains.topology.editable}
-                      description={soundDrawingOwnershipTooltip(soundDrawingOwnership.domains.topology)}
-                    />
-                    <ToggleRow
-                      label="Mirror Y"
-                      value={osc.mirrorY}
-                      onChange={v => set({ mirrorY: v })}
-                      disabled={!soundDrawingOwnership.domains.topology.editable}
-                      description={soundDrawingOwnershipTooltip(soundDrawingOwnership.domains.topology)}
-                    />
-                  </>
-                )}
-              </DualRailCollapsible>
-            )}
-            <button
-              type="button"
-              className="rv-osc-reset-btn"
-              onClick={resetOscillatorSettings}
-              title="Reset all Sound Drawing source, rendering, modulation, text, and path settings"
-            >
-              Reset Sound Drawing Settings
-            </button>
-          </DualRailCollapsible>
-        )}
 
 
         {/* ── Engine Appearance: LaserDMX Beam Matrix ──────────────────── */}

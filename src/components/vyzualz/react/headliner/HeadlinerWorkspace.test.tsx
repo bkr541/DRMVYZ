@@ -27,15 +27,6 @@ vi.mock('../ReactAudioPanel', () => ({
   ReactAudioPanel: () => <div data-headliner-shared-analysis="true">Shared Music Analysis</div>,
 }))
 
-vi.mock('../../../../features/lyrics/runtime/useLyricPlayback', () => ({
-  useLyricPlaybackSelector: (selector: (state: Record<string, unknown>) => unknown) => selector({
-    activeCue: null,
-    activeWord: null,
-    documentId: null,
-    sourceIdentity: null,
-  }),
-}))
-
 class FakeHeadlinerTrack extends EventTarget {
   readonly kind = 'video'
   readyState: MediaStreamTrackState = 'live'

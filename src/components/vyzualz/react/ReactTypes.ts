@@ -1,6 +1,4 @@
 import { DEFAULT_CANVAS_SINGULARITY_SETTINGS, type CanvasSingularitySettings } from './renderers/singularity/SingularitySettings'
-import { DEFAULT_SOUND_DRAWING_SCOPE_STATE } from '../../../audio/scope/scopeTypes'
-import type { SoundDrawingScopeState } from '../../../audio/scope/scopeTypes'
 import { createCinematicWorldConfig } from './CinematicWorldConfig'
 import type { CinematicWorldConfig } from './CinematicWorldConfig'
 import { REACTIVE_CONSTELLATION_CURATED_PRESETS } from './ReactiveConstellationPresets'
@@ -45,65 +43,9 @@ export type ReactEngineId = 'shaderPads' | 'cinematicPortal' | 'cinema' | 'cinem
 
 // ── Oscillator path/glyph types ───────────────────────────────────────────────
 
-export type OscillatorSourceType = 'classic' | 'builtinShape' | 'text' | 'svg' | 'svgGlyph' | 'svgVisual'
-
-export type SvgRenderMode = 'auto' | 'reactivePath' | 'originalArtwork'
-
-/**
- * Classic scope presentations.
- *
- * `monoDelayXY` is the accurate name for the long-standing `lissajous` mode: it
- * plots the signal against a delayed copy of itself, an expressive phase
- * portrait rather than a stereo measurement. `lissajous` stays in the union so
- * unmigrated values still render; normalization maps it to `monoDelayXY`, which
- * draws identically.
- *
- * `professionalScope` routes to the professional signal core. Which signal it
- * plots is `OscillatorSettings.scope.signalMode` — one selector for the scope
- * family, one for the signal, so the two never disagree. The core needs the
- * synchronized stereo capture tap; without it the renderer falls back to the
- * legacy waveform rather than presenting mono-derived geometry as stereo.
- */
-export type ClassicScopeMode =
-  | 'sectionAuto'
-  | 'waveform'
-  | 'lissajous'
-  | 'monoDelayXY'
-  | 'radialScope'
-  | 'spiralScope'
-  | 'professionalScope'
-
 export type BuiltinOscillatorShape =
   | 'circle' | 'square' | 'triangle' | 'star'
   | 'hexagon' | 'infinity' | 'spiral' | 'line'
-
-export type OscillatorRenderMode = 'outline' | 'multiTrace' | 'dots' | 'ribbon'
-
-export type OscillatorAudioDisplaceMode = 'normal' | 'radial' | 'tangent' | 'xy'
-
-export type OscillatorTextWaveformMode = 'off' | 'normal' | 'radial' | 'tangent' | 'xy'
-
-export type SoundDrawingTextSource = 'static' | 'activeLyricLine' | 'activeLyricWord'
-export type SoundDrawingLyricGapBehavior = 'hide' | 'keepPrevious' | 'fallback'
-
-export type OscillatorTextLetterReactionMode =
-  | 'uniform'
-  | 'alternating'
-  | 'frequencySplit'
-  | 'ripple'
-  | 'custom'
-
-export type LetterReactionSource = 'bass' | 'mid' | 'high' | 'beat'
-export type LetterReactionTarget = 'scale' | 'rotation' | 'offsetX' | 'offsetY' | 'jitter'
-
-export interface LetterReactionAssignment {
-  characterIndex: number
-  source:         LetterReactionSource
-  target:         LetterReactionTarget
-  amount:         number
-  invert:         boolean
-  phaseOffset:    number
-}
 
 export interface OscillatorGlyphPoint {
   x: number
@@ -150,74 +92,6 @@ export interface OscillatorFontAsset {
   collectionIds?:  string[]
   parseError?:     string | null
 }
-
-export interface OscillatorSettings {
-  sourceType: OscillatorSourceType
-  classicMode: ClassicScopeMode
-  builtinShape: BuiltinOscillatorShape
-  selectedGlyphId: string | null
-  selectedSvgVisualId: string | null
-  /** Unified SVG asset selection (media ID). Used when sourceType === 'svg'. */
-  selectedSvgId: string | null
-  /** How to render the selected SVG. 'auto' resolves based on SVG capability analysis. */
-  svgRenderMode: SvgRenderMode
-  /** When true, composites the SVG through the active palette colors. */
-  svgUseReactPalette: boolean
-  /** Whether the shape continuously auto-rotates. When false, shape is stationary. */
-  autoRotate: boolean
-  text: string
-  /** Missing persisted values migrate to static, preserving legacy projects. */
-  textSource: SoundDrawingTextSource
-  lyricGapBehavior: SoundDrawingLyricGapBehavior
-  lyricFallbackText: string
-  textFontId: string | null
-  textFontSize: number
-  textLetterSpacing: number
-  renderMode: OscillatorRenderMode
-  pathResolution: number
-  pathScale: number
-  audioDisplacement: number
-  audioDisplaceMode: OscillatorAudioDisplaceMode
-  textWaveformMode:         OscillatorTextWaveformMode
-  textWaveformAmount:       number
-  textWaveformCycles:       number
-  textWaveformScroll:       number
-  /** Line-height multiplier for multiline text (newline-separated). Default 1.2. */
-  textLineHeight:  number
-  /** Horizontal alignment for multiline text. Default 'center'. */
-  textAlignment:   'left' | 'center' | 'right'
-  textLetterReactionMode:   OscillatorTextLetterReactionMode
-  textLetterAssignments:    LetterReactionAssignment[]
-  bassScale: number
-  midTwist: number
-  altTwist: boolean
-  highJitter: number
-  beatBloom: number
-  rotationSpeed: number
-  duplicateTraces: number
-  mirrorX: boolean
-  mirrorY: boolean
-  autoSectionMode: boolean
-  /** Optional: routes paths through simulated galvo slew limits (corner dwell + blanking) before rasterizing. Default off — a purely optional "realistic scanner" mode, not required for normal rendering. */
-  scannerKinematicsEnabled: boolean
-  /** Extra dwell (microseconds) budgeted for sharp corners when scanner kinematics are enabled. Mirrors LaserDmxScannerHead.cornerDwellMicros. */
-  scannerCornerDwellMicros: number
-  /** Blanking gap (microseconds) at corners sharp enough to demand a retrace when scanner kinematics are enabled. Mirrors LaserDmxScannerHead.blankingDelayMicros. */
-  scannerBlankingDelayMicros: number
-  /** Maximum sustained angular velocity (degrees/sec) the simulated galvo can hit when scanner kinematics are enabled. Mirrors LaserDmxScannerHead.maximumAngularVelocity. */
-  scannerMaxAngularVelocityDegPerSec: number
-  /**
-   * Professional scope signal core configuration.
-   *
-   * Lives here rather than in a parallel store so it follows the existing
-   * oscillator persistence, preset, and normalization path. Signal only — beam,
-   * phosphor, and CRT presentation belong to the renderer patches and enter
-   * through a versioned migration on `SoundDrawingScopeState`.
-   */
-  scope: SoundDrawingScopeState
-}
-
-// ── CANVAS engine types ─────────────────────────────────────────────────────
 
 export type CanvasMediaKind = 'video' | 'image' | 'svg' | 'visualAsset'
 export type CanvasMediaItemType = 'video' | 'image' | 'svg'
@@ -1186,105 +1060,6 @@ export function resolveCanvasPresetRendererKind(presetId: CanvasPresetId): Canva
   return CANVAS_PRESET_BY_ID[presetId]?.rendererKind ?? 'standard'
 }
 
-export const DEFAULT_OSCILLATOR_SETTINGS: OscillatorSettings = {
-  sourceType:          'classic',
-  classicMode:         'waveform',
-  builtinShape:        'circle',
-  selectedGlyphId:     null,
-  selectedSvgVisualId: null,
-  selectedSvgId:       null,
-  svgRenderMode:       'auto',
-  svgUseReactPalette:  true,
-  autoRotate:          false,
-  text:                'STAGELESS',
-  textSource:          'static',
-  lyricGapBehavior:    'hide',
-  lyricFallbackText:   '',
-  textFontId:        null,
-  textFontSize:      160,
-  textLetterSpacing: 0,
-  renderMode:        'outline',
-  pathResolution:    512,
-  pathScale:         0.78,
-  audioDisplacement: 0.18,
-  audioDisplaceMode: 'normal',
-  textWaveformMode:         'off',
-  textWaveformAmount:       0.10,
-  textWaveformCycles:       5,
-  textWaveformScroll:       0.20,
-  textLineHeight:  1.2,
-  textAlignment:   'center',
-  textLetterReactionMode:   'uniform',
-  textLetterAssignments:    [],
-  bassScale:          0.25,
-  midTwist:          0.15,
-  altTwist:          false,
-  highJitter:        0.08,
-  beatBloom:         0.35,
-  rotationSpeed:     0.08,
-  duplicateTraces:   1,
-  mirrorX:           false,
-  mirrorY:           false,
-  autoSectionMode:   false,
-  scannerKinematicsEnabled:           false,
-  scannerCornerDwellMicros:           64,
-  scannerBlankingDelayMicros:         18,
-  scannerMaxAngularVelocityDegPerSec: 18_000,
-  scope:             DEFAULT_SOUND_DRAWING_SCOPE_STATE,
-}
-
-// ── Sound Drawing Layer / Clip types ─────────────────────────────────────────
-//
-// Layers are reusable content descriptors (what to draw).
-// Clips place a layer onto a track timeline (when to draw it).
-// Both are stored per track ID so Track A's data never affects Track B.
-
-export type SoundDrawingLayerSourceType = 'text' | 'svg' | 'builtinShape'
-export type SoundDrawingLayerAlignment  = 'left' | 'center' | 'right'
-
-export interface SoundDrawingLayer {
-  id:         string
-  name:       string
-  enabled:    boolean
-  sourceType: SoundDrawingLayerSourceType
-
-  // Text content
-  text:          string
-  /** Optional for persisted backward compatibility; missing means static. */
-  textSource?:          SoundDrawingTextSource
-  lyricGapBehavior?:    SoundDrawingLyricGapBehavior
-  lyricFallbackText?:   string
-  fontId:        string | null
-  letterSpacing: number
-  lineHeight:    number
-  alignment:     SoundDrawingLayerAlignment
-
-  // SVG / shape
-  svgId: string | null
-  shape: BuiltinOscillatorShape
-
-  // Position and transform (normalized glyph space)
-  x:        number          // −1 to 1
-  y:        number          // −1 to 1
-  scale:    number          // multiplier, 1 = no change
-  rotation: number          // degrees
-  width?:   number          // optional horizontal extent override
-
-  // Layer-specific reactive behavior merged on top of global OscillatorSettings at render time
-  oscillatorOverride: Partial<OscillatorSettings>
-}
-
-export interface SoundDrawingClip {
-  id:       string
-  trackId:  string
-  layerId:  string
-  startSec: number
-  endSec:   number   // always > startSec
-  enabled:  boolean
-  zIndex:   number
-  fadeInMs: number
-  fadeOutMs: number
-}
 
 // ── LaserDMX types ────────────────────────────────────────────────────────────
 
@@ -3751,7 +3526,6 @@ export interface ReactPreset extends PresetDiscoveryFields {
   scenes: ReactScene[]
   sectionMappings: ReactSectionMapping[]
   /** When present, selecting this preset merges these values onto DEFAULT_OSCILLATOR_SETTINGS. */
-  oscillatorSettings?: Partial<OscillatorSettings>
   /** When present, selecting this preset merges these values onto createDefaultLaserDmxSettings(). */
   laserDmxSettings?: Partial<LaserDmxSettings>
   /** LaserDMX compatibility marker. New LaserDMX presets are always Beam Matrix. */
@@ -3830,25 +3604,7 @@ export const PALETTE_CINEMATIC: ReactPalette = {
   text:       DVYDRM_WHITE,
 }
 
-export const PALETTE_OSCILLOSCOPE: ReactPalette = {
-  primary:    DVYDRM_EMERALD,
-  secondary:  DVYDRM_CYAN,
-  accent:     DVYDRM_WHITE,
-  background: DVYDRM_BLACK,
-  highlight:  DVYDRM_GOLD,
-  text:       DVYDRM_WHITE,
-}
-
 // ── Additional palettes ───────────────────────────────────────────────────────
-
-const PALETTE_LAVA: ReactPalette = {
-  primary:    '#d8b95a',
-  secondary:  DVYDRM_CRIMSON,
-  accent:     '#ff8c42',
-  background: '#0a0604',
-  highlight:  '#f5c26b',
-  text:       DVYDRM_WHITE,
-}
 
 const PALETTE_DREAM: ReactPalette = {
   primary:    '#5b8def',
@@ -3856,69 +3612,6 @@ const PALETTE_DREAM: ReactPalette = {
   accent:     DVYDRM_CYAN,
   background: '#04060e',
   highlight:  '#8bb4ff',
-  text:       DVYDRM_WHITE,
-}
-
-const PALETTE_EMERALD_FOG: ReactPalette = {
-  primary:    DVYDRM_EMERALD,
-  secondary:  DVYDRM_CYAN,
-  accent:     '#80dfc0',
-  background: '#030e0a',
-  highlight:  '#9fffdc',
-  text:       DVYDRM_WHITE,
-}
-
-const PALETTE_SPIRAL: ReactPalette = {
-  primary:    DVYDRM_GOLD,
-  secondary:  '#f5c26b',
-  accent:     DVYDRM_CYAN,
-  background: DVYDRM_BLACK,
-  highlight:  '#ffe080',
-  text:       DVYDRM_WHITE,
-}
-
-const PALETTE_RADIAL: ReactPalette = {
-  primary:    DVYDRM_WHITE,
-  secondary:  DVYDRM_CYAN,
-  accent:     DVYDRM_EMERALD,
-  background: DVYDRM_BLACK,
-  highlight:  '#ffffff',
-  text:       DVYDRM_WHITE,
-}
-
-const PALETTE_PRISM_TRACE: ReactPalette = {
-  primary:    '#b84fc9',
-  secondary:  DVYDRM_CYAN,
-  accent:     DVYDRM_GOLD,
-  background: DVYDRM_BLACK,
-  highlight:  '#e888ff',
-  text:       DVYDRM_WHITE,
-}
-
-const PALETTE_STAR_BURST: ReactPalette = {
-  primary:    DVYDRM_GOLD,
-  secondary:  DVYDRM_CRIMSON,
-  accent:     '#ff8c42',
-  background: DVYDRM_BLACK,
-  highlight:  '#ffe080',
-  text:       DVYDRM_WHITE,
-}
-
-const PALETTE_DEEP_PULSE: ReactPalette = {
-  primary:    DVYDRM_CYAN,
-  secondary:  DVYDRM_EMERALD,
-  accent:     DVYDRM_GOLD,
-  background: '#030c10',
-  highlight:  '#80dfc0',
-  text:       DVYDRM_WHITE,
-}
-
-const PALETTE_SVG_SLOT: ReactPalette = {
-  primary:    DVYDRM_WHITE,
-  secondary:  DVYDRM_CYAN,
-  accent:     '#b84fc9',
-  background: DVYDRM_BLACK,
-  highlight:  '#d0eeff',
   text:       DVYDRM_WHITE,
 }
 
@@ -4622,209 +4315,6 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
     scenes: makeScenes('rcs3', 'cinematicPortal'), sectionMappings: makeMappings('rcs3'),
   },
 
-  // ── Sound Drawing (5) ────────────────────────────────────────────────────
-  {
-    id: 'preset-xy-cyan-scope',
-    name: 'XY Cyan Scope',
-    description: 'Classic cyan lissajous figures that morph with frequency content.',
-    engine: 'oscilloscope',
-    palette: PALETTE_OSCILLOSCOPE,
-    params: { intensity: 0.65, motion: 0.7, glow: 0.7, bassReactivity: 0.6 },
-    scenes: makeScenes('xyc', 'oscilloscope'),
-    sectionMappings: makeMappings('xyc'),
-  },
-  {
-    id: 'preset-lissajous-flower',
-    name: 'Lissajous Flower',
-    description: 'Emerald lissajous patterns that bloom into floral forms at high complexity.',
-    engine: 'oscilloscope',
-    palette: {
-      primary:    DVYDRM_EMERALD,
-      secondary:  DVYDRM_CYAN,
-      accent:     DVYDRM_GOLD,
-      background: DVYDRM_BLACK,
-      highlight:  '#80dfc0',
-      text:       DVYDRM_WHITE,
-    },
-    params: { intensity: 0.7, motion: 0.65, glow: 0.6, bassReactivity: 0.55 },
-    scenes: makeScenes('lf', 'oscilloscope'),
-    sectionMappings: makeMappings('lf'),
-  },
-  {
-    id: 'preset-spiral-signal',
-    name: 'Spiral Signal',
-    description: 'Golden frequency-mapped spiral that expands and contracts with audio energy.',
-    engine: 'oscilloscope',
-    palette: PALETTE_SPIRAL,
-    params: { intensity: 0.6, motion: 0.75, glow: 0.65, bassReactivity: 0.7 },
-    scenes: makeScenes('spi', 'oscilloscope'),
-    sectionMappings: makeMappings('spi'),
-  },
-  {
-    id: 'preset-radial-voice',
-    name: 'Radial Voice',
-    description: 'Pure white radial oscilloscope that rings like a sound membrane.',
-    engine: 'oscilloscope',
-    palette: PALETTE_RADIAL,
-    params: { intensity: 0.7, motion: 0.6, glow: 0.8, bassReactivity: 0.65 },
-    scenes: makeScenes('rv', 'oscilloscope'),
-    sectionMappings: makeMappings('rv'),
-  },
-  {
-    id: 'preset-neon-text-trace',
-    name: 'Prism Text Trace',
-    description: 'Purple-cyan waveform trace with high glow — text-style oscilloscope aesthetics.',
-    engine: 'oscilloscope',
-    palette: PALETTE_PRISM_TRACE,
-    params: { intensity: 0.75, motion: 0.5, glow: 0.9, bassReactivity: 0.7 },
-    scenes: makeScenes('ntt', 'oscilloscope'),
-    sectionMappings: makeMappings('ntt'),
-  },
-
-  // ── Enhanced Oscillator presets (6) ─────────────────────────────────────
-  {
-    id: 'preset-glyph-circle-pulse',
-    name: 'Glyph Circle Pulse',
-    description: 'A clean circle that breathes with bass, twists on mids, and blooms on every beat.',
-    engine: 'oscilloscope',
-    palette: PALETTE_DEEP_PULSE,
-    params: { intensity: 0.72, motion: 0.55, glow: 0.8, bassReactivity: 0.85 },
-    scenes: makeScenes('gcp', 'oscilloscope'),
-    sectionMappings: makeMappings('gcp'),
-    oscillatorSettings: {
-      sourceType:        'builtinShape',
-      builtinShape:      'circle',
-      renderMode:        'outline',
-      autoSectionMode:   true,
-      bassScale:         0.3,
-      beatBloom:         0.45,
-      rotationSpeed:     0.05,
-      duplicateTraces:   2,
-      audioDisplacement: 0.2,
-      midTwist:          0.12,
-      highJitter:        0.05,
-    },
-  },
-  {
-    id: 'preset-bass-triangle-reactor',
-    name: 'Bass Triangle Reactor',
-    description: 'Triple-trace triangle that explodes outward on bass hits — heavy and percussive.',
-    engine: 'oscilloscope',
-    palette: PALETTE_LAVA,
-    params: { intensity: 0.8, motion: 0.65, glow: 0.75, bassReactivity: 0.95 },
-    scenes: makeScenes('btr', 'oscilloscope'),
-    sectionMappings: makeMappings('btr'),
-    oscillatorSettings: {
-      sourceType:        'builtinShape',
-      builtinShape:      'triangle',
-      renderMode:        'multiTrace',
-      autoSectionMode:   true,
-      bassScale:         0.5,
-      beatBloom:         0.55,
-      rotationSpeed:     0.12,
-      duplicateTraces:   3,
-      audioDisplacement: 0.22,
-      midTwist:          0.08,
-      highJitter:        0.06,
-    },
-  },
-  {
-    id: 'preset-infinity-signal',
-    name: 'Infinity Signal',
-    description: 'Ribbon-rendered infinity loop with mid-driven twist — meditative and hypnotic.',
-    engine: 'oscilloscope',
-    palette: PALETTE_EMERALD_FOG,
-    params: { intensity: 0.65, motion: 0.45, glow: 0.72, bassReactivity: 0.7 },
-    scenes: makeScenes('inf', 'oscilloscope'),
-    sectionMappings: makeMappings('inf'),
-    oscillatorSettings: {
-      sourceType:        'builtinShape',
-      builtinShape:      'infinity',
-      renderMode:        'ribbon',
-      autoSectionMode:   true,
-      bassScale:         0.2,
-      beatBloom:         0.35,
-      rotationSpeed:     0.04,
-      duplicateTraces:   1,
-      audioDisplacement: 0.15,
-      midTwist:          0.28,
-      highJitter:        0.03,
-    },
-  },
-  {
-    id: 'preset-drmvyz-text-trace',
-    name: 'STAGELESS Text Trace',
-    description: 'The STAGELESS logotype traced as a glyph path — dual trace with high glow.',
-    engine: 'oscilloscope',
-    palette: PALETTE_PRISM_TRACE,
-    params: { intensity: 0.75, motion: 0.42, glow: 0.88, bassReactivity: 0.75 },
-    scenes: makeScenes('dtt', 'oscilloscope'),
-    sectionMappings: makeMappings('dtt'),
-    oscillatorSettings: {
-      sourceType:        'text',
-      text:              'STAGELESS',
-      renderMode:        'multiTrace',
-      autoSectionMode:   true,
-      autoRotate:        false,
-      bassScale:         0.22,
-      beatBloom:         0.4,
-      rotationSpeed:     0.02,
-      duplicateTraces:   2,
-      audioDisplacement: 0.12,
-      midTwist:          0.1,
-      highJitter:        0.07,
-    },
-  },
-  {
-    id: 'preset-star-drop-burst',
-    name: 'Star Drop Burst',
-    description: 'Four-trace star that detonates on drop — high beatBloom and rotating ghost echoes.',
-    engine: 'oscilloscope',
-    palette: PALETTE_STAR_BURST,
-    params: { intensity: 0.88, motion: 0.75, glow: 0.85, bassReactivity: 0.95 },
-    scenes: makeScenes('sdb', 'oscilloscope'),
-    sectionMappings: makeMappings('sdb'),
-    oscillatorSettings: {
-      sourceType:        'builtinShape',
-      builtinShape:      'star',
-      renderMode:        'multiTrace',
-      autoSectionMode:   true,
-      bassScale:         0.4,
-      beatBloom:         0.7,
-      rotationSpeed:     0.18,
-      duplicateTraces:   4,
-      audioDisplacement: 0.2,
-      midTwist:          0.15,
-      highJitter:        0.1,
-    },
-  },
-  {
-    id: 'preset-svg-glyph-slot',
-    name: 'SVG Slot',
-    description: 'Import an SVG from the Media tab and select it here — Reactive Path deforms it with audio, Original Artwork renders it at full fidelity.',
-    engine: 'oscilloscope',
-    palette: PALETTE_SVG_SLOT,
-    params: { intensity: 0.7, motion: 0.5, glow: 0.78, bassReactivity: 0.8 },
-    scenes: makeScenes('sgs', 'oscilloscope'),
-    sectionMappings: makeMappings('sgs'),
-    oscillatorSettings: {
-      sourceType:         'svg',
-      selectedSvgId:      null,
-      svgRenderMode:      'auto',
-      svgUseReactPalette: true,
-      autoRotate:         false,
-      renderMode:         'outline',
-      autoSectionMode:    true,
-      bassScale:          0.3,
-      beatBloom:          0.4,
-      rotationSpeed:      0.06,
-      duplicateTraces:    2,
-      audioDisplacement:  0.18,
-      midTwist:           0.1,
-      highJitter:         0.05,
-    },
-  },
-
   // ── LaserDMX Beam Matrix launcher ─────────────────────────────────────────
   ...PIX_GRID_CATALOG_PRESETS,
 
@@ -4843,11 +4333,16 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
 ]
 // ── Default performance pads ──────────────────────────────────────────────────
 
+/** A performance pad destination that opens a Sound Drawing XY preset. */
+function xyScopePadDestination(presetId: string): ReactEngineDestination {
+  return { schemaVersion: 1, engineId: 'xyScope', presetId }
+}
+
 export const DEFAULT_PERFORMANCE_PADS: ReactPerformancePad[] = [
   // Row 1 — Mixed live-performance presets
-  { id: 'pad-1',  presetId: 'preset-bass-triangle-reactor',  label: 'Reactor',   color: DVYDRM_GOLD,    keyBinding: '1', transitionTimeMs: 500 },
+  { id: 'pad-1',  presetId: null, destination: xyScopePadDestination('osc1'), label: 'OSC 1', color: DVYDRM_GOLD,    keyBinding: '1', transitionTimeMs: 500 },
   { id: 'pad-2',  presetId: LASER_DMX_BEAM_MATRIX_REACT_PRESET_ID,    label: 'Drop Cage', color: DVYDRM_CYAN,    keyBinding: '2', transitionTimeMs: 400 },
-  { id: 'pad-3',  presetId: 'preset-infinity-signal',        label: 'Infinity',  color: DVYDRM_EMERALD, keyBinding: '3', transitionTimeMs: 600 },
+  { id: 'pad-3',  presetId: null, destination: xyScopePadDestination('phase-portal'), label: 'PHASE PORTAL', color: DVYDRM_EMERALD, keyBinding: '3', transitionTimeMs: 600 },
   { id: 'pad-4',  presetId: LASER_DMX_BEAM_MATRIX_REACT_PRESET_ID, label: 'Tunnel',    color: '#ff8c42',      keyBinding: '4', transitionTimeMs: 300 },
   { id: 'pad-17', presetId: null,                            label: 'Empty',    color: '#3a4650',      keyBinding: '5', transitionTimeMs: 600 },
   // Row 2 — Cinematic / open slots
@@ -4856,16 +4351,16 @@ export const DEFAULT_PERFORMANCE_PADS: ReactPerformancePad[] = [
   { id: 'pad-7',  presetId: null,                            label: 'Empty',    color: '#3a4650',      keyBinding: 'e', transitionTimeMs: 700 },
   { id: 'pad-8',  presetId: null,                            label: 'Empty',    color: '#3a4650',      keyBinding: 'r', transitionTimeMs: 200 },
   { id: 'pad-18', presetId: null,                            label: 'Empty',    color: '#3a4650',      keyBinding: 't', transitionTimeMs: 300 },
-  // Row 3 — Sound Drawing
-  { id: 'pad-9',  presetId: 'preset-xy-cyan-scope',          label: 'XY Scope', color: DVYDRM_CYAN,    keyBinding: 'a', transitionTimeMs: 300 },
-  { id: 'pad-10', presetId: 'preset-lissajous-flower',       label: 'Lissajous',color: DVYDRM_EMERALD, keyBinding: 's', transitionTimeMs: 400 },
-  { id: 'pad-11', presetId: 'preset-spiral-signal',          label: 'Spiral',   color: DVYDRM_GOLD,    keyBinding: 'd', transitionTimeMs: 350 },
-  { id: 'pad-12', presetId: 'preset-radial-voice',           label: 'Radial',   color: DVYDRM_WHITE,   keyBinding: 'f', transitionTimeMs: 450 },
-  { id: 'pad-19', presetId: 'preset-bass-triangle-reactor',  label: 'Triangle', color: DVYDRM_CRIMSON, keyBinding: 'g', transitionTimeMs: 250 },
+  // Row 3 — Sound Drawing XY
+  { id: 'pad-9',  presetId: null, destination: xyScopePadDestination('conversation'), label: 'Converse', color: DVYDRM_CYAN,    keyBinding: 'a', transitionTimeMs: 300 },
+  { id: 'pad-10', presetId: null, destination: xyScopePadDestination('clean-scope'), label: 'Clean Scope', color: DVYDRM_EMERALD, keyBinding: 's', transitionTimeMs: 400 },
+  { id: 'pad-11', presetId: null, destination: xyScopePadDestination('storm'), label: 'Storm', color: DVYDRM_GOLD,    keyBinding: 'd', transitionTimeMs: 350 },
+  { id: 'pad-12', presetId: null, destination: xyScopePadDestination('init'), label: 'INIT', color: DVYDRM_WHITE,   keyBinding: 'f', transitionTimeMs: 450 },
+  { id: 'pad-19', presetId: null, destination: xyScopePadDestination('octa'), label: 'OCTA', color: DVYDRM_CRIMSON, keyBinding: 'g', transitionTimeMs: 250 },
   // Row 4 — Peak / enhanced visuals
   { id: 'pad-13', presetId: null,                            label: 'Empty',    color: '#3a4650',      keyBinding: 'z', transitionTimeMs: 200 },
-  { id: 'pad-14', presetId: 'preset-drmvyz-text-trace',      label: 'STAGELESS',   color: '#b84fc9',      keyBinding: 'x', transitionTimeMs: 400 },
-  { id: 'pad-15', presetId: 'preset-star-drop-burst',        label: 'StarBurst',color: DVYDRM_GOLD,    keyBinding: 'c', transitionTimeMs: 250 },
-  { id: 'pad-16', presetId: 'preset-glyph-circle-pulse',     label: 'Circle',   color: DVYDRM_CYAN,    keyBinding: 'v', transitionTimeMs: 400 },
+  { id: 'pad-14', presetId: null, destination: xyScopePadDestination('textV2'), label: 'Text V2', color: '#b84fc9',      keyBinding: 'x', transitionTimeMs: 400 },
+  { id: 'pad-15', presetId: null, destination: xyScopePadDestination('cubes'), label: 'CUBES', color: DVYDRM_GOLD,    keyBinding: 'c', transitionTimeMs: 250 },
+  { id: 'pad-16', presetId: null, destination: xyScopePadDestination('solids'), label: 'SOLIDS', color: DVYDRM_CYAN,    keyBinding: 'v', transitionTimeMs: 400 },
   { id: 'pad-20', presetId: LASER_DMX_BEAM_MATRIX_REACT_PRESET_ID,      label: 'Laser Fan',color: '#00ffdc',      keyBinding: 'b', transitionTimeMs: 300 },
 ]

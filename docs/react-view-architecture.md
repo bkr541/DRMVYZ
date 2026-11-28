@@ -149,7 +149,6 @@ Nested composition is owned by:
 The lower workspace owns:
 
 - Track Map
-- Sound Drawing timeline
 - Performance Pads
 - Visual-output cast control beside Stage Focus
 
@@ -162,19 +161,18 @@ Playlist sits immediately after Add Track on the left. Tap Tempo sits beside the
 
 ## Selectable engine registry
 
-`REACT_ENGINE_IDS` is the user-facing engine registry. `REACT_KNOWN_ENGINE_IDS` additionally contains the retired `shaderPads`, `cinematicPortal`, and `cinema` identifiers for persisted-project and import compatibility; those aliases must not be rendered as selector choices. `REACT_ENGINE_CATALOG` retains metadata for both public and compatibility IDs.
+`REACT_ENGINE_IDS` is the user-facing engine registry. `REACT_KNOWN_ENGINE_IDS` additionally contains the retired `shaderPads`, `cinematicPortal`, `cinema`, and `oscilloscope` (legacy Sound Drawing) identifiers for persisted-project and import compatibility; those aliases must not be rendered as selector choices. `REACT_ENGINE_CATALOG` retains metadata for both public and compatibility IDs.
 
 | ID | Label | Live renderer ownership |
 | --- | --- | --- |
 | `cinema2` | Cinema 2.0 | `Cinema2Stage` → `Cinema2Runtime` |
-| `oscilloscope` | Sound Drawing | `ReactPlaceholderCanvas` → Sound Drawing renderer |
 | `xyScope` | Sound Drawing XY | `XyScopeSurface` phosphor-beam text renderer (standalone, preset-free; see `docs/sound-drawing-xy.md`) |
 | `canvas` | CANVAS | `CanvasEngineSurface` from `ReactCanvasEngineShell.tsx` |
 | `laserDmx` | LaserDMX | `ReactPlaceholderCanvas` → LaserDMX renderer |
 | `pixGrid` | PixGrid | `PixGridSurface` |
 | `headliner` | HEADLINER | `HeadlinerStage` camera-effects renderer |
 
-Legacy Cinema, Shader Pads, and Cinematic Worlds IDs remain restore aliases only; none owns a public canvas, animation loop, or selectable workspace. Historical content is migrated into Cinema 2.0.
+Legacy Cinema, Shader Pads, Cinematic Worlds, and Sound Drawing IDs remain restore aliases only; none owns a public canvas, animation loop, or selectable workspace. Historical content is migrated into Cinema 2.0, and Sound Drawing selections and pads into Sound Drawing XY (see `docs/sound-drawing-xy.md`).
 
 Adding an engine requires updating the typed engine ID, catalog, workspace composition, state defaults and migrations, renderer routing, controls, presets or scene surface, diagnostics, tests, and documentation.
 
@@ -185,7 +183,7 @@ Current composition is resolved centrally:
 | Engine | Left rail | Preset surface | Lower workspace | Authoring overlay |
 | --- | --- | --- | --- | --- |
 | Cinema 2.0 | SOURCE + LAYERS | Native Cinema 2.0 presets | Track Map | None |
-| Sound Drawing | SOURCE + MEDIA + FONTS | PRESETS | Sound Drawing timeline + Track Map + Performance Pads | None |
+| Sound Drawing XY | SOURCE + MEDIA (disabled until SVG artwork exists) | Native XY presets | Track Map + Performance Pads | None |
 | CANVAS | SOURCE + LAYERS | PRESETS | Track Map + Performance Pads | None |
 | LaserDMX | RIG + LAYERS | PRESETS | Track Map + Performance Pads | Show Director stage editor or Beam Matrix editor when enabled |
 | PixGrid | SETUP + MEDIA | PRESETS | Track Map + Performance Pads | PixGrid editor when enabled |
@@ -260,7 +258,6 @@ An overlay may edit stage geometry, pixels, masks, fixtures, beams, or other spa
 Large engine-specific surfaces are lazy-loaded only when their workspace becomes visible:
 
 - Track Map
-- Sound Drawing timeline
 - LaserDMX layers
 - Media Manager and other modal workspaces
 
@@ -297,7 +294,6 @@ React View uses engine media capabilities rather than mounting the full library 
 
 Current contextual media paths include:
 
-- Sound Drawing SVG media
 - PixGrid still-image and SVG media
 
 CANVAS owns its source flow inside `ReactCanvasEngineShell` but still uses the shared Media Library and media records.

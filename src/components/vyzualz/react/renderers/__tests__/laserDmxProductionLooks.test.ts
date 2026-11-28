@@ -8,7 +8,6 @@ import {
   type ProductionLook,
 } from '../../LaserDmxProductionRig'
 import {
-  DEFAULT_OSCILLATOR_SETTINGS,
   DEFAULT_REACT_PRESETS,
   LASER_DMX_BEAM_MATRIX_REACT_PRESET_ID,
   createDefaultLaserDmxBeamMatrixSettings,
@@ -467,7 +466,7 @@ describe('LaserDMX production Looks', () => {
       laserDmxWorkspace: 'retiredFixtureRig' as never,
       laserDmxSettings: createDefaultLaserDmxSettings(),
     }
-    const patch = buildPresetPatch(preset, DEFAULT_OSCILLATOR_SETTINGS)
+    const patch = buildPresetPatch(preset)
     expect(patch.laserDmxWorkspaceMode).toBe('beamMatrix')
     expect(patch.laserDmxSettings).toBeUndefined()
   })

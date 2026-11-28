@@ -30,10 +30,10 @@ export function readReactWorkspacePreferences(): ReactWorkspacePreferences {
         ? parsed.lowerWorkspaceCollapsed
         : DEFAULTS.lowerWorkspaceCollapsed,
       lowerSurface:
-        parsed.lowerSurface === 'soundDrawing' || parsed.lowerSurface === 'performancePads'
+        parsed.lowerSurface === 'performancePads'
           ? parsed.lowerSurface
           : 'trackMap',
-      leftTab: parsed.leftTab === 'media' || parsed.leftTab === 'layers' || parsed.leftTab === 'fonts'
+      leftTab: parsed.leftTab === 'media' || parsed.leftTab === 'layers'
         ? parsed.leftTab
         : 'workspace',
     }

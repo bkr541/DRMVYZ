@@ -1,6 +1,6 @@
 import type { SharedPerformanceContext } from './context'
 
-export type SharedPerformanceDiagnosticsEngine = 'laserDmx' | 'soundDrawing' | 'canvas' | 'pixGrid'
+export type SharedPerformanceDiagnosticsEngine = 'laserDmx' | 'canvas' | 'pixGrid'
 
 export interface SharedPerformanceDiagnosticsSnapshot {
   engine: SharedPerformanceDiagnosticsEngine

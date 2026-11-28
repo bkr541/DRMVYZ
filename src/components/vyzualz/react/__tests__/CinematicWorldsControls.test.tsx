@@ -21,15 +21,6 @@ vi.mock('../../../../context/AudioEngineContext', () => ({
   useSharedAudio: () => ({ currentAudioTrackId: null }),
 }))
 
-vi.mock('../../../../features/lyrics/runtime/useLyricPlayback', () => ({
-  useLyricPlaybackSelector: (selector: (state: Record<string, unknown>) => unknown) => selector({
-    activeCue: null,
-    activeWord: null,
-    documentId: null,
-    sourceIdentity: null,
-  }),
-}))
-
 let container: HTMLElement
 let root: ReturnType<typeof createRoot>
 

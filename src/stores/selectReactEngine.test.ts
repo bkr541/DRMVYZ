@@ -1,9 +1,9 @@
 /**
  * Tests for the React store's engine/preset synchronisation invariant:
  *
- * Preset-backed engines keep engine/preset IDs synchronized. Sound Drawing,
+ * Preset-backed engines keep engine/preset IDs synchronized. Sound Drawing XY,
  * CANVAS, Cinema 2.0, and Headliner may intentionally run with no active
- * preset. Retired Shader Pads/Cinematic Worlds/Cinema selections normalize to
+ * preset. The retired Sound Drawing engine opens Sound Drawing XY. Retired Shader Pads/Cinematic Worlds/Cinema selections normalize to
  * Cinema 2.0.
  *
  * Covers:
@@ -17,21 +17,18 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { useReactStore, buildPresetPatch } from './reactStore'
 import {
   DEFAULT_REACT_PRESETS,
-  DEFAULT_OSCILLATOR_SETTINGS,
   DEFAULT_PERFORMANCE_PADS,
   LASER_DMX_BEAM_MATRIX_REACT_PRESET_ID,
 } from '../components/vyzualz/react/ReactTypes'
 import type { ReactEngineId, ReactPreset } from '../components/vyzualz/react/ReactTypes'
 import { REACT_ENGINE_IDS } from '../components/vyzualz/react/reactEngineCatalog'
+import { getXyScopePreset } from '../components/vyzualz/react/xyScope/XyScopeSettings'
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
 const cinPreset       = DEFAULT_REACT_PRESETS.find(p => p.engine === 'cinematicPortal')!
-const oscPreset       = DEFAULT_REACT_PRESETS.find(p => p.engine === 'oscilloscope')!
-const enhancedOscPreset = DEFAULT_REACT_PRESETS.find(
-  p => p.engine === 'oscilloscope' && p.oscillatorSettings != null,
-)
-const PRESET_FREE_ENGINE_IDS = new Set<ReactEngineId>(['canvas', 'cinema2', 'oscilloscope', 'headliner', 'xyScope'])
+const pixGridPreset   = DEFAULT_REACT_PRESETS.find(p => p.engine === 'pixGrid')!
+const PRESET_FREE_ENGINE_IDS = new Set<ReactEngineId>(['canvas', 'cinema2', 'headliner', 'xyScope'])
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -52,39 +49,21 @@ beforeEach(() => {
 
 describe('buildPresetPatch', () => {
   it('returns matching activeReactPresetId and activeReactEngineId', () => {
-    const patch = buildPresetPatch(oscPreset, DEFAULT_OSCILLATOR_SETTINGS)
-    expect(patch.activeReactPresetId).toBe(oscPreset.id)
-    expect(patch.activeReactEngineId).toBe('oscilloscope')
+    const patch = buildPresetPatch(pixGridPreset)
+    expect(patch.activeReactPresetId).toBe(pixGridPreset.id)
+    expect(patch.activeReactEngineId).toBe('pixGrid')
   })
 
   it('copies intensity/motion/glow/bassReactivity from preset params', () => {
-    const patch = buildPresetPatch(oscPreset, DEFAULT_OSCILLATOR_SETTINGS)
-    expect(patch.reactIntensity).toBe(oscPreset.params.intensity)
-    expect(patch.reactMotion).toBe(oscPreset.params.motion)
-    expect(patch.reactGlow).toBe(oscPreset.params.glow)
-    expect(patch.reactBassReactivity).toBe(oscPreset.params.bassReactivity)
+    const patch = buildPresetPatch(pixGridPreset)
+    expect(patch.reactIntensity).toBe(pixGridPreset.params.intensity)
+    expect(patch.reactMotion).toBe(pixGridPreset.params.motion)
+    expect(patch.reactGlow).toBe(pixGridPreset.params.glow)
+    expect(patch.reactBassReactivity).toBe(pixGridPreset.params.bassReactivity)
   })
 
-  it('leaves oscillatorSettings unchanged for non-oscilloscope presets', () => {
-    expect(() => buildPresetPatch(cinPreset, DEFAULT_OSCILLATOR_SETTINGS)).toThrow(/retired engine/)
-  })
-
-  it('resolves oscillatorSettings from DEFAULT for oscilloscope presets', () => {
-    const prevSettings = { ...DEFAULT_OSCILLATOR_SETTINGS, sourceType: 'text' as const, text: 'PREV' }
-    const patch = buildPresetPatch(oscPreset, prevSettings)
-    expect(patch.activeReactEngineId).toBe('oscilloscope')
-    // Oscilloscope resets to DEFAULT — previous sourceType should not survive
-    if (!oscPreset.oscillatorSettings?.sourceType) {
-      expect(patch.oscillatorSettings.sourceType).toBe(DEFAULT_OSCILLATOR_SETTINGS.sourceType)
-    }
-  })
-
-  it('applies enhanced preset oscillatorSettings on top of DEFAULT', () => {
-    if (!enhancedOscPreset) return
-    const patch = buildPresetPatch(enhancedOscPreset, DEFAULT_OSCILLATOR_SETTINGS)
-    for (const [key, val] of Object.entries(enhancedOscPreset.oscillatorSettings!)) {
-      expect(patch.oscillatorSettings[key as keyof typeof patch.oscillatorSettings]).toBe(val)
-    }
+  it('refuses presets of retired engines', () => {
+    expect(() => buildPresetPatch(cinPreset)).toThrow(/retired engine/)
   })
 })
 
@@ -101,28 +80,10 @@ describe('selectReactEngine', () => {
     expect(state.pendingCinemaLegacySelectionMigration).toBeNull()
   })
 
-  it('selecting oscilloscope: sets activeReactEngineId to oscilloscope', () => {
+  it('opens Sound Drawing XY when the retired Sound Drawing engine is selected', () => {
     useReactStore.getState().selectReactEngine('oscilloscope')
-    expect(useReactStore.getState().activeReactEngineId).toBe('oscilloscope')
-  })
-
-  it('selecting oscilloscope: opens the preset-free base engine', () => {
-    useReactStore.getState().selectReactEngine('oscilloscope')
-    const { activeReactPresetId, oscillatorSettings } = useReactStore.getState()
-    expect(activeReactPresetId).toBeNull()
-    expect(oscillatorSettings).toEqual(DEFAULT_OSCILLATOR_SETTINGS)
-    expect(oscillatorSettings.sourceType).toBe('classic')
-    expect(oscillatorSettings.classicMode).toBe('waveform')
-    expect(oscillatorSettings.autoSectionMode).toBe(false)
-  })
-
-  it('selecting oscilloscope: removes settings left by a previously selected preset', () => {
-    useReactStore.getState().selectReactPreset(oscPreset.id)
-    useReactStore.getState().setOscillatorSettings({ sourceType: 'text', text: 'LEFTOVER' })
-    useReactStore.getState().selectReactEngine('oscilloscope')
-    const { oscillatorSettings, activeReactPresetId } = useReactStore.getState()
-    expect(activeReactPresetId).toBeNull()
-    expect(oscillatorSettings).toEqual(DEFAULT_OSCILLATOR_SETTINGS)
+    expect(useReactStore.getState().activeReactEngineId).toBe('xyScope')
+    expect(useReactStore.getState().activeReactPresetId).toBeNull()
   })
 
   it('routes the retired Cinema identity to preset-free Cinema 2.0', () => {
@@ -193,7 +154,7 @@ describe('selectReactPreset', () => {
   })
 
   it('invariant: activePreset.engine === activeReactEngineId after any preset selection', () => {
-    for (const preset of [oscPreset]) {
+    for (const preset of [pixGridPreset]) {
       useReactStore.getState().selectReactPreset(preset.id)
       const { activeReactEngineId, activeReactPresetId, reactPresets } = useReactStore.getState()
       const active = activePreset(reactPresets, activeReactPresetId)
@@ -245,21 +206,28 @@ describe('setActivePadId', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('DEFAULT_PERFORMANCE_PADS remapped assignments', () => {
-  it('preserves the four non-Neon replacement assignments and clears retired slots', () => {
-    expect(DEFAULT_PERFORMANCE_PADS.find(p => p.id === 'pad-1')?.presetId)
-      .toBe('preset-bass-triangle-reactor')
+  it('keeps the LaserDMX assignments, opens Sound Drawing XY presets and clears retired slots', () => {
+    expect(DEFAULT_PERFORMANCE_PADS.find(p => p.id === 'pad-1')?.destination)
+      .toEqual({ schemaVersion: 1, engineId: 'xyScope', presetId: 'osc1' })
 
     expect(DEFAULT_PERFORMANCE_PADS.find(p => p.id === 'pad-2')?.presetId)
       .toBe(LASER_DMX_BEAM_MATRIX_REACT_PRESET_ID)
 
-    expect(DEFAULT_PERFORMANCE_PADS.find(p => p.id === 'pad-3')?.presetId)
-      .toBe('preset-infinity-signal')
+    expect(DEFAULT_PERFORMANCE_PADS.find(p => p.id === 'pad-3')?.destination)
+      .toEqual({ schemaVersion: 1, engineId: 'xyScope', presetId: 'phase-portal' })
 
     expect(DEFAULT_PERFORMANCE_PADS.find(p => p.id === 'pad-4')?.presetId)
       .toBe(LASER_DMX_BEAM_MATRIX_REACT_PRESET_ID)
 
     expect(DEFAULT_PERFORMANCE_PADS.find(p => p.id === 'pad-13')?.presetId).toBeNull()
     expect(DEFAULT_PERFORMANCE_PADS.find(p => p.id === 'pad-18')?.presetId).toBeNull()
+  })
+
+  it('opens only Sound Drawing XY presets that exist', () => {
+    for (const pad of DEFAULT_PERFORMANCE_PADS) {
+      if (pad.destination?.engineId !== 'xyScope') continue
+      expect(getXyScopePreset(pad.destination.presetId), pad.id).toBeDefined()
+    }
   })
 
   it('no pad references a legacy shaderPads preset', () => {

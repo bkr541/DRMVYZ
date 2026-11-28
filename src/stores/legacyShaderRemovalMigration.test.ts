@@ -92,13 +92,13 @@ describe('legacy engine without valid preset → Singularity Crown fallback', ()
 // ── Valid preset with stale shaderPads engine ─────────────────────────────────
 
 describe('valid preset with stale shaderPads engine → engine repaired', () => {
-  it('preset-bass-triangle-reactor with shaderPads engine → repaired to oscilloscope', () => {
+  it('a retired Sound Drawing preset with shaderPads engine → Sound Drawing XY', () => {
     const result = migrate18({
       activeReactPresetId: 'preset-bass-triangle-reactor',
       activeReactEngineId: 'shaderPads',
     })
     expect(result.activeReactPresetId).toBeNull()
-    expect(result.activeReactEngineId).toBe('oscilloscope')
+    expect(result.activeReactEngineId).toBe('xyScope')
   })
 
   it('legacy LaserDMX preset with shaderPads engine → repaired to Beam Matrix', () => {
@@ -114,13 +114,13 @@ describe('valid preset with stale shaderPads engine → engine repaired', () => 
 // ── Valid state remains unchanged ─────────────────────────────────────────────
 
 describe('valid non-Shader state is not modified', () => {
-  it('Sound Drawing state is preserved', () => {
+  it('a retired Sound Drawing selection opens Sound Drawing XY', () => {
     const result = migrate18({
       activeReactPresetId: 'preset-xy-cyan-scope',
       activeReactEngineId: 'oscilloscope',
     })
     expect(result.activeReactPresetId).toBeNull()
-    expect(result.activeReactEngineId).toBe('oscilloscope')
+    expect(result.activeReactEngineId).toBe('xyScope')
   })
 
   it('legacy LaserDMX state is coerced to Beam Matrix', () => {
@@ -155,18 +155,6 @@ describe('valid non-Shader state is not modified', () => {
 
 describe('unrelated state fields survive migration unchanged', () => {
   it('all representative nested values are deeply equal after migration', () => {
-    const oscillatorSettings = {
-      sourceType: 'text',
-      text: 'DRMVYZ',
-      textFontId: 'font-abc-123',
-      pathResolution: 512,
-    }
-    const soundDrawingLayersByTrackId = {
-      'track-1': [{ id: 'layer-1', name: 'Test Layer', enabled: true, sourceType: 'text', text: 'hello', fontId: null, letterSpacing: 0, lineHeight: 1.2, alignment: 'center', svgId: null, shape: 'circle', x: 0, y: 0, scale: 1, rotation: 0, oscillatorOverride: {} }],
-    }
-    const soundDrawingClipsByTrackId = {
-      'track-1': [{ id: 'clip-1', trackId: 'track-1', layerId: 'layer-1', startSec: 0, endSec: 4, enabled: true, zIndex: 0, fadeInMs: 0, fadeOutMs: 0 }],
-    }
     const laserDmxSettings = {
       masterDimmer: 0.75,
       blackout: false,
@@ -189,9 +177,6 @@ describe('unrelated state fields survive migration unchanged', () => {
     const input: Record<string, unknown> = {
       activeReactPresetId: 'preset-neon-energy-cloud',
       activeReactEngineId: 'shaderPads',
-      oscillatorSettings,
-      soundDrawingLayersByTrackId,
-      soundDrawingClipsByTrackId,
       laserDmxSettings,
       laserDmxBeamMatrix,
       neonLatticeSettings,
@@ -205,22 +190,7 @@ describe('unrelated state fields survive migration unchanged', () => {
     expect(result.activeReactPresetId).toBeNull()
     expect(result.activeReactEngineId).toBe('cinema2')
 
-    // Unrelated values are preserved while Patch 8 adds safe lyric-source defaults.
-    expect(result.oscillatorSettings).toMatchObject({
-      ...oscillatorSettings,
-      textSource: 'static',
-      lyricGapBehavior: 'hide',
-      lyricFallbackText: '',
-    })
-    expect(result.soundDrawingLayersByTrackId).toEqual({
-      'track-1': [{
-        ...soundDrawingLayersByTrackId['track-1'][0],
-        textSource: 'static',
-        lyricGapBehavior: 'hide',
-        lyricFallbackText: '',
-      }],
-    })
-    expect(result.soundDrawingClipsByTrackId).toEqual(soundDrawingClipsByTrackId)
+    // Unrelated values are preserved.
     expect(result.laserDmxSettings).toEqual(laserDmxSettings)
     expect(result.laserDmxBeamMatrix).toEqual(laserDmxBeamMatrix)
     expect(result).not.toHaveProperty('neonLatticeSettings')

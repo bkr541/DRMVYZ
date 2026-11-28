@@ -32,7 +32,7 @@ function makeKit(): BrandKit {
   return {
     id: 'kit-a', userId: 'user-a', name: 'DVYDRM Brand Kit', palette: BRAND,
     extractedPalette: null, extractionMetadata: null, defaultStrength: 1,
-    engineRules: { oscilloscope: { mode: 'brand', strength: 1 } },
+    engineRules: { pixGrid: { mode: 'brand', strength: 1 } },
     presetRules: {}, useForAppAccent: true, autoApply: true,
     createdAt: '', updatedAt: '',
   }
@@ -115,7 +115,6 @@ describe('Brand Kit Settings states and accessibility', () => {
     expect(triggerSemantics?.querySelector('input[type="checkbox"]')).toBeInstanceOf(HTMLInputElement)
     const displayAssetLabel = [...container.querySelectorAll('label')].find(label => label.textContent === 'Display asset') as HTMLLabelElement
     expect(displayAssetLabel.control?.id).toBe('bk-display-asset')
-    expect(container.textContent).toContain('Sound Drawing shortcuts')
     expect(container.textContent).toContain('Personalization diagnostics')
   })
 
@@ -196,8 +195,8 @@ describe('Brand Kit Settings states and accessibility', () => {
 describe('Brand Kit preset preview surfaces', () => {
   it('renders preset card swatches and engine accents from the effective palette', async () => {
     const kit = makeKit()
-    const preset = DEFAULT_REACT_PRESETS.find(candidate => candidate.engine === 'oscilloscope')
-    if (!preset) throw new Error('Missing Sound Drawing fixture')
+    const preset = DEFAULT_REACT_PRESETS.find(candidate => candidate.engine === 'pixGrid')
+    if (!preset) throw new Error('Missing PixGrid fixture')
     useBrandKitStore.setState({ currentUserId: 'user-a', kits: [kit], activeKit: kit })
 
     await render(<ReactPresetBrowser presets={[preset]} activePresetId={preset.id} onSelect={vi.fn()} />)

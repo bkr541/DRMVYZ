@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import {
-  DEFAULT_OSCILLATOR_SETTINGS,
   createDefaultLaserDmxBeamMatrixSettings,
 } from '../ReactTypes'
 import { resolveReactInspectorSelection } from '../reactInspectorSelection'
@@ -10,7 +9,6 @@ function baseArgs() {
   return {
     activeReactEngineId: 'cinematicPortal' as const,
     activeShaderId: null,
-    oscillatorSettings: { ...DEFAULT_OSCILLATOR_SETTINGS },
     selectedCanvasLayerId: null,
     laserDmxWorkspaceMode: 'retiredFixtureRig',
     laserDmxBeamMatrix: createDefaultLaserDmxBeamMatrixSettings(),
@@ -20,27 +18,6 @@ function baseArgs() {
 describe('resolveReactInspectorSelection', () => {
   it('does not treat an active preset or engine alone as an inspectable object', () => {
     expect(resolveReactInspectorSelection(baseArgs())).toBeNull()
-  })
-
-  it('requires a concrete selected SVG asset but accepts built-in Sound Drawing sources', () => {
-    const svgArgs = baseArgs()
-    expect(resolveReactInspectorSelection({
-      ...svgArgs,
-      activeReactEngineId: 'oscilloscope',
-      oscillatorSettings: { ...DEFAULT_OSCILLATOR_SETTINGS, sourceType: 'svg', selectedSvgId: null },
-    })).toBeNull()
-
-    expect(resolveReactInspectorSelection({
-      ...svgArgs,
-      activeReactEngineId: 'oscilloscope',
-      oscillatorSettings: { ...DEFAULT_OSCILLATOR_SETTINGS, sourceType: 'svg', selectedSvgId: 'media-svg-1' },
-    })).toEqual({ kind: 'soundDrawingSource', id: 'media-svg-1' })
-
-    expect(resolveReactInspectorSelection({
-      ...svgArgs,
-      activeReactEngineId: 'oscilloscope',
-      oscillatorSettings: { ...DEFAULT_OSCILLATOR_SETTINGS, sourceType: 'builtinShape', builtinShape: 'star' },
-    })).toEqual({ kind: 'soundDrawingSource', id: 'shape:star' })
   })
 
   it('requires an active Shader scene', () => {

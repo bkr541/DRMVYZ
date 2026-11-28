@@ -17,7 +17,7 @@ describe('React workspace composition', () => {
       'shaderPads',
       'cinematicPortal',
       'cinema',
-      'oscilloscope',
+      'xyScope',
       'canvas',
       'laserDmx',
       'pixGrid',
@@ -31,26 +31,8 @@ describe('React workspace composition', () => {
     }
   })
 
-  it('mounts Sound Drawing authoring lanes only for Sound Drawing', () => {
-    const soundDrawing = resolveReactWorkspaceComposition('oscilloscope', 'beamMatrix', false)
-    expect(soundDrawing.showSoundDrawingTimeline).toBe(true)
-    expect(getReactLowerSurfaces(soundDrawing)).toEqual([
-      'trackMap',
-      'soundDrawing',
-      'performancePads',
-    ])
-    expect(isReactLowerSurfaceAvailable('soundDrawing', soundDrawing)).toBe(true)
-
-    for (const engine of ['shaderPads', 'cinematicPortal', 'cinema', 'canvas', 'laserDmx', 'pixGrid', 'headliner'] as ReactEngineId[]) {
-      const composition = resolveReactWorkspaceComposition(engine, 'beamMatrix', false)
-      expect(composition.showSoundDrawingTimeline).toBe(false)
-      expect(getReactLowerSurfaces(composition)).not.toContain('soundDrawing')
-      expect(isReactLowerSurfaceAvailable('soundDrawing', composition)).toBe(false)
-    }
-  })
-
   it('shows the performance pads for every selectable engine', () => {
-    const engines = ['shaderPads', 'cinema2', 'headliner', 'oscilloscope', 'canvas', 'laserDmx', 'pixGrid', 'cinematicPortal'] as ReactEngineId[]
+    const engines = ['shaderPads', 'cinema2', 'headliner', 'xyScope', 'canvas', 'laserDmx', 'pixGrid', 'cinematicPortal'] as ReactEngineId[]
     for (const engine of engines) {
       const composition = resolveReactWorkspaceComposition(engine, 'beamMatrix', false)
       expect(composition.showPerformancePads, engine).toBe(true)
@@ -74,7 +56,7 @@ describe('React workspace composition', () => {
     expect(getReactLowerSurfaces(cinema2)).toEqual(['trackMap', 'performancePads'])
     expect(cinema2.showTrackMap).toBe(true)
 
-    for (const engine of ['cinematicPortal', 'oscilloscope', 'canvas', 'laserDmx', 'pixGrid'] as ReactEngineId[]) {
+    for (const engine of ['cinematicPortal', 'xyScope', 'canvas', 'laserDmx', 'pixGrid'] as ReactEngineId[]) {
       const composition = resolveReactWorkspaceComposition(engine, 'beamMatrix', false)
       expect(composition.showPerformancePads).toBe(true)
     }
@@ -118,9 +100,9 @@ describe('React workspace composition', () => {
     expect(getReactLeftTabLabel('workspace', cinematic)).toBe('SOURCE')
     expect(isReactLeftTabAvailable('media', cinematic)).toBe(false)
 
-    const soundDrawing = resolveReactWorkspaceComposition('oscilloscope', 'beamMatrix', false)
-    expect(getReactLeftTabs(soundDrawing)).toEqual(['workspace', 'media'])
-    expect(getReactLeftTabLabel('workspace', soundDrawing)).toBe('SOURCE')
+    const xyScope = resolveReactWorkspaceComposition('xyScope', 'beamMatrix', false)
+    expect(getReactLeftTabs(xyScope)).toEqual(['workspace', 'media'])
+    expect(getReactLeftTabLabel('workspace', xyScope)).toBe('SOURCE')
 
     const canvas = resolveReactWorkspaceComposition('canvas', 'beamMatrix', false)
     expect(getReactLeftTabs(canvas)).toEqual(['workspace', 'layers'])
@@ -142,15 +124,13 @@ describe('React workspace composition', () => {
     expect(getReactLowerSurfaces(headliner)).toEqual(['trackMap', 'performancePads'])
     expect(headliner.showTrackMap).toBe(true)
     expect(headliner.showPerformancePads).toBe(true)
-    expect(headliner.showSoundDrawingTimeline).toBe(false)
   })
 
   it('never advertises unfinished or unrelated contextual destinations', () => {
-    for (const engine of ['shaderPads', 'cinematicPortal', 'cinema', 'oscilloscope', 'canvas', 'laserDmx', 'pixGrid', 'headliner'] as ReactEngineId[]) {
+    for (const engine of ['shaderPads', 'cinematicPortal', 'cinema', 'xyScope', 'canvas', 'laserDmx', 'pixGrid', 'headliner'] as ReactEngineId[]) {
       const tabs = getReactLeftTabs(resolveReactWorkspaceComposition(engine, 'beamMatrix', false))
       expect(tabs).not.toContain('sessions')
-      if (engine !== 'oscilloscope') expect(tabs).not.toContain('fonts')
-      if (engine !== 'oscilloscope' && engine !== 'pixGrid' && engine !== 'headliner') expect(tabs).not.toContain('media')
+      if (engine !== 'xyScope' && engine !== 'pixGrid' && engine !== 'headliner') expect(tabs).not.toContain('media')
     }
   })
 })

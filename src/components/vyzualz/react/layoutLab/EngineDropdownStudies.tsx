@@ -20,7 +20,6 @@ const ROWS = [
 
 const ENGINE_ART: Record<ReactLiveEngineId, { src: string; accent: string; position: string }> = {
   cinema2: { src: '/preset-artwork/drmvyz.cinema2.conduit.webp', accent: '#87b9ff', position: '64% 52%' },
-  oscilloscope: { src: '/layout-lab/sound-drawing.jpg', accent: '#76efb4', position: '88% 45%' },
   xyScope: { src: '/layout-lab/sound-drawing-xy.jpg', accent: '#cba7ff', position: '83% 49%' },
   canvas: { src: '/preset-artwork/canvas-fluidity.webp', accent: '#ffb1bb', position: '66% 55%' },
   laserDmx: { src: '/preset-artwork/dubstep-drop-lasers.webp', accent: '#f7a6e9', position: '69% 52%' },

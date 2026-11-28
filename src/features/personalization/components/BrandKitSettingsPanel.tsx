@@ -21,7 +21,6 @@ import {
   extractPaletteFromImageFile,
 } from '../paletteExtraction'
 import { BrandKitAssetsEditor } from './BrandKitAssetsEditor'
-import { BrandSoundDrawingShortcuts } from './BrandSoundDrawingShortcuts'
 import { BrandPersonalizationDiagnostics } from './BrandPersonalizationDiagnostics'
 import { BrandKitEngineControls } from './BrandKitEngineControls'
 import { BrandKitPaletteEditor } from './BrandKitPaletteEditor'
@@ -430,7 +429,6 @@ export function BrandKitSettingsPanel() {
             {loadingAssetsForKitId === kit.id
               ? <div className="bk-state" role="status">Loading linked assets…</div>
               : <BrandKitAssetsEditor kitId={kit.id} assets={assets} onPaletteAnalysis={applyAnalysis} />}
-            <BrandSoundDrawingShortcuts assets={assets} />
           </DualRailCollapsible>
 
           <DualRailCollapsible label="Palette" className="vsm-settings-group bk-settings-disclosure" defaultOpen={false}>

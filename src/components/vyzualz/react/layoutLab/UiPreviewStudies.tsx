@@ -50,7 +50,7 @@ const FRAME_CSS = [baseStyles, vyzualzStyles, appearanceStyles, floatingStyles, 
 const STAGE_CSS = '.ll-ui-stage { position: absolute; inset: 0 auto auto 0; width: 100%; } .ll-ui-stage .rv-shell, .ll-ui-stage .rv-layout, .ll-ui-stage .vz-inspector, .ll-ui-stage .vz-inspector-inner, .ll-ui-stage .vz-panel-body, .ll-ui-stage .rv-workspace-panel, .ll-ui-stage .rv-workspace-panel-body, .ll-ui-stage .rv-inspector-scroll { height: auto; max-height: none; overflow: visible; flex: none; } .ll-ui-stage .rv-layout { display: block; width: 354px; } .ll-ui-stage .vz-inspector { width: 354px; }'
 const FRAME_HTML = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="${BRAND_FONT_LINK}"></head><body></body></html>`
 
-const ENGINE_OPTIONS = [{ value: 'cinema2', label: 'Cinema 2.0' }, { value: 'soundDrawing', label: 'Sound Drawing' }, { value: 'canvas', label: 'CANVAS' }, { value: 'laserDmx', label: 'LaserDMX' }]
+const ENGINE_OPTIONS = [{ value: 'cinema2', label: 'Cinema 2.0' }, { value: 'canvas', label: 'CANVAS' }, { value: 'laserDmx', label: 'LaserDMX' }]
 const PATTERN_OPTIONS = [
   { value: 'stargazing', label: 'Stargazing', description: 'The authored picture with a slow breath.' },
   { value: 'reach', label: 'Reach', description: 'His arms rise toward the planets and lower again.' },

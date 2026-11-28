@@ -11,7 +11,7 @@ import { LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS } from '../react/LaserDmxSh
 import { LASER_DMX_SHOW_DIRECTOR_TEMPLATES } from '../react/laserDmxShowDirectorTemplates'
 import { resolvePresetDiscoveryMetadata } from '../react/presetDiscovery'
 
-export type PresetManagerArtwork = 'cinema2' | 'soundDrawing' | 'canvas' | 'laserDmx' | 'pixGrid' | 'headliner'
+export type PresetManagerArtwork = 'cinema2' | 'canvas' | 'laserDmx' | 'pixGrid' | 'headliner'
 export type PresetManagerActivation =
   | 'cinema2'
   | 'react'
@@ -40,7 +40,7 @@ export interface PresetManagerRecord {
 }
 
 function record(
-  source: 'cinema2' | 'soundDrawing' | 'canvas' | 'laserDmx' | 'pixGrid' | 'headliner',
+  source: 'cinema2' | 'canvas' | 'laserDmx' | 'pixGrid' | 'headliner',
   sourceId: string,
   name: string,
   description: string,
@@ -108,20 +108,6 @@ const cinema2Presets = cinema2NativePresetRegistry.list().flatMap(manifest => {
     cinema2Capabilities(manifest),
   )]
 })
-
-const soundDrawingPresets = currentReactPresets
-  .filter(preset => preset.engine === 'oscilloscope')
-  .map(preset => {
-    const discovery = resolvePresetDiscoveryMetadata(
-      preset,
-      preset.oscillatorSettings?.sourceType ?? 'sound-drawing',
-    )
-    return record('soundDrawing', preset.id, preset.name, preset.description, 'Sound Drawing', discovery.category, discovery.tags, 'react', preset as unknown as Readonly<Record<string, unknown>>, {
-      hasCamera: false,
-      canIntegrateUserMedia: true,
-      is3dEnvironment: false,
-    })
-  })
 
 const canvasPresets = CANVAS_VISIBLE_PRESETS
   .filter(preset => preset.id !== DEFAULT_CANVAS_PRESET_ID)
@@ -195,7 +181,6 @@ const headlinerPresets = HEADLINER_PRESETS.map(preset => {
 /** Every preset exposed by a current React engine. Legacy Cinema is intentionally excluded. */
 export const PRESET_MANAGER_PRESETS: readonly PresetManagerRecord[] = Object.freeze([
   ...cinema2Presets,
-  ...soundDrawingPresets,
   ...canvasPresets,
   ...laserDmxPresets,
   ...pixGridPresets,

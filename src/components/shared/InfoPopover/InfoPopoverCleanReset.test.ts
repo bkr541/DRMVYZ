@@ -39,7 +39,7 @@ describe('contextual help clean reset', () => {
   })
 
   it('preserves the registry and reusable modal component', () => {
-    expect(getHelpEntry('react.soundDrawing.authoredPerformance.autoPerformance')?.title).toBe('Auto Performance')
+    expect(getHelpEntry('react.shared.engine.engineSelection')?.title).toBe('Engine')
     expect(typeof InfoPopover).toBe('function')
   })
 })

@@ -1597,29 +1597,6 @@
   padding: 4px 10px 8px;
 }
 
-.rv-font-library-panel {
-  flex: 1;
-  min-height: 0;
-  height: 100%;
-}
-
-.rv-font-library-body {
-  flex: 1;
-  min-height: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
-  padding-bottom: 10px;
-  overscroll-behavior: contain;
-  scrollbar-gutter: stable;
-}
-
-.rv-font-library-body::-webkit-scrollbar { width: 4px; }
-.rv-font-library-body::-webkit-scrollbar-track { background: transparent; }
-.rv-font-library-body::-webkit-scrollbar-thumb {
-  background: rgba(74, 199, 219, 0.24);
-  border-radius: 2px;
-}
-
 .rv-font-preview-input {
   width: 100%;
   box-sizing: border-box;

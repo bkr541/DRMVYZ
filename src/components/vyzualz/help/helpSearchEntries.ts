@@ -45,7 +45,7 @@ export const HELP_SEARCH_ENTRIES: readonly HelpSearchEntry[] = [
   { id: 'audio-input', title: 'Audio Input', category: 'Music', summary: 'The sound source the visuals listen to.', keywords: ['microphone', 'mic', 'line', 'source', 'track', 'sound'],
     whatItDoes: ['Chooses between a track, a live input and a demo signal.', 'With a live input you can also pick the device.'],
     whenToUse: 'When switching between playing a track and listening to a room or a mixer.', affects: ['Everything that reacts to sound'], tip: 'Use the demo signal to try a preset without any music.' },
-  { id: 'sound-drawing', title: 'Sound Drawing', category: 'Music', summary: 'Draws the audio signal as an oscilloscope-style visual.', keywords: ['scope', 'oscilloscope', 'waveform', 'xy', 'stereo'],
+  { id: 'sound-drawing', title: 'Sound Drawing XY', category: 'Music', summary: 'Draws the audio signal as an oscilloscope-style visual.', keywords: ['scope', 'oscilloscope', 'waveform', 'xy', 'stereo'],
     whatItDoes: ['Plots the left and right channels against each other, like an XY oscilloscope.', 'Shapes in the sound become shapes on screen.'],
     whenToUse: 'When you want the visual to look like the sound itself.', tip: 'Stereo material gives the most interesting shapes.' },
   { id: 'render-fps', title: 'Render / FPS', category: 'Status', summary: 'How many frames per second are drawn, and how long each takes.', keywords: ['fps', 'frame', 'frames', 'speed', 'performance', 'lag'],

@@ -9,7 +9,6 @@ import {
   useReactStore,
 } from './reactStore'
 import {
-  DEFAULT_OSCILLATOR_SETTINGS,
   DEFAULT_PERFORMANCE_PADS,
   DEFAULT_REACT_PRESETS,
   createDefaultLaserDmxBeamMatrixSettings,
@@ -23,18 +22,18 @@ const firstFor = (engine: (typeof DEFAULT_REACT_PRESETS)[number]['engine']) =>
   DEFAULT_REACT_PRESETS.find(p => p.engine === engine)!
 
 describe('repairReactEnginePresetSelection', () => {
-  it('preserves an explicitly selected Sound Drawing preset in live memory', () => {
-    const preset = firstFor('oscilloscope')
-    expect(repairReactEnginePresetSelection(preset.id, 'oscilloscope')).toEqual({
+  it('preserves an explicitly selected PixGrid preset in live memory', () => {
+    const preset = firstFor('pixGrid')
+    expect(repairReactEnginePresetSelection(preset.id, 'pixGrid')).toEqual({
       activeReactPresetId: preset.id,
-      activeReactEngineId: 'oscilloscope',
+      activeReactEngineId: 'pixGrid',
     })
   })
 
-  it('keeps Sound Drawing preset-free when no preset was explicitly selected', () => {
-    expect(repairReactEnginePresetSelection(null, 'oscilloscope')).toEqual({
+  it('keeps Sound Drawing XY preset-free', () => {
+    expect(repairReactEnginePresetSelection(null, 'xyScope')).toEqual({
       activeReactPresetId: null,
-      activeReactEngineId: 'oscilloscope',
+      activeReactEngineId: 'xyScope',
     })
   })
 
@@ -71,10 +70,10 @@ describe('repairReactEnginePresetSelection', () => {
   })
 
   it('recovers an invalid engine from a valid preset', () => {
-    const preset = firstFor('oscilloscope')
+    const preset = firstFor('pixGrid')
     expect(repairReactEnginePresetSelection(preset.id, 'removed-engine')).toEqual({
       activeReactPresetId: preset.id,
-      activeReactEngineId: 'oscilloscope',
+      activeReactEngineId: 'pixGrid',
     })
   })
 
@@ -122,46 +121,50 @@ describe('React selection persistence invariant', () => {
     expect(persisted.activeReactPresetId).toBeNull()
   })
 
-  it('does not persist a selected Sound Drawing preset or its display payload', () => {
-    const preset = firstFor('oscilloscope')
-    useReactStore.getState().selectReactPreset(preset.id)
-    useReactStore.getState().setOscillatorSettings({
-      sourceType: 'text',
-      text: 'PRESET PAYLOAD',
-      autoSectionMode: true,
-    })
-
-    const persisted = reactStorePartialize(useReactStore.getState())
-    expect(persisted.activeReactEngineId).toBe('oscilloscope')
-    expect(persisted.activeReactPresetId).toBeNull()
-    expect(persisted.oscillatorSettings).toEqual(DEFAULT_OSCILLATOR_SETTINGS)
-    expect(persisted.reactIntensity).toBe(0.7)
-    expect(persisted.reactMotion).toBe(0.5)
-    expect(persisted.reactGlow).toBe(0.65)
-  })
-
-  it('migrates an old Sound Drawing preset selection back to the base engine', () => {
-    const preset = firstFor('oscilloscope')
+  it('retires a saved Sound Drawing selection, its presets, pads, cues and state to Sound Drawing XY', () => {
+    const userPreset = { ...firstFor('pixGrid'), id: 'user-sound-drawing', engine: 'oscilloscope' }
     const migrated = migrateReactStore({
-      activeReactPresetId: preset.id,
+      activeReactPresetId: 'preset-xy-cyan-scope',
       activeReactEngineId: 'oscilloscope',
-      oscillatorSettings: {
-        ...DEFAULT_OSCILLATOR_SETTINGS,
-        sourceType: 'text',
-        text: 'OLD PRESET',
-        autoSectionMode: true,
+      reactPresets: [...DEFAULT_REACT_PRESETS, userPreset],
+      performancePads: [
+        { ...DEFAULT_PERFORMANCE_PADS[0], id: 'pad-a', presetId: 'preset-bass-triangle-reactor', label: 'Reactor' },
+        { ...DEFAULT_PERFORMANCE_PADS[0], id: 'pad-b', presetId: 'user-sound-drawing', label: 'Mine' },
+        { ...DEFAULT_PERFORMANCE_PADS[0], id: 'pad-c', presetId: null, label: 'Old', destination: { schemaVersion: 1, engineId: 'oscilloscope', presetId: 'preset-lissajous-flower' } },
+        { ...DEFAULT_PERFORMANCE_PADS[0], id: 'pad-d', presetId: firstFor('pixGrid').id, label: 'Keep' },
+      ],
+      presetAutomationCuesByTrackId: {
+        track: [
+          { id: 'cue-old', timeSec: 1, presetId: 'preset-spiral-signal', label: 'Old', enabled: true, transitionMs: 0 },
+          { id: 'cue-keep', timeSec: 2, presetId: firstFor('pixGrid').id, label: 'Keep', enabled: true, transitionMs: 0 },
+        ],
       },
-      reactIntensity: 0.12,
-      reactMotion: 0.93,
-      reactGlow: 1,
+      oscillatorSettings: { sourceType: 'text', text: 'OLD' },
+      soundDrawingPerformanceSettings: {},
+      oscillatorGlyphAssets: [],
+      soundDrawingLayersByTrackId: {},
+      soundDrawingClipsByTrackId: {},
     }, 59)
 
-    expect(migrated.activeReactEngineId).toBe('oscilloscope')
+    expect(migrated.activeReactEngineId).toBe('xyScope')
     expect(migrated.activeReactPresetId).toBeNull()
-    expect(migrated.oscillatorSettings).toEqual(DEFAULT_OSCILLATOR_SETTINGS)
-    expect(migrated.reactIntensity).toBe(0.7)
-    expect(migrated.reactMotion).toBe(0.5)
-    expect(migrated.reactGlow).toBe(0.65)
+    const presets = migrated.reactPresets as { id: string; engine: string }[]
+    expect(presets.some(preset => preset.engine === 'oscilloscope')).toBe(false)
+    const pads = migrated.performancePads as { id: string; presetId: string | null; label: string; destination?: unknown }[]
+    expect(pads.find(pad => pad.id === 'pad-a')).toMatchObject({ presetId: null, label: 'OCTA', destination: { schemaVersion: 1, engineId: 'xyScope', presetId: 'octa' } })
+    expect(pads.find(pad => pad.id === 'pad-b')).toMatchObject({ presetId: null, label: 'Converse', destination: { engineId: 'xyScope', presetId: 'conversation' } })
+    expect(pads.find(pad => pad.id === 'pad-c')).toMatchObject({ presetId: null, label: 'Clean Scope', destination: { engineId: 'xyScope', presetId: 'clean-scope' } })
+    expect(pads.find(pad => pad.id === 'pad-d')?.presetId).toBe(firstFor('pixGrid').id)
+    const cues = (migrated.presetAutomationCuesByTrackId as Record<string, { id: string }[]>).track
+    expect(cues.map(cue => cue.id)).toEqual(['cue-keep'])
+    for (const key of ['oscillatorSettings', 'soundDrawingPerformanceSettings', 'oscillatorGlyphAssets', 'soundDrawingLayersByTrackId', 'soundDrawingClipsByTrackId']) {
+      expect(migrated).not.toHaveProperty(key)
+    }
+  })
+
+  it('retires a Sound Drawing selection in a current-version snapshot too', () => {
+    const migrated = migrateReactStore({ activeReactPresetId: null, activeReactEngineId: 'oscilloscope' }, 86)
+    expect(migrated.activeReactEngineId).toBe('xyScope')
   })
 
   it('migrates a live Cinema selection to Cinema 2.0 at the persistence boundary', () => {
@@ -185,12 +188,12 @@ describe('React selection persistence invariant', () => {
   })
 
   it('compatibility preset setter also synchronizes the engine', () => {
-    const preset = firstFor('oscilloscope')
+    const preset = firstFor('pixGrid')
     useReactStore.getState().setActiveReactPresetId(preset.id)
 
     const state = useReactStore.getState()
     expect(state.activeReactPresetId).toBe(preset.id)
-    expect(state.activeReactEngineId).toBe('oscilloscope')
+    expect(state.activeReactEngineId).toBe('pixGrid')
   })
 })
 
@@ -218,13 +221,9 @@ describe('React authored-state persistence', () => {
 
     expect(split.local.state.performancePads).toBeDefined()
     expect(split.local.state.laserDmxBeamMatrixPresetDirty).toBeDefined()
-    expect(split.local.state.oscillatorGlyphAssets).toBeUndefined()
-    expect(split.local.state.soundDrawingLayersByTrackId).toBeUndefined()
     expect(split.local.state.laserDmxBeamMatrix).toBeUndefined()
 
     expect(split.project.state.reactPresets).toBeDefined()
-    expect(split.project.state.oscillatorGlyphAssets).toBeDefined()
-    expect(split.project.state.soundDrawingLayersByTrackId).toBeDefined()
     expect(split.project.state.laserDmxBeamMatrix).toBeDefined()
   })
 

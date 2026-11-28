@@ -15,7 +15,6 @@ const ENGINES: ReadonlyArray<{
   label: string
   description: string
 }> = [
-  { id: 'oscilloscope', label: 'Sound Drawing', description: 'Waveforms, text, shapes, and palette-enabled SVG artwork.' },
   { id: 'laserDmx', label: 'LaserDMX', description: 'Transient virtual RGBW adaptation for Beam Matrix.' },
 ]
 

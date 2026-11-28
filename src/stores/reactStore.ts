@@ -18,7 +18,6 @@ import { createLegacyPortalCinematicConfig, normalizeCinematicWorldConfig } from
 import { resolveCinematicPresetBaseConfig, resolveCinematicPresetProvenance } from '../components/vyzualz/react/CinematicPresetProvenance'
 import { isLaserDmxBeamMatrixPresetModified } from '../components/vyzualz/react/LaserDmxBeamMatrixPresetProvenance'
 import { getLaserDmxBeamMatrixPreset } from '../components/vyzualz/react/laserDmxBeamMatrixPresets'
-import { normalizeSoundDrawingVisualSize } from '../components/vyzualz/react/soundDrawing/SoundDrawingVisualSize'
 import {
   DEFAULT_HEADLINER_SETTINGS,
   normalizeHeadlinerSettings,
@@ -26,10 +25,10 @@ import {
 } from '../components/vyzualz/react/headliner/HeadlinerSettings'
 import {
   DEFAULT_XY_SCOPE_SETTINGS,
+  getXyScopePreset,
   normalizeXyScopeSettings,
   type XyScopeSettings,
 } from '../components/vyzualz/react/xyScope/XyScopeSettings'
-import { normalizeSoundDrawingScopeState } from '../audio/scope/scopeStateNormalization'
 import {
   activateCinema2Workspace as activateCinema2WorkspaceDocument,
   archiveLegacyCinemaDocument,
@@ -54,7 +53,6 @@ import {
 import {
   DEFAULT_REACT_PRESETS,
   DEFAULT_PERFORMANCE_PADS,
-  DEFAULT_OSCILLATOR_SETTINGS,
   DEFAULT_CANVAS_ENGINE_SETTINGS,
   DEFAULT_CANVAS_PRESET_ID,
   CANVAS_PRESET_SETTINGS_SCHEMA_VERSION,
@@ -95,8 +93,7 @@ import type {
   ReactPerformancePadTransition,
   ReactPresetControlValues,
   ReactPresetAutomationCue,
-  ClassicScopeMode,
-  OscillatorSettings,
+  ReactEngineDestination,
   CanvasEngineSettings,
   CanvasFitMode,
   CanvasMediaItem,
@@ -120,13 +117,7 @@ import type {
   CanvasSectionTriggerType,
   CanvasTriggerOn,
   CanvasVideoTimingSettings,
-  OscillatorGlyphAsset,
-  OscillatorGlyphPoint,
   OscillatorFontAsset,
-  SoundDrawingLayer,
-  SoundDrawingClip,
-  SoundDrawingTextSource,
-  SoundDrawingLyricGapBehavior,
   LaserDmxSettings,
   LaserDmxFixture,
   LaserDmxProfileId,
@@ -212,7 +203,6 @@ import {
   type ShowManagerTrackMap,
 } from '../components/vyzualz/showManager/ShowManagerDomain'
 import { resolvePerformancePadTransition } from '../components/vyzualz/react/renderers/reactPresetTransition'
-import { SOUND_DRAWING_PERFORMANCE_SHOWS } from '../components/vyzualz/react/soundDrawing/SoundDrawingPerformanceShows'
 import {
   DEFAULT_CANVAS_ORCHESTRATION_SETTINGS,
   CANVAS_MEDIA_ROLES,
@@ -269,7 +259,7 @@ import {
 } from '../components/vyzualz/react/canvasPerformance/CanvasAuthoringState'
 import { normalizeCanvasCutbankSettings } from '../components/vyzualz/react/renderers/cutbank/CutbankSettings'
 import { getAutoPerformanceUserDefault, subscribeAutoPerformanceUserDefault } from '../lib/autoPerformanceDefault'
-import { applyAutoPerformanceDefaultToReactState, applyAutoPerformanceDefaultToSoundDrawing } from './autoPerformanceDefaultReact'
+import { applyAutoPerformanceDefaultToReactState } from './autoPerformanceDefaultReact'
 import { normalizeCanvasVhsSettings } from '../components/vyzualz/react/renderers/vhs/VhsSettings'
 import { normalizeCanvasDivinitySettings } from '../components/vyzualz/react/renderers/divinity/DivinitySettings'
 import { normalizeCanvasFluiditySettings } from '../components/vyzualz/react/renderers/fluidity/FluiditySettings'
@@ -283,22 +273,6 @@ import { normalizeCanvasShiftgridSettings } from '../components/vyzualz/react/re
 import { CANVAS_COMPOSITION_TEMPLATES } from '../components/vyzualz/react/canvasPerformance/CanvasCompositionTemplates'
 import { CANVAS_TRANSITIONS } from '../components/vyzualz/react/canvasPerformance/CanvasTransitions'
 import { normalizeCanvasFracturesOverrideProfile } from '../components/vyzualz/react/canvasPerformance/CanvasFracturesPerformance'
-import {
-  DEFAULT_SOUND_DRAWING_LIVING_RIBBON_SETTINGS,
-  DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS,
-  SOUND_DRAWING_GENERATOR_FAMILIES,
-  type SoundDrawingGeneratorPreference,
-  type SoundDrawingPerformanceLockKey,
-  type SoundDrawingPerformanceSettings,
-  type SoundDrawingPerformanceSettingsPatch,
-  type SoundDrawingPerformanceShowId,
-} from '../components/vyzualz/react/soundDrawing/SoundDrawingPerformanceTypes'
-import {
-  parseSvgToGlyphPoints,
-  makeSvgGlyphAsset,
-  isSvgContent,
-  getSvgGlyphCacheKey,
-} from '../components/vyzualz/react/renderers/svgGlyphUtils'
 import { resetBeamMatrixCompilerState } from '../components/vyzualz/react/renderers/LaserDmxBeamMatrixCompiler'
 import { resetFogState } from '../components/vyzualz/react/renderers/LaserDmxFogRenderer'
 import {
@@ -354,13 +328,6 @@ import {
   createLaserDmxShowDirectorPerformancePresetLoadResult,
   type LaserDmxShowDirectorPerformancePresetDefinition,
 } from '../components/vyzualz/react/LaserDmxShowDirectorPerformancePresets'
-import {
-  getSvgVisualEntry,
-  clearSvgVisualCache,
-  setSvgVisualEntry,
-  evictSvgVisual,
-  isCurrentSvgVisualGeneration,
-} from '../components/vyzualz/react/renderers/svgVisualCache'
 import {
   readReactPresetFavorites,
   sanitizeReactPresetFavorites,
@@ -431,795 +398,21 @@ import {
   type Cinema2LegacySelectionMigration,
   type Cinema2LegacySourceIdentity,
 } from '../components/vyzualz/cinema2/migration/Cinema2LegacyStateMigration'
-import {
-  getMediaIdFromSvgGlyphId,
-  getSvgGlyphAssetId,
-  normalizeUnifiedSvgSettings,
-} from '../components/vyzualz/react/svgSourceLifecycle'
-import { useMediaStore } from './mediaStore'
 import { notify } from './notificationStore'
-import { createSignedMediaUrl } from '../lib/mediaDb'
 import { normalizeTags } from '../lib/mediaOrganization'
-import * as opentype from 'opentype.js'
 import {
-  parseOpenTypeFontFromAsset,
-  textToOpenTypeGlyphPoints,
   evictFontFromCache,
   inspectFontFile,
   storeFontRuntime,
-  hasFontRuntime,
-  getBufferFromCache,
 } from '../components/vyzualz/react/renderers/fontGlyphUtils'
 import { supabase, supabaseConfigured } from '../lib/supabase'
-import { uploadFontFile, createFontAsset, updateFontAssetName, updateFontAssetMetadata, removeFontFile, listFontAssets, downloadFontFile, deleteFontAsset } from '../lib/fontDb'
+import { uploadFontFile, createFontAsset, updateFontAssetName, updateFontAssetMetadata, removeFontFile, listFontAssets, deleteFontAsset } from '../lib/fontDb'
 
 // Maps validated MIME type to a fixed, path-safe Storage object filename.
 // file.name is kept only in font_assets.file_name (DB metadata), never in the path.
 const SAFE_FONT_FILENAME: Record<string, string> = {
   'font/ttf': 'font.ttf',
   'font/otf': 'font.otf',
-}
-
-// ── Point cache helpers ───────────────────────────────────────────────────────
-// SVG cache key:  getSvgGlyphCacheKey(assetId, res, hash) → "${assetId}:${res}:v${version}:${hash}"
-// Text cache key: "${fontId}:${text}:${fontSize}:${letterSpacing}:${resolution}"
-// Resolution is clamped to [64, 2048] matching the renderer's own clamp.
-
-function clampRes(v: number): number {
-  return Math.max(64, Math.min(2048, Math.round(v)))
-}
-
-function textCacheKey(fontId: string, text: string, spacing: number, lineHeight: number, alignment: string, res: number): string {
-  return `${fontId}:${text.trim()}:${spacing}:${lineHeight}:${alignment}:${res}`
-}
-
-export const SOUND_DRAWING_TEXT_POINT_CACHE_MAX = 64
-
-function putBoundedTextPoints(
-  cache: Record<string, OscillatorGlyphPoint[]>,
-  key: string,
-  points: OscillatorGlyphPoint[],
-): Record<string, OscillatorGlyphPoint[]> {
-  if (cache[key]) return cache
-  const next = { ...cache, [key]: points }
-  const keys = Object.keys(next)
-  for (let index = 0; index < keys.length - SOUND_DRAWING_TEXT_POINT_CACHE_MAX; index += 1) {
-    delete next[keys[index]]
-  }
-  return next
-}
-
-function normalizeSoundDrawingTextSource(value: unknown): SoundDrawingTextSource {
-  return value === 'activeLyricLine' || value === 'activeLyricWord' ? value : 'static'
-}
-
-function normalizeSoundDrawingGapBehavior(value: unknown): SoundDrawingLyricGapBehavior {
-  return value === 'keepPrevious' || value === 'fallback' ? value : 'hide'
-}
-
-/**
- * Migrates the legacy `lissajous` classic mode to `monoDelayXY`.
- *
- * The old mode plotted one half of a mono time-domain buffer against the other,
- * which is a delayed mono phase portrait. `monoDelayXY` renders identically, so
- * saved projects keep their exact appearance while the label stops claiming a
- * stereo measurement the mode never performed. Values are not promoted to
- * `stereoXY`, which would visibly change existing work.
- */
-function normalizeClassicScopeMode(value: unknown): ClassicScopeMode {
-  if (value === 'lissajous') return 'monoDelayXY'
-  return value === 'sectionAuto' ||
-    value === 'waveform' ||
-    value === 'monoDelayXY' ||
-    value === 'radialScope' ||
-    value === 'spiralScope' ||
-    value === 'professionalScope'
-    ? value
-    : DEFAULT_OSCILLATOR_SETTINGS.classicMode
-}
-
-function normalizeOscillatorSettings(settings: OscillatorSettings): OscillatorSettings {
-  const normalized = normalizeUnifiedSvgSettings(settings)
-  const raw = settings as Partial<OscillatorSettings>
-  return {
-    ...normalized,
-    classicMode: normalizeClassicScopeMode(normalized.classicMode),
-    scope: normalizeSoundDrawingScopeState(raw.scope),
-    pathScale: normalizeSoundDrawingVisualSize(normalized.pathScale),
-    textSource: normalizeSoundDrawingTextSource(normalized.textSource),
-    lyricGapBehavior: normalizeSoundDrawingGapBehavior(normalized.lyricGapBehavior),
-    lyricFallbackText: typeof normalized.lyricFallbackText === 'string'
-      ? normalized.lyricFallbackText
-      : '',
-    // Projects persisted before scanner kinematics existed have these fields
-    // undefined; default them in here rather than a version-gated migration
-    // block, since this function already runs unconditionally on every
-    // persisted oscillatorSettings load (see migrateReactStore).
-    scannerKinematicsEnabled: raw.scannerKinematicsEnabled === true,
-    scannerCornerDwellMicros: Math.max(
-      0,
-      finiteNumber(raw.scannerCornerDwellMicros, DEFAULT_OSCILLATOR_SETTINGS.scannerCornerDwellMicros),
-    ),
-    scannerBlankingDelayMicros: Math.max(
-      0,
-      finiteNumber(raw.scannerBlankingDelayMicros, DEFAULT_OSCILLATOR_SETTINGS.scannerBlankingDelayMicros),
-    ),
-    scannerMaxAngularVelocityDegPerSec: Math.max(
-      1,
-      finiteNumber(
-        raw.scannerMaxAngularVelocityDegPerSec,
-        DEFAULT_OSCILLATOR_SETTINGS.scannerMaxAngularVelocityDegPerSec,
-      ),
-    ),
-  }
-}
-
-const SOUND_DRAWING_PERFORMANCE_SHOW_IDS = new Set<SoundDrawingPerformanceShowId>(
-  SOUND_DRAWING_PERFORMANCE_SHOWS.map(show => show.id),
-)
-const SOUND_DRAWING_GENERATOR_PREFERENCES = new Set<SoundDrawingGeneratorPreference>([
-  'authored',
-  ...SOUND_DRAWING_GENERATOR_FAMILIES,
-])
-const SOUND_DRAWING_VISUAL_QUALITIES = new Set(['auto', 'low', 'medium', 'high'])
-const SOUND_DRAWING_PERFORMANCE_SOURCES = new Set(['generatedVisual', 'activeUserSource'])
-const SOUND_DRAWING_SOURCE_TREATMENTS = new Set(['preserveIdentity', 'controlledReactive', 'liquidContour', 'abstractDeformation'])
-const SOUND_DRAWING_SOURCE_POLICIES = new Set(['primaryMotif', 'supportingLayer', 'both'])
-
-export function normalizeSoundDrawingPerformanceSettings(value: unknown): SoundDrawingPerformanceSettings {
-  const source = isRecord(value) ? value : {}
-  const selectedShowId =
-    typeof source.selectedShowId === 'string' &&
-    SOUND_DRAWING_PERFORMANCE_SHOW_IDS.has(source.selectedShowId as SoundDrawingPerformanceShowId)
-      ? (source.selectedShowId as SoundDrawingPerformanceShowId)
-      : null
-  const autoPerformance = source.autoPerformance === true && selectedShowId !== null
-  const showSelected = selectedShowId !== null
-  const generatorPreference =
-    typeof source.generatorPreference === 'string' &&
-    SOUND_DRAWING_GENERATOR_PREFERENCES.has(source.generatorPreference as SoundDrawingGeneratorPreference)
-      ? (source.generatorPreference as SoundDrawingGeneratorPreference)
-    : DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.generatorPreference
-  const ribbonSource = isRecord(source.livingRibbon) ? source.livingRibbon : {}
-  const legacyQuality =
-    typeof source.quality === 'string' && SOUND_DRAWING_VISUAL_QUALITIES.has(source.quality)
-      ? (source.quality as SoundDrawingPerformanceSettings['quality'])
-      : DEFAULT_SOUND_DRAWING_LIVING_RIBBON_SETTINGS.quality
-  const livingRibbon = {
-    quality:
-      typeof ribbonSource.quality === 'string' && SOUND_DRAWING_VISUAL_QUALITIES.has(ribbonSource.quality)
-        ? (ribbonSource.quality as SoundDrawingPerformanceSettings['livingRibbon']['quality'])
-        : legacyQuality,
-    pointDensity: Math.max(
-      0,
-      Math.min(1, finiteNumber(ribbonSource.pointDensity, DEFAULT_SOUND_DRAWING_LIVING_RIBBON_SETTINGS.pointDensity)),
-    ),
-    tension: Math.max(
-      0,
-      Math.min(1, finiteNumber(ribbonSource.tension, DEFAULT_SOUND_DRAWING_LIVING_RIBBON_SETTINGS.tension)),
-    ),
-    turbulence: Math.max(
-      0,
-      Math.min(1, finiteNumber(ribbonSource.turbulence, DEFAULT_SOUND_DRAWING_LIVING_RIBBON_SETTINGS.turbulence)),
-    ),
-    bodyWidth: Math.max(
-      0,
-      Math.min(1, finiteNumber(ribbonSource.bodyWidth, DEFAULT_SOUND_DRAWING_LIVING_RIBBON_SETTINGS.bodyWidth)),
-    ),
-    trailPersistence: Math.max(
-      0,
-      Math.min(
-        1,
-        finiteNumber(ribbonSource.trailPersistence, DEFAULT_SOUND_DRAWING_LIVING_RIBBON_SETTINGS.trailPersistence),
-      ),
-    ),
-    bloom: Math.max(
-      0,
-      Math.min(1, finiteNumber(ribbonSource.bloom, DEFAULT_SOUND_DRAWING_LIVING_RIBBON_SETTINGS.bloom)),
-    ),
-    sparkAmount: Math.max(
-      0,
-      Math.min(1, finiteNumber(ribbonSource.sparkAmount, DEFAULT_SOUND_DRAWING_LIVING_RIBBON_SETTINGS.sparkAmount)),
-    ),
-    centerAttraction: Math.max(
-      0,
-      Math.min(
-        1,
-        finiteNumber(ribbonSource.centerAttraction, DEFAULT_SOUND_DRAWING_LIVING_RIBBON_SETTINGS.centerAttraction),
-      ),
-    ),
-    audioReactionDepth: Math.max(
-      0,
-      Math.min(
-        1,
-        finiteNumber(ribbonSource.audioReactionDepth, DEFAULT_SOUND_DRAWING_LIVING_RIBBON_SETTINGS.audioReactionDepth),
-      ),
-    ),
-  }
-  const locksSource = isRecord(source.locks) ? source.locks : {}
-  const locks = Object.fromEntries(
-    (Object.keys(DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.locks) as SoundDrawingPerformanceLockKey[]).map((key) => [
-      key,
-      locksSource[key] === true,
-    ]),
-  ) as Record<SoundDrawingPerformanceLockKey, boolean>
-  const trailLockSource = isRecord(source.trailLockContract) ? source.trailLockContract : null
-  const trailSnapshotSource = trailLockSource && isRecord(trailLockSource.snapshot)
-    ? trailLockSource.snapshot
-    : null
-  const trailLockContract = trailLockSource
-    ? {
-        version: trailLockSource.version === 1 || trailLockSource.mode === 'legacyRecipe' ? 1 as const : 2 as const,
-        mode: trailLockSource.version === 1 || trailLockSource.mode === 'legacyRecipe'
-          ? 'legacyRecipe' as const
-          : 'manualResolved' as const,
-        snapshot: trailSnapshotSource
-          ? {
-              trailDecay: Math.max(0, Math.min(1, finiteNumber(trailSnapshotSource.trailDecay, 0.76))),
-              autoSectionMode: trailSnapshotSource.autoSectionMode === true,
-              ribbonTrailPersistence: Math.max(
-                0,
-                Math.min(
-                  1,
-                  finiteNumber(
-                    trailSnapshotSource.ribbonTrailPersistence,
-                    DEFAULT_SOUND_DRAWING_LIVING_RIBBON_SETTINGS.trailPersistence,
-                  ),
-                ),
-              ),
-            }
-          : null,
-      }
-    : locks.trail
-      ? { version: 1 as const, mode: 'legacyRecipe' as const, snapshot: null }
-      : { ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.trailLockContract }
-  return {
-    selectedShowId,
-    autoPerformance,
-    complexity: Math.max(
-      0,
-      Math.min(1, finiteNumber(source.complexity, DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.complexity)),
-    ),
-    motionIntensity: Math.max(
-      0,
-      Math.min(1, finiteNumber(source.motionIntensity, DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.motionIntensity)),
-    ),
-    reactionIntensity: Math.max(
-      0,
-      Math.min(1, finiteNumber(source.reactionIntensity, DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.reactionIntensity)),
-    ),
-    trailIntensity: Math.max(
-      0,
-      Math.min(1, finiteNumber(source.trailIntensity, DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.trailIntensity)),
-    ),
-    generatorPreference: showSelected ? 'authored' : generatorPreference,
-    quality:
-      typeof source.quality === 'string' && SOUND_DRAWING_VISUAL_QUALITIES.has(source.quality)
-        ? (source.quality as SoundDrawingPerformanceSettings['quality'])
-      : DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.quality,
-    livingRibbon,
-    performanceSource: showSelected
-      ? 'generatedVisual'
-      : source.performanceSource === 'activeText' || source.performanceSource === 'activeSvg'
-        ? 'activeUserSource'
-        : typeof source.performanceSource === 'string' && SOUND_DRAWING_PERFORMANCE_SOURCES.has(source.performanceSource)
-          ? (source.performanceSource as SoundDrawingPerformanceSettings['performanceSource'])
-          : DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.performanceSource,
-    sourceTreatment:
-      typeof source.sourceTreatment === 'string' && SOUND_DRAWING_SOURCE_TREATMENTS.has(source.sourceTreatment)
-        ? (source.sourceTreatment as SoundDrawingPerformanceSettings['sourceTreatment'])
-      : DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.sourceTreatment,
-    useSourceAs:
-      typeof source.useSourceAs === 'string' && SOUND_DRAWING_SOURCE_POLICIES.has(source.useSourceAs)
-        ? (source.useSourceAs as SoundDrawingPerformanceSettings['useSourceAs'])
-      : DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.useSourceAs,
-    preserveIdentity: source.preserveIdentity !== false,
-    contourReactivity: Math.max(
-      0,
-      Math.min(1, finiteNumber(source.contourReactivity, DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.contourReactivity)),
-    ),
-    wholeObjectMotion: Math.max(
-      0,
-      Math.min(1, finiteNumber(source.wholeObjectMotion, DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.wholeObjectMotion)),
-    ),
-    echoStrength: Math.max(
-      0,
-      Math.min(1, finiteNumber(source.echoStrength, DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.echoStrength)),
-    ),
-    sourceTrailStrength: Math.max(
-      0,
-      Math.min(
-        1,
-        finiteNumber(source.sourceTrailStrength, DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.sourceTrailStrength),
-      ),
-    ),
-    supportingVisualReactivity: Math.max(
-      0,
-      Math.min(
-        1,
-        finiteNumber(
-          source.supportingVisualReactivity,
-          DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.supportingVisualReactivity,
-        ),
-      ),
-    ),
-    locks: showSelected ? { ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.locks } : locks,
-    trailLockContract: showSelected
-      ? { ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.trailLockContract }
-      : trailLockContract,
-  }
-}
-
-function prepareSvgPoints(
-  asset: OscillatorGlyphAsset,
-  res: number,
-  cache: Record<string, OscillatorGlyphPoint[]>,
-): Record<string, OscillatorGlyphPoint[]> {
-  if (!asset.rawSvg) return cache
-  const key = getSvgGlyphCacheKey(asset.id, res, asset.contentHash)
-  if (cache[key]) return cache  // already prepared
-  return { ...cache, [key]: parseSvgToGlyphPoints(asset.rawSvg, res) }
-}
-
-// ── Unified SVG cache lifecycle ──────────────────────────────────────────────
-// Selection lives only in oscillatorSettings.sourceType === 'svg' + selectedSvgId.
-// These helpers rebuild serializable glyph data and non-serializable artwork
-// caches without changing the active source, selected asset, or render mode.
-
-type SvgMediaItem = ReturnType<typeof useMediaStore.getState>['items'][number]
-
-interface LoadedSvgMedia {
-  item: SvgMediaItem
-  rawSvg: string
-}
-
-let _svgSelectionGeneration = 0
-let _svgCacheGeneration = 0
-const _svgCacheGenerationByMedia = new Map<string, number>()
-const _svgCacheLoads = new Map<string, Promise<void>>()
-
-function svgMediaIdentity(item: SvgMediaItem): string {
-  return `${item.id}::${item.url ?? ''}::${item.storagePath ?? ''}`
-}
-
-async function fetchSvgText(url: string): Promise<string | null> {
-  try {
-    const response = await fetch(url, { cache: 'no-store' })
-    if (!response.ok) return null
-    return await response.text()
-  } catch {
-    return null
-  }
-}
-
-async function loadSvgMedia(mediaId: string): Promise<LoadedSvgMedia | null> {
-  const item = useMediaStore.getState().items.find(candidate => candidate.id === mediaId)
-  if (!item) return null
-
-  let rawSvg = item.url ? await fetchSvgText(item.url) : null
-  if (!rawSvg && item.storagePath) {
-    const { url: freshUrl } = await createSignedMediaUrl(item.storagePath)
-    if (freshUrl) rawSvg = await fetchSvgText(freshUrl)
-  }
-
-  if (!rawSvg || !isSvgContent(rawSvg)) return null
-  return { item, rawSvg }
-}
-
-function visualIdentityMatches(entry: ReturnType<typeof getSvgVisualEntry>, item: SvgMediaItem): boolean {
-  if (!entry?.loaded) return false
-  const urlChanged = entry.mediaUrl !== undefined && entry.mediaUrl !== (item.url || undefined)
-  const pathChanged = entry.storagePath !== undefined && entry.storagePath !== (item.storagePath || undefined)
-  return !urlChanged && !pathChanged
-}
-
-function cacheUnifiedSvgGlyph(loaded: LoadedSvgMedia, generation: number): void {
-  if (_svgCacheGenerationByMedia.get(loaded.item.id) !== generation) return
-
-  const stableId = getSvgGlyphAssetId(loaded.item.id)
-  const displayName = (loaded.item.title ?? loaded.item.name).replace(/\.svg$/i, '').trim() || 'SVG'
-  const res = clampRes(useReactStore.getState().oscillatorSettings.pathResolution)
-  const nextAsset = makeSvgGlyphAsset(displayName, loaded.rawSvg, res, stableId)
-
-  useReactStore.setState(state => {
-    if (_svgCacheGenerationByMedia.get(loaded.item.id) !== generation) return {}
-    const existingIndex = state.oscillatorGlyphAssets.findIndex(asset => asset.id === stableId)
-    const existing = existingIndex >= 0 ? state.oscillatorGlyphAssets[existingIndex] : undefined
-    const asset: OscillatorGlyphAsset = existing && existing.contentHash === nextAsset.contentHash
-      ? existing
-      : nextAsset
-    const assets = existingIndex < 0
-      ? [...state.oscillatorGlyphAssets, asset]
-      : state.oscillatorGlyphAssets.map(candidate => candidate.id === stableId ? asset : candidate)
-    const pointCache = prepareSvgPoints(asset, clampRes(state.oscillatorSettings.pathResolution), state.oscillatorGlyphPointCache)
-    return {
-      oscillatorGlyphAssets: assets,
-      oscillatorGlyphPointCache: pointCache,
-    }
-  })
-}
-
-function decodeUnifiedSvgVisual(loaded: LoadedSvgMedia, generation: number): Promise<void> {
-  const { item, rawSvg } = loaded
-  const objectUrl = URL.createObjectURL(new Blob([rawSvg], { type: 'image/svg+xml' }))
-  const image = new Image()
-
-  return new Promise(resolve => {
-    image.onload = () => {
-      if (!isCurrentSvgVisualGeneration(item.id, generation)) {
-        URL.revokeObjectURL(objectUrl)
-        resolve()
-        return
-      }
-      setSvgVisualEntry({
-        id: item.id,
-        loading: false,
-        image,
-        objectUrl,
-        loaded: true,
-        error: null,
-        width: image.naturalWidth || 512,
-        height: image.naturalHeight || 512,
-        mediaUrl: item.url || undefined,
-        storagePath: item.storagePath || undefined,
-        generation,
-      })
-      resolve()
-    }
-    image.onerror = () => {
-      URL.revokeObjectURL(objectUrl)
-      if (isCurrentSvgVisualGeneration(item.id, generation)) {
-        setSvgVisualEntry({
-          id: item.id,
-          loading: false,
-          image: null,
-          objectUrl: null,
-          loaded: false,
-          error: 'SVG image failed to render',
-          width: 0,
-          height: 0,
-          generation,
-        })
-      }
-      resolve()
-    }
-    image.src = objectUrl
-  })
-}
-
-
-function isSvgMediaItem(item: SvgMediaItem): boolean {
-  return item.mimeType === 'image/svg+xml' || item.mediaRole === 'svg' || /\.svg$/i.test(item.name)
-}
-
-async function decodeArtworkMedia(item: SvgMediaItem, generation: number): Promise<void> {
-  async function tryUrl(url: string): Promise<HTMLImageElement | null> {
-    return new Promise(resolve => {
-      const image = new Image()
-      image.decoding = 'async'
-      image.crossOrigin = 'anonymous'
-      image.onload = () => resolve(image)
-      image.onerror = () => resolve(null)
-      image.src = url
-    })
-  }
-
-  let image = item.url ? await tryUrl(item.url) : null
-  if (!image && item.storagePath) {
-    const { url } = await createSignedMediaUrl(item.storagePath, 3600)
-    if (url) image = await tryUrl(url)
-  }
-  if (!isCurrentSvgVisualGeneration(item.id, generation)) return
-  setSvgVisualEntry({
-    id: item.id,
-    loading: false,
-    image,
-    objectUrl: null,
-    loaded: Boolean(image),
-    error: image ? null : 'Artwork image failed to render',
-    width: image?.naturalWidth ?? 0,
-    height: image?.naturalHeight ?? 0,
-    mediaUrl: item.url || undefined,
-    storagePath: item.storagePath || undefined,
-    generation,
-  })
-}
-
-async function ensureUnifiedSvgCaches(mediaId: string): Promise<void> {
-  // Persisted glyph assets are available before the asynchronous media library
-  // finishes restoring. Rebuild their transient point cache immediately.
-  const initialState = useReactStore.getState()
-  const stableId = getSvgGlyphAssetId(mediaId)
-  const persistedGlyph = initialState.oscillatorGlyphAssets.find(asset => asset.id === stableId)
-  if (persistedGlyph) {
-    const pointCache = prepareSvgPoints(
-      persistedGlyph,
-      clampRes(initialState.oscillatorSettings.pathResolution),
-      initialState.oscillatorGlyphPointCache,
-    )
-    if (pointCache !== initialState.oscillatorGlyphPointCache) {
-      useReactStore.setState({ oscillatorGlyphPointCache: pointCache })
-    }
-  }
-
-  const item = useMediaStore.getState().items.find(candidate => candidate.id === mediaId)
-  if (!item) {
-    const generation = ++_svgCacheGeneration
-    _svgCacheGenerationByMedia.set(mediaId, generation)
-    setSvgVisualEntry({
-      id: mediaId,
-      loading: false,
-      image: null,
-      objectUrl: null,
-      loaded: false,
-      error: 'Media item not found',
-      width: 0,
-      height: 0,
-      generation,
-    })
-    return
-  }
-
-  const identity = svgMediaIdentity(item)
-  const inFlightKey = `${mediaId}::${identity}`
-  const existingLoad = _svgCacheLoads.get(inFlightKey)
-  if (existingLoad) return existingLoad
-
-  const load = (async () => {
-    const existingGlyph = useReactStore.getState().oscillatorGlyphAssets.find(asset => asset.id === stableId)
-    const existingVisual = getSvgVisualEntry(mediaId)
-    const visualReady = visualIdentityMatches(existingVisual, item)
-    if (existingGlyph && visualReady) return
-
-    const generation = ++_svgCacheGeneration
-    _svgCacheGenerationByMedia.set(mediaId, generation)
-
-    if (!visualReady) {
-      if (existingVisual) evictSvgVisual(mediaId)
-      setSvgVisualEntry({
-        id: mediaId,
-        loading: true,
-        image: null,
-        objectUrl: null,
-        loaded: false,
-        error: null,
-        width: 0,
-        height: 0,
-        mediaUrl: item.url || undefined,
-        storagePath: item.storagePath || undefined,
-        generation,
-      })
-    }
-
-    if (!isSvgMediaItem(item)) {
-      if (!visualReady) await decodeArtworkMedia(item, generation)
-      return
-    }
-
-    const loaded = await loadSvgMedia(mediaId)
-    if (_svgCacheGenerationByMedia.get(mediaId) !== generation) return
-    if (!loaded) {
-      // A failed glyph refresh must not discard artwork that is already
-      // decoded and usable for Original Artwork mode.
-      if (!visualReady) {
-        setSvgVisualEntry({
-          id: mediaId,
-          loading: false,
-          image: null,
-          objectUrl: null,
-          loaded: false,
-          error: 'Could not load SVG content',
-          width: 0,
-          height: 0,
-          generation,
-        })
-      }
-      return
-    }
-
-    cacheUnifiedSvgGlyph(loaded, generation)
-    if (!visualReady) await decodeUnifiedSvgVisual(loaded, generation)
-  })()
-
-  _svgCacheLoads.set(inFlightKey, load)
-  try {
-    await load
-  } finally {
-    if (_svgCacheLoads.get(inFlightKey) === load) _svgCacheLoads.delete(inFlightKey)
-  }
-}
-
-// ── Debounced SVG glyph recompile (resolution slider) ─────────────────────────
-// When the user drags the Resolution slider, setOscillatorSettings fires on every
-// tick. Compiling SVG points synchronously would stall the UI. Instead, the
-// settings update immediately (slider feels responsive) and the compile fires once
-// after the user stops dragging.
-
-let _glyphRecompileTimer: ReturnType<typeof setTimeout> | null = null
-const GLYPH_RECOMPILE_DEBOUNCE_MS = 220
-
-function scheduleGlyphRecompile(): void {
-  if (_glyphRecompileTimer !== null) clearTimeout(_glyphRecompileTimer)
-  _glyphRecompileTimer = setTimeout(() => {
-    _glyphRecompileTimer = null
-    const s = useReactStore.getState()
-    const { oscillatorSettings: osc } = s
-    // Determine the active glyph asset ID from the source type
-    let activeGlyphId: string | null = null
-    if (osc.sourceType === 'svgGlyph') {
-      activeGlyphId = osc.selectedGlyphId ?? null
-    } else if (osc.sourceType === 'svg' && osc.selectedSvgId) {
-      activeGlyphId = getSvgGlyphAssetId(osc.selectedSvgId)
-    }
-    if (!activeGlyphId) return
-    const asset = s.oscillatorGlyphAssets.find(a => a.id === activeGlyphId)
-    if (!asset) return
-    const res = clampRes(osc.pathResolution)
-    const key = getSvgGlyphCacheKey(asset.id, res, asset.contentHash)
-    if (s.oscillatorGlyphPointCache[key]) return  // already compiled at this resolution
-    const newCache = prepareSvgPoints(asset, res, s.oscillatorGlyphPointCache)
-    if (newCache !== s.oscillatorGlyphPointCache) {
-      useReactStore.setState({ oscillatorGlyphPointCache: newCache })
-    }
-  }, GLYPH_RECOMPILE_DEBOUNCE_MS)
-}
-
-function prepareTextPoints(
-  assets: OscillatorFontAsset[],
-  settings: OscillatorSettings,
-  cache: Record<string, OscillatorGlyphPoint[]>,
-): Record<string, OscillatorGlyphPoint[]> {
-  const { textFontId, text, textLetterSpacing, textLineHeight, textAlignment, pathResolution } = settings
-  if (!textFontId || !text.trim()) return cache
-  const asset = assets.find(a => a.id === textFontId)
-  if (!asset) return cache
-  const res = clampRes(pathResolution)
-  const lh    = textLineHeight ?? 1.2
-  const align = textAlignment  ?? 'center'
-  const key = textCacheKey(textFontId, text, textLetterSpacing, lh, align, res)
-  if (cache[key]) return cache
-  try {
-    const font = parseOpenTypeFontFromAsset(asset)
-    const pts = textToOpenTypeGlyphPoints(font, text, res, {
-      letterSpacing: textLetterSpacing,
-      lineHeight:    lh,
-      alignment:     align,
-    })
-    return putBoundedTextPoints(cache, key, pts)
-  } catch {
-    return cache
-  }
-}
-
-function prepareLayerTextPoints(
-  assets:     OscillatorFontAsset[],
-  fontId:     string,
-  text:       string,
-  spacing:    number,
-  lineHeight: number,
-  alignment:  string,
-  res:        number,
-  cache:      Record<string, OscillatorGlyphPoint[]>,
-): Record<string, OscillatorGlyphPoint[]> {
-  if (!text.trim()) return cache
-  const asset = assets.find(a => a.id === fontId)
-  if (!asset) return cache
-  const key = textCacheKey(fontId, text, spacing, lineHeight, alignment, res)
-  if (cache[key]) return cache
-  try {
-    const font = parseOpenTypeFontFromAsset(asset)
-    const pts  = textToOpenTypeGlyphPoints(font, text, res, {
-      letterSpacing: spacing,
-      lineHeight,
-      alignment: alignment as 'left' | 'center' | 'right',
-    })
-    return putBoundedTextPoints(cache, key, pts)
-  } catch {
-    return cache
-  }
-}
-
-const TEXT_GEOMETRY_SETTING_KEYS = new Set<keyof OscillatorSettings>([
-  'text',
-  'textFontId',
-  'textLetterSpacing',
-  'textLineHeight',
-  'textAlignment',
-  'pathResolution',
-])
-
-function patchChangesTextGeometry(patch: Partial<OscillatorSettings>): boolean {
-  return Object.keys(patch).some(key => TEXT_GEOMETRY_SETTING_KEYS.has(key as keyof OscillatorSettings))
-}
-
-const SOUND_DRAWING_TRAIL_RESET_SETTING_KEYS = new Set<keyof OscillatorSettings>([
-  'sourceType', 'classicMode', 'autoSectionMode', 'builtinShape', 'selectedGlyphId', 'selectedSvgVisualId',
-  'selectedSvgId', 'svgRenderMode', 'svgUseReactPalette', 'text', 'textSource',
-  'lyricGapBehavior', 'lyricFallbackText', 'textFontId', 'textFontSize',
-  'textLetterSpacing', 'textLineHeight', 'textAlignment', 'renderMode', 'pathResolution',
-])
-
-function patchNeedsSoundDrawingTrailReset(patch: Partial<OscillatorSettings>): boolean {
-  return Object.keys(patch).some(key => SOUND_DRAWING_TRAIL_RESET_SETTING_KEYS.has(key as keyof OscillatorSettings))
-}
-
-function prepareActiveSoundDrawingTextPoints(
-  assets: OscillatorFontAsset[],
-  settings: OscillatorSettings,
-  cache: Record<string, OscillatorGlyphPoint[]>,
-): Record<string, OscillatorGlyphPoint[]> {
-  return settings.sourceType === 'text'
-    ? prepareTextPoints(assets, settings, cache)
-    : cache
-}
-
-function resolveSoundDrawingLayerTextSettings(
-  globalSettings: OscillatorSettings,
-  layer: SoundDrawingLayer,
-): OscillatorSettings {
-  return {
-    ...globalSettings,
-    sourceType: 'text',
-    ...(layer.fontId !== null && { textFontId: layer.fontId }),
-    ...(layer.text && { text: layer.text }),
-    textSource: normalizeSoundDrawingTextSource(layer.textSource),
-    lyricGapBehavior: normalizeSoundDrawingGapBehavior(layer.lyricGapBehavior),
-    lyricFallbackText: typeof layer.lyricFallbackText === 'string' ? layer.lyricFallbackText : '',
-    textLetterSpacing: layer.letterSpacing,
-    textLineHeight: layer.lineHeight,
-    textAlignment: layer.alignment,
-    ...layer.oscillatorOverride,
-  }
-}
-
-function prepareSoundDrawingLayerTextPoints(
-  assets: OscillatorFontAsset[],
-  globalSettings: OscillatorSettings,
-  layer: SoundDrawingLayer,
-  cache: Record<string, OscillatorGlyphPoint[]>,
-): Record<string, OscillatorGlyphPoint[]> {
-  if (layer.sourceType !== 'text') return cache
-  const effective = resolveSoundDrawingLayerTextSettings(globalSettings, layer)
-  if (!effective.textFontId || !effective.text.trim()) return cache
-  return prepareLayerTextPoints(
-    assets,
-    effective.textFontId,
-    effective.text,
-    effective.textLetterSpacing,
-    effective.textLineHeight,
-    effective.textAlignment,
-    clampRes(effective.pathResolution),
-    cache,
-  )
-}
-
-/**
- * Warms every OpenType text cache entry affected by the supplied global
- * oscillator settings. This runs only from semantic store actions, never from
- * the animation loop.
- */
-export function prepareAllSoundDrawingTextPoints(
-  assets: OscillatorFontAsset[],
-  globalSettings: OscillatorSettings,
-  layersByTrackId: Record<string, SoundDrawingLayer[]>,
-  cache: Record<string, OscillatorGlyphPoint[]>,
-): Record<string, OscillatorGlyphPoint[]> {
-  let nextCache = globalSettings.sourceType === 'text'
-    ? prepareTextPoints(assets, globalSettings, cache)
-    : cache
-
-  for (const layers of Object.values(layersByTrackId)) {
-    for (const layer of layers) {
-      nextCache = prepareSoundDrawingLayerTextPoints(
-        assets,
-        globalSettings,
-        layer,
-        nextCache,
-      )
-    }
-  }
-
-  return nextCache
 }
 
 // ── LaserDMX local helpers ────────────────────────────────────────────────────
@@ -1861,10 +1054,7 @@ type PixGridDeckSelectionSnapshot = Pick<ReactStoreState,
   | 'reactTrailDecay'
   | 'reactFogDensity'
   | 'reactParticleDensity'
-  | 'oscillatorSettings'
   | 'pixGridState'
-  | 'soundDrawingPerformanceSettings'
-  | 'oscillatorTextPointCache'
   | 'performanceActionEvent'
   | 'performanceActionEvents'
   | 'performanceActionToggleStates'
@@ -1904,10 +1094,7 @@ function capturePixGridDeckSelectionSnapshot(state: ReactStoreState): PixGridDec
     reactTrailDecay: state.reactTrailDecay,
     reactFogDensity: state.reactFogDensity,
     reactParticleDensity: state.reactParticleDensity,
-    oscillatorSettings: state.oscillatorSettings,
     pixGridState: state.pixGridState,
-    soundDrawingPerformanceSettings: state.soundDrawingPerformanceSettings,
-    oscillatorTextPointCache: state.oscillatorTextPointCache,
     performanceActionEvent: state.performanceActionEvent,
     performanceActionEvents: state.performanceActionEvents,
     performanceActionToggleStates: state.performanceActionToggleStates,
@@ -2301,28 +1488,6 @@ function clampMatrixBeam(beam: LaserDmxMatrixBeam): LaserDmxMatrixBeam {
   }
 }
 
-// ── Preset oscillator settings resolver ───────────────────────────────────────
-// Single source of truth for how oscillatorSettings are resolved when a preset
-// is selected (from the preset browser or via a performance pad).
-//
-// Oscilloscope presets always reset to DEFAULT_OSCILLATOR_SETTINGS and then
-// merge any preset-specific overrides on top.  This ensures legacy presets
-// that have no oscillatorSettings always land on classic mode rather than
-// inheriting whatever sourceType was active before.
-//
-// Non-oscilloscope presets (shaderPads, cinematicPortal) leave oscillatorSettings
-// untouched so engine-specific state is not inadvertently overwritten.
-export function resolvePresetOscillatorSettings(
-  preset: ReactPreset,
-  currentSettings: OscillatorSettings,
-): OscillatorSettings {
-  if (preset.engine !== 'oscilloscope') return currentSettings
-  return normalizeOscillatorSettings({
-    ...DEFAULT_OSCILLATOR_SETTINGS,
-    ...(preset.oscillatorSettings ?? {}),
-  })
-}
-
 // ── buildPresetPatch ──────────────────────────────────────────────────────────
 // Pure helper — returns the state slice that must change whenever a preset is
 // applied.  Shared by selectReactPreset, setActivePadId, and selectReactEngine
@@ -2333,7 +1498,6 @@ export function resolvePresetOscillatorSettings(
 //
 export function buildPresetPatch(
   preset: ReactPreset,
-  currentOscSettings: OscillatorSettings,
   currentLaserSettings?: LaserDmxSettings,
 ) {
   if (!isSelectableReactEngineId(preset.engine)) {
@@ -2395,7 +1559,6 @@ export function buildPresetPatch(
     reactTrailDecay:      renderSettings.trailDecay,
     reactFogDensity:      renderSettings.fogDensity,
     reactParticleDensity: renderSettings.particleDensity,
-    oscillatorSettings:  resolvePresetOscillatorSettings(preset, currentOscSettings),
     ...(safeLaserDmxWorkspaceMode != null ? { laserDmxWorkspaceMode: safeLaserDmxWorkspaceMode } : {}),
     ...(laserPatch        != null ? { laserDmxSettings:   laserPatch        } : {}),
     ...clearPerformanceActionPatch(),
@@ -2414,7 +1577,6 @@ function buildPresetPatchForState(
     : preset
   const presetPatch = buildPresetPatch(
     resolvedPreset,
-    state.oscillatorSettings,
     state.laserDmxSettings,
   )
   const samePixGridPreset = resolvedPreset.engine === 'pixGrid'
@@ -2431,9 +1593,6 @@ function buildPresetPatchForState(
         reactParticleDensity: state.reactParticleDensity,
       }
     : presetPatch
-  const geometryChanged = [...TEXT_GEOMETRY_SETTING_KEYS].some(
-    key => patch.oscillatorSettings[key] !== state.oscillatorSettings[key],
-  )
   const pixGridPatch = resolvedPreset.engine === 'pixGrid'
     ? {
         pixGridState: samePixGridPreset
@@ -2445,35 +1604,7 @@ function buildPresetPatchForState(
             ),
       }
     : {}
-  const trailLock = state.soundDrawingPerformanceSettings.trailLockContract
-  const trailLockPatch = state.soundDrawingPerformanceSettings.locks.trail && trailLock.mode === 'manualResolved'
-    ? {
-        soundDrawingPerformanceSettings: {
-          ...state.soundDrawingPerformanceSettings,
-          trailLockContract: {
-            ...trailLock,
-            snapshot: {
-              trailDecay: patch.reactTrailDecay,
-              autoSectionMode: trailLock.snapshot?.autoSectionMode ?? state.oscillatorSettings.autoSectionMode,
-              ribbonTrailPersistence: trailLock.snapshot?.ribbonTrailPersistence
-                ?? state.soundDrawingPerformanceSettings.livingRibbon.trailPersistence,
-            },
-          },
-        },
-      }
-    : {}
-  if (!geometryChanged) return { ...patch, ...pixGridPatch, ...trailLockPatch }
-  return {
-    ...patch,
-    ...pixGridPatch,
-    ...trailLockPatch,
-    oscillatorTextPointCache: prepareAllSoundDrawingTextPoints(
-      state.oscillatorFontAssets,
-      patch.oscillatorSettings,
-      state.soundDrawingLayersByTrackId,
-      state.oscillatorTextPointCache,
-    ),
-  }
+  return { ...patch, ...pixGridPatch }
 }
 
 function getReactPresetControlValues(state: Pick<ReactStoreState,
@@ -2966,51 +2097,6 @@ export interface ReactStoreState {
   setActivePadId: (id: string | null) => void
   updatePerformancePad: (id: string, patch: Partial<ReactPerformancePad>) => void
 
-  // Oscillator settings
-  oscillatorSettings: OscillatorSettings
-  soundDrawingPerformanceSettings: SoundDrawingPerformanceSettings
-  setSoundDrawingPerformanceSettings: (patch: SoundDrawingPerformanceSettingsPatch) => void
-  setSoundDrawingPerformanceLock: (key: SoundDrawingPerformanceLockKey, value: boolean) => void
-  resetSoundDrawingPerformanceSettings: () => void
-  /** Transient revision used to clear the Sound Drawing trail canvas after semantic source changes. */
-  soundDrawingTrailResetRevision: number
-  requestSoundDrawingTrailReset: () => void
-  /** Transient command revision for deterministic Living Ribbon simulation reset. */
-  soundDrawingRibbonResetRevision: number
-  requestSoundDrawingRibbonReset: () => void
-  setOscillatorSettings: (patch: Partial<OscillatorSettings>) => void
-  resetOscillatorSettings: () => void
-
-  // Transient notice shown when the active SVG glyph's source media was deleted.
-  // Stores the deleted glyph's display name so the UI can show "X was removed".
-  glyphLostNotice: string | null
-  clearGlyphLostNotice: () => void
-
-  // Uploaded SVG glyph assets (persisted)
-  oscillatorGlyphAssets: OscillatorGlyphAsset[]
-  addOscillatorGlyphAsset: (asset: OscillatorGlyphAsset) => void
-  removeOscillatorGlyphAsset: (id: string) => void
-  clearOscillatorGlyphAssets: () => void
-  selectOscillatorGlyph: (id: string) => void
-  // Media-backed glyph selection: fetches SVG from a media item, caches as a glyph asset,
-  // and selects it.  ID is stable: "glyph-media:<mediaId>".
-  selectSvgMediaGlyph: (mediaId: string) => Promise<void>
-  // Pre-caches a media-backed SVG glyph asset without selecting it (called after upload).
-  addAndCacheMediaSvgGlyph: (mediaId: string, rawSvg: string, displayName?: string) => void
-
-  // Pre-parsed glyph points — non-persisted, keyed by "${assetId}:${resolution}"
-  oscillatorGlyphPointCache: Record<string, OscillatorGlyphPoint[]>
-
-  // Legacy compatibility selectors. They convert directly to the unified
-  // source model instead of activating svgGlyph/svgVisual runtime states.
-  selectSvgVisual: (mediaId: string) => Promise<void>
-  clearSvgVisualForMedia: (mediaId: string) => void
-
-  // Unified SVG lifecycle. Rehydration only prepares caches and never changes
-  // sourceType, selectedSvgId, or svgRenderMode.
-  rehydrateSvgAsset: (mediaId: string) => Promise<void>
-  selectSvgAsset: (mediaId: string) => Promise<void>
-
   // Uploaded font assets (persisted — metadata only, binary lives in cloud storage)
   oscillatorFontAssets: OscillatorFontAsset[]
   addOscillatorFontAsset: (asset: OscillatorFontAsset) => void
@@ -3020,11 +2106,8 @@ export interface ReactStoreState {
   fontRemovePending: string | null
   fontRemoveError: string | null
   clearOscillatorFontAssets: () => void
-  selectOscillatorFont: (id: string | null) => Promise<void>
-  fontSelectPending: string | null
-  fontSelectError: string | null
   /**
-   * Uploads a font to the Font Library and makes it the active text font. `details` optionally names it and files it under tags and
+   * Uploads a font to the Font Library. `details` optionally names it and files it under tags and
    * collections in the same step (the media upload dialog uses this). Resolves with the new font's id, or null when the upload failed
    * (the reason is in `fontUploadError`).
    */
@@ -3034,10 +2117,6 @@ export interface ReactStoreState {
   loadOscillatorFonts: () => Promise<void>
   fontsLoadState: 'idle' | 'loading' | 'loaded' | 'error'
   fontLoadError: string | null
-
-  // Pre-sampled OpenType text points — non-persisted
-  // keyed by "${fontId}:${text}:${letterSpacing}:${lineHeight}:${alignment}:${resolution}"
-  oscillatorTextPointCache: Record<string, OscillatorGlyphPoint[]>
 
   /** Resets only the active engine's live render settings. Authored project content is preserved. */
   resetCurrentEngineSettings: () => void
@@ -3202,31 +2281,6 @@ export interface ReactStoreState {
   applyLaserDmxShowDirectorTemplate: (templateId: string) => boolean
   updateLaserDmxShowDirectorSettings: (patch: LaserDmxShowDirectorSettingsPatch) => void
 
-  // Sound Drawing layers — stored per track ID.
-  // A layer is reusable content (what to draw); clips place it on a timeline.
-  soundDrawingLayersByTrackId: Record<string, SoundDrawingLayer[]>
-  /** Returns layers for one track. Empty array when the track has none. */
-  getSoundDrawingLayersForTrack: (trackId: string) => SoundDrawingLayer[]
-  /** Creates a layer and returns its generated ID. */
-  addSoundDrawingLayer: (trackId: string, layer: Omit<SoundDrawingLayer, 'id'>) => string
-  updateSoundDrawingLayer: (trackId: string, layerId: string, patch: Partial<SoundDrawingLayer>) => void
-  /** Clones an existing layer. The copy gets a new ID and name suffixed with " Copy". */
-  duplicateSoundDrawingLayer: (trackId: string, layerId: string) => void
-  /** Removes the layer and all clips in this track that reference it. */
-  removeSoundDrawingLayer: (trackId: string, layerId: string) => void
-
-  // Sound Drawing clips — stored per track ID.
-  // Each clip is owned by its parent map key; timing is finite, nonnegative,
-  // ordered, and bounded to the track when a duration is supplied.
-  soundDrawingClipsByTrackId: Record<string, SoundDrawingClip[]>
-  /** Returns clips for one track sorted by startSec ascending, then zIndex ascending. */
-  getSoundDrawingClipsForTrack: (trackId: string) => SoundDrawingClip[]
-  /** Creates a clip and returns its generated ID. */
-  addSoundDrawingClip: (trackId: string, clip: Omit<SoundDrawingClip, 'id'>, trackDurationSec?: number) => string
-  updateSoundDrawingClip: (trackId: string, clipId: string, patch: Partial<SoundDrawingClip>, trackDurationSec?: number) => void
-  /** Clones an existing clip with a new ID. */
-  duplicateSoundDrawingClip: (trackId: string, clipId: string) => void
-  removeSoundDrawingClip: (trackId: string, clipId: string) => void
 }
 
 const SHOW_MANAGER_HISTORY_LIMIT = 50
@@ -3716,16 +2770,6 @@ function clearPerformanceActionPatch() {
   }
 }
 
-const DEFAULT_REACT_MASTER_CONTROLS = {
-  reactIntensity:       0.7,
-  reactMotion:          0.5,
-  reactGlow:            0.65,
-  reactBassReactivity:  0.8,
-  reactTrailDecay:      0.08,
-  reactFogDensity:      0.5,
-  reactParticleDensity: 0.5,
-} as const
-
 const MAX_PERFORMANCE_ACTION_EVENTS = 64
 
 function sanitizeLiveTrackSection(section: ReactTrackSection): ReactTrackSection {
@@ -4095,7 +3139,6 @@ export function sanitizeRetiredNeonLatticeReactState(persistedState: unknown): R
   const validPresetFreeSelection = (
     activeEngineId === 'shaderPads'
     || activeEngineId === 'canvas'
-    || activeEngineId === 'oscilloscope'
     || activeEngineId === 'headliner'
     || activeEngineId === 'xyScope'
   ) && activePresetId == null
@@ -4169,6 +3212,89 @@ function repairRetiredPresetAutomationCues(value: unknown): unknown {
   ]))
 }
 
+
+/**
+ * Built-in presets of the retired legacy Sound Drawing engine (`oscilloscope`), each with the Sound Drawing XY preset that replaces it on
+ * performance pads (the same pairs as the default pads).
+ */
+const RETIRED_SOUND_DRAWING_XY_REPLACEMENTS: ReadonlyMap<string, string> = new Map([
+  ['preset-xy-cyan-scope', 'conversation'],
+  ['preset-lissajous-flower', 'clean-scope'],
+  ['preset-spiral-signal', 'storm'],
+  ['preset-radial-voice', 'init'],
+  ['preset-neon-text-trace', 'textV2'],
+  ['preset-glyph-circle-pulse', 'solids'],
+  ['preset-bass-triangle-reactor', 'octa'],
+  ['preset-infinity-signal', 'phase-portal'],
+  ['preset-drmvyz-text-trace', 'textV2'],
+  ['preset-star-drop-burst', 'cubes'],
+  ['preset-svg-glyph-slot', 'conversation'],
+])
+
+/** Persisted slices that belonged only to the legacy Sound Drawing engine. */
+const RETIRED_SOUND_DRAWING_STATE_KEYS = [
+  'oscillatorSettings',
+  'soundDrawingPerformanceSettings',
+  'oscillatorGlyphAssets',
+  'soundDrawingLayersByTrackId',
+  'soundDrawingClipsByTrackId',
+] as const
+
+/**
+ * Retires the legacy Sound Drawing engine (`oscilloscope`) in persisted or imported state. Sound Drawing XY replaces it: the active
+ * selection opens Sound Drawing XY, every performance pad that opened a Sound Drawing preset opens its paired XY preset, automation cues that switched to a
+ * Sound Drawing preset are removed (cues cannot target Sound Drawing XY presets), Sound Drawing presets are dropped and the engine's own
+ * slices are discarded. Idempotent.
+ */
+export function retireSoundDrawingEngineState(persistedState: unknown): Record<string, unknown> {
+  const source = isRecord(persistedState) ? persistedState : {}
+  const state: Record<string, unknown> = { ...source }
+  for (const key of RETIRED_SOUND_DRAWING_STATE_KEYS) delete state[key]
+
+  const retiredPresetIds = new Set(RETIRED_SOUND_DRAWING_XY_REPLACEMENTS.keys())
+  if (Array.isArray(state.reactPresets)) {
+    for (const preset of state.reactPresets) {
+      if (isRecord(preset) && preset.engine === 'oscilloscope' && typeof preset.id === 'string') retiredPresetIds.add(preset.id)
+    }
+  }
+  const opensSoundDrawing = (value: Record<string, unknown>): boolean => {
+    if (typeof value.presetId === 'string' && retiredPresetIds.has(value.presetId)) return true
+    const destination = value.destination
+    return isRecord(destination) && (
+      destination.engineId === 'oscilloscope'
+      || (typeof destination.presetId === 'string' && retiredPresetIds.has(destination.presetId))
+    )
+  }
+
+  const defaultXyPresetId = DEFAULT_XY_SCOPE_SETTINGS.presetId ?? 'conversation'
+  const xyPadFor = (pad: Record<string, unknown>) => {
+    const legacyPresetId = typeof pad.presetId === 'string'
+      ? pad.presetId
+      : isRecord(pad.destination) && typeof pad.destination.presetId === 'string' ? pad.destination.presetId : null
+    const xyPresetId = (legacyPresetId && RETIRED_SOUND_DRAWING_XY_REPLACEMENTS.get(legacyPresetId)) || defaultXyPresetId
+    const destination: ReactEngineDestination = { schemaVersion: 1, engineId: 'xyScope', presetId: xyPresetId }
+    return { ...pad, presetId: null, destination, label: getXyScopePreset(xyPresetId)?.name ?? 'Sound Drawing XY' }
+  }
+
+  if (Array.isArray(state.reactPresets)) {
+    state.reactPresets = state.reactPresets.filter(preset => !(isRecord(preset) && typeof preset.id === 'string' && retiredPresetIds.has(preset.id)))
+  }
+  if (Array.isArray(state.performancePads)) {
+    state.performancePads = state.performancePads.map(pad => isRecord(pad) && opensSoundDrawing(pad) ? xyPadFor(pad) : pad)
+  }
+  if (isRecord(state.presetAutomationCuesByTrackId)) {
+    state.presetAutomationCuesByTrackId = Object.fromEntries(Object.entries(state.presetAutomationCuesByTrackId).map(([trackId, cues]) => [
+      trackId,
+      Array.isArray(cues) ? cues.filter(cue => !(isRecord(cue) && opensSoundDrawing(cue))) : cues,
+    ]))
+  }
+  const activePresetId = typeof state.activeReactPresetId === 'string' ? state.activeReactPresetId : null
+  if (state.activeReactEngineId === 'oscilloscope' || (activePresetId != null && retiredPresetIds.has(activePresetId))) {
+    state.activeReactEngineId = 'xyScope'
+    state.activeReactPresetId = null
+  }
+  return state
+}
 
 function normalizePendingCinemaLegacySelectionMigration(value: unknown): Cinema2LegacySelectionMigration | null {
   if (!isRecord(value)) return null
@@ -4992,12 +4118,6 @@ export function repairReactEnginePresetSelection(
   }
 
   const engineId = activeReactEngineId as ReactEngineId
-  if (engineId === 'oscilloscope') {
-    return selectedPreset?.engine === engineId
-      ? { activeReactPresetId: selectedPreset.id, activeReactEngineId: engineId }
-      : { activeReactPresetId: null, activeReactEngineId: engineId }
-  }
-
   if (isStandaloneReactEngineId(engineId)) {
     return { activeReactPresetId: null, activeReactEngineId: engineId }
   }
@@ -5110,7 +4230,8 @@ export function normalizeCinematicPresetCollection(presets: ReactPreset[]): Reac
 
 // ── Exported migration function (for testing) ─────────────────────────────────
 export function migrateReactStore(persistedState: unknown, version: number): Record<string, unknown> {
-  const rawState = (persistedState ?? {}) as Record<string, unknown>
+  // Retire Sound Drawing first, so older numbered steps never see (and reset) its selection.
+  const rawState = retireSoundDrawingEngineState(persistedState ?? {})
   const normalizedOriginalPresetId = replaceLockedLaserDmxPresetId(rawState.activeReactPresetId)
   const originalPreset = normalizedOriginalPresetId
     ? DEFAULT_REACT_PRESETS.find(preset => preset.id === normalizedOriginalPresetId) ?? null
@@ -5136,37 +4257,6 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       laserDmxWorkspaceMode: 'beamMatrix' as LaserDmxWorkspaceMode,
       laserDmxBeamMatrixAuthoringMode: DEFAULT_LASER_DMX_BEAM_MATRIX_AUTHORING_MODE,
       laserDmxBeamMatrix:    createDefaultLaserDmxBeamMatrixSettings(),
-    }
-  }
-  if (version < 2) {
-    const osc = state.oscillatorSettings as Record<string, unknown> | undefined
-    if (osc) {
-      let migratedOsc = { ...osc }
-      if (osc.sourceType === 'svgGlyph') {
-        const glyphId = osc.selectedGlyphId as string | null
-        const svgId = typeof glyphId === 'string'
-          ? getMediaIdFromSvgGlyphId(glyphId)
-          : null
-        // Only media-backed legacy glyph selections belong to the unified SVG
-        // lifecycle. Preserve standalone imported glyph-library entries as
-        // legacy glyphs so old libraries remain usable after migration.
-        if (svgId) {
-          migratedOsc = { ...migratedOsc, sourceType: 'svg', selectedSvgId: svgId, svgRenderMode: 'reactivePath', svgUseReactPalette: true, autoRotate: true }
-        } else {
-          migratedOsc = { ...migratedOsc, autoRotate: true }
-        }
-      } else if (osc.sourceType === 'svgVisual') {
-        migratedOsc = { ...migratedOsc, sourceType: 'svg', selectedSvgId: (osc.selectedSvgVisualId as string | null) ?? null, svgRenderMode: 'originalArtwork', svgUseReactPalette: true, autoRotate: true }
-      } else if (osc.sourceType === 'text') {
-        migratedOsc = { ...migratedOsc, autoRotate: false }
-      } else {
-        migratedOsc = { ...migratedOsc, autoRotate: true }
-      }
-      if (!('selectedSvgId' in migratedOsc))     migratedOsc.selectedSvgId     = null
-      if (!('svgRenderMode' in migratedOsc))      migratedOsc.svgRenderMode      = 'auto'
-      if (!('svgUseReactPalette' in migratedOsc)) migratedOsc.svgUseReactPalette = true
-      if (!('autoRotate' in migratedOsc))         migratedOsc.autoRotate         = osc.sourceType !== 'text'
-      state = { ...state, oscillatorSettings: migratedOsc }
     }
   }
   if (version < 3) {
@@ -5319,49 +4409,6 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       }
     }
   }
-  if (version < 12) {
-    // Add textLetterReactionMode to persisted oscillatorSettings.
-    // Defaults to 'uniform' so existing presets behave exactly as before.
-    const osc = state.oscillatorSettings as Record<string, unknown> | undefined
-    if (osc && !('textLetterReactionMode' in osc)) {
-      state = {
-        ...state,
-        oscillatorSettings: { ...osc, textLetterReactionMode: 'uniform' },
-      }
-    }
-  }
-  if (version < 13) {
-    // Add textLetterAssignments to persisted oscillatorSettings.
-    // Empty array preserves existing behavior for all presets.
-    const osc = state.oscillatorSettings as Record<string, unknown> | undefined
-    if (osc && !('textLetterAssignments' in osc)) {
-      state = {
-        ...state,
-        oscillatorSettings: { ...osc, textLetterAssignments: [] },
-      }
-    }
-  }
-  if (version < 14) {
-    // Initialize Sound Drawing layer and clip collections.
-    // Existing projects load with empty maps; no behavioral change.
-    if (!('soundDrawingLayersByTrackId' in state)) {
-      state = { ...state, soundDrawingLayersByTrackId: {} }
-    }
-    if (!('soundDrawingClipsByTrackId' in state)) {
-      state = { ...state, soundDrawingClipsByTrackId: {} }
-    }
-  }
-  if (version < 15) {
-    // Add textLineHeight and textAlignment to persisted oscillatorSettings.
-    // Defaults match DEFAULT_OSCILLATOR_SETTINGS.
-    const osc = state.oscillatorSettings as Record<string, unknown> | undefined
-    if (osc) {
-      const newOsc = { ...osc }
-      if (!('textLineHeight' in newOsc)) newOsc.textLineHeight = 1.2
-      if (!('textAlignment' in newOsc))  newOsc.textAlignment  = 'center'
-      state = { ...state, oscillatorSettings: newOsc }
-    }
-  }
   if (version < 19) {
     // Legacy Shader Pads active-selection migration.
     // The five Shader Pads presets have been removed from DEFAULT_REACT_PRESETS and
@@ -5469,14 +4516,6 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       : withoutLegacyPalette.reactPresets
     state = { ...withoutLegacyPalette, reactPresets: presets }
   }
-  if (version < 23) {
-    state = {
-      ...state,
-      soundDrawingClipsByTrackId: normalizeSoundDrawingClipsByTrackId(
-        state.soundDrawingClipsByTrackId,
-      ),
-    }
-  }
   if (version < 24) {
     const presets = Array.isArray(state.reactPresets)
       ? state.reactPresets as ReactPreset[]
@@ -5506,18 +4545,6 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       reactPresets: presets,
       cinematicConfigsByPresetId: normalizeCinematicConfigOverrides(state.cinematicConfigsByPresetId, presets),
       cinematicSeedLocksByPresetId: normalizeCinematicSeedLocks(state.cinematicSeedLocksByPresetId, presets),
-    }
-  }
-  if (version < 27) {
-    const oscillator = isRecord(state.oscillatorSettings)
-      ? state.oscillatorSettings as unknown as OscillatorSettings
-      : DEFAULT_OSCILLATOR_SETTINGS
-    state = {
-      ...state,
-      oscillatorSettings: normalizeOscillatorSettings(oscillator),
-      soundDrawingLayersByTrackId: normalizeSoundDrawingLayersByTrackId(
-        state.soundDrawingLayersByTrackId,
-      ),
     }
   }
   if (version < 29) {
@@ -5643,21 +4670,6 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       laserDmxShowDirectorPerformance: normalizeLaserDmxShowDirectorPerformanceState(state.laserDmxShowDirectorPerformance),
     }
   }
-  if (version < 46) {
-    const existing = isRecord(state.soundDrawingPerformanceSettings)
-      ? state.soundDrawingPerformanceSettings
-      : {}
-    state = {
-      ...state,
-      soundDrawingPerformanceSettings: normalizeSoundDrawingPerformanceSettings({
-        ...existing,
-        performanceSource: existing.performanceSource ?? 'activeUserSource',
-        sourceTreatment: existing.sourceTreatment ?? 'preserveIdentity',
-        useSourceAs: existing.useSourceAs ?? 'primaryMotif',
-        preserveIdentity: existing.preserveIdentity ?? true,
-      }),
-    }
-  }
   if (version < 47) {
     // Backfill deterministic Show Director depth layers while preserving legacy
     // X/Y composition and the existing Beam Matrix compatibility document.
@@ -5701,12 +4713,6 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       laserDmxShowDirectorPerformance: normalizeLaserDmxShowDirectorPerformanceState(state.laserDmxShowDirectorPerformance),
     }
   }
-  if (version < 53) {
-    state = {
-      ...state,
-      soundDrawingPerformanceSettings: normalizeSoundDrawingPerformanceSettings(state.soundDrawingPerformanceSettings),
-    }
-  }
   if (version < 54) {
     // Patch 1 of the finite-cue architecture re-normalizes every persisted
     // performance definition so v1 programming documents gain bounded cue
@@ -5726,17 +4732,6 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       pixGridState: normalizePixGridState(state.pixGridState),
     }
   }
-  if (version < 56) {
-    // Patch 2 versions the Sound Drawing trail-lock contract. Historical
-    // locked shows retain legacy recipe semantics; unlocked/new projects use
-    // corrected manual-resolved protection without changing rendered values.
-    state = {
-      ...state,
-      soundDrawingPerformanceSettings: normalizeSoundDrawingPerformanceSettings(
-        state.soundDrawingPerformanceSettings,
-      ),
-    }
-  }
   if (version < 57) {
     // Patch 3 versions CANVAS Dry Source Mix semantics and the LaserDMX
     // authored-versus-preview output scopes. Both normalizers are idempotent,
@@ -5747,32 +4742,6 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       laserDmxBeamMatrix: isPersistedLaserDmxBeamMatrixDocument(state.laserDmxBeamMatrix)
         ? normalizeLaserDmxBeamMatrixSettings(state.laserDmxBeamMatrix)
         : state.laserDmxBeamMatrix,
-    }
-  }
-  if (version < 58) {
-    // Sound Drawing now treats Engine Mode as the canonical user-source
-    // selector. Historical Active Text and Active SVG routing values migrate
-    // to Use Current Engine Source instead of becoming invalid selections.
-    state = {
-      ...state,
-      soundDrawingPerformanceSettings: normalizeSoundDrawingPerformanceSettings(
-        state.soundDrawingPerformanceSettings,
-      ),
-    }
-  }
-  if (version < 59) {
-    // Performance Shows are opt-in presets. Startup always returns to the base
-    // Sound Drawing source instead of silently restoring an authored show.
-    const existing = isRecord(state.soundDrawingPerformanceSettings)
-      ? state.soundDrawingPerformanceSettings
-      : {}
-    state = {
-      ...state,
-      soundDrawingPerformanceSettings: normalizeSoundDrawingPerformanceSettings({
-        ...existing,
-        selectedShowId: null,
-        autoPerformance: false,
-      }),
     }
   }
   if (version < 61) {
@@ -5959,10 +4928,6 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       reactPresets: normalizeCinematicPresetCollection(state.reactPresets as ReactPreset[]),
     }
   }
-  const oscillatorSettings = state.oscillatorSettings as OscillatorSettings | undefined
-  if (oscillatorSettings) {
-    state = { ...state, oscillatorSettings: normalizeOscillatorSettings(oscillatorSettings) }
-  }
   if (isPersistedLaserDmxSettingsDocument(state.laserDmxSettings)) {
     state = { ...state, laserDmxSettings: normalizeLaserDmxSettings(state.laserDmxSettings) }
   }
@@ -5993,9 +4958,6 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
     ),
     selectedCanvasPresetId: normalizeCanvasPresetId(state.selectedCanvasPresetId),
     canvasPresetSettings: normalizeCanvasPresetSettings(state.canvasPresetSettings),
-    soundDrawingPerformanceSettings: normalizeSoundDrawingPerformanceSettings(
-      state.soundDrawingPerformanceSettings,
-    ),
     canvasPresetOverride: normalizeCanvasPresetOverride(
       state.canvasPresetOverride,
       normalizeCanvasPresetId(state.selectedCanvasPresetId),
@@ -6006,153 +4968,16 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
     pixGridDecks: normalizePixGridDeckCollection(state.pixGridDecks),
     pixGridActionCuesByTrackId: normalizePixGridActionCueMap(state.pixGridActionCuesByTrackId),
   }
-  // Imported/current-version snapshots do not necessarily pass through a
-  // numbered migration, so keep the retirement boundary defensive.
-  if (version < 60) {
-    const activeEngineId = state.activeReactEngineId
-    const activePresetId = state.activeReactPresetId
-    if (activeEngineId === 'oscilloscope' && typeof activePresetId === 'string') {
-      state = {
-        ...state,
-        activeReactPresetId: null,
-        oscillatorSettings: { ...DEFAULT_OSCILLATOR_SETTINGS },
-        ...DEFAULT_REACT_MASTER_CONTROLS,
-      }
-    }
-  }
-
-  const retiredLegacyState = retireLegacyReactEngineState(state, originalLegacySelection)
+  // Imported and current-version snapshots do not always pass through a numbered migration, so the Sound Drawing
+  // retirement runs on every load (it is idempotent).
+  const retiredLegacyState = retireLegacyReactEngineState(retireSoundDrawingEngineState(state), originalLegacySelection)
   return sanitizeRetiredReactPresetState(
     sanitizeRetiredNeonLatticeReactState(retiredLegacyState),
   )
 }
 
-export const MIN_SOUND_DRAWING_CLIP_DURATION_SEC = 0.1
-
-function finiteNumber(value: unknown, fallback: number): number {
-  const candidate = typeof value === 'number'
-    ? value
-    : (typeof value === 'string' && value.trim() ? Number(value) : Number.NaN)
-  return Number.isFinite(candidate) ? candidate : fallback
-}
-
-/**
- * Enforces clip ownership and finite timeline geometry. When a finite positive
- * track duration is known, the entire range is kept inside that duration.
- */
-export function normalizeSoundDrawingClip(
-  clip: SoundDrawingClip,
-  parentTrackId: string,
-  trackDurationSec?: number | null,
-): SoundDrawingClip {
-  const boundedDuration = Number.isFinite(trackDurationSec) && (trackDurationSec ?? 0) > 0
-    ? trackDurationSec as number
-    : null
-  const minimumDuration = boundedDuration === null
-    ? MIN_SOUND_DRAWING_CLIP_DURATION_SEC
-    : Math.min(MIN_SOUND_DRAWING_CLIP_DURATION_SEC, boundedDuration)
-
-  let startSec = Math.max(0, finiteNumber(clip.startSec, 0))
-  if (boundedDuration !== null) {
-    startSec = Math.min(startSec, Math.max(0, boundedDuration - minimumDuration))
-  }
-
-  let endSec = Math.max(
-    startSec + minimumDuration,
-    finiteNumber(clip.endSec, startSec + minimumDuration),
-  )
-  if (boundedDuration !== null) endSec = Math.min(endSec, boundedDuration)
-
-  return {
-    ...clip,
-    trackId:  parentTrackId,
-    startSec,
-    endSec,
-    zIndex:   finiteNumber(clip.zIndex, 0),
-    fadeInMs: Math.max(0, finiteNumber(clip.fadeInMs, 0)),
-    fadeOutMs: Math.max(0, finiteNumber(clip.fadeOutMs, 0)),
-  }
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-export function normalizeSoundDrawingLayer(layer: SoundDrawingLayer): SoundDrawingLayer {
-  const textSource = normalizeSoundDrawingTextSource(layer.textSource)
-  const lyricGapBehavior = normalizeSoundDrawingGapBehavior(layer.lyricGapBehavior)
-  const lyricFallbackText = typeof layer.lyricFallbackText === 'string' ? layer.lyricFallbackText : ''
-  if (
-    layer.textSource === textSource &&
-    layer.lyricGapBehavior === lyricGapBehavior &&
-    layer.lyricFallbackText === lyricFallbackText
-  ) return layer
-
-  return { ...layer, textSource, lyricGapBehavior, lyricFallbackText }
-}
-
-export function normalizeSoundDrawingLayersByTrackId(
-  value: unknown,
-): Record<string, SoundDrawingLayer[]> {
-  if (!isRecord(value)) return {}
-  let changed = false
-  const normalized: Record<string, SoundDrawingLayer[]> = {}
-
-  for (const [trackId, bucket] of Object.entries(value)) {
-    if (!Array.isArray(bucket)) {
-      normalized[trackId] = []
-      changed = true
-      continue
-    }
-
-    const valid = bucket.filter(isRecord)
-    const normalizedBucket = valid.map(raw => normalizeSoundDrawingLayer(raw as unknown as SoundDrawingLayer))
-    const bucketChanged = valid.length !== bucket.length || normalizedBucket.some((layer, index) => layer !== bucket[index])
-    normalized[trackId] = bucketChanged ? normalizedBucket : bucket as SoundDrawingLayer[]
-    changed ||= bucketChanged
-  }
-
-  return changed ? normalized : value as Record<string, SoundDrawingLayer[]>
-}
-
-/** Repairs persisted/imported clip buckets without dropping recoverable objects. */
-export function normalizeSoundDrawingClipsByTrackId(
-  value: unknown,
-  trackDurationsById: Record<string, number | undefined> = {},
-): Record<string, SoundDrawingClip[]> {
-  if (!isRecord(value)) return {}
-
-  const normalized: Record<string, SoundDrawingClip[]> = {}
-  for (const [parentTrackId, bucket] of Object.entries(value)) {
-    if (!Array.isArray(bucket)) {
-      normalized[parentTrackId] = []
-      continue
-    }
-
-    normalized[parentTrackId] = bucket.flatMap((raw, index) => {
-      if (!isRecord(raw)) return []
-      const recovered: SoundDrawingClip = {
-        ...raw,
-        id: typeof raw.id === 'string' && raw.id
-          ? raw.id
-          : `${parentTrackId}:recovered-clip:${index}`,
-        trackId: parentTrackId,
-        layerId: typeof raw.layerId === 'string' ? raw.layerId : '',
-        startSec: finiteNumber(raw.startSec, 0),
-        endSec: finiteNumber(raw.endSec, MIN_SOUND_DRAWING_CLIP_DURATION_SEC),
-        enabled: typeof raw.enabled === 'boolean' ? raw.enabled : true,
-        zIndex: finiteNumber(raw.zIndex, 0),
-        fadeInMs: finiteNumber(raw.fadeInMs, 0),
-        fadeOutMs: finiteNumber(raw.fadeOutMs, 0),
-      }
-      return [normalizeSoundDrawingClip(
-        recovered,
-        parentTrackId,
-        trackDurationsById[parentTrackId],
-      )]
-    })
-  }
-  return normalized
 }
 
 export function reactStorePartialize(s: ReactStoreState) {
@@ -6176,11 +5001,7 @@ export function reactStorePartialize(s: ReactStoreState) {
     s.activeReactEngineId,
     coherentReactPresets,
   )
-  const soundDrawingPresetIsActive = s.activeReactEngineId === 'oscilloscope'
-    && s.activeReactPresetId != null
-  const persistedSelection = soundDrawingPresetIsActive
-    ? { activeReactPresetId: null, activeReactEngineId: 'oscilloscope' as const }
-    : repairedSelection
+  const persistedSelection = repairedSelection
   const persisted = {
     activeReactPresetId:                persistedSelection.activeReactPresetId,
     activeReactEngineId:                persistedSelection.activeReactEngineId,
@@ -6217,15 +5038,6 @@ export function reactStorePartialize(s: ReactStoreState) {
     pixGridActionCuesByTrackId:          normalizePixGridActionCueMap(
       sanitizeRetiredPixGridMarqueeActionCueMap(s.pixGridActionCuesByTrackId),
     ),
-    oscillatorSettings:                 soundDrawingPresetIsActive
-      ? { ...DEFAULT_OSCILLATOR_SETTINGS }
-      : s.oscillatorSettings,
-    soundDrawingPerformanceSettings:     normalizeSoundDrawingPerformanceSettings({
-      ...s.soundDrawingPerformanceSettings,
-      selectedShowId: null,
-      autoPerformance: false,
-    }),
-    oscillatorGlyphAssets:              s.oscillatorGlyphAssets,
     laserDmxSettings:                   sanitizeLaserDmxSettingsForPersistence(s.laserDmxSettings),
     laserDmxWorkspaceMode:              coerceLaserDmxWorkspaceMode(s.laserDmxWorkspaceMode),
     laserDmxBeamMatrixAuthoringMode:    coerceLaserDmxBeamMatrixAuthoringMode(s.laserDmxBeamMatrixAuthoringMode),
@@ -6239,15 +5051,13 @@ export function reactStorePartialize(s: ReactStoreState) {
     ),
     activeLaserDmxBeamMatrixPresetId:   s.activeLaserDmxBeamMatrixPresetId,
     laserDmxBeamMatrixPresetDirty:      s.laserDmxBeamMatrixPresetDirty,
-    soundDrawingLayersByTrackId:        normalizeSoundDrawingLayersByTrackId(s.soundDrawingLayersByTrackId),
-    soundDrawingClipsByTrackId:         s.soundDrawingClipsByTrackId,
-    reactIntensity:       soundDrawingPresetIsActive ? DEFAULT_REACT_MASTER_CONTROLS.reactIntensity : s.reactIntensity,
-    reactMotion:          soundDrawingPresetIsActive ? DEFAULT_REACT_MASTER_CONTROLS.reactMotion : s.reactMotion,
-    reactGlow:            soundDrawingPresetIsActive ? DEFAULT_REACT_MASTER_CONTROLS.reactGlow : s.reactGlow,
-    reactBassReactivity:  soundDrawingPresetIsActive ? DEFAULT_REACT_MASTER_CONTROLS.reactBassReactivity : s.reactBassReactivity,
-    reactTrailDecay:      soundDrawingPresetIsActive ? DEFAULT_REACT_MASTER_CONTROLS.reactTrailDecay : s.reactTrailDecay,
-    reactFogDensity:      soundDrawingPresetIsActive ? DEFAULT_REACT_MASTER_CONTROLS.reactFogDensity : s.reactFogDensity,
-    reactParticleDensity: soundDrawingPresetIsActive ? DEFAULT_REACT_MASTER_CONTROLS.reactParticleDensity : s.reactParticleDensity,
+    reactIntensity:       s.reactIntensity,
+    reactMotion:          s.reactMotion,
+    reactGlow:            s.reactGlow,
+    reactBassReactivity:  s.reactBassReactivity,
+    reactTrailDecay:      s.reactTrailDecay,
+    reactFogDensity:      s.reactFogDensity,
+    reactParticleDensity: s.reactParticleDensity,
   }
   return sanitizeRetiredReactPresetState(
     sanitizeRetiredNeonLatticeReactState(persisted),
@@ -6285,16 +5095,12 @@ export const REACT_PROJECT_STATE_KEYS = [
   'suppressedAutoSectionsByTrackId',
   'presetAutomationCuesByTrackId',
   'pixGridActionCuesByTrackId',
-  'oscillatorGlyphAssets',
-  'soundDrawingPerformanceSettings',
   'laserDmxSettings',
   'laserDmxBeamMatrix',
   'laserDmxShowDirector',
   'laserDmxShowDirectorPerformance',
   'laserDmxShowManagerShows',
   'laserDmxShowManagerActiveShowId',
-  'soundDrawingLayersByTrackId',
-  'soundDrawingClipsByTrackId',
 ] as const satisfies readonly (keyof ReactPersistedState)[]
 
 export function mergeReactStoreState(
@@ -6400,20 +5206,9 @@ export function mergeReactStoreState(
       persisted.canvasShowManagerShows ?? currentState.canvasShowManagerShows,
     ),
     canvasShowManagerActiveShowId: null,
-    soundDrawingPerformanceSettings: normalizeSoundDrawingPerformanceSettings({
-      ...(persisted.soundDrawingPerformanceSettings ?? currentState.soundDrawingPerformanceSettings),
-      selectedShowId: null,
-      autoPerformance: false,
-    }),
     canvasPresetOverride: normalizeCanvasPresetOverride(
       persisted.canvasPresetOverride ?? currentState.canvasPresetOverride,
       normalizeCanvasPresetId(persisted.selectedCanvasPresetId ?? currentState.selectedCanvasPresetId),
-    ),
-    soundDrawingLayersByTrackId: normalizeSoundDrawingLayersByTrackId(
-      persisted.soundDrawingLayersByTrackId ?? currentState.soundDrawingLayersByTrackId,
-    ),
-    soundDrawingClipsByTrackId: normalizeSoundDrawingClipsByTrackId(
-      persisted.soundDrawingClipsByTrackId ?? currentState.soundDrawingClipsByTrackId,
     ),
     laserDmxSettings: (() => {
       const legacyRig = normalizeLaserDmxSettings(persisted.laserDmxSettings ?? currentState.laserDmxSettings)
@@ -6508,10 +5303,6 @@ export function mergeReactStoreState(
       persisted.laserDmxShowManagerActiveShowId,
       merged.laserDmxShowManagerShows,
     ),
-    oscillatorSettings: normalizeOscillatorSettings({
-      ...DEFAULT_OSCILLATOR_SETTINGS,
-      ...merged.oscillatorSettings,
-    }),
     laserDmxBeamMatrixPresetDirty: dirty,
     canvasEngineSettings: createCanvasEngineSettingsForPersistence(merged.canvasEngineSettings),
     canvasOrchestrationSettings,
@@ -6557,7 +5348,7 @@ export function mergeReactStoreState(
 }
 
 const REACT_STORE_PERSISTENCE_NAME = 'drmvyz:react-store'
-const REACT_STORE_PERSISTENCE_VERSION = 85
+const REACT_STORE_PERSISTENCE_VERSION = 86
 let showManagerLibraryMutationInFlight = false
 const showManagerCloudRevisions = new Map<string, number>()
 const SHOW_MANAGER_CLOUD_MIGRATION_MARKER_KEY = 'drmvyz:show-manager-cloud-migration-users:v1'
@@ -6792,27 +5583,15 @@ export const useReactStore = create<ReactStoreState>()(
       laserDmxShowManagerHistoryTransaction: null,
       presetAutomationCuesByTrackId: {},
       pixGridActionCuesByTrackId: {},
-      soundDrawingLayersByTrackId: {},
-      soundDrawingClipsByTrackId:  {},
       performancePads: migrateLegacyPerformancePadsToCinema2(DEFAULT_PERFORMANCE_PADS),
       activePadId: null,
-      oscillatorSettings: DEFAULT_OSCILLATOR_SETTINGS,
-      soundDrawingPerformanceSettings: normalizeSoundDrawingPerformanceSettings(DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS),
-      soundDrawingRibbonResetRevision: 0,
-      soundDrawingTrailResetRevision: 0,
-      oscillatorGlyphAssets: [],
-      oscillatorGlyphPointCache: {},
       oscillatorFontAssets: [],
-      oscillatorTextPointCache: {},
-      fontSelectPending:  null,
-      fontSelectError:    null,
       fontRemovePending:  null,
       fontRemoveError:    null,
       fontUploadPending: false,
       fontUploadError:   null,
       fontsLoadState:    'idle',
       fontLoadError:     null,
-      glyphLostNotice: null,
       performanceActionEvent:         null,
       performanceActionEvents:        [],
       performanceActionSeq:           0,
@@ -9448,27 +8227,6 @@ export const useReactStore = create<ReactStoreState>()(
             } : {}
           }
 
-          if (s.activeReactEngineId === 'oscilloscope') {
-            return {
-              activeReactPresetId: null,
-              oscillatorSettings: { ...DEFAULT_OSCILLATOR_SETTINGS },
-              soundDrawingPerformanceSettings: normalizeSoundDrawingPerformanceSettings(
-                DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS,
-              ),
-              oscillatorTextPointCache: prepareAllSoundDrawingTextPoints(
-                s.oscillatorFontAssets,
-                DEFAULT_OSCILLATOR_SETTINGS,
-                s.soundDrawingLayersByTrackId,
-                s.oscillatorTextPointCache,
-              ),
-              glyphLostNotice: null,
-              soundDrawingTrailResetRevision: s.soundDrawingTrailResetRevision + 1,
-              soundDrawingRibbonResetRevision: s.soundDrawingRibbonResetRevision + 1,
-              performancePadTransition: null,
-              ...DEFAULT_REACT_MASTER_CONTROLS,
-              ...clearPerformanceActionPatch(),
-            }
-          }
 
           if (isStandaloneReactEngineId(s.activeReactEngineId)) {
             return { activeReactPresetId: null, performancePadTransition: null, ...clearPerformanceActionPatch() }
@@ -9487,8 +8245,10 @@ export const useReactStore = create<ReactStoreState>()(
 
       setActiveReactEngineId: (id) => get().selectReactEngine(id),
 
-      selectReactEngine: (engineId) =>
-        requestTextSceneNavigation(() => set((s) => {
+      selectReactEngine: (engineId) => {
+        // The retired Sound Drawing engine opens its replacement, Sound Drawing XY.
+        if (engineId === 'oscilloscope') return get().selectReactEngine('xyScope')
+        return requestTextSceneNavigation(() => set((s) => {
           const pixGridCleanup = engineId === 'pixGrid'
             ? {}
             : {
@@ -9515,32 +8275,6 @@ export const useReactStore = create<ReactStoreState>()(
                 : {}),
               pendingCinemaLegacySelectionMigration: null,
               performancePadTransition: null,
-              ...clearPerformanceActionPatch(),
-              ...pixGridCleanup,
-            }
-          }
-
-          // Sound Drawing always opens in its preset-free base state. Presets are
-          // opt-in looks and must never be silently selected by an engine switch.
-          if (engineId === 'oscilloscope') {
-            return {
-              activeReactEngineId: engineId,
-              activeReactPresetId: null,
-              oscillatorSettings: { ...DEFAULT_OSCILLATOR_SETTINGS },
-              soundDrawingPerformanceSettings: normalizeSoundDrawingPerformanceSettings(
-                DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS,
-              ),
-              oscillatorTextPointCache: prepareAllSoundDrawingTextPoints(
-                s.oscillatorFontAssets,
-                DEFAULT_OSCILLATOR_SETTINGS,
-                s.soundDrawingLayersByTrackId,
-                s.oscillatorTextPointCache,
-              ),
-              glyphLostNotice: null,
-              soundDrawingTrailResetRevision: s.soundDrawingTrailResetRevision + 1,
-              soundDrawingRibbonResetRevision: s.soundDrawingRibbonResetRevision + 1,
-              performancePadTransition: null,
-              ...DEFAULT_REACT_MASTER_CONTROLS,
               ...clearPerformanceActionPatch(),
               ...pixGridCleanup,
             }
@@ -9588,7 +8322,8 @@ export const useReactStore = create<ReactStoreState>()(
             ...clearPerformanceActionPatch(),
             ...pixGridCleanup,
           }
-        })),
+        }))
+      },
 
       selectReactPreset: (id) =>
         requestTextSceneNavigation(() => set((s) => {
@@ -9635,29 +8370,7 @@ export const useReactStore = create<ReactStoreState>()(
       setReactMotion:          (v) => set({ reactMotion: v, performancePadTransition: null }),
       setReactGlow:            (v) => set({ reactGlow: v, performancePadTransition: null }),
       setReactBassReactivity:  (v) => set({ reactBassReactivity: v, performancePadTransition: null }),
-      setReactTrailDecay:      (v) => set((s) => {
-        const trailLock = s.soundDrawingPerformanceSettings.trailLockContract
-        if (!s.soundDrawingPerformanceSettings.locks.trail || trailLock.mode !== 'manualResolved') {
-          return { reactTrailDecay: v, performancePadTransition: null }
-        }
-        return {
-          reactTrailDecay: v,
-          performancePadTransition: null,
-          soundDrawingPerformanceSettings: {
-            ...s.soundDrawingPerformanceSettings,
-            trailLockContract: {
-              ...trailLock,
-              snapshot: {
-                trailDecay: v,
-                autoSectionMode: trailLock.snapshot?.autoSectionMode ?? s.oscillatorSettings.autoSectionMode,
-                ribbonTrailPersistence: trailLock.snapshot?.ribbonTrailPersistence
-                  ?? s.soundDrawingPerformanceSettings.livingRibbon.trailPersistence,
-              },
-            },
-          },
-          soundDrawingTrailResetRevision: s.soundDrawingTrailResetRevision + 1,
-        }
-      }),
+      setReactTrailDecay:      (v) => set({ reactTrailDecay: v, performancePadTransition: null }),
       setReactFogDensity:      (v) => set({ reactFogDensity: v, performancePadTransition: null }),
       setReactParticleDensity: (v) => set({ reactParticleDensity: v, performancePadTransition: null }),
 
@@ -10246,311 +8959,6 @@ export const useReactStore = create<ReactStoreState>()(
           }
         }),
 
-      setSoundDrawingPerformanceSettings: (patch) =>
-        set(s => ({
-          soundDrawingPerformanceSettings: normalizeSoundDrawingPerformanceSettings({
-            ...s.soundDrawingPerformanceSettings,
-            ...patch,
-            locks: patch.locks
-              ? { ...s.soundDrawingPerformanceSettings.locks, ...patch.locks }
-              : s.soundDrawingPerformanceSettings.locks,
-            livingRibbon: patch.livingRibbon
-              ? { ...s.soundDrawingPerformanceSettings.livingRibbon, ...patch.livingRibbon }
-              : s.soundDrawingPerformanceSettings.livingRibbon,
-            trailLockContract: patch.trailLockContract
-              ? {
-                  ...s.soundDrawingPerformanceSettings.trailLockContract,
-                  ...patch.trailLockContract,
-                  snapshot: patch.trailLockContract.snapshot === undefined
-                    ? s.soundDrawingPerformanceSettings.trailLockContract.snapshot
-                    : patch.trailLockContract.snapshot,
-                }
-              : s.soundDrawingPerformanceSettings.trailLockContract,
-          }),
-          soundDrawingTrailResetRevision: s.soundDrawingTrailResetRevision + 1,
-        })),
-
-      setSoundDrawingPerformanceLock: (key, value) =>
-        set(s => {
-          const settings = s.soundDrawingPerformanceSettings
-          // A selected Performance Show owns its base design even while Auto
-          // Performance is off. Parameter Locks remain a manual-source contract
-          // and cannot partially replace either the base design or choreography.
-          if (settings.selectedShowId != null) return s
-          const trailLockContract = key === 'trail' && value && settings.trailLockContract.mode === 'manualResolved'
-            ? {
-                version: 2 as const,
-                mode: 'manualResolved' as const,
-                snapshot: {
-                  trailDecay: s.reactTrailDecay,
-                  autoSectionMode: s.oscillatorSettings.autoSectionMode,
-                  ribbonTrailPersistence: settings.livingRibbon.trailPersistence,
-                },
-              }
-            : settings.trailLockContract
-          return {
-            soundDrawingPerformanceSettings: {
-              ...settings,
-              locks: { ...settings.locks, [key]: value },
-              trailLockContract,
-            },
-            soundDrawingTrailResetRevision: key === 'trail'
-              ? s.soundDrawingTrailResetRevision + 1
-              : s.soundDrawingTrailResetRevision,
-          }
-        }),
-
-      resetSoundDrawingPerformanceSettings: () =>
-        set(s => ({
-          soundDrawingPerformanceSettings: normalizeSoundDrawingPerformanceSettings({
-            ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS,
-            selectedShowId: s.soundDrawingPerformanceSettings.selectedShowId,
-            autoPerformance: s.soundDrawingPerformanceSettings.autoPerformance,
-          }),
-          soundDrawingTrailResetRevision: s.soundDrawingTrailResetRevision + 1,
-        })),
-
-      requestSoundDrawingTrailReset: () =>
-        set(s => ({ soundDrawingTrailResetRevision: s.soundDrawingTrailResetRevision + 1 })),
-
-      requestSoundDrawingRibbonReset: () =>
-        set(s => ({ soundDrawingRibbonResetRevision: s.soundDrawingRibbonResetRevision + 1 })),
-
-      setOscillatorSettings: (patch) =>
-        set((s) => {
-          const newSettings = normalizeOscillatorSettings({ ...s.oscillatorSettings, ...patch })
-          let newGlyphCache = s.oscillatorGlyphPointCache
-          let newTextCache  = s.oscillatorTextPointCache
-
-          // When pathResolution changes while a glyph is active, debounce the recompile so
-          // slider dragging does not synchronously stall the UI on every tick.
-          // The renderer uses the previous compiled points until the debounce fires.
-          const hasActiveGlyph =
-            (newSettings.sourceType === 'svgGlyph' && !!newSettings.selectedGlyphId) ||
-            (newSettings.sourceType === 'svg'       && !!newSettings.selectedSvgId)
-          if ('pathResolution' in patch && hasActiveGlyph) {
-            scheduleGlyphRecompile()
-          }
-
-          // Re-prepare global and saved-layer OpenType geometry when a setting
-          // that contributes to text point generation changes. Layer-specific
-          // transforms and styling remain untouched.
-          if (patchChangesTextGeometry(patch)) {
-            newTextCache = prepareAllSoundDrawingTextPoints(
-              s.oscillatorFontAssets,
-              newSettings,
-              s.soundDrawingLayersByTrackId,
-              newTextCache,
-            )
-          }
-
-          return {
-            oscillatorSettings:        newSettings,
-            oscillatorGlyphPointCache: newGlyphCache,
-            oscillatorTextPointCache:  newTextCache,
-            ...(patchNeedsSoundDrawingTrailReset(patch)
-              ? { soundDrawingTrailResetRevision: s.soundDrawingTrailResetRevision + 1 }
-              : {}),
-            // Clear the notice whenever the user actively changes the source type
-            ...('sourceType' in patch ? { glyphLostNotice: null } : {}),
-          }
-        }),
-
-      resetOscillatorSettings: () =>
-        set((s) => ({
-          oscillatorSettings: { ...DEFAULT_OSCILLATOR_SETTINGS },
-          soundDrawingTrailResetRevision: s.soundDrawingTrailResetRevision + 1,
-          oscillatorTextPointCache: prepareAllSoundDrawingTextPoints(
-            s.oscillatorFontAssets,
-            DEFAULT_OSCILLATOR_SETTINGS,
-            s.soundDrawingLayersByTrackId,
-            s.oscillatorTextPointCache,
-          ),
-        })),
-
-      clearGlyphLostNotice: () => set({ glyphLostNotice: null }),
-
-      addOscillatorGlyphAsset: (asset) =>
-        set((s) => {
-          if (s.oscillatorGlyphAssets.some(a => a.id === asset.id)) return {}
-          // Parse immediately at upload time so the renderer never needs to.
-          const res = clampRes(s.oscillatorSettings.pathResolution)
-          const newCache = prepareSvgPoints(asset, res, s.oscillatorGlyphPointCache)
-          return {
-            oscillatorGlyphAssets: [...s.oscillatorGlyphAssets, asset],
-            oscillatorGlyphPointCache: newCache,
-          }
-        }),
-
-      removeOscillatorGlyphAsset: (id) =>
-        set((s) => {
-          // Evict all cache entries for this asset
-          const newCache = { ...s.oscillatorGlyphPointCache }
-          for (const key of Object.keys(newCache)) {
-            if (key.startsWith(`${id}:`)) delete newCache[key]
-          }
-          const mediaId = getMediaIdFromSvgGlyphId(id)
-          const wasLegacyActive = s.oscillatorSettings.sourceType === 'svgGlyph' &&
-            s.oscillatorSettings.selectedGlyphId === id
-          const wasUnifiedActive = !!mediaId && s.oscillatorSettings.sourceType === 'svg' &&
-            s.oscillatorSettings.selectedSvgId === mediaId
-          const wasActive = wasLegacyActive || wasUnifiedActive
-          const removedName = wasActive
-            ? (s.oscillatorGlyphAssets.find(a => a.id === id)?.name ?? null)
-            : null
-          return {
-            oscillatorGlyphAssets: s.oscillatorGlyphAssets.filter(a => a.id !== id),
-            oscillatorGlyphPointCache: newCache,
-            oscillatorSettings: wasActive
-              ? {
-                  ...s.oscillatorSettings,
-                  selectedGlyphId: wasLegacyActive ? null : s.oscillatorSettings.selectedGlyphId,
-                  selectedSvgId: wasUnifiedActive ? null : s.oscillatorSettings.selectedSvgId,
-                  sourceType: 'builtinShape',
-                }
-              : s.oscillatorSettings,
-            glyphLostNotice: removedName,
-            ...(wasActive ? { soundDrawingTrailResetRevision: s.soundDrawingTrailResetRevision + 1 } : {}),
-          }
-        }),
-
-      clearOscillatorGlyphAssets: () =>
-        set((s) => ({
-          oscillatorGlyphAssets: [],
-          oscillatorGlyphPointCache: {},
-          oscillatorSettings:
-            s.oscillatorSettings.sourceType === 'svgGlyph'
-              ? { ...s.oscillatorSettings, selectedGlyphId: null, sourceType: 'builtinShape' }
-              : s.oscillatorSettings,
-          ...(s.oscillatorSettings.sourceType === 'svgGlyph'
-            ? { soundDrawingTrailResetRevision: s.soundDrawingTrailResetRevision + 1 }
-            : {}),
-        })),
-
-      selectOscillatorGlyph: (id) =>
-        set((s) => {
-          const asset = s.oscillatorGlyphAssets.find(a => a.id === id)
-          const res = clampRes(s.oscillatorSettings.pathResolution)
-          // Ensure points are prepared; handles the page-reload case where the
-          // persisted asset has rawSvg but the non-persisted cache is empty.
-          const newCache = asset ? prepareSvgPoints(asset, res, s.oscillatorGlyphPointCache) : s.oscillatorGlyphPointCache
-          const mediaId = getMediaIdFromSvgGlyphId(id)
-          return {
-            oscillatorSettings: mediaId
-              ? {
-                  ...s.oscillatorSettings,
-                  sourceType: 'svg',
-                  selectedSvgId: mediaId,
-                  svgRenderMode: 'reactivePath',
-                }
-              : { ...s.oscillatorSettings, sourceType: 'svgGlyph', selectedGlyphId: id },
-            oscillatorGlyphPointCache: newCache,
-            glyphLostNotice: null,
-            soundDrawingTrailResetRevision: s.soundDrawingTrailResetRevision + 1,
-          }
-        }),
-
-      selectSvgMediaGlyph: async (mediaId) => {
-        const requestGeneration = ++_svgSelectionGeneration
-        set(state => ({
-          oscillatorSettings: {
-            ...state.oscillatorSettings,
-            sourceType: 'svg',
-            selectedSvgId: mediaId,
-            svgRenderMode: 'reactivePath',
-          },
-          glyphLostNotice: null,
-          soundDrawingTrailResetRevision: state.soundDrawingTrailResetRevision + 1,
-        }))
-        await ensureUnifiedSvgCaches(mediaId)
-        if (requestGeneration !== _svgSelectionGeneration) return
-        const active = get().oscillatorSettings
-        if (active.sourceType !== 'svg' || active.selectedSvgId !== mediaId) return
-      },
-
-      addAndCacheMediaSvgGlyph: (mediaId, rawSvg, displayName) =>
-        set(state => {
-          if (!isSvgContent(rawSvg)) return {}
-          const stableId = getSvgGlyphAssetId(mediaId)
-          const res = clampRes(state.oscillatorSettings.pathResolution)
-          const asset = makeSvgGlyphAsset(displayName ?? 'SVG', rawSvg, res, stableId)
-          const existingIndex = state.oscillatorGlyphAssets.findIndex(candidate => candidate.id === stableId)
-          const assets = existingIndex < 0
-            ? [...state.oscillatorGlyphAssets, asset]
-            : state.oscillatorGlyphAssets.map(candidate => candidate.id === stableId ? asset : candidate)
-          return {
-            oscillatorGlyphAssets: assets,
-            oscillatorGlyphPointCache: prepareSvgPoints(asset, res, state.oscillatorGlyphPointCache),
-          }
-        }),
-
-      // ── SVG artwork compatibility and unified lifecycle ────────────────────
-
-      selectSvgVisual: async (mediaId) => {
-        const requestGeneration = ++_svgSelectionGeneration
-        set(state => ({
-          oscillatorSettings: {
-            ...state.oscillatorSettings,
-            sourceType: 'svg',
-            selectedSvgId: mediaId,
-            svgRenderMode: 'originalArtwork',
-          },
-          glyphLostNotice: null,
-          soundDrawingTrailResetRevision: state.soundDrawingTrailResetRevision + 1,
-        }))
-        await ensureUnifiedSvgCaches(mediaId)
-        if (requestGeneration !== _svgSelectionGeneration) return
-        const active = get().oscillatorSettings
-        if (active.sourceType !== 'svg' || active.selectedSvgId !== mediaId) return
-      },
-
-      clearSvgVisualForMedia: (mediaId) => {
-        evictSvgVisual(mediaId)
-        set(state => {
-          const activeUnified = state.oscillatorSettings.sourceType === 'svg' &&
-            state.oscillatorSettings.selectedSvgId === mediaId
-          const activeLegacy = state.oscillatorSettings.sourceType === 'svgVisual' &&
-            state.oscillatorSettings.selectedSvgVisualId === mediaId
-          if (!activeUnified && !activeLegacy) return {}
-          return {
-            oscillatorSettings: {
-              ...state.oscillatorSettings,
-              sourceType: 'builtinShape',
-              selectedSvgId: activeUnified ? null : state.oscillatorSettings.selectedSvgId,
-              selectedSvgVisualId: activeLegacy ? null : state.oscillatorSettings.selectedSvgVisualId,
-            },
-            soundDrawingTrailResetRevision: state.soundDrawingTrailResetRevision + 1,
-          }
-        })
-      },
-
-      rehydrateSvgAsset: async (mediaId) => {
-        await ensureUnifiedSvgCaches(mediaId)
-      },
-
-      selectSvgAsset: async (mediaId) => {
-        const requestGeneration = ++_svgSelectionGeneration
-        set(state => ({
-          oscillatorSettings: {
-            ...state.oscillatorSettings,
-            sourceType: 'svg',
-            selectedSvgId: mediaId,
-          },
-          glyphLostNotice: null,
-          soundDrawingTrailResetRevision: state.soundDrawingTrailResetRevision + 1,
-        }))
-
-        await ensureUnifiedSvgCaches(mediaId)
-
-        // Async cache completion is intentionally not allowed to select anything.
-        // The token + selected-ID guard documents and enforces last-selection-wins.
-        if (requestGeneration !== _svgSelectionGeneration) return
-        const active = get().oscillatorSettings
-        if (active.sourceType !== 'svg' || active.selectedSvgId !== mediaId) return
-      },
-
-      // ── Font asset actions ──────────────────────────────────────────────────
-
       addOscillatorFontAsset: (asset) =>
         set((s) => {
           if (s.oscillatorFontAssets.some(a => a.id === asset.id)) return {}
@@ -10609,148 +9017,19 @@ export const useReactStore = create<ReactStoreState>()(
           // reactively by the UI effect when oscillatorFontAssets changes below)
           evictFontFromCache(id)
 
-          set((s) => {
-            const newTextCache = { ...s.oscillatorTextPointCache }
-            for (const key of Object.keys(newTextCache)) {
-              if (key.startsWith(`${id}:`)) delete newTextCache[key]
-            }
-            return {
-              fontRemovePending: null,
-              fontRemoveError: storageErr
-                ? `Font deleted; storage cleanup failed: ${storageErr}`
-                : null,
-              oscillatorFontAssets:     s.oscillatorFontAssets.filter(a => a.id !== id),
-              oscillatorTextPointCache: newTextCache,
-              oscillatorSettings:
-                s.oscillatorSettings.textFontId === id
-                  ? { ...s.oscillatorSettings, textFontId: null }
-                  : s.oscillatorSettings,
-              ...(s.oscillatorSettings.textFontId === id
-                ? { soundDrawingTrailResetRevision: s.soundDrawingTrailResetRevision + 1 }
-                : {}),
-              // Clear any in-flight select for this font — the download is now pointless
-              fontSelectPending: s.fontSelectPending === id ? null : s.fontSelectPending,
-              fontSelectError:   s.fontSelectPending === id ? null : s.fontSelectError,
-            }
-          })
+          set((s) => ({
+            fontRemovePending: null,
+            fontRemoveError: storageErr
+              ? `Font deleted; storage cleanup failed: ${storageErr}`
+              : null,
+            oscillatorFontAssets: s.oscillatorFontAssets.filter(a => a.id !== id),
+          }))
         } catch (e) {
           set({ fontRemovePending: null, fontRemoveError: `Unexpected error: ${(e as Error).message}` })
         }
       },
 
-      clearOscillatorFontAssets: () =>
-        set((s) => ({
-          oscillatorFontAssets: [],
-          oscillatorTextPointCache: {},
-          oscillatorSettings:
-            s.oscillatorSettings.textFontId
-              ? { ...s.oscillatorSettings, textFontId: null }
-              : s.oscillatorSettings,
-          ...(s.oscillatorSettings.textFontId
-            ? { soundDrawingTrailResetRevision: s.soundDrawingTrailResetRevision + 1 }
-            : {}),
-        })),
-
-      selectOscillatorFont: async (id) => {
-        // Null clears the selection synchronously — no I/O needed
-        if (id === null) {
-          set((s) => ({
-            fontSelectPending: null,
-            fontSelectError:   null,
-            oscillatorSettings: { ...s.oscillatorSettings, textFontId: null },
-            soundDrawingTrailResetRevision: s.soundDrawingTrailResetRevision + 1,
-          }))
-          return
-        }
-
-        const asset = useReactStore.getState().oscillatorFontAssets.find(a => a.id === id)
-        if (!asset) return
-
-        // Deduplicate concurrent calls for the same id
-        if (useReactStore.getState().fontSelectPending === id) return
-
-        // Cache hit — commit selection and warm text cache immediately.
-        // Also clears fontSelectPending to supersede any concurrent in-flight download.
-        if (hasFontRuntime(id)) {
-          set((s) => {
-            const newSettings = { ...s.oscillatorSettings, textFontId: id }
-            return {
-              fontSelectPending:        null,
-              fontSelectError:          null,
-              oscillatorSettings:       newSettings,
-              soundDrawingTrailResetRevision: s.soundDrawingTrailResetRevision + 1,
-              oscillatorTextPointCache: prepareActiveSoundDrawingTextPoints(
-                s.oscillatorFontAssets,
-                newSettings,
-                s.oscillatorTextPointCache,
-              ),
-            }
-          })
-          return
-        }
-
-        set({ fontSelectPending: id, fontSelectError: null })
-
-        try {
-          // Reuse buffer if preview preload already downloaded it; otherwise fetch from cloud.
-          let buffer = getBufferFromCache(id)
-          if (!buffer) {
-            const { data: blob, error: downloadErr } = await downloadFontFile(asset.storagePath)
-            if (downloadErr || !blob) {
-              set(s => {
-                if (s.fontSelectPending !== id) return {}
-                return { fontSelectPending: null, fontSelectError: `Could not download font: ${downloadErr ?? 'no data'}` }
-              })
-              return
-            }
-            buffer = await blob.arrayBuffer()
-          }
-
-          // Parse with opentype.js
-          let font: opentype.Font
-          try {
-            font = opentype.parse(buffer)
-          } catch (e) {
-            set(s => {
-              if (s.fontSelectPending !== id) return {}
-              return { fontSelectPending: null, fontSelectError: `Could not parse font: ${(e as Error).message}` }
-            })
-            return
-          }
-
-          // Check freshness before committing to the runtime cache.
-          // A cache-hit selection of another font clears fontSelectPending, so if it
-          // no longer matches we discard the parsed data rather than polluting the cache.
-          if (useReactStore.getState().fontSelectPending !== id) return
-
-          storeFontRuntime(id, font, buffer)
-
-          // Commit selection — discard if a newer selection raced in between getState and set
-          set((s) => {
-            if (s.fontSelectPending !== id) {
-              evictFontFromCache(id)
-              return {}
-            }
-            const newSettings = { ...s.oscillatorSettings, textFontId: id }
-            return {
-              fontSelectPending:        null,
-              fontSelectError:          null,
-              oscillatorSettings:       newSettings,
-              soundDrawingTrailResetRevision: s.soundDrawingTrailResetRevision + 1,
-              oscillatorTextPointCache: prepareActiveSoundDrawingTextPoints(
-                s.oscillatorFontAssets,
-                newSettings,
-                s.oscillatorTextPointCache,
-              ),
-            }
-          })
-        } catch (e) {
-          set(s => {
-            if (s.fontSelectPending !== id) return {}
-            return { fontSelectPending: null, fontSelectError: `Unexpected error: ${(e as Error).message}` }
-          })
-        }
-      },
+      clearOscillatorFontAssets: () => set({ oscillatorFontAssets: [] }),
 
       uploadOscillatorFont: async (file, details) => {
         if (!supabaseConfigured) {
@@ -10844,28 +9123,10 @@ export const useReactStore = create<ReactStoreState>()(
           storeFontRuntime(dbId, inspected.font, inspected.buffer)
           evictFontFromCache(inspected.id)
 
-          // 9 + 10. Add to store and select the new font
-          set((s) => {
-            if (s.oscillatorFontAssets.some(a => a.id === dbId)) {
-              return { fontUploadPending: false }
-            }
-            const newAssets    = [...s.oscillatorFontAssets, asset]
-            const newSettings  = { ...s.oscillatorSettings, textFontId: dbId }
-            const newTextCache = prepareAllSoundDrawingTextPoints(
-              newAssets,
-              newSettings,
-              s.soundDrawingLayersByTrackId,
-              s.oscillatorTextPointCache,
-            )
-            return {
-              fontUploadPending:    false,
-              fontUploadError:      null,
-              oscillatorFontAssets: newAssets,
-              oscillatorSettings:   newSettings,
-              soundDrawingTrailResetRevision: s.soundDrawingTrailResetRevision + 1,
-              oscillatorTextPointCache: newTextCache,
-            }
-          })
+          // 9. Add to the Font Library
+          set((s) => s.oscillatorFontAssets.some(a => a.id === dbId)
+            ? { fontUploadPending: false }
+            : { fontUploadPending: false, fontUploadError: null, oscillatorFontAssets: [...s.oscillatorFontAssets, asset] })
           return dbId
         } catch (e) {
           if (inspectedId) evictFontFromCache(inspectedId)
@@ -10912,30 +9173,7 @@ export const useReactStore = create<ReactStoreState>()(
             collectionIds:  row.collection_ids ?? [],
           }))
 
-          const loadedIds = new Set(assets.map(a => a.id))
-
-          set((s) => {
-            const currentFontId = s.oscillatorSettings.textFontId
-            return {
-              fontsLoadState:    'loaded',
-              fontLoadError:     null,
-              oscillatorFontAssets: assets,
-              oscillatorSettings:
-                currentFontId && !loadedIds.has(currentFontId)
-                  ? { ...s.oscillatorSettings, textFontId: null }
-                  : s.oscillatorSettings,
-              ...(currentFontId && !loadedIds.has(currentFontId)
-                ? { soundDrawingTrailResetRevision: s.soundDrawingTrailResetRevision + 1 }
-                : {}),
-            }
-          })
-
-          // Lazily rehydrate the persisted font: download and cache it if not already warm.
-          // selectOscillatorFont is a no-op when the runtime cache is already populated.
-          const persistedId = useReactStore.getState().oscillatorSettings.textFontId
-          if (persistedId && !hasFontRuntime(persistedId)) {
-            await useReactStore.getState().selectOscillatorFont(persistedId)
-          }
+          set({ fontsLoadState: 'loaded', fontLoadError: null, oscillatorFontAssets: assets })
         } catch (e) {
           set({ fontsLoadState: 'error', fontLoadError: `Unexpected error: ${(e as Error).message}` })
         }
@@ -12754,156 +10992,6 @@ export const useReactStore = create<ReactStoreState>()(
 
       // ── Sound Drawing layers ─────────────────────────────────────────────────
 
-      getSoundDrawingLayersForTrack: (trackId) =>
-        get().soundDrawingLayersByTrackId[trackId] ?? [],
-
-      addSoundDrawingLayer: (trackId, layer) => {
-        const id = crypto.randomUUID()
-        set((s) => {
-          const storedLayer = normalizeSoundDrawingLayer({ ...layer, id })
-          const newTextCache = prepareSoundDrawingLayerTextPoints(
-            s.oscillatorFontAssets,
-            s.oscillatorSettings,
-            storedLayer,
-            s.oscillatorTextPointCache,
-          )
-          return {
-            soundDrawingLayersByTrackId: {
-              ...s.soundDrawingLayersByTrackId,
-              [trackId]: [...(s.soundDrawingLayersByTrackId[trackId] ?? []), storedLayer],
-            },
-            oscillatorTextPointCache: newTextCache,
-          }
-        })
-        return id
-      },
-
-      updateSoundDrawingLayer: (trackId, layerId, patch) =>
-        set((s) => {
-          const layers = s.soundDrawingLayersByTrackId[trackId] ?? []
-          const merged = layers.map((l) => l.id === layerId
-            ? normalizeSoundDrawingLayer({ ...l, ...patch })
-            : l)
-          const updated = merged.find(l => l.id === layerId)
-          const newTextCache = updated
-            ? prepareSoundDrawingLayerTextPoints(
-                s.oscillatorFontAssets,
-                s.oscillatorSettings,
-                updated,
-                s.oscillatorTextPointCache,
-              )
-            : s.oscillatorTextPointCache
-          return {
-            soundDrawingLayersByTrackId: {
-              ...s.soundDrawingLayersByTrackId,
-              [trackId]: merged,
-            },
-            oscillatorTextPointCache: newTextCache,
-          }
-        }),
-
-      duplicateSoundDrawingLayer: (trackId, layerId) =>
-        set((s) => {
-          const layers = s.soundDrawingLayersByTrackId[trackId] ?? []
-          const src = layers.find((l) => l.id === layerId)
-          if (!src) return {}
-          const copy = normalizeSoundDrawingLayer({
-            ...src,
-            id: crypto.randomUUID(),
-            name: `${src.name} Copy`,
-          })
-          const newTextCache = prepareSoundDrawingLayerTextPoints(
-            s.oscillatorFontAssets,
-            s.oscillatorSettings,
-            copy,
-            s.oscillatorTextPointCache,
-          )
-          return {
-            soundDrawingLayersByTrackId: {
-              ...s.soundDrawingLayersByTrackId,
-              [trackId]: [...layers, copy],
-            },
-            oscillatorTextPointCache: newTextCache,
-          }
-        }),
-
-      removeSoundDrawingLayer: (trackId, layerId) =>
-        set((s) => ({
-          soundDrawingLayersByTrackId: {
-            ...s.soundDrawingLayersByTrackId,
-            [trackId]: (s.soundDrawingLayersByTrackId[trackId] ?? []).filter((l) => l.id !== layerId),
-          },
-          soundDrawingClipsByTrackId: {
-            ...s.soundDrawingClipsByTrackId,
-            [trackId]: (s.soundDrawingClipsByTrackId[trackId] ?? []).filter((c) => c.layerId !== layerId),
-          },
-        })),
-
-      // ── Sound Drawing clips ──────────────────────────────────────────────────
-
-      getSoundDrawingClipsForTrack: (trackId) =>
-        [...(get().soundDrawingClipsByTrackId[trackId] ?? [])].sort(
-          (a, b) => a.startSec !== b.startSec ? a.startSec - b.startSec : a.zIndex - b.zIndex,
-        ),
-
-      addSoundDrawingClip: (trackId, clip, trackDurationSec) => {
-        const id   = crypto.randomUUID()
-        const safe = normalizeSoundDrawingClip(
-          { ...clip, id, trackId },
-          trackId,
-          trackDurationSec,
-        )
-        set((s) => ({
-          soundDrawingClipsByTrackId: {
-            ...s.soundDrawingClipsByTrackId,
-            [trackId]: [...(s.soundDrawingClipsByTrackId[trackId] ?? []), safe],
-          },
-        }))
-        return id
-      },
-
-      updateSoundDrawingClip: (trackId, clipId, patch, trackDurationSec) =>
-        set((s) => {
-          const clips = s.soundDrawingClipsByTrackId[trackId] ?? []
-          return {
-            soundDrawingClipsByTrackId: {
-              ...s.soundDrawingClipsByTrackId,
-              [trackId]: clips.map((c) =>
-                c.id === clipId
-                  ? normalizeSoundDrawingClip({ ...c, ...patch, trackId }, trackId, trackDurationSec)
-                  : c,
-              ),
-            },
-          }
-        }),
-
-      duplicateSoundDrawingClip: (trackId, clipId) =>
-        set((s) => {
-          const clips = s.soundDrawingClipsByTrackId[trackId] ?? []
-          const src = clips.find((c) => c.id === clipId)
-          if (!src) return {}
-          const copy = normalizeSoundDrawingClip(
-            { ...src, id: crypto.randomUUID(), trackId },
-            trackId,
-          )
-          return {
-            soundDrawingClipsByTrackId: {
-              ...s.soundDrawingClipsByTrackId,
-              [trackId]: [...clips, copy],
-            },
-          }
-        }),
-
-      removeSoundDrawingClip: (trackId, clipId) =>
-        set((s) => ({
-          soundDrawingClipsByTrackId: {
-            ...s.soundDrawingClipsByTrackId,
-            [trackId]: (s.soundDrawingClipsByTrackId[trackId] ?? []).filter((c) => c.id !== clipId),
-          },
-        })),
-
-      // ── Beam Matrix preset actions ───────────────────────────────────────────
-
       applyLaserDmxBeamMatrixPreset: (presetId) => {
         const preset = getLaserDmxBeamMatrixPreset(presetId)
         if (!preset) return
@@ -12964,24 +11052,6 @@ export const useReactStore = create<ReactStoreState>()(
             return { ...sharedDefaults, cinematicConfigsByPresetId: rest }
           }
 
-          if (s.activeReactEngineId === 'oscilloscope') {
-            return {
-              ...sharedDefaults,
-              activeReactPresetId: null,
-              oscillatorSettings: { ...DEFAULT_OSCILLATOR_SETTINGS },
-              soundDrawingPerformanceSettings: normalizeSoundDrawingPerformanceSettings(
-                DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS,
-              ),
-              oscillatorTextPointCache: prepareAllSoundDrawingTextPoints(
-                s.oscillatorFontAssets,
-                DEFAULT_OSCILLATOR_SETTINGS,
-                s.soundDrawingLayersByTrackId,
-                s.oscillatorTextPointCache,
-              ),
-              glyphLostNotice: null,
-              soundDrawingTrailResetRevision: s.soundDrawingTrailResetRevision + 1,
-            }
-          }
 
           if (s.activeReactEngineId === 'laserDmx') {
             const defaults = createDefaultLaserDmxBeamMatrixSettings()
@@ -13185,7 +11255,6 @@ export const useReactStore = create<ReactStoreState>()(
         if (blockTextSceneNavigation(() => get().resetReactView())) return
         const previousCanvasItems = get().canvasMediaItems
         revokeCanvasMediaObjectUrls(previousCanvasItems)
-        clearSvgVisualCache()
         set({
           activeReactPresetId:          INITIAL_PRESET_ID,
           activeReactEngineId:          INITIAL_ENGINE_ID,
@@ -13241,17 +11310,8 @@ export const useReactStore = create<ReactStoreState>()(
           suppressedAutoSectionsByTrackId: {},
           presetAutomationCuesByTrackId: {},
           pixGridActionCuesByTrackId: {},
-          soundDrawingLayersByTrackId:  {},
-          soundDrawingClipsByTrackId:   {},
           performancePads:           migrateLegacyPerformancePadsToCinema2(DEFAULT_PERFORMANCE_PADS),
           activePadId:               null,
-          oscillatorSettings:        DEFAULT_OSCILLATOR_SETTINGS,
-          soundDrawingPerformanceSettings: normalizeSoundDrawingPerformanceSettings(DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS),
-          soundDrawingTrailResetRevision: get().soundDrawingTrailResetRevision + 1,
-          soundDrawingRibbonResetRevision: get().soundDrawingRibbonResetRevision + 1,
-          oscillatorGlyphPointCache: {},
-          oscillatorTextPointCache:  {},
-          glyphLostNotice:           null,
           performanceActionEvent:           null,
           performanceActionEvents:          [],
           performanceActionToggleStates:    {},
@@ -13293,17 +11353,13 @@ registerAccountScopedStore(REACT_STORE_PERSISTENCE_NAME, useReactStore)
 
 // ── The user's Auto Performance default (Settings > System Settings) ──────────
 // The default decides every Auto Performance toggle the React view owns outside Cinema 2.0 when the app loads, when a preset or engine is
-// chosen, when Sound Drawing selects a show, and whenever the setting changes. A toggle flipped by hand lasts until the next of those.
+// chosen, and whenever the setting changes. A toggle flipped by hand lasts until the next of those.
 function applyUserAutoPerformanceDefault(value: boolean | null = getAutoPerformanceUserDefault()): void {
   if (value === null) return
   const state = useReactStore.getState()
   const patch = applyAutoPerformanceDefaultToReactState(state, value)
-  const soundDrawing = applyAutoPerformanceDefaultToSoundDrawing(state.soundDrawingPerformanceSettings, value)
-  if (!patch && !soundDrawing) return
-  useReactStore.setState({
-    ...(patch ?? {}),
-    ...(soundDrawing ? { soundDrawingPerformanceSettings: soundDrawing as ReactStoreState['soundDrawingPerformanceSettings'] } : {}),
-  } as Partial<ReactStoreState>)
+  if (!patch) return
+  useReactStore.setState(patch as Partial<ReactStoreState>)
 }
 
 subscribeAutoPerformanceUserDefault(value => applyUserAutoPerformanceDefault(value))
@@ -13313,6 +11369,5 @@ useReactStore.subscribe((state, previous) => {
   const selectionChanged = state.activeReactPresetId !== previous.activeReactPresetId
     || state.activeReactEngineId !== previous.activeReactEngineId
     || state.selectedCanvasPresetId !== previous.selectedCanvasPresetId
-  const showChosen = previous.soundDrawingPerformanceSettings.selectedShowId == null && state.soundDrawingPerformanceSettings.selectedShowId != null
-  if (selectionChanged || showChosen) applyUserAutoPerformanceDefault()
+  if (selectionChanged) applyUserAutoPerformanceDefault()
 })

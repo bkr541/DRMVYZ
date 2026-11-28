@@ -37,8 +37,4 @@ describe('engine-scoped Visual Search records', () => {
     expect(ids('user')).toEqual(['private'])
     expect(ids('user', [])).toEqual([])
   })
-  it('uses the Preset Manager organization key for the Sound Drawing engine', () => {
-    const records = buildVisualPresetRecords('oscilloscope', sources, new Map(), { 'soundDrawing:shared': { tags: ['Personal'], collectionIds: [] } }, [])
-    expect(searchStudyPresets(records, 'Personal').map(record => record.id)).toEqual(['shared'])
-  })
 })

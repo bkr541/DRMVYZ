@@ -3,7 +3,6 @@ import { sortPresetsByName } from './presetOrder'
 import { useShallow } from 'zustand/react/shallow'
 import {
   resolveCinematicConfigForPreset,
-  resolvePresetOscillatorSettings,
   useReactStore,
 } from '../../../stores/reactStore'
 import { CINEMATIC_WORLD_BY_ID, CINEMATIC_WORLD_UI, getCinematicPresetMood } from './CinematicWorldsUi'
@@ -73,21 +72,7 @@ function getModeHint(preset: ReactPreset): string | null {
     const mode = preset.cinematicConfig?.worldMode ?? 'legacyPortal'
     return `${CINEMATIC_WORLD_BY_ID[mode].label} · ${getCinematicPresetMood(preset)}`
   }
-  if (preset.engine !== 'oscilloscope') return null
-  const osc = preset.oscillatorSettings
-  if (!osc) return 'Classic Scope'
-  switch (osc.sourceType) {
-    case 'classic':
-      if (osc.autoSectionMode) return 'Classic · Auto'
-      return osc.classicMode === 'lissajous' ? 'Lissajous'
-        : osc.classicMode === 'radialScope' ? 'Radial Scope'
-        : osc.classicMode === 'spiralScope' ? 'Spiral Scope'
-        : osc.classicMode === 'sectionAuto' ? 'Classic · Auto' : 'Waveform'
-    case 'builtinShape': return osc.builtinShape ? osc.builtinShape.charAt(0).toUpperCase() + osc.builtinShape.slice(1) : 'Shape'
-    case 'text': return osc.text?.trim() ? `"${osc.text.trim()}"` : 'Text'
-    case 'svgGlyph': return 'SVG Glyph'
-    default: return null
-  }
+  return null
 }
 
 function isCinematicPresetModified(
@@ -263,11 +248,9 @@ function reactPresetDiscoveryMetadata(preset: ReactPreset) {
     : null
   const fallbackCategory = preset.engine === 'cinematicPortal'
     ? preset.cinematicConfig?.worldMode ?? 'cinematic-world'
-    : preset.engine === 'oscilloscope'
-      ? preset.oscillatorSettings?.sourceType ?? 'sound-drawing'
-      : preset.engine === 'pixGrid'
-        ? preset.pixGridDeck ? 'media-deck' : 'pixel-art'
-        : preset.engine
+    : preset.engine === 'pixGrid'
+      ? preset.pixGridDeck ? 'media-deck' : 'pixel-art'
+      : preset.engine
   return resolvePresetDiscoveryMetadata(
     preset,
     fallbackCategory,
@@ -559,7 +542,6 @@ export function ReactPresetsPanel() {
     reactTrailDecay,
     reactFogDensity,
     reactParticleDensity,
-    oscillatorSettings,
     selectReactPreset,
   } = useReactStore(useShallow(state => ({
     reactPresets: state.reactPresets,
@@ -574,7 +556,6 @@ export function ReactPresetsPanel() {
     reactTrailDecay: state.reactTrailDecay,
     reactFogDensity: state.reactFogDensity,
     reactParticleDensity: state.reactParticleDensity,
-    oscillatorSettings: state.oscillatorSettings,
     selectReactPreset: state.selectReactPreset,
   })))
   const [favoritePresetIds, setFavoritePresetIds] = useState<string[]>(readReactPresetFavorites)
@@ -660,10 +641,6 @@ export function ReactPresetsPanel() {
       fogDensity: reactFogDensity,
       particleDensity: reactParticleDensity,
     },
-    oscillatorSettings,
-    expectedOscillatorSettings: active?.engine === 'oscilloscope'
-      ? resolvePresetOscillatorSettings(active, oscillatorSettings)
-      : undefined,
     engineSpecificModified: isCinematicPresetModified(
       reactPresets.find(preset => preset.id === activeReactPresetId),
       cinematicConfigsByPresetId,
@@ -679,8 +656,6 @@ export function ReactPresetsPanel() {
     reactTrailDecay,
     reactFogDensity,
     reactParticleDensity,
-    oscillatorSettings,
-    active,
     cinematicConfigsByPresetId,
   ])
   const modifiedIds = useMemo(() => {
@@ -760,11 +735,7 @@ export function ReactPresetsPanel() {
           return preset ? <ReactPresetThumbnail preset={preset} generationKey={thumbnailGenerationKey} /> : undefined
         }} />
       <div className="rv-preset-scroll">
-        {activeReactEngineId === 'oscilloscope' ? (
-          <div className="rv-sound-drawing-presets-list">
-            {presetLibraryContent}
-          </div>
-        ) : activeReactEngineId === 'laserDmx' ? (
+        {activeReactEngineId === 'laserDmx' ? (
           <div className="rv-laser-presets-list">
             {presetLibraryContent}
           </div>

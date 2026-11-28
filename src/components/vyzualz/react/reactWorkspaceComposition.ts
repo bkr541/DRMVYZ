@@ -1,19 +1,17 @@
 import { isCinema2TextPreset } from '../cinema2/text/Cinema2TextConfiguration'
 import type { ReactEngineId } from './ReactTypes'
 
-export type ReactLeftTab = 'workspace' | 'media' | 'layers' | 'fonts' | 'pool'
-export type ReactLowerSurface = 'trackMap' | 'soundDrawing' | 'performancePads'
+export type ReactLeftTab = 'workspace' | 'media' | 'layers' | 'pool'
+export type ReactLowerSurface = 'trackMap' | 'performancePads'
 export type ReactWorkspaceTabLabel = 'SETUP' | 'SOURCE' | 'RIG' | 'LAYOUT'
 
 const REACT_LOWER_SURFACE_LABELS: Record<ReactLowerSurface, string> = {
   trackMap: 'Track Map',
-  soundDrawing: 'Sound Drawing',
   performancePads: 'Performance Pads',
 }
 
 export interface ReactWorkspaceComposition {
   showPerformancePads: boolean
-  showSoundDrawingTimeline: boolean
   showTrackMap: boolean
   showLaserBeamEditor: boolean
   showLaserLayersTab: boolean
@@ -33,7 +31,6 @@ export function resolveReactWorkspaceComposition(
   beamEditorVisible: boolean,
   cinema2PresetId?: string,
 ): ReactWorkspaceComposition {
-  const isSoundDrawing = engineId === 'oscilloscope'
   const isCinematic = engineId === 'cinematicPortal'
   const isCinema2 = engineId === 'cinema2'
   const isLaser = engineId === 'laserDmx'
@@ -53,7 +50,7 @@ export function resolveReactWorkspaceComposition(
     leftTabs = ['workspace', 'media']
   } else if (isXyScope) {
     // Sound Drawing XY owns its word and font in the SOURCE tab; MEDIA is reserved for SVG artwork and is shown
-    // disabled until that source exists. The timeline lane belongs to the legacy engine.
+    // disabled until that source exists.
     leftTabs = ['workspace', 'media']
     disabledLeftTabs = ['media']
     workspaceTabLabel = 'SOURCE'
@@ -64,9 +61,6 @@ export function resolveReactWorkspaceComposition(
     // Cinematic Worlds chooses its World in the left source rail while preset
     // cards remain in the right rail. It does not consume generic media.
     leftTabs = ['workspace']
-    workspaceTabLabel = 'SOURCE'
-  } else if (isSoundDrawing) {
-    leftTabs = ['workspace', 'media', 'fonts']
     workspaceTabLabel = 'SOURCE'
   } else if (isLaser) {
     leftTabs = ['workspace', 'layers']
@@ -85,7 +79,6 @@ export function resolveReactWorkspaceComposition(
     // preset on any engine, so they stay mounted (and their keys armed) whichever engine is loaded,
     // including Cinema 2.0 and Headliner.
     showPerformancePads: true,
-    showSoundDrawingTimeline: isSoundDrawing,
     // Track sections and transport context are shared by every React engine. ReactView resolves the
     // loaded track's audio-intelligence sections once, whichever engine is active, and feeds them to
     // the Track Map, the active renderer (Headliner included) and the music-intelligence engine.
@@ -111,8 +104,7 @@ export function getReactLeftTabLabel(
   if (tab === 'workspace') return composition.workspaceTabLabel
   if (tab === 'media') return 'MEDIA'
   if (tab === 'layers') return 'LAYERS'
-  if (tab === 'pool') return 'POOL'
-  return 'FONTS'
+  return 'POOL'
 }
 
 export function isReactLeftTabAvailable(
@@ -135,17 +127,12 @@ export function getReactDefaultLeftTab(
   return composition.leftTabs[0] ?? 'workspace'
 }
 
-/**
- * Returns lower-workspace surfaces in their canonical left-to-right order.
- * Sound Drawing is intentionally a sibling of Track Map rather than a lane
- * nested inside it.
- */
+/** Returns lower-workspace surfaces in their canonical left-to-right order. */
 export function getReactLowerSurfaces(
   composition: ReactWorkspaceComposition,
 ): ReactLowerSurface[] {
   const surfaces: ReactLowerSurface[] = []
   if (composition.showTrackMap) surfaces.push('trackMap')
-  if (composition.showSoundDrawingTimeline) surfaces.push('soundDrawing')
   if (composition.showPerformancePads) surfaces.push('performancePads')
   return surfaces
 }

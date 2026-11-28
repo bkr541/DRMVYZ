@@ -32,12 +32,12 @@ describe('preset availability (CAT-01)', () => {
   })
 
   it('maps app engine ids to the engines the Admin Console keys presets by', () => {
-    expect(catalogEngineFor('oscilloscope')).toBe('soundDrawing')
+    expect(catalogEngineFor('oscilloscope')).toBeNull()
     expect(catalogEngineFor('cinema2')).toBe('cinema2')
     expect(catalogEngineFor('xyScope')).toBeNull()
-    const index = indexPresetMetadata([row({ engine_id: 'soundDrawing', preset_key: 'scope-1', publication_status: 'archived' })])
-    expect(presetAvailabilityFor(index, 'oscilloscope', 'scope-1', false).listed).toBe(false)
-    expect(presetAvailabilityFor(index, 'xyScope', 'scope-1', false).listed).toBe(true)
+    const index = indexPresetMetadata([row({ engine_id: 'pixGrid', preset_key: 'grid-1', publication_status: 'archived' })])
+    expect(presetAvailabilityFor(index, 'pixGrid', 'grid-1', false).listed).toBe(false)
+    expect(presetAvailabilityFor(index, 'xyScope', 'grid-1', false).listed).toBe(true)
   })
 
   it('tells the user why, with the admin\'s note for a switched-off preset', () => {

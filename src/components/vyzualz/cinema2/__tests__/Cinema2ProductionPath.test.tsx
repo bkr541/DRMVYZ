@@ -115,7 +115,7 @@ beforeEach(() => {
   cinema2WorkspaceSessionStore.reset()
   AudioFeatureBus.reset()
   useReactStore.getState().resetReactView()
-  useReactStore.getState().selectReactEngine('oscilloscope')
+  useReactStore.getState().selectReactEngine('xyScope')
   host = document.createElement('div')
   document.body.append(host)
   root = createRoot(host)
@@ -175,8 +175,8 @@ describe('Cinema 2.0 production sibling path', () => {
     })
 
     await act(async () => root?.render(<ProductionSiblingHarness onCinema2RuntimeReady={runtime => { activeCinema2RuntimeRef.current = runtime }} />))
-    expect(useReactStore.getState().activeReactEngineId).toBe('oscilloscope')
-    expect(host?.querySelector('[data-production-engine="oscilloscope"]')).not.toBeNull()
+    expect(useReactStore.getState().activeReactEngineId).toBe('xyScope')
+    expect(host?.querySelector('[data-production-engine="xyScope"]')).not.toBeNull()
     expect(callbacks.size).toBe(0)
     expect(getReactLiveEngineOwnershipDiagnosticsForTests()).toMatchObject({
       activeOwnerCount: 0,
@@ -284,8 +284,8 @@ describe('Cinema 2.0 production sibling path', () => {
     const cinema2ContextWithTarget = contexts[contexts.length - 1]!
 
     for (let pass = 0; pass < 12; pass += 1) {
-      await act(async () => useReactStore.getState().selectReactEngine('oscilloscope'))
-      expect(host?.querySelector('[data-production-engine="oscilloscope"]')).not.toBeNull()
+      await act(async () => useReactStore.getState().selectReactEngine('xyScope'))
+      expect(host?.querySelector('[data-production-engine="xyScope"]')).not.toBeNull()
       expect(callbacks.size).toBe(0)
       expect(getCinema2RuntimeDiagnostics()).toMatchObject({
         activeRuntimeCount: 0,
@@ -330,8 +330,8 @@ describe('Cinema 2.0 production sibling path', () => {
       })
     }
 
-    await act(async () => useReactStore.getState().selectReactEngine('oscilloscope'))
-    expect(host?.querySelector('[data-production-engine="oscilloscope"]')).not.toBeNull()
+    await act(async () => useReactStore.getState().selectReactEngine('xyScope'))
+    expect(host?.querySelector('[data-production-engine="xyScope"]')).not.toBeNull()
     expect(callbacks.size).toBe(0)
     expect(getCinema2RuntimeDiagnostics()).toMatchObject({
       activeRuntimeCount: 0,

@@ -13,7 +13,6 @@ Adding a second global behavior controller, beat grid, or section detector insid
 The shared context is consumed by:
 
 - LaserDMX Show Director
-- Sound Drawing
 - CANVAS
 - Shader Pads
 - PixGrid
@@ -45,7 +44,6 @@ It validates the catalogs wired into that coordinator. Engine-specific validator
 | Engine | Primary sources |
 | --- | --- |
 | LaserDMX | `src/components/vyzualz/react/LaserDmxShowDirectorPerformanceProgram.ts`, `LaserDmxShowDirectorPerformanceContext.ts`, and related Show Director runtime/validation files |
-| Sound Drawing | `src/components/vyzualz/react/soundDrawing/SoundDrawingPerformanceTypes.ts`, `SoundDrawingPerformanceEngine.ts`, and `SoundDrawingBehaviorRuntime.ts` |
 | CANVAS | `src/components/vyzualz/react/canvasPerformance/CanvasPerformanceTypes.ts`, `CanvasPerformanceEngine.ts`, and composition/effect/transition registries |
 | Shader Pads | `src/components/vyzualz/react/shaders/performance/` plus the authored `performanceProgram` on shader definitions |
 | PixGrid | `src/components/vyzualz/react/pixGrid/PixGridPerformancePrograms.ts`, `PixGridPerformanceRuntime.ts`, `PixGridAudioRouting.ts`, and `PixGridUnifiedPerformanceRuntime.ts` |
@@ -168,23 +166,8 @@ Each renderer owns its simulation domain, typed arrays, clock, lifecycle control
 See:
 
 - `docs/visual-simulation.md`
-- `docs/living-ribbon-production-validation.md`
 
 ## Engine authoring notes
-
-### Sound Drawing
-
-A Sound Drawing show uses typed visual roles such as `primaryMotif`, `harmonicLayer`, `rhythmAccent`, `echoLayer`, `atmosphereLayer`, and `transitionLayer`.
-
-Author shows in:
-
-- `src/components/vyzualz/react/soundDrawing/SoundDrawingPerformanceShows.ts`
-
-Add new action types in:
-
-- `src/components/vyzualz/react/soundDrawing/SoundDrawingPerformanceTypes.ts`
-
-Resolve and validate them in the corresponding engine and validation files.
 
 ### CANVAS
 
@@ -219,7 +202,6 @@ See `docs/pixgrid.md`.
 
 Each engine owns bounded resource policies:
 
-- Sound Drawing: layers, traces, particles, feedback, event envelopes, and expensive generators
 - CANVAS: active layers, media handles, video decoders, preload work, transitions, effect depth, and feedback
 - Shader Pads: route, graph, texture, feedback, render-target, and WebGL lifecycle limits
 - PixGrid: layers, groups, routes, cues, masks, logical framebuffers, transitions, diagnostic history, and post-composite effect count

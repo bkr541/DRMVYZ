@@ -1,16 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_OSCILLATOR_SETTINGS, type ReactPreset, type ReactPresetControlValues } from './ReactTypes'
+import type { ReactPreset, ReactPresetControlValues } from './ReactTypes'
 import { resolveEnginePresetProvenance, resolveReactPresetProvenance } from './ReactPresetProvenance'
 
 const preset: ReactPreset = {
   id: 'test-preset',
   name: 'Test Preset',
   description: 'Fixture',
-  engine: 'oscilloscope',
+  engine: 'pixGrid',
   palette: { primary: '#fff', secondary: '#fff', accent: '#fff', background: '#000', highlight: '#fff', text: '#fff' },
   params: { intensity: 0.7, motion: 0.4, glow: 0.6, bassReactivity: 0.8 },
   renderSettings: { trailDecay: 0.2, fogDensity: 0.3, particleDensity: 0.4 },
-  oscillatorSettings: { pathScale: 1.25 },
   scenes: [],
   sectionMappings: [],
 }
@@ -21,13 +20,12 @@ const exactControls: ReactPresetControlValues = {
   particleDensity: 0.4,
 }
 
-function resolve(controls = exactControls, oscillatorSettings = { ...DEFAULT_OSCILLATOR_SETTINGS, pathScale: 1.25 }) {
+function resolve(controls = exactControls) {
   return resolveReactPresetProvenance({
     presets: [preset],
     activePresetId: preset.id,
-    activeEngineId: 'oscilloscope',
+    activeEngineId: 'pixGrid',
     controls,
-    oscillatorSettings,
   })
 }
 
@@ -47,12 +45,11 @@ describe('engine-neutral React preset provenance', () => {
     expect(resolve({ ...exactControls }).status).toBe('exact')
   })
 
-  it('supports engine-specific authored fields and legacy IDs', () => {
-    expect(resolve(exactControls, { ...DEFAULT_OSCILLATOR_SETTINGS, pathScale: 1.1 }).changedFields).toContain('oscillatorSettings')
+  it('recognizes legacy IDs', () => {
     expect(resolveReactPresetProvenance({
       presets: [preset],
       activePresetId: 'missing-preset',
-      activeEngineId: 'oscilloscope',
+      activeEngineId: 'pixGrid',
       controls: exactControls,
     }).status).toBe('unknownLegacy')
   })

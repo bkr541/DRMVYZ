@@ -5,7 +5,6 @@ import {
   CANVAS_AUTO_PERFORMANCE_ENGINES,
   XY_SCOPE_AUTO_PERFORMANCE_INSTRUMENTS,
   applyAutoPerformanceDefaultToReactState,
-  applyAutoPerformanceDefaultToSoundDrawing,
 } from './autoPerformanceDefaultReact'
 
 afterEach(() => setAutoPerformanceUserDefault(null))
@@ -51,13 +50,7 @@ describe('the Auto Performance default across the React view engines', () => {
     setAutoPerformanceUserDefault(false)
     useReactStore.setState({ canvasPresetSettings: { ...useReactStore.getState().canvasPresetSettings, vhs: { ...useReactStore.getState().canvasPresetSettings.vhs, autoPerformance: true } } })
     expect(useReactStore.getState().canvasPresetSettings.vhs.autoPerformance).toBe(true)
-    useReactStore.setState({ activeReactEngineId: useReactStore.getState().activeReactEngineId === 'canvas' ? 'sound-drawing' : 'canvas' } as never)
+    useReactStore.setState({ activeReactEngineId: useReactStore.getState().activeReactEngineId === 'canvas' ? 'xyScope' : 'canvas' } as never)
     expect(useReactStore.getState().canvasPresetSettings.vhs.autoPerformance).toBe(false)
-  })
-
-  it('applies to Sound Drawing only while a show is selected', () => {
-    expect(applyAutoPerformanceDefaultToSoundDrawing({ selectedShowId: null, autoPerformance: false }, true)).toBeNull()
-    expect(applyAutoPerformanceDefaultToSoundDrawing({ selectedShowId: 'x', autoPerformance: false }, true)).toEqual({ selectedShowId: 'x', autoPerformance: true })
-    expect(applyAutoPerformanceDefaultToSoundDrawing({ selectedShowId: 'x', autoPerformance: true }, true)).toBeNull()
   })
 })

@@ -207,7 +207,7 @@ describe('presetAutomationCues — timeSec clamping', () => {
 
 describe('presetAutomationCues — migration v9→v10', () => {
   it('adds an empty presetAutomationCuesByTrackId map when key is absent', () => {
-    const oldState = { activeReactEngineId: 'oscilloscope' }
+    const oldState = { activeReactEngineId: 'pixGrid' }
     const migrated = migrateReactStore(oldState, 9)
     expect(migrated).toHaveProperty('presetAutomationCuesByTrackId')
     expect(migrated.presetAutomationCuesByTrackId).toEqual({})
@@ -309,12 +309,12 @@ describe('presetAutomationCues — migration: current-version state (v10)', () =
   it('returns state unchanged when version is already 10', () => {
     const cue   = makeCue({ id: 'already-current', timeSec: 5 })
     const state = {
-      activeReactEngineId:           'oscilloscope',
+      activeReactEngineId:           'xyScope',
       presetAutomationCuesByTrackId: { 'trk': [cue] },
     }
     const result  = migrateReactStore(state, 10)
     const byTrack = result.presetAutomationCuesByTrackId as Record<string, ReactPresetAutomationCue[]>
-    expect(result.activeReactEngineId).toBe('oscilloscope')
+    expect(result.activeReactEngineId).toBe('xyScope')
     expect(byTrack['trk'][0].id).toBe('already-current')
   })
 

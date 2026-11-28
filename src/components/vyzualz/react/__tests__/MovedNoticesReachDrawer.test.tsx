@@ -9,15 +9,12 @@ import { handleReactPersistenceStatus, useReactPersistenceStatusStore } from '..
 import { useReactStore } from '../../../../stores/reactStore'
 import { ReactPersistenceStatus } from '../ReactPersistenceStatus'
 import { RecordingPanel } from '../../recording/RecordingPanel'
-import { FontLibraryPanel } from '../FontLibraryPanel'
-import { OscillatorSourceDiagnostics } from '../ReactEnginePanel'
 import { LaserDmxRendererNotice } from '../LaserDmxRendererDiagnosticsPanel'
 import {
   clearLaserDmxRendererDiagnostics,
   publishLaserDmxRendererDiagnostics,
   getLaserDmxRendererDiagnostics,
 } from '../LaserDmxRendererDiagnosticsStore'
-import { DEFAULT_OSCILLATOR_SETTINGS } from '../ReactTypes'
 
 vi.mock('../useFontPreviewPreload', () => ({ useFontPreviewPreload: () => ({}) }))
 
@@ -83,46 +80,6 @@ describe('recording notices', () => {
     await show(panel({ recorderError: null, recorderState: 'recording', liveFps: 60 }))
     expect(drawerText()).not.toContain('Recording error')
     expect(drawerText()).not.toContain('FPS drop')
-  })
-})
-
-describe('Font Library errors', () => {
-  it('list each failed step in the drawer', async () => {
-    useReactStore.setState({ fontUploadError: 'Font file is too large', fontRemoveError: 'Could not delete', fontSelectError: null, fontLoadError: null })
-    await show(<FontLibraryPanel />)
-    const text = drawerText()
-    expect(text).toContain('Font upload failed')
-    expect(text).toContain('Font file is too large')
-    expect(text).toContain('Font could not be removed')
-    expect(text).not.toContain('Font could not be applied')
-    expect(container.textContent).not.toContain('Font file is too large')
-    useReactStore.setState({ fontUploadError: null, fontRemoveError: null })
-  })
-})
-
-describe('Sound Drawing source notices', () => {
-  const diag = (osc: Partial<typeof DEFAULT_OSCILLATOR_SETTINGS>) => (
-    <OscillatorSourceDiagnostics
-      osc={{ ...DEFAULT_OSCILLATOR_SETTINGS, ...osc }}
-      glyphAssets={[]}
-      fontAssets={[{ id: 'f1', name: 'Broken', parseError: 'Font file could not be parsed' } as never]}
-      glyphCache={{}}
-      allMediaItems={[]}
-    />
-  )
-
-  it('lists an unreadable font as an error and empty text as information', async () => {
-    await show(diag({ sourceType: 'text', text: '', textFontId: 'f1' }))
-    const text = drawerText()
-    expect(text).toContain('Font could not be read')
-    expect(text).toContain('Font file could not be parsed')
-    expect(text).toContain('Text is empty')
-  })
-
-  it('shows nothing for a text source that is fine', async () => {
-    await show(diag({ sourceType: 'text', text: 'HELLO', textFontId: null }))
-    expect(drawerText()).not.toContain('Text is empty')
-    expect(drawerText()).not.toContain('Font could not be read')
   })
 })
 

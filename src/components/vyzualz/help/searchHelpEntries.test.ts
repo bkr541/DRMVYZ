@@ -27,7 +27,7 @@ describe('searchHelpEntries', () => {
   })
   it('matches keywords the title does not contain', () => {
     expect(titles('bpm')).toContain('Tap Tempo')
-    expect(titles('oscilloscope')).toContain('Sound Drawing')
+    expect(titles('oscilloscope')).toContain('Sound Drawing XY')
   })
   it('requires every typed word to match', () => {
     expect(titles('tap tempo')).toEqual(['Tap Tempo'])

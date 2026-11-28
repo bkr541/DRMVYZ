@@ -9,9 +9,9 @@ import { DEFAULT_REACT_PRESETS, type ReactEngineId } from '../ReactTypes'
 import { ReactPerformancePads } from '../ReactPerformancePads'
 import { getReactLowerSurfaces, resolveReactWorkspaceComposition } from '../reactWorkspaceComposition'
 
-// Cinema 2.0 and Headliner used to hide the pads; Sound Drawing and PixGrid always had them. A set must run from whichever is loaded.
+// Cinema 2.0 and Headliner used to hide the pads; PixGrid always had them. A set must run from whichever is loaded.
 // (LaserDMX and CANVAS give some pad slots to their own contextual actions, so they are covered by ReactPerformanceActions.)
-const LOADED_ENGINES = ['cinema2', 'headliner', 'oscilloscope', 'pixGrid'] as const satisfies readonly ReactEngineId[]
+const LOADED_ENGINES = ['cinema2', 'headliner', 'xyScope', 'pixGrid'] as const satisfies readonly ReactEngineId[]
 
 let container: HTMLElement
 let root: ReturnType<typeof createRoot>
@@ -36,11 +36,12 @@ const padButton = (key: string) => [...container.querySelectorAll<HTMLButtonElem
   .find(button => button.title.includes(`[${key.toUpperCase()}]`))
 
 describe('performance pads from every loaded engine', () => {
+  // Pad A opens a Sound Drawing XY preset (a native destination rather than a React preset).
   const presetPad = useReactStore.getState().performancePads.find(pad => pad.id === 'pad-9')!
-  const target = DEFAULT_REACT_PRESETS.find(preset => preset.id === presetPad.presetId)!
+  const target = { engine: presetPad.destination!.engineId, presetId: presetPad.destination!.presetId }
 
   it('uses a default pad whose preset belongs to an engine other than most of the engines pressed from', () => {
-    expect(target).toBeDefined()
+    expect(target).toEqual({ engine: 'xyScope', presetId: 'conversation' })
     expect(LOADED_ENGINES.filter(engine => engine !== target.engine).length).toBeGreaterThanOrEqual(3)
   })
 
@@ -61,7 +62,7 @@ describe('performance pads from every loaded engine', () => {
       await press('a')
       expect(useReactStore.getState().activePadId).toBe('pad-9')
       expect(useReactStore.getState().activeReactEngineId).toBe(target.engine)
-      expect(useReactStore.getState().activeReactPresetId).toBe(target.id)
+      expect(useReactStore.getState().xyScopeSettings.presetId).toBe(target.presetId)
 
       await act(async () => useReactStore.getState().selectReactEngine(engine))
       await act(async () => padButton('a')!.click())

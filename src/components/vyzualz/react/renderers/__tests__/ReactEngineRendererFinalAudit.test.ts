@@ -7,9 +7,6 @@ import type { ReactFrameContext } from '../reactRenderUtils'
 const rendererMocks = vi.hoisted(() => ({
   renderCinematicPortal: vi.fn(),
   disposeCinematicPortalRenderer: vi.fn(),
-  renderSoundDrawing: vi.fn(),
-  disposeSoundDrawingRenderer: vi.fn(),
-  pauseSoundDrawingRenderer: vi.fn(),
   renderLaserDmx: vi.fn(),
   clearLaserDmxVisualState: vi.fn(),
   disposeLaserDmxRenderer: vi.fn(),
@@ -23,11 +20,6 @@ const rendererMocks = vi.hoisted(() => ({
 vi.mock('../CinematicPortalRenderer', () => ({
   renderCinematicPortal: rendererMocks.renderCinematicPortal,
   disposeCinematicPortalRenderer: rendererMocks.disposeCinematicPortalRenderer,
-}))
-vi.mock('../SoundDrawingRenderer', () => ({
-  renderSoundDrawing: rendererMocks.renderSoundDrawing,
-  disposeSoundDrawingRenderer: rendererMocks.disposeSoundDrawingRenderer,
-  pauseSoundDrawingRenderer: rendererMocks.pauseSoundDrawingRenderer,
 }))
 vi.mock('../LaserDmxRenderer', () => ({
   renderLaserDmx: rendererMocks.renderLaserDmx,
@@ -93,19 +85,6 @@ function samplePreset(engine: ReactEngineId): ReactPreset {
 }
 
 describe('React engine renderer final audit', () => {
-  it('holds Sound Drawing runtime state on user pause without dispatching a new frame', () => {
-    const ctx = mockContext()
-    renderReactEngine(
-      ctx,
-      { ...frame, isPaused: true, isPlaying: false },
-      samplePreset('oscilloscope'),
-      DEFAULT_REACT_RENDER_PARAMS,
-    )
-    expect(rendererMocks.pauseSoundDrawingRenderer).toHaveBeenCalledWith(ctx)
-    expect(rendererMocks.renderSoundDrawing).not.toHaveBeenCalled()
-    rendererMocks.pauseSoundDrawingRenderer.mockClear()
-  })
-
   it('keeps Show Manager LaserDMX preview stop and pause gates isolated from production output', () => {
     const ctx = mockContext()
     const previewParams = {
@@ -147,11 +126,9 @@ describe('React engine renderer final audit', () => {
     }
 
     expect(rendererMocks.renderCinematicPortal).toHaveBeenCalledTimes(1)
-    expect(rendererMocks.renderSoundDrawing).toHaveBeenCalledTimes(1)
     expect(rendererMocks.renderLaserDmx).toHaveBeenCalledTimes(1)
     expect(rendererMocks.renderPixGridBaseline).toHaveBeenCalledTimes(1)
     expect(rendererMocks.disposeCinematicPortalRenderer).toHaveBeenCalledWith(expect.anything(), 'release-resources')
-    expect(rendererMocks.disposeSoundDrawingRenderer).toHaveBeenCalledTimes(1)
     expect(rendererMocks.disposePixGridBaselineRenderer).toHaveBeenCalledTimes(1)
     expect(rendererMocks.disposeLaserDmxRenderer).toHaveBeenCalledWith(
       expect.anything(),

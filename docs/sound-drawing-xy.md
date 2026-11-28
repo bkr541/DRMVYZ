@@ -4,7 +4,18 @@
 
 Sound Drawing XY draws a word as a single phosphor beam in the style of an analog XY scope. The letters answer each other in time with the loaded track, then dissolve along their outlines into a waveform and a series of oscillator figures, perform as them, and are drawn again as crisp, bold letters. Uploaded vector SVGs use the same beam, choreography and shared audio path. The OSCILATOR source draws the stereo scope signal; built-in shape authoring remains separate from this engine.
 
-The engine ID is `xyScope` and its catalog label is **Sound Drawing XY**. It ships **side by side** with the legacy `oscilloscope` engine, which is untouched. When the new engine is approved in the full app, the legacy engine, its store slices and its presets are removed in one change and `oscilloscope` becomes a retired identity that restores as `xyScope`. That migration is deliberately not part of this document's scope.
+The engine ID is `xyScope` and its catalog label is **Sound Drawing XY**. It replaces the legacy Sound Drawing engine (`oscilloscope`), which has been removed together with its renderer, store slices, timeline lane, Fonts tab and presets. `oscilloscope` is now a retired identity: it is kept only so saved projects and imports can be read, and it restores as `xyScope`.
+
+### Retirement of the legacy engine
+
+Every load and import runs `retireSoundDrawingEngineState` (`src/stores/reactStore.ts`, store version 86) before any other upgrade step:
+
+- a saved Sound Drawing selection (the engine, or one of its presets) opens Sound Drawing XY, preset-free;
+- a performance pad that opened a Sound Drawing preset opens the paired XY preset (`RETIRED_SOUND_DRAWING_XY_REPLACEMENTS`; for example XY Cyan Scope → Converse, Bass Triangle Reactor → OCTA), or Converse for user-made Sound Drawing presets;
+- automation cues that switched to a Sound Drawing preset are removed, because cues cannot target XY presets;
+- built-in and user-made Sound Drawing presets are dropped, and the engine's own persisted state (`oscillatorSettings`, `soundDrawingPerformanceSettings`, `oscillatorGlyphAssets`, `soundDrawingLayersByTrackId`, `soundDrawingClipsByTrackId`) is discarded.
+
+`selectReactEngine('oscilloscope')` opens Sound Drawing XY. The default performance pads that used Sound Drawing presets now open XY presets. The Font Library (Media Manager › Fonts) is unaffected. Modules only the legacy engine used were removed with it: the professional scope signal core in `src/audio/scope/` (only the stereo capture XY reads remains), the Living Ribbon physics domain, the shader `GeometryPass` and `ShaderCapabilities`, and the vector-beam rasterizer and scanner kinematics. Migration `0067_retire_sound_drawing_catalog.sql` deletes the Admin Console catalog rows for the engine (`soundDrawing`), keeping any `presets` row still referenced by store history; it has not been applied.
 
 ## Choreography
 

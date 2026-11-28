@@ -31,7 +31,6 @@ describe('CANVAS final-pass store and workspace contract', () => {
     expect(getReactLeftTabLabel('workspace', composition)).toBe('SOURCE')
     expect(getReactLeftTabLabel('layers', composition)).toBe('LAYERS')
     expect(composition.showPerformancePads).toBe(true)
-    expect(composition.showSoundDrawingTimeline).toBe(false)
   })
 
   it('defaults away from an isolated CANVAS upload bucket', () => {

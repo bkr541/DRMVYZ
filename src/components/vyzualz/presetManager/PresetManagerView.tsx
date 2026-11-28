@@ -395,7 +395,7 @@ export function PresetManagerView() {
     if (activeRightPanel === 'design') {
       if (selectedPreset.activation === 'cinema2') return <Cinema2InspectorPanel runtime={cinema2Runtime} surface="design" />
       if (selectedPreset.activation === 'headliner') return <HeadlinerDesignPanel />
-      return <ReactDesignWorkspacePanel hasSelection={selectedPreset.artwork === 'soundDrawing'} />
+      return <ReactDesignWorkspacePanel hasSelection={false} />
     }
     if (activeRightPanel === 'react') {
       if (selectedPreset.activation === 'cinema2') return <Cinema2InspectorPanel runtime={cinema2Runtime} surface="react" />

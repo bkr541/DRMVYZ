@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { useReactStore } from '../../../../stores/reactStore'
 import {
   getReactMediaDisabledReason,
@@ -32,18 +32,9 @@ const pngMedia = {
 } as unknown as UploadedMedia
 
 describe('React media-source capabilities', () => {
-  beforeEach(() => {
-    useReactStore.setState(state => ({
-      oscillatorSettings: {
-        ...state.oscillatorSettings,
-        sourceType: 'classic',
-        selectedSvgId: null,
-      },
-    }))
-  })
-
   it('exposes canonical media selection only for compatible engines', () => {
-    expect(getReactMediaSourceCapability('oscilloscope')).toBe('soundDrawingSvg')
+    expect(getReactMediaSourceCapability('oscilloscope')).toBeNull()
+    expect(getReactMediaSourceCapability('xyScope')).toBeNull()
     expect(getReactMediaSourceCapability('cinematicPortal')).toBeNull()
     expect(getReactMediaSourceCapability('shaderPads')).toBeNull()
     expect(getReactMediaSourceCapability('laserDmx')).toBeNull()
@@ -51,26 +42,15 @@ describe('React media-source capabilities', () => {
     expect(getReactMediaSourceCapability('pixGrid')).toBe('pixGridStill')
   })
 
-  it('routes Sound Drawing media selection into renderer-owned oscillator state', async () => {
-    await useReactStore.getState().selectSvgAsset(svgMedia.id)
-    const settings = useReactStore.getState().oscillatorSettings
-    expect(settings.sourceType).toBe('svg')
-    expect(settings.selectedSvgId).toBe(svgMedia.id)
-    expect(getReactMediaSourceId('soundDrawingSvg', settings)).toBe(svgMedia.id)
-  })
-
-
   it('routes PixGrid source identity through compact conversion state', () => {
     const state = useReactStore.getState().pixGridState
     const pixGrid = { ...state, conversion: { ...state.conversion, selectedMediaId: pngMedia.id } }
-    expect(getReactMediaSourceId('pixGridStill', useReactStore.getState().oscillatorSettings, pixGrid)).toBe(pngMedia.id)
+    expect(getReactMediaSourceId('pixGridStill', pixGrid)).toBe(pngMedia.id)
     expect(getReactMediaDisabledReason('pixGridStill', pngMedia)).toBeNull()
     expect(getReactMediaDisabledReason('pixGridStill', { ...pngMedia, type: 'video', mimeType: 'video/mp4' })).toContain('not video')
   })
 
   it('disables incompatible media instead of presenting a false selection', () => {
-    expect(getReactMediaDisabledReason('soundDrawingSvg', svgMedia)).toBeNull()
-    expect(getReactMediaDisabledReason('soundDrawingSvg', pngMedia)).toContain('SVG')
     expect(getReactMediaDisabledReason(null, svgMedia)).toContain('does not consume')
   })
 })

@@ -144,9 +144,9 @@ describe('effective Brand Kit palette resolution', () => {
   })
 
   it('does not mutate built-in preset definitions or input palettes', () => {
-    const preset = DEFAULT_REACT_PRESETS.find(candidate => candidate.engine === 'oscilloscope') as ReactPreset
+    const preset = DEFAULT_REACT_PRESETS.find(candidate => candidate.engine === 'pixGrid') as ReactPreset
     const presetSnapshot = structuredClone(preset)
-    const kit = makeKit({ engineRules: { oscilloscope: { mode: 'hybrid', strength: 0.75 } } })
+    const kit = makeKit({ engineRules: { pixGrid: { mode: 'hybrid', strength: 0.75 } } })
     const kitSnapshot = structuredClone(kit)
 
     const result = resolveEffectiveReactPreset(preset, kit)

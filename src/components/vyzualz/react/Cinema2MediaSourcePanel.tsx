@@ -14,7 +14,7 @@ import { activateCinema2Pool, beginEverywhereMediaRequest, isEverywhereMediaRequ
 import { captureCinema2WorkspacePresetState } from '../cinema2/runtime/Cinema2WorkspaceSession'
 import { Cinema2ActiveSource, Cinema2SourceThumbnail } from './Cinema2ActiveSource'
 import { cinema2SlotSupportsPool } from '../cinema2/media/Cinema2SourceCapabilities'
-import { isUnifiedSvgMediaItem } from './svgSourceLifecycle'
+import { isUnifiedSvgMediaItem } from '../../../lib/svgMediaEligibility'
 import { cinema2MediaSourceFromLibraryItem, getCinema2MediaDisabledReason } from './Cinema2LibraryMediaSource'
 
 export interface Cinema2MediaSourcePanelProps {

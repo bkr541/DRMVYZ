@@ -9,22 +9,11 @@ import type {
   ReactPreset,
   ReactTrackSection,
   LaserDmxShowDirectorState,
-  OscillatorSettings,
-  OscillatorFontAsset,
-  OscillatorGlyphAsset,
-  OscillatorGlyphPoint,
-  SoundDrawingLayer,
-  SoundDrawingClip,
   ReactPerformancePadTransition,
 } from './ReactTypes'
 import { isSelectableReactEngineId } from './reactEngineCatalog'
 import type { ReactPerformanceActionEvent } from './ReactPerformanceActions'
 import type { TrackIntelligenceAnalysis } from '../../../features/musicIntelligence/types'
-import { DEFAULT_OSCILLATOR_SETTINGS } from './ReactTypes'
-import {
-  DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS,
-  type SoundDrawingPerformanceSettings,
-} from './soundDrawing/SoundDrawingPerformanceTypes'
 import {
   resolveAuthoritativeFrameSection,
   type ReactFrameContext,
@@ -39,25 +28,16 @@ import { resolveCinematicPortalBackend } from './renderers/CinematicPortalRender
 import { acquireReactLiveEngineOwnership } from './renderers/ReactLiveEngineOwnership'
 import { reportReactEngineFailure } from './reactEngineFailureNotice'
 import { assertDrmvyzWebGLContextOwnershipBoundsForDevelopment } from './shaders/runtime/WebGLContextLifecycle'
-import { clearSoundDrawingRuntimeCaches, setSoundDrawingClipsForFrame } from './renderers/SoundDrawingRenderer'
 import { resolvePerformancePadTransition } from './renderers/reactPresetTransition'
 import { createLiveFpsReporter } from './fpsDiagnostics'
 import { applyCanvasResolution, resolveCanvasResolution, type CanvasResolution } from './rendering/canvasResolution'
 import type { ActiveBrandOverlay } from '../../../features/personalization/brandAssetCompositor'
 import { compositeBrandAsset } from '../../../features/personalization/brandAssetCompositor'
-import type { StereoScopeAudioTap } from '../../../audio/scope/StereoScopeAudioTap'
-import { resolveScopeCaptureRequestFrames } from './renderers/soundDrawingScopeGeometry'
-import { soundDrawingPerformanceShowProfessionalScopeLayers } from './soundDrawing/SoundDrawingPerformanceShows'
-import {
-  professionalScopeCaptureFrames,
-  resolveProfessionalScopeLayerSettings,
-} from './soundDrawing/SoundDrawingProfessionalScopeLayer'
 
 const ENGINE_ACCESSIBLE_LABELS: Partial<Record<ReactEngineId, string>> = {
   shaderPads:      'Shader',
   cinematicPortal: 'Cinematic Worlds',
   cinema2:         'Cinema 2.0',
-  oscilloscope:    'Sound Drawing',
   canvas:          'CANVAS',
   laserDmx:        'LaserDMX',
   pixGrid:         'PixGrid',
@@ -85,7 +65,6 @@ interface Props {
    * Synchronized stereo capture for Sound Drawing's professional scope modes.
    * Optional and best-effort — rendering never depends on it being available.
    */
-  scopeStereoTap?:    StereoScopeAudioTap | null
   /** Stable ownership boundary for the mounted live renderer. */
   engine:             Exclude<ReactEngineId, 'shaderPads' | 'canvas' | 'pixGrid' | 'cinema'>
   activePreset:       ReactPreset | null
@@ -97,14 +76,6 @@ interface Props {
   fogDensity?:        number
   particleDensity?:   number
   performancePadTransition?: ReactPerformancePadTransition | null
-  oscillatorSettings?:          OscillatorSettings
-  oscillatorFontAssets?:        OscillatorFontAsset[]
-  oscillatorGlyphAssets?:       OscillatorGlyphAsset[]
-  oscillatorGlyphPointCache?:   Record<string, OscillatorGlyphPoint[]>
-  oscillatorTextPointCache?:    Record<string, OscillatorGlyphPoint[]>
-  soundDrawingTrailResetRevision?: number
-  soundDrawingRibbonResetRevision?: number
-  soundDrawingPerformanceSettings?: SoundDrawingPerformanceSettings
   performanceActionEvent?:      ReactPerformanceActionEvent | null
   performanceActionEvents?:     readonly ReactPerformanceActionEvent[]
   performanceActionToggleStates?: Readonly<Record<string, boolean>>
@@ -135,8 +106,6 @@ interface Props {
   onCanvasReady?:               (canvas: HTMLCanvasElement | null) => void
   /** Called approximately once per second with the current render frame rate. */
   onLiveFps?:                   (fps: number) => void
-  soundDrawingLayers?:          SoundDrawingLayer[]
-  soundDrawingClips?:           SoundDrawingClip[]
   activeAudioTrackId?:          string | null
   brandOverlay?:                ActiveBrandOverlay | null
   durationSec?:                 number
@@ -144,7 +113,6 @@ interface Props {
 
 export function ReactPlaceholderCanvas({
   analyser,
-  scopeStereoTap              = null,
   engine,
   activePreset,
   intensity,
@@ -155,14 +123,6 @@ export function ReactPlaceholderCanvas({
   fogDensity         = 0.5,
   particleDensity    = 0.5,
   performancePadTransition = null,
-  oscillatorSettings         = DEFAULT_OSCILLATOR_SETTINGS,
-  oscillatorFontAssets        = [] as OscillatorFontAsset[],
-  oscillatorGlyphAssets      = [] as OscillatorGlyphAsset[],
-  oscillatorGlyphPointCache  = {} as Record<string, OscillatorGlyphPoint[]>,
-  oscillatorTextPointCache   = {} as Record<string, OscillatorGlyphPoint[]>,
-  soundDrawingTrailResetRevision = 0,
-  soundDrawingRibbonResetRevision = 0,
-  soundDrawingPerformanceSettings = DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS,
   performanceActionEvent     = null,
   performanceActionEvents    = [],
   performanceActionToggleStates = {},
@@ -179,8 +139,6 @@ export function ReactPlaceholderCanvas({
   effectiveBpm               = null,
   onCanvasReady,
   onLiveFps,
-  soundDrawingLayers         = [] as SoundDrawingLayer[],
-  soundDrawingClips          = [] as SoundDrawingClip[],
   activeAudioTrackId         = null,
   brandOverlay               = null,
   durationSec                = 0,
@@ -192,7 +150,6 @@ export function ReactPlaceholderCanvas({
   const canvasRef      = useRef<HTMLCanvasElement>(null)
   const animRef        = useRef<number>(0)
   const analyserRef    = useRef<AnalyserNode | null>(null)
-  const scopeTapRef    = useRef<StereoScopeAudioTap | null>(scopeStereoTap)
   const freqBufRef     = useRef<Uint8Array<ArrayBuffer> | null>(null)
   const timeBufRef     = useRef<Uint8Array<ArrayBuffer> | null>(null)
   const tRef           = useRef(0)
@@ -208,14 +165,6 @@ export function ReactPlaceholderCanvas({
   const fogDensityRef         = useRef(fogDensity)
   const particleDensityRef    = useRef(particleDensity)
   const performancePadTransitionRef = useRef<ReactPerformancePadTransition | null>(performancePadTransition)
-  const oscillatorSettingsRef  = useRef(oscillatorSettings)
-  const fontAssetsRef          = useRef<OscillatorFontAsset[]>(oscillatorFontAssets)
-  const glyphAssetsRef         = useRef<OscillatorGlyphAsset[]>(oscillatorGlyphAssets)
-  const glyphPointCacheRef     = useRef<Record<string, OscillatorGlyphPoint[]>>(oscillatorGlyphPointCache)
-  const textPointCacheRef      = useRef<Record<string, OscillatorGlyphPoint[]>>(oscillatorTextPointCache)
-  const soundDrawingTrailResetRevisionRef = useRef(soundDrawingTrailResetRevision)
-  const soundDrawingRibbonResetRevisionRef = useRef(soundDrawingRibbonResetRevision)
-  const soundDrawingPerformanceSettingsRef = useRef(soundDrawingPerformanceSettings)
   const performanceActionEventRef = useRef<ReactPerformanceActionEvent | null>(performanceActionEvent)
   const performanceActionEventsRef = useRef<readonly ReactPerformanceActionEvent[]>(performanceActionEvents)
   const performanceActionToggleStatesRef = useRef<Readonly<Record<string, boolean>>>(performanceActionToggleStates)
@@ -235,8 +184,6 @@ export function ReactPlaceholderCanvas({
   const effectiveBpmRef        = useRef<number | null>(effectiveBpm)
   const onCanvasReadyRef       = useRef(onCanvasReady)
   const onLiveFpsRef           = useRef(onLiveFps)
-  const sdLayersRef            = useRef<SoundDrawingLayer[]>(soundDrawingLayers)
-  const sdClipsRef             = useRef<SoundDrawingClip[]>(soundDrawingClips)
   const activeAudioTrackIdRef  = useRef<string | null>(activeAudioTrackId)
   const brandOverlayRef        = useRef<ActiveBrandOverlay | null>(brandOverlay)
   const durationSecRef         = useRef(durationSec)
@@ -250,14 +197,6 @@ export function ReactPlaceholderCanvas({
   fogDensityRef.current         = fogDensity
   particleDensityRef.current    = particleDensity
   performancePadTransitionRef.current = performancePadTransition
-  oscillatorSettingsRef.current  = oscillatorSettings
-  fontAssetsRef.current           = oscillatorFontAssets
-  glyphAssetsRef.current         = oscillatorGlyphAssets
-  glyphPointCacheRef.current     = oscillatorGlyphPointCache
-  textPointCacheRef.current      = oscillatorTextPointCache
-  soundDrawingTrailResetRevisionRef.current = soundDrawingTrailResetRevision
-  soundDrawingRibbonResetRevisionRef.current = soundDrawingRibbonResetRevision
-  soundDrawingPerformanceSettingsRef.current = soundDrawingPerformanceSettings
   performanceActionEventRef.current = performanceActionEvent
   performanceActionEventsRef.current = performanceActionEvents
   performanceActionToggleStatesRef.current = performanceActionToggleStates
@@ -275,12 +214,9 @@ export function ReactPlaceholderCanvas({
   effectiveBpmRef.current        = effectiveBpm
   onCanvasReadyRef.current       = onCanvasReady
   onLiveFpsRef.current           = onLiveFps
-  sdLayersRef.current            = soundDrawingLayers
-  sdClipsRef.current             = soundDrawingClips
   activeAudioTrackIdRef.current  = activeAudioTrackId
   brandOverlayRef.current         = brandOverlay
   durationSecRef.current          = durationSec
-  scopeTapRef.current             = scopeStereoTap
 
   // Update analyser buffers when analyser changes
   useEffect(() => () => {
@@ -300,23 +236,6 @@ export function ReactPlaceholderCanvas({
       timeBufRef.current = null
     }
   }, [analyser])
-
-  useEffect(() => {
-    clearSoundDrawingRuntimeCaches()
-  }, [
-    oscillatorFontAssets,
-    activeAudioTrackId,
-    soundDrawingLayers,
-    oscillatorSettings.textSource,
-    oscillatorSettings.lyricGapBehavior,
-    oscillatorSettings.lyricFallbackText,
-    oscillatorSettings.text,
-    oscillatorSettings.textFontId,
-    oscillatorSettings.textLetterSpacing,
-    oscillatorSettings.textLineHeight,
-    oscillatorSettings.textAlignment,
-    oscillatorSettings.pathResolution,
-  ])
 
   // Main rAF loop — stable, no dependencies on changing params (reads refs instead)
   useEffect(() => {
@@ -347,11 +266,6 @@ export function ReactPlaceholderCanvas({
         })
       } catch (error) {
         if (import.meta.env.DEV) console.error('[ReactPlaceholderCanvas] renderer disposal failed:', error)
-      }
-      try {
-        clearSoundDrawingRuntimeCaches()
-      } catch {
-        /* Continue deterministic cleanup. */
       }
       try {
         onCanvasReadyRef.current?.(null)
@@ -461,13 +375,8 @@ export function ReactPlaceholderCanvas({
         if (pausedTime !== undefined) audioTimeRef.current = pausedTime
         musicIntelligenceEngine.resolveLyricsAt(audioTimeRef.current, 'discontinuous')
         const lyricState = LyricPlaybackBus.getState()
-        const performanceSettings = soundDrawingPerformanceSettingsRef.current
         const pausedRenderKey = [
           renderRevisionRef.current,
-          soundDrawingTrailResetRevisionRef.current,
-          soundDrawingRibbonResetRevisionRef.current,
-          performanceSettings.selectedShowId ?? 'no-performance-show',
-          performanceSettings.autoPerformance ? 'choreography' : 'base-design',
           activeAudioTrackIdRef.current ?? 'none',
           lyricState.sourceIdentity ?? 'none',
           lyricState.documentId ?? 'none',
@@ -643,36 +552,6 @@ export function ReactPlaceholderCanvas({
         audioTime: canonicalAudioTime,
       })
 
-      // Synchronized stereo capture. Read only when Sound Drawing's professional
-      // scope core is actually enabled — every other engine ignores the field,
-      // and an unread window is a wasted copy on every frame.
-      let scopeStereo: ReactFrameContext['scopeStereo'] = null
-      const scopeTap = scopeTapRef.current
-      if (scopeTap && preset.engine === 'oscilloscope') {
-        const requestFrames = resolveScopeCaptureRequestFrames(
-          oscillatorSettingsRef.current,
-          scopeTap.sampleRate,
-        )
-        const performanceSettings = soundDrawingPerformanceSettingsRef.current
-        const authoredRequestFrames = performanceSettings.selectedShowId != null
-          ? soundDrawingPerformanceShowProfessionalScopeLayers(performanceSettings.selectedShowId).reduce(
-              (maximum, layer) =>
-                Math.max(
-                  maximum,
-                  professionalScopeCaptureFrames(
-                    resolveProfessionalScopeLayerSettings(layer.professionalScope).state,
-                    scopeTap.sampleRate,
-                  ),
-                ),
-              0,
-            )
-          : 0
-        const requiredFrames = Math.max(requestFrames, authoredRequestFrames)
-        if (requiredFrames > 0) {
-          scopeStereo = scopeTap.readLatest(requiredFrames, audioTimeRef.current)
-        }
-      }
-
       const rfCtx: ReactFrameContext = {
         W,
         H,
@@ -693,7 +572,6 @@ export function ReactPlaceholderCanvas({
         audio:     { bass, mid, high, volume: vol },
         freqData:       frameFrequencyData,
         timeDomainData: frameTimeDomainData,
-        scopeStereo,
         musicIntelligence: hasMI ? miFrame : null,
         trackAnalysis: trackAnalysisRef.current,
         trackSections: trackSectionsRef.current,
@@ -738,27 +616,12 @@ export function ReactPlaceholderCanvas({
       const renderParams: ReactRenderParams = {
         ...DEFAULT_REACT_RENDER_PARAMS,
         ...transitionedControls,
-        oscillator:                oscillatorSettingsRef.current,
-        oscillatorFontAssets:      fontAssetsRef.current,
-        oscillatorGlyphAssets:     glyphAssetsRef.current,
-        oscillatorGlyphPointCache: glyphPointCacheRef.current,
-        oscillatorTextPointCache:  textPointCacheRef.current,
-        soundDrawingTrailResetRevision: soundDrawingTrailResetRevisionRef.current,
-        soundDrawingRibbonResetRevision: soundDrawingRibbonResetRevisionRef.current,
-        soundDrawingPerformanceSettings: soundDrawingPerformanceSettingsRef.current,
         performanceActionEvent:    performanceActionEventRef.current,
         performanceActionEvents:   performanceActionEventsRef.current,
         performanceActionToggleStates: performanceActionToggleStatesRef.current,
         laserDmxPreviewShowDirector,
       }
 
-      const lyricPlayback = isPlayingRef.current || isPausedRef.current ? LyricPlaybackBus.getState() : undefined
-      setSoundDrawingClipsForFrame(
-        sdLayersRef.current,
-        sdClipsRef.current,
-        lyricPlayback,
-        activeAudioTrackIdRef.current,
-      )
       renderReactEngine(ctx, rfCtx, preset, renderParams, trackSectionsRef.current)
       compositeBrandAsset(ctx, brandOverlayRef.current, {
         width: W,

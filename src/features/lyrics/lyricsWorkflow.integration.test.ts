@@ -25,7 +25,6 @@ vi.mock('../../lib/lyricsDb', () => ({
 import { createRemoteRuntimeTrack, getTrackAudioTrackId } from '../../audio/runtimeTrack'
 import { useLyricsStore } from '../../stores/lyricsStore'
 import { ActiveLyricTracker } from './runtime/lyricPlaybackResolver'
-import { resolveSoundDrawingLyricText } from './runtime/soundDrawingLyricText'
 
 function documentFor(trackId: string, revision = 1): LyricDocument {
   return {
@@ -154,10 +153,6 @@ describe('persisted-track lyric workflow integration', () => {
     const first = tracker.update(0.4, 'discontinuous')
     expect(first.activeLine).toBe('Got that drink')
     expect(first.activeWord).toBe('drink')
-    expect(resolveSoundDrawingLyricText(
-      { textSource: 'activeLyricLine', staticText: 'STATIC' },
-      first.playback,
-    ).text).toBe(first.activeLine)
 
     const exactBoundary = tracker.update(1, 'continuous')
     expect(exactBoundary.activeLine).toBe('Tear the club up')

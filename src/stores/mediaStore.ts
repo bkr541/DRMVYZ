@@ -1048,9 +1048,6 @@ function purgeRuntimeMedia(item: UploadedMedia, remaining: UploadedMedia[]): voi
       ...(item.derivativePaths ?? []).map(derivative => derivative.path),
     ].filter((path): path is string => Boolean(path)))
   }
-  void import('../components/vyzualz/react/services/svgMediaBridge')
-    .then(({ cleanupRemovedSvgMedia }) => cleanupRemovedSvgMedia(item.id))
-    .catch(() => undefined)
 }
 
 function applyLocalAttempt(item: UploadedMedia, attempt: MediaEditAttempt): UploadedMedia {
@@ -1524,17 +1521,6 @@ export const useMediaStore = create<MediaState>((set, get) => ({
       loadError: result.derivativeWarning ?? null,
     }))
 
-    if (isSvgFile(file)) {
-      void (async () => {
-        try {
-          const { precacheUploadedSvgGlyph } = await import('../components/vyzualz/react/services/svgMediaBridge')
-          await precacheUploadedSvgGlyph({ file, mediaId: stableId, title: localItem.title, name: localItem.name })
-        } catch (error) {
-          console.warn('[mediaStore] SVG glyph pre-cache failed (non-fatal):', error)
-        }
-      })()
-    }
-
     return { ok: true, item: uploadedItem }
   },
 
@@ -1757,17 +1743,6 @@ export const useMediaStore = create<MediaState>((set, get) => ({
       succeeded += 1
       get().removeUploadQueueItem(queueItem.tempId)
       options.onProgress?.({ tempId: queueItem.tempId, fileName: queueItem.file.name, completed, total, status: 'done', phase: 'complete' })
-
-      if (isSvgFile(queueItem.file)) {
-        void (async () => {
-          try {
-            const { precacheUploadedSvgGlyph } = await import('../components/vyzualz/react/services/svgMediaBridge')
-            await precacheUploadedSvgGlyph({ file: queueItem.file, mediaId: stableId, title: localItem.title, name: localItem.name })
-          } catch (error) {
-            console.warn('[mediaStore] SVG glyph pre-cache failed (non-fatal):', error)
-          }
-        })()
-      }
     }
 
     return { total, succeeded, failures }
@@ -1854,18 +1829,6 @@ export const useMediaStore = create<MediaState>((set, get) => ({
         }
       })
       useVisualStore.getState().remapMediaId(previousId, stableId)
-
-      if (isSvgFile(file)) {
-        void (async () => {
-          try {
-            const { precacheUploadedSvgGlyph } = await import('../components/vyzualz/react/services/svgMediaBridge')
-            const outcome = await precacheUploadedSvgGlyph({ file, mediaId: stableId, title: item.title, name: item.name })
-            if (outcome === 'invalid') console.warn('[mediaStore] SVG pre-cache: not valid SVG:', item.name)
-          } catch (error) {
-            console.warn('[mediaStore] SVG glyph pre-cache failed (non-fatal):', error)
-          }
-        })()
-      }
     })
   },
 

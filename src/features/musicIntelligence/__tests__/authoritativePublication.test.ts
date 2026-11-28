@@ -11,11 +11,9 @@ import { DEFAULT_REACT_RENDER_PARAMS, resolveCurrentSection } from '../../../com
 import { cinematicInputFromReactFrame } from '../../../components/vyzualz/react/renderers/CinematicWorldRenderer'
 import { createCinematicWorldConfig } from '../../../components/vyzualz/react/CinematicWorldConfig'
 import {
-  DEFAULT_OSCILLATOR_SETTINGS,
   DEFAULT_REACT_PRESETS,
   type ReactTrackSection,
 } from '../../../components/vyzualz/react/ReactTypes'
-import { resolveOscillatorSectionModifiers } from '../../../components/vyzualz/react/renderers/SoundDrawingRenderer'
 import { resolveAuthoritativeTimeline, resolveSectionAtTime } from '../../trackIntelligence/authoritativeTimeline'
 
 const CURVE = [{ timeSec: 0, value: 0.5 }]
@@ -213,12 +211,6 @@ describe('authoritative Music Intelligence publication', () => {
     )
     expect(cinematic.section.type).toBe('build')
     expect(cinematic.section.progress).toBeCloseTo(0.5)
-
-    const soundDrawing = resolveOscillatorSectionModifiers(frame.resolvedSection?.type ?? null, {
-      ...DEFAULT_OSCILLATOR_SETTINGS,
-      autoSectionMode: true,
-    })
-    expect(soundDrawing.rotationSpeed).toBeCloseTo(DEFAULT_OSCILLATOR_SETTINGS.rotationSpeed * 1.5)
   })
 
   it('reports a capability-safe legacy fallback when no classified section is available', () => {

@@ -32,7 +32,7 @@ The selectable engine registry is `src/components/vyzualz/react/reactEngineCatal
 | --- | --- |
 | **Shader Pads** | Authored WebGL shader scenes with native performance programs and modulation |
 | **Cinematic Worlds** | Directed immersive worlds with camera, atmosphere, post-processing, and audio intelligence |
-| **Sound Drawing** | Waveform, text, font, SVG, glyph, and Living Ribbon drawing |
+| **Sound Drawing XY** | Text and SVG drawn as a phosphor beam in the style of an analog XY scope, plus oscillator instruments |
 | **CANVAS** | User media compositions, transitions, effect recipes, and authored full-song shows |
 | **LaserDMX** | Virtual fixture rigs, Beam Matrix compatibility, Show Director, cues, and production-output preparation |
 | **PixGrid** | Programmable LED-cell artwork, media conversion, smart groups, routing, and full-song pixel choreography |
@@ -125,11 +125,10 @@ See [`docs/react-recording-and-output.md`](docs/react-recording-and-output.md).
 
 ## Media and Brand Kit
 
-React View engines use the shared Media Library rather than engine-specific upload silos. Media capability filters decide whether an item can be selected by Sound Drawing, CANVAS, PixGrid, or another surface.
+React View engines use the shared Media Library rather than engine-specific upload silos. Media capability filters decide whether an item can be selected by CANVAS, PixGrid, or another surface.
 
 Brand Kit supplies persisted palettes, assets, effective engine palettes, branded preset resolution, and optional stage overlays. See [`docs/brand-kit.md`](docs/brand-kit.md).
 
-Sound Drawing control ownership, Pro Scope Trace Size and linked-axis semantics, preset provenance, and versioned trail-lock compatibility are documented in [`docs/sound-drawing-control-ownership-and-provenance.md`](docs/sound-drawing-control-ownership-and-provenance.md).
 
 ## User-created 3D models
 

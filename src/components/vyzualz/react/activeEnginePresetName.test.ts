@@ -24,7 +24,7 @@ describe('active engine preset name (Engine dropdown)', () => {
   it('names the selected preset of every engine that has presets', () => {
     expect(name({ engineId: 'cinema2', cinema2PresetId: 'drmvyz.cinema2.reliquary' as never })).toBe('RELIQUARY')
     expect(name({ engineId: 'canvas', selectedCanvasPresetId: 'canvas-bass-bloom' })).toBe('Bass Bloom')
-    expect(name({ engineId: 'oscilloscope', activeReactPresetId: 'sd-1' })).toBe('Neon Lissajous')
+    expect(name({ engineId: 'oscilloscope', activeReactPresetId: 'sd-1' })).toBeNull() // the retired Sound Drawing engine names nothing
     expect(name({ engineId: 'pixGrid', activeReactPresetId: 'pg-1' })).toBe('Wall Sweep')
   })
 
@@ -55,7 +55,6 @@ describe('stage identity (what starts a transition)', () => {
     expect(id({ engineId: 'cinema2', cinema2PresetId: 'a' as never })).not.toBe(id({ engineId: 'cinema2', cinema2PresetId: 'b' as never }))
     expect(id({ engineId: 'canvas', selectedCanvasPresetId: 'canvas-bass-bloom' })).not.toBe(id({ engineId: 'canvas', selectedCanvasPresetId: 'canvas-fluidity' as never }))
     expect(id({ engineId: 'pixGrid', activeReactPresetId: 'pg-1' })).not.toBe(id({ engineId: 'pixGrid', activeReactPresetId: null }))
-    expect(id({ engineId: 'oscilloscope', activeReactPresetId: 'sd-1' })).toBe('oscilloscope:sd-1')
     expect(id({ engineId: 'laserDmx', laserDmxMode: 'manual', activeLaserDmxBeamMatrixPresetId: 'x' })).not.toBe(id({ engineId: 'laserDmx', laserDmxMode: 'manual', activeLaserDmxBeamMatrixPresetId: 'y' }))
     expect(id({ engineId: 'laserDmx', laserDmxMode: 'showDirector', laserDmxPerformancePresetId: 'x' })).not.toBe(id({ engineId: 'laserDmx', laserDmxMode: 'manual', activeLaserDmxBeamMatrixPresetId: 'x' }))
   })

@@ -2,7 +2,7 @@ import type { CanvasPresetSettings } from '../components/vyzualz/react/ReactType
 
 /**
  * Applies the user's Auto Performance default (System Settings) to every Auto Performance toggle the React view owns outside Cinema 2.0:
- * the eleven CANVAS renderers, the six XY Scope instruments and the XY Scope parameter, and Sound Drawing's show toggle.
+ * the eleven CANVAS renderers, the XY Scope instruments and the XY Scope parameter.
  * Pure: returns a patch with only what changes, or null when every toggle already has the value.
  */
 export const CANVAS_AUTO_PERFORMANCE_ENGINES = ['cutbank', 'mutagen', 'dataBleed', 'phaseDrag', 'cellular', 'terminal', 'fluidity', 'morph', 'divinity', 'vhs', 'shiftgrid'] as const
@@ -12,12 +12,10 @@ type Settings = Record<string, unknown>
 interface Source {
   canvasPresetSettings: unknown
   xyScopeSettings: unknown
-  soundDrawingPerformanceSettings: unknown
 }
 export interface AutoPerformanceDefaultPatch {
   canvasPresetSettings?: CanvasPresetSettings
   xyScopeSettings?: unknown
-  soundDrawingPerformanceSettings?: unknown
 }
 
 const isRecord = (value: unknown): value is Settings => value != null && typeof value === 'object' && !Array.isArray(value)
@@ -67,14 +65,4 @@ export function applyAutoPerformanceDefaultToReactState(state: Source, value: bo
   const xy = applyAutoPerformanceDefaultToXyScopeSettings(state.xyScopeSettings, value)
   if (xy !== state.xyScopeSettings) patch.xyScopeSettings = xy
   return Object.keys(patch).length > 0 ? patch : null
-}
-
-/**
- * Sound Drawing's toggle only works while a Sound Drawing show is selected (it is cleared whenever the app restarts), so the default is applied
- * at the moment a show becomes selected and whenever the setting changes while one is.
- */
-export function applyAutoPerformanceDefaultToSoundDrawing(settings: unknown, value: boolean): unknown | null {
-  if (!isRecord(settings) || settings.selectedShowId == null) return null
-  const next = withToggle(settings, value)
-  return next === settings ? null : next
 }

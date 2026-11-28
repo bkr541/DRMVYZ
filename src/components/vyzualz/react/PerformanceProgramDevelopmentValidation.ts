@@ -1,7 +1,6 @@
 import type { SharedPerformanceProgramValidationIssue } from '../../../features/performanceCore'
 import { validateLaserDmxShowDirectorPerformancePrograms } from './LaserDmxShowDirectorPerformanceValidation'
 import { validateCanvasPerformanceShows } from './canvasPerformance'
-import { validateSoundDrawingPerformanceShows } from './soundDrawing/SoundDrawingPerformanceValidation'
 
 let validationHasRun = false
 
@@ -12,7 +11,6 @@ export function runPerformanceProgramDevelopmentValidation(): readonly SharedPer
   try {
     const issues = [
       ...validateLaserDmxShowDirectorPerformancePrograms(),
-      ...validateSoundDrawingPerformanceShows(),
       ...validateCanvasPerformanceShows(),
     ]
     const errors = issues.filter(issue => issue.severity === 'error')

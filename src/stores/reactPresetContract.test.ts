@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
-  DEFAULT_OSCILLATOR_SETTINGS,
   DEFAULT_REACT_PRESET_RENDER_SETTINGS,
   DEFAULT_REACT_PRESETS,
   createDefaultLaserDmxSettings,
@@ -31,14 +30,14 @@ describe('React preset contracts', () => {
     liveB.masterDimmer = 1
     liveB.blackout = true
 
-    const patchA = buildPresetPatch(laserPreset, DEFAULT_OSCILLATOR_SETTINGS, liveA)
-    const patchB = buildPresetPatch(laserPreset, DEFAULT_OSCILLATOR_SETTINGS, liveB)
+    const patchA = buildPresetPatch(laserPreset, liveA)
+    const patchB = buildPresetPatch(laserPreset, liveB)
 
     expect(patchA.laserDmxSettings).toEqual(patchB.laserDmxSettings)
   })
 
   it('resets every global render control when a preset is selected', () => {
-    const patch = buildPresetPatch(laserPreset, DEFAULT_OSCILLATOR_SETTINGS, createDefaultLaserDmxSettings())
+    const patch = buildPresetPatch(laserPreset, createDefaultLaserDmxSettings())
     expect(patch.reactTrailDecay).toBe(DEFAULT_REACT_PRESET_RENDER_SETTINGS.trailDecay)
     expect(patch.reactFogDensity).toBe(DEFAULT_REACT_PRESET_RENDER_SETTINGS.fogDensity)
     expect(patch.reactParticleDensity).toBe(DEFAULT_REACT_PRESET_RENDER_SETTINGS.particleDensity)
@@ -80,20 +79,10 @@ describe('React preset contracts', () => {
         fogDensity: merged.reactFogDensity,
         particleDensity: merged.reactParticleDensity,
       },
-      oscillatorSettings: merged.oscillatorSettings,
     })
     expect(merged.activeReactPresetId).toBe(laserPreset.id)
     expect(provenance.status).toBe('modified')
     expect(provenance.changedFields).toContain('glow')
-  })
-
-  it('keeps a corrected Sound Drawing trail lock synchronized with preset-owned Trail Decay', () => {
-    useReactStore.getState().setSoundDrawingPerformanceLock('trail', true)
-    useReactStore.getState().selectReactPreset(laserPreset.id)
-    const state = useReactStore.getState()
-    expect(state.soundDrawingPerformanceSettings.trailLockContract.mode).toBe('manualResolved')
-    expect(state.soundDrawingPerformanceSettings.trailLockContract.snapshot?.trailDecay)
-      .toBe(state.reactTrailDecay)
   })
 
   it('creates a transient visual transition from the pad transitionTimeMs', () => {
