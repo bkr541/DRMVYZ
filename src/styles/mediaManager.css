@@ -900,7 +900,8 @@
 .mms-media-area { position: relative; }
 /* Room for the crop toolbar comes from the canvas, not the area's padding: padding feeds the stage's proportional
    split, so changing it would resize the visualizer. */
-.mms-media-area--cropping > .mms-edit-canvas {
+/* Descendant, not child: the canvas sits in the zoom layer, which takes no box of its own while cropping. */
+.mms-media-area--cropping .mms-edit-canvas {
   margin-bottom: 44px;
   max-height: calc(100% - 44px);
 }
@@ -1298,4 +1299,144 @@
 }
 .vz-media-browser--manager .mm-folder-library-group .vz-pool-create__error {
   padding: 0 4px;
+}
+
+
+/* ── Zoom and pan ──────────────────────────────────────────────────────────── */
+
+/* The picture's layer. Fitted it lays out exactly like the picture alone; zoomed it is translated and scaled from its centre
+   (see zoomPan.ts). While cropping it takes no box, so the crop canvas sizes against the media area as before. */
+.mms-zoom-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 0;
+  transform-origin: center;
+}
+.mms-zoom-content--off { display: contents; }
+.mms-media-area--zoomed { cursor: grab; }
+.mms-media-area--panning,
+.mms-media-area--panning * { cursor: grabbing; }
+.mms-media-area--cutout > .mms-zoom-content { visibility: hidden; }
+
+.mms-zoom-controls {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid rgba(154, 178, 188, 0.18);
+  border-radius: 999px;
+  background: rgba(8, 12, 18, 0.72);
+  backdrop-filter: blur(10px);
+  cursor: default;
+}
+.mms-zoom-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(214, 226, 230, 0.82);
+  font: var(--type-field-value);
+  cursor: pointer;
+}
+.mms-zoom-btn:hover:not(:disabled) { background: rgba(154, 178, 188, 0.14); color: #fff; }
+.mms-zoom-btn:disabled { opacity: 0.35; cursor: default; }
+.mms-zoom-btn:focus-visible { outline: 2px solid var(--az-cyan, #4ac7db); outline-offset: -2px; }
+.mms-zoom-level {
+  min-width: 44px;
+  text-align: center;
+  color: rgba(214, 226, 230, 0.82);
+  font: var(--type-field-value);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Select & Remove ───────────────────────────────────────────────────────── */
+
+/* Covers the media area (which keeps its size from the hidden picture), with the toolbar along the bottom. */
+.mmce-root {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+}
+.mmce-viewport {
+  position: absolute;
+  inset: 12px 12px 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  cursor: crosshair;
+  touch-action: none;
+  user-select: none;
+}
+.mmce-viewport--pan { cursor: grab; }
+.mmce-viewport--panning { cursor: grabbing; }
+.mmce-content {
+  position: relative;
+  flex: none;
+  transform-origin: center;
+}
+.mmce-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 4px;
+  /* The same checkerboard as transparent media, so removed areas are plain to see. */
+  background-image:
+    linear-gradient(45deg, #1a2028 25%, transparent 25%),
+    linear-gradient(-45deg, #1a2028 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #1a2028 75%),
+    linear-gradient(-45deg, transparent 75%, #1a2028 75%);
+  background-size: 14px 14px;
+  background-position: 0 0, 0 7px, 7px -7px, -7px 0px;
+  background-color: #0f1520;
+}
+/* Close up, show real pixels so edges can be judged. */
+.mmce-content--pixels .mmce-canvas { image-rendering: pixelated; border-radius: 0; }
+.mmce-lasso {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+.mmce-lasso polygon {
+  fill: rgba(103, 247, 255, 0.12);
+  stroke: #67f7ff;
+  stroke-width: 1.5;
+  stroke-dasharray: 5 4;
+  vector-effect: non-scaling-stroke;
+  animation: mmce-march 0.6s linear infinite;
+}
+@keyframes mmce-march { to { stroke-dashoffset: -9; } }
+@media (prefers-reduced-motion: reduce) { .mmce-lasso polygon { animation: none; } }
+.mmce-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: rgba(196, 207, 211, 0.62);
+  font: var(--type-field-value);
+}
+
+.mmi-cutout-choice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.mmi-cutout-help {
+  margin: 8px 0 0;
+  color: rgba(196, 207, 211, 0.55);
+  font: var(--type-field-value);
 }

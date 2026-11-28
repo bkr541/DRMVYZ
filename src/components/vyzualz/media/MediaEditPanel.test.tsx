@@ -122,7 +122,7 @@ describe('Edit tab', () => {
     const toolbar = q('.mmi-edit-transform-toolbar')!
     const buttons = [...toolbar.querySelectorAll('button')]
     const expected = ['Crop', 'Rotate left 90 degrees', 'Rotate right 90 degrees', 'Flip', 'Mirror']
-    if (item.type === 'image') expected.push('Remove Background')
+    if (item.type === 'image') expected.push('Remove Background', 'Select and Remove')
     expect(buttons.map(control => control.getAttribute('aria-label'))).toEqual(expected)
     expect(toolbar.textContent?.trim()).toBe('')
     expect(toolbar.children).toHaveLength(expected.length)
@@ -242,7 +242,7 @@ describe('Edit tab', () => {
     expect(button('Reset crop to the full frame')).toBeNull()
     act(() => useMediaEditStore.getState().setCrop({ x: 0.1, y: 0.1, width: 0.5, height: 0.5 }))
     await flush()
-    expect(q('.mmi-edit-transform-toolbar')?.children).toHaveLength(7)
+    expect(q('.mmi-edit-transform-toolbar')?.children).toHaveLength(8)
     expect(q('.mmi-edit-transform-toolbar')?.textContent?.trim()).toBe('')
     await click(button('Reset crop to the full frame'))
     expect(useMediaEditStore.getState().edit.crop).toEqual({ x: 0, y: 0, width: 1, height: 1 })

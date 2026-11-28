@@ -19,9 +19,10 @@ const textured = (side: number, extra: Record<string, unknown> = {}) => glb(base
 }), (() => { const b = new Uint8Array(64); b.set(png(side)); return b })())
 
 describe('the Cinema 2.0 private model profile', () => {
-  it('still refuses textures and animations on a generated model', () => {
-    expect(() => validateCinema2UserGlb(textured(1024))).toThrow(/without textures/)
-    expect(() => validateCinema2UserGlb(glb(base({ animations: [{}] })))).toThrow(/without textures/)
+  it('accepts a created model\'s surface texture within the texture budget, but refuses animations', () => {
+    expect(() => validateCinema2UserGlb(textured(1024))).not.toThrow()
+    expect(() => validateCinema2UserGlb(textured(16384))).toThrow(/limit is 8192/)
+    expect(() => validateCinema2UserGlb(glb(base({ animations: [{}] })))).toThrow(/without animations/)
     expect(() => validateCinema2UserGlb(glb(base()))).not.toThrow()
   })
 

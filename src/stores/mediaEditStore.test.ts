@@ -30,7 +30,7 @@ vi.mock('../features/media/backgroundRemoval/removeImageBackground', () => ({
 }))
 
 import { createDefaultMediaEdit } from '../features/media/edit/mediaEditModel'
-import { selectMediaEditDirty, selectMediaEditNeedsGuard, useMediaEditStore } from './mediaEditStore'
+import { selectMediaEditCanSave, selectMediaEditDirty, selectMediaEditNeedsGuard, useMediaEditStore } from './mediaEditStore'
 
 function media(overrides: Record<string, unknown> = {}) {
   return {
@@ -154,6 +154,59 @@ describe('edit session state', () => {
     store().discard()
     expect(store().backgroundRemoval).toBeNull()
     expect(selectMediaEditDirty(store())).toBe(false)
+  })
+})
+
+describe('Select & Remove', () => {
+  it('opens only for images and never together with crop', () => {
+    store().beginSession('db-1')
+    store().setCropMode(true)
+    store().setCutoutMode(true)
+    expect(store().cutoutMode).toBe(false)
+    store().setCropMode(false)
+    store().setCutoutMode(true)
+    expect(store().cutoutMode).toBe(true)
+    store().setCropMode(true)
+    expect(store().cropMode).toBe(false)
+
+    mocks.items = [media({ id: 'db-v', type: 'video' })]
+    store().beginSession('db-v')
+    store().setCutoutMode(true)
+    expect(store().cutoutMode).toBe(false)
+  })
+
+  it('blocks Save while open, guards only once something changed, and Apply keeps the result as the transparent image', async () => {
+    URL.createObjectURL = vi.fn(() => 'blob:cutout')
+    URL.revokeObjectURL = vi.fn()
+    store().beginSession('db-1')
+    store().setSlider('brightness', 20)
+    store().setCutoutMode(true)
+    expect(selectMediaEditCanSave(store())).toBe(false)
+    expect(await store().save()).toMatchObject({ ok: false, kind: 'invalid' })
+    store().setSlider('brightness', 0)
+    expect(selectMediaEditNeedsGuard(store())).toBe(false)
+    store().setCutoutDirty(true)
+    expect(selectMediaEditNeedsGuard(store())).toBe(true)
+
+    store().applyCutout({ blob: new Blob(['cut'], { type: 'image/png' }), width: 800, height: 600 })
+    expect(store().cutoutMode).toBe(false)
+    expect(store().backgroundRemoval).toMatchObject({ url: 'blob:cutout', width: 800, height: 600 })
+    expect(selectMediaEditCanSave(store())).toBe(true)
+    await store().save()
+    expect(mocks.renderEditedMedia).toHaveBeenCalledWith(expect.objectContaining({ url: 'blob:cutout', hasAlpha: true }), expect.anything(), expect.anything())
+  })
+
+  it('closes with Discard and keeps tool settings across images', () => {
+    store().beginSession('db-1')
+    store().setCutoutTool('lasso')
+    store().setCutoutTolerance(140)
+    store().setCutoutMode(true)
+    store().discard()
+    expect(store().cutoutMode).toBe(false)
+    mocks.items = [media(), media({ id: 'db-2' })]
+    store().beginSession('db-2')
+    expect(store().cutoutTool).toBe('lasso')
+    expect(store().cutoutTolerance).toBe(100)
   })
 })
 

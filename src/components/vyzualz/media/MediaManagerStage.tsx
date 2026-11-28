@@ -17,6 +17,9 @@ import { useWaveformPeaks } from '../hooks/useWaveformPeaks'
 import { MediaEditPreview } from './MediaEditPreview'
 import { MediaEditCropOverlay } from './MediaEditCropOverlay'
 import { useTargetBox } from './useTargetBox'
+import { MediaCutoutEditor } from './MediaCutoutEditor'
+import { MediaZoomControls } from './MediaZoomControls'
+import { useZoomPan } from './zoomPan'
 import {
   createDefaultMediaEdit,
   isMediaEditNeutral,
@@ -49,12 +52,14 @@ interface VideoControlsOverlayProps {
   duration: number
   onTogglePlay: () => void
   onSeek: (timeSec: number) => void
+  /** Changes when the picture is zoomed or panned, so the controls re-measure. */
+  revision?: unknown
 }
 
 /** Play, elapsed time, scrubber and duration in a liquid-glass capsule floating over the bottom of the picture (not the stage), wherever the video sits. */
-function VideoControlsOverlay({ targetRef, playing, currentTime, duration, onTogglePlay, onSeek }: VideoControlsOverlayProps) {
+function VideoControlsOverlay({ targetRef, playing, currentTime, duration, onTogglePlay, onSeek, revision }: VideoControlsOverlayProps) {
   const rootRef = useRef<HTMLDivElement>(null)
-  const box = useTargetBox(targetRef, rootRef)
+  const box = useTargetBox(targetRef, rootRef, revision)
   return (
     <div ref={rootRef} className="mms-float-root">
       {box && (
@@ -108,6 +113,7 @@ function VisualMediaStage({ media }: { media: UploadedMedia }) {
   const sessionEdit = useMediaEditStore(state => state.edit)
   const sessionBackgroundRemoval = useMediaEditStore(state => state.backgroundRemoval)
   const cropMode = useMediaEditStore(state => state.cropMode)
+  const sessionCutoutMode = useMediaEditStore(state => state.cutoutMode)
   const activeEdit = sessionMediaId === media.id ? sessionEdit : null
   const activeBackgroundRemoval = sessionMediaId === media.id ? sessionBackgroundRemoval : null
   const [previewFault, setPreviewFault] = useState<string | null>(null)
@@ -136,6 +142,9 @@ function VisualMediaStage({ media }: { media: UploadedMedia }) {
   }, [cropMode])
 
   const isVideo = media.type === 'video'
+  const cutoutMode = sessionMediaId === media.id && sessionCutoutMode && !isVideo
+  const areaRef = useRef<HTMLDivElement>(null)
+  const zoomContentRef = useRef<HTMLDivElement>(null)
   // Media with transparency gets its checkerboard behind the picture only; the stage behind it is the same for everything.
   const transparentClass = media.metadata?.hasAlpha === true || activeBackgroundRemoval ? ' mms-media--transparent' : ''
   const src = activeBackgroundRemoval?.url || media.url || null
@@ -143,6 +152,14 @@ function VisualMediaStage({ media }: { media: UploadedMedia }) {
   // Untouched media is shown directly; the GPU preview only takes over while an edit is active.
   const showEditPreview = editing && previewFault === null && Boolean(src)
   const sourceClass = showEditPreview ? ' mms-source--hidden' : ''
+  // Zoom while viewing; crop draws on the fitted picture and Select & Remove has its own zoom.
+  const zoom = useZoomPan(areaRef, zoomContentRef, Boolean(src) && !(isVideo ? videoError : imageError) && !cropMode && !cutoutMode)
+  const zoomRevision = `${zoom.view.scale}:${zoom.view.x}:${zoom.view.y}`
+  const startStagePan = (event: React.PointerEvent<HTMLDivElement>) => {
+    // Drag pans once zoomed (middle button always); the floating controls keep their own clicks.
+    if ((event.target as HTMLElement).closest('button, input, .mms-float-controls, .mms-zoom-controls, .mms-crop-toolbar, .mmce-root')) return
+    if (event.button === 1 || (event.button === 0 && zoom.zoomed)) zoom.startPan(event)
+  }
 
   const applyCrop = () => {
     if (!activeEdit) return
@@ -189,7 +206,12 @@ function VisualMediaStage({ media }: { media: UploadedMedia }) {
 
   return (
     <div className={`mms-stage${isVideo && src && !videoError ? ' mms-stage--video' : ''}${src && (isVideo ? !videoError : !imageError) ? ' mms-stage--top' : ''}`}>
-      <div className={`mms-media-area${cropMode && showEditPreview ? ' mms-media-area--cropping' : ''}`}>
+      <div
+        ref={areaRef}
+        className={`mms-media-area${cropMode && showEditPreview ? ' mms-media-area--cropping' : ''}${cutoutMode ? ' mms-media-area--cutout' : ''}${zoom.zoomed ? ' mms-media-area--zoomed' : ''}${zoom.panning ? ' mms-media-area--panning' : ''}`}
+        onPointerDown={startStagePan}
+      >
+        <div ref={zoomContentRef} className={`mms-zoom-content${cropMode ? ' mms-zoom-content--off' : ''}`} style={zoom.contentStyle}>
         {!src ? (
           <DrawerNotice tone="error" role="status" title="Media unavailable">{recovering ? 'Refreshing media link…' : 'Media file unavailable'}</DrawerNotice>
         ) : isVideo && videoError ? (
@@ -231,27 +253,27 @@ function VisualMediaStage({ media }: { media: UploadedMedia }) {
           />
         )}
         {showEditPreview && activeEdit && !videoError && !imageError && (
-          <>
-            <MediaEditPreview
-              canvasRef={canvasRef}
-              sourceRef={(isVideo ? videoRef : imageRef) as React.RefObject<HTMLImageElement | HTMLVideoElement>}
-              kind={isVideo ? 'video' : 'image'}
-              edit={activeEdit}
-              ignoreCrop={cropMode}
-              sourceKey={src ?? ''}
-              className={`${isVideo ? 'mms-video' : 'mms-image'}${transparentClass}`}
-              onFault={setPreviewFault}
-            />
-            {cropMode && (
-              <MediaEditCropOverlay
-                targetRef={canvasRef}
-                rect={cropDraft}
-                onChange={setCropDraft}
-                onApply={applyCrop}
-                onCancel={cancelCrop}
-              />
-            )}
-          </>
+          <MediaEditPreview
+            canvasRef={canvasRef}
+            sourceRef={(isVideo ? videoRef : imageRef) as React.RefObject<HTMLImageElement | HTMLVideoElement>}
+            kind={isVideo ? 'video' : 'image'}
+            edit={activeEdit}
+            ignoreCrop={cropMode}
+            sourceKey={src ?? ''}
+            className={`${isVideo ? 'mms-video' : 'mms-image'}${transparentClass}`}
+            onFault={setPreviewFault}
+          />
+        )}
+        </div>
+        {/* Outside the zoom layer: the crop overlay measures against its parent, the media area. */}
+        {cropMode && showEditPreview && activeEdit && !videoError && !imageError && (
+          <MediaEditCropOverlay
+            targetRef={canvasRef}
+            rect={cropDraft}
+            onChange={setCropDraft}
+            onApply={applyCrop}
+            onCancel={cancelCrop}
+          />
         )}
         {isVideo && src && !videoError && !cropMode && (
           <VideoControlsOverlay
@@ -261,8 +283,11 @@ function VisualMediaStage({ media }: { media: UploadedMedia }) {
             duration={duration}
             onTogglePlay={togglePlay}
             onSeek={seekTo}
+            revision={zoomRevision}
           />
         )}
+        {src && !cropMode && !cutoutMode && !(isVideo ? videoError : imageError) && <MediaZoomControls zoom={zoom} />}
+        {cutoutMode && <MediaCutoutEditor media={media} backgroundRemoval={activeBackgroundRemoval} />}
         {previewFault && editing && (
           <DrawerNotice tone="warning" role="status" title="Live preview unavailable">{previewFault}</DrawerNotice>
         )}

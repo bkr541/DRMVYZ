@@ -1,6 +1,6 @@
 import { AppIcon } from '../../shared/icons/AppIcon'
 
-import { Collapsible, SliderRow } from '../react/ReactControlRows'
+import { Collapsible, SliderRow, ToggleRow } from '../react/ReactControlRows'
 import { IconChipButton } from '../react/controls/IconChipButton'
 import { DrawerNotice } from '../shared/DrawerNotice'
 import {
@@ -53,12 +53,13 @@ export function MediaEditPanel({ media }: { media: UploadedMedia }) {
   }
   if (!session) return <div className="mmi-body" aria-busy="true" />
 
-  const { edit, backgroundRemoval, cropMode } = session
+  const { edit, backgroundRemoval, cropMode, cutoutMode, cutoutTool, cutoutAction, cutoutTolerance, cutoutContiguous } = session
   const store = useMediaEditStore.getState()
   const working = busy !== 'idle'
-  const disabled = working
+  // Select & Remove shows the image before colour and transform edits, so those wait until it is applied or cancelled.
+  const disabled = working || cutoutMode
   // Rotate / flip / mirror change the frame the crop rectangle is drawn on, so they wait for Apply or Cancel.
-  const transformDisabled = working || cropMode
+  const transformDisabled = working || cropMode || cutoutMode
   const backgroundLabel = busy === 'removing-background' ? 'Removing background…' : backgroundRemoval ? 'Restore Background' : 'Remove Background'
   const cropIsFull = mediaEditsEqual({ ...createDefaultMediaEdit(), crop: edit.crop }, createDefaultMediaEdit())
 
@@ -160,8 +161,56 @@ export function MediaEditPanel({ media }: { media: UploadedMedia }) {
               }}
             />
           )}
+          {media.type === 'image' && (
+            <IconChipButton
+              icon={<AppIcon kind="scissors" size={16} />}
+              disabled={working || cropMode}
+              tone={cutoutMode ? 'primary' : 'default'}
+              title={cutoutMode ? 'Close Select & Remove' : 'Select & Remove: click or outline areas to remove'}
+              aria-label="Select and Remove"
+              aria-pressed={cutoutMode}
+              onClick={() => store.setCutoutMode(!cutoutMode)}
+            />
+          )}
         </div>
       </Collapsible>
+
+      {cutoutMode && (
+        <Collapsible label="Select & Remove" defaultOpen>
+          <div className="mmi-cutout-choice" role="radiogroup" aria-label="Tool">
+            <IconChipButton role="radio" aria-checked={cutoutTool === 'wand'} tone={cutoutTool === 'wand' ? 'primary' : 'default'} icon={<AppIcon kind="wand" size={14} />} title="Magic Wand (W): click an area of similar colour" onClick={() => store.setCutoutTool('wand')}>Magic Wand</IconChipButton>
+            <IconChipButton role="radio" aria-checked={cutoutTool === 'lasso'} tone={cutoutTool === 'lasso' ? 'primary' : 'default'} icon={<AppIcon kind="paintBrush" size={14} />} title="Lasso (L): draw around an area" onClick={() => store.setCutoutTool('lasso')}>Lasso</IconChipButton>
+          </div>
+          <div className="mmi-cutout-choice" role="radiogroup" aria-label="Action">
+            <IconChipButton role="radio" aria-checked={cutoutAction === 'remove'} tone={cutoutAction === 'remove' ? 'primary' : 'default'} title="Make the selected area transparent" onClick={() => store.setCutoutAction('remove')}>Remove</IconChipButton>
+            <IconChipButton role="radio" aria-checked={cutoutAction === 'restore'} tone={cutoutAction === 'restore' ? 'primary' : 'default'} title="Bring back the original pixels in the selected area" onClick={() => store.setCutoutAction('restore')}>Restore</IconChipButton>
+          </div>
+          {cutoutTool === 'wand' && (
+            <>
+              <SliderRow
+                id="mmi-cutout-tolerance"
+                label="Tolerance"
+                value={cutoutTolerance}
+                min={0}
+                max={100}
+                step={1}
+                resetValue={12}
+                formatValue={value => `${Math.round(value)}%`}
+                description="How different a colour can be from the one you click and still be selected."
+                onChange={value => store.setCutoutTolerance(value)}
+              />
+              <ToggleRow
+                id="mmi-cutout-contiguous"
+                label="Connected Area Only"
+                value={cutoutContiguous}
+                description="Off selects that colour everywhere in the image."
+                onChange={value => store.setCutoutContiguous(value)}
+              />
+            </>
+          )}
+          <p className="mmi-cutout-help">Hold Alt to switch Remove and Restore. Scroll or pinch to zoom, hold Space and drag to pan.</p>
+        </Collapsible>
+      )}
 
       <Collapsible label="Color" defaultOpen>
         {COLOR_SLIDERS.map(renderSlider)}

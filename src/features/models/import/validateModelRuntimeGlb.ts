@@ -14,10 +14,13 @@ export function validateModelRuntimeGlb(buffer: ArrayBuffer, profile: { imported
   const rejectUris = (value: unknown): void => { if (!value || typeof value !== 'object') return; for (const [key, child] of Object.entries(value)) { if (key === 'uri') reject('External or URI-based model resources are unsupported.'); rejectUris(child) } }
   rejectUris(json)
   if (json.skins?.length) reject('Models with a skeleton (skins) cannot be used in a Cinema 2.0 preset. Export the model without a rig.')
-  if (profile.imported) {
+  // Both kinds may embed textures (a created model's surface texture, an import's own maps), held to the same image budgets. Only an import may
+  // carry animations (kept in the file, never played).
+  if (json.images?.length || json.textures?.length) {
     try { assertImageBudget(scanGlbContainer(buffer).images) } catch (error) { reject(error instanceof Error ? error.message : 'The model textures exceed the runtime budget.') }
     if ((json.images?.length ?? 0) > 64) reject('The model has more than 64 embedded images.')
-  } else if (json.images?.length || json.textures?.length || json.animations?.length) reject('Private models must be static generated meshes without textures or skins.')
+  }
+  if (!profile.imported && json.animations?.length) reject('Created models must be static meshes without animations.')
   if ((json.nodes?.length ?? 0) > 2048 || (json.materials?.length ?? 0) > 128 || (json.accessors?.length ?? 0) > 8192) reject('Model structure exceeds the runtime budget.')
   if (json.accessors?.some(a => !Number.isInteger(a.count) || a.count < 1 || a.count > 1_000_000) || json.buffers?.some(b => !Number.isInteger(b.byteLength) || b.byteLength < 1 || b.byteLength > MODEL_MAX_FILE_BYTES) || (json.bufferViews ?? []).reduce((sum, v) => sum + v.byteLength, 0) > MODEL_MAX_FILE_BYTES * 2 || json.bufferViews?.some(v => !Number.isInteger(v.byteLength) || v.byteLength < 1 || v.byteLength > MODEL_MAX_FILE_BYTES)) reject('Decoded buffers exceed the model resource budget.')
   let triangles = 0

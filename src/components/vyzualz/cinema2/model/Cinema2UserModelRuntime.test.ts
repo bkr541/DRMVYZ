@@ -59,10 +59,9 @@ describe('private user model authorization, binary decoding and bounded validati
     fetcher.mockResolvedValueOnce(new Response(null, { status: 403 })).mockResolvedValueOnce(new Response(null, { status: 403 })); await expect(resolver.load(library, authorized, signal())).rejects.toMatchObject({ status: 'unauthorized' })
     fetcher.mockResolvedValueOnce(new Response(glb(), { headers: { 'content-type': 'text/html' } })); await expect(resolver.load(library, authorized, signal())).rejects.toThrow(/MIME/)
   })
-  it('rejects malformed bytes, URI dependencies, textures and excessive triangles before parsing', () => {
+  it('rejects malformed bytes, URI dependencies and excessive triangles before parsing', () => {
     expect(() => validateCinema2UserGlb(new ArrayBuffer(20))).toThrow()
     expect(() => validateCinema2UserGlb(glb({ buffers: [{ uri: 'https://remote.invalid/buffer' }] }))).toThrow(/URI/)
-    expect(() => validateCinema2UserGlb(glb({ images: [{}] }))).toThrow(/textures/)
     expect(() => validateCinema2UserGlb(glb({ accessors: [{ count: 3_000_000 }] }))).toThrow(/budget/)
   })
 })

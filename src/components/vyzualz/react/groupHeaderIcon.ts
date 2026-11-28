@@ -13,6 +13,8 @@ const RULES: readonly (readonly [RegExp, AppIconKind])[] = [
   [/master|controls?\b|macros?|overrides?/i, 'sliders'],
   [/design|appearance|display|canvas|material|layout|styling|presentation|font|artwork|texture|shader|crt|svg/i, 'paintBrush'],
   [/audio|reactiv|music|frequency|signal|waveform|perceptual|analysis|beat|sound|response/i, 'waveform'],
+  // Before the 'move' rule, which would otherwise match the end of "Remove".
+  [/select\s*&\s*remove|cut ?out/i, 'scissors'],
   [/transform|path|position|move/i, 'move'],
   [/cue/i, 'cue'],
   [/route|routing|trigger|matrix|bank|motif/i, 'route'],
