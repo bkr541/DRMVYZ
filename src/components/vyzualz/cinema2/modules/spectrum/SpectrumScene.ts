@@ -68,7 +68,7 @@ export class SpectrumScene {
     for(let i=0;i<3;i++)this.textures.push(new T.Texture());this.shader=material(new T.ShaderMaterial({vertexShader:vertex,fragmentShader:fragment,toneMapped:false,uniforms:{uFeed0:{value:this.textures[0]},uFeed1:{value:this.textures[1]},uFeed2:{value:this.textures[2]},uAspect:{value:new T.Vector3()},uFade:{value:new T.Vector3()},uFit:{value:0},uScale:{value:1},uAngle:{value:0},uOffset:{value:new T.Vector2()},uOpacity:{value:1},uBrightness:{value:1},uVisible:{value:1},uPrimary:{value:new T.Color()},uSecondary:{value:new T.Color()}}}))
     this.display=mesh(screen,this.shader);this.display.onBeforeRender=renderer=>{this.renderer=renderer;this.textures.forEach((texture,i)=>{const properties=renderer.properties.get(texture) as {__webglTexture?:WebGLTexture;__version?:number};const resource=this.feeds[i];if(resource){properties.__webglTexture=resource.texture;properties.__version=texture.version}else{delete properties.__webglTexture;delete properties.__version}})}
     const cylinder=geometry(new T.CylinderGeometry(1,1,1,64)),torus=geometry(new T.TorusGeometry(1,.009,6,96)),beam=geometry(new T.TorusGeometry(1,.025,8,96))
-    const staticMesh=(g:Three.BufferGeometry,m:Three.Material,y:number)=>{const v=new T.Mesh(g,m);v.position.y=y;v.receiveShadow=true;this.group.add(v);return v}
+    const staticMesh=<M extends Three.Material>(g:Three.BufferGeometry,m:M,y:number)=>{const v=new T.Mesh(g,m);v.position.y=y;v.receiveShadow=true;this.group.add(v);return v}
     this.ground=staticMesh(cylinder,this.floor,-3.05)
     const platform=staticMesh(cylinder,this.structure,-2.78);platform.scale.set(1.65,.38,1.65);platform.castShadow=true
     const cap=staticMesh(cylinder,this.floor,-2.55);cap.scale.set(1.48,.10,1.48)

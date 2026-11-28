@@ -72,6 +72,24 @@ const RESET_MODES = new Set<Cinema2ParameterResetMode>(['authored-default', 'non
 const READ_ONLY_TYPES = new Set<Cinema2ParameterType>(['status', 'meter'])
 const RUNTIME_ONLY_TYPES = new Set<Cinema2ParameterType>(['trigger', 'status', 'meter'])
 
+/** Decimal places a number is written with (0.05 -> 2, 1e-7 -> 7), capped at 12. */
+function decimalPlaces(value: number): number {
+  if (!Number.isFinite(value) || Number.isInteger(value)) return 0
+  const text = value.toString()
+  const exponent = /e-(\d+)$/.exec(text)
+  if (exponent) return Math.min(12, Number(exponent[1]) + (text.split('e')[0]!.split('.')[1]?.length ?? 0))
+  return Math.min(12, text.split('.')[1]?.length ?? 0)
+}
+
+/**
+ * Snaps a value to the nearest step from an origin, without the binary floating-point remainder the multiplication leaves (14 * 0.05 is
+ * 0.7000000000000001): the result is rounded to the precision the step and origin are written with, so a saved 0.7 reads back as 0.7.
+ */
+export function snapCinema2ValueToStep(value: number, origin: number, step: number): number {
+  const snapped = origin + Math.round((value - origin) / step) * step
+  return Number(snapped.toFixed(Math.max(decimalPlaces(step), decimalPlaces(origin))))
+}
+
 export function validateCinema2ParameterDefinitions(
   manifest: Cinema2NativePresetManifest,
 ): readonly Cinema2ParameterSchemaDiagnostic[] {
@@ -176,7 +194,7 @@ export function normalizeCinema2ParameterValue(
       }
       if (typeof definition.step === 'number' && definition.step > 0 && options.mode === 'runtime') {
         const origin = typeof definition.min === 'number' ? definition.min : 0
-        normalized = origin + Math.round((normalized - origin) / definition.step) * definition.step
+        normalized = snapCinema2ValueToStep(normalized, origin, definition.step)
         if (definition.type === 'integer') normalized = Math.round(normalized)
         if (typeof definition.min === 'number') normalized = Math.max(normalized, definition.min)
         if (typeof definition.max === 'number') normalized = Math.min(normalized, definition.max)
@@ -439,7 +457,7 @@ function normalizeVector(
     }
     if (typeof definition.step === 'number' && definition.step > 0 && mode === 'runtime') {
       const origin = typeof definition.min === 'number' ? definition.min : 0
-      component = origin + Math.round((component - origin) / definition.step) * definition.step
+      component = snapCinema2ValueToStep(component, origin, definition.step)
       if (typeof definition.min === 'number') component = Math.max(component, definition.min)
       if (typeof definition.max === 'number') component = Math.min(component, definition.max)
     }

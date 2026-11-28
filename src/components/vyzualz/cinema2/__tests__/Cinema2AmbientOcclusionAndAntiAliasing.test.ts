@@ -26,16 +26,24 @@ describe('registration is opt-in', () => {
     expect(cinema2NativeEffectRegistry.get(CINEMA2_ANTI_ALIASING_EFFECT_TYPE_ID, 1)?.create).toBe(cinema2AntiAliasingEffectDefinition.create)
   })
 
-  it('is not used by any first-party preset', async () => {
+  it('is used only by the presets that explicitly opted in', async () => {
     const { cinema2NativePresetRegistry } = await import('..')
-    const presets = (cinema2NativePresetRegistry as unknown as { list?: () => readonly { effects?: readonly { typeId: string }[] }[] }).list?.() ?? []
+    const presets = (cinema2NativePresetRegistry as unknown as { list?: () => readonly { id: string; effects?: readonly { typeId: string }[] }[] }).list?.() ?? []
     expect(presets.length).toBeGreaterThan(5)
+    // Adding either effect to another preset is a deliberate, reviewed choice: add it here with the preset.
+    const optedIn: Record<string, readonly string[]> = {
+      'drmvyz.cinema2.crate-moire-orb': ['ambient-occlusion'],
+      'drmvyz.cinema2.honey': ['ambient-occlusion', 'anti-aliasing'],
+      'drmvyz.cinema2.hud': ['anti-aliasing'],
+    }
+    const used: Record<string, string[]> = {}
     for (const preset of presets) {
       for (const effect of preset.effects ?? []) {
-        expect(['ambient-occlusion', 'anti-aliasing']).not.toContain(effect.typeId)
+        if (effect.typeId === 'ambient-occlusion' || effect.typeId === 'anti-aliasing') (used[preset.id] ??= []).push(effect.typeId)
       }
     }
-  })
+    expect(used).toEqual(optedIn)
+  }, 30_000) // Loads the whole first-party preset registry, which takes close to the 5 s default on its own.
 })
 
 describe('parameter validation', () => {

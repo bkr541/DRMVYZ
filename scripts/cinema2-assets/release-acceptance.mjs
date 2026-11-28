@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* global document, window */
 import { createHash } from 'node:crypto'
 import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { join, resolve, dirname } from 'node:path'

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* global document, Image, window */
 // Pixel regression of the actual native fragment shaders on isolated display faces.
 // No Three or production transport mock: only the vertex inputs are held fixed.
 import assert from 'node:assert/strict'

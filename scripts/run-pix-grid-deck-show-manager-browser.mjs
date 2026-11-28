@@ -45,7 +45,8 @@ async function waitForServer(url, timeoutMs = 15_000) {
 }
 
 let server = null
-let status = 1
+// Set from the test run; a thrown error leaves the script before it is read.
+let status
 try {
   requireDependency(playwrightCli, 'Run npm ci before the PixGrid Deck release browser suite.')
   requireDependency(viteCli, 'Run npm ci before the PixGrid Deck release browser suite.')

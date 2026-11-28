@@ -1,3 +1,4 @@
+/* global window, requestAnimationFrame, document, Image, MediaRecorder, HTMLCanvasElement, location */
 /* Browser globals live inside the isolated Vite component harness. */
 import { chromium } from 'playwright'
 import { mkdir, writeFile } from 'node:fs/promises'
@@ -92,7 +93,7 @@ try {
     const videoUrl = URL.createObjectURL(videoBlob), video = document.createElement('video'); video.src = videoUrl; video.muted = true; video.loop = true; video.playsInline = true
     await new Promise((resolve, reject) => { video.onloadeddata = resolve; video.onerror = reject }); await video.play()
     const c = make(), { renderer, error } = DataBleedRenderer.create(c); assert(renderer, error)
-    const gl = c.getContext('webgl2'), videoMetrics = [], motionSensitivity = []
+    const videoMetrics = [], motionSensitivity = []
     for (const mode of ['motion', 'procedural', 'mixed']) {
       renderer.resetHistory(); let first = null
       for (let i = 0; i < 45; i++) { assert(draw(renderer, video, { ...defaults, flowMode: mode }, i / 60), 'video frame'); if (i === 15) first = pixels(c); await frames(1) }
@@ -285,7 +286,9 @@ try {
   const reloaded = await page.evaluate(async () => { const { useReactStore } = await import('/src/stores/reactStore.ts'); await useReactStore.persist.rehydrate(); return { settings: useReactStore.getState().canvasPresetSettings.dataBleed, source: useReactStore.getState().activeCanvasMediaId } })
   if (JSON.stringify(reloaded) !== JSON.stringify(persisted)) throw new Error('reload lost recipe/source identity')
   if (errors.length) throw new Error(errors.join('\n'))
-  const { captures, recorded, ...report } = result
+  // The captures were already written as images; they stay out of the JSON report.
+  const { recorded, ...report } = result
+  delete report.captures
   await writeFile(path.join(outputDir, 'report.json'), JSON.stringify({ ...report, parity, disposed, recordingBytes: recorded.length, reload: reloaded, scope: 'Chromium WebGL2 component harness; generated images/video and deterministic Core context; native Electron device/cloud flows not exercised.' }, null, 2))
   console.log(JSON.stringify({ outputDir, device: report.device, profiles: report.profiles, soak: report.soak, parity, disposed, recordingBytes: recorded.length }, null, 2))
 } catch (error) {

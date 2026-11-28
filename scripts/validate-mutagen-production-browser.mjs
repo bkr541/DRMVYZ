@@ -1,4 +1,4 @@
-/* global document, Image, window, requestAnimationFrame, MediaRecorder, Blob */
+/* global document, Image, window, requestAnimationFrame, MediaRecorder, HTMLCanvasElement, location */
 // Node 22 + an existing Vite server. No auth, uploads, network images or audio analyzer.
 import { chromium } from 'playwright'
 import { mkdir, writeFile } from 'node:fs/promises'
@@ -265,7 +265,9 @@ try {
   const reloaded = await page.evaluate(async () => { const { useReactStore } = await import('/src/stores/reactStore.ts'); await useReactStore.persist.rehydrate(); return { settings: useReactStore.getState().canvasPresetSettings.mutagen, id: useReactStore.getState().activeCanvasMediaId } })
   if (JSON.stringify(reloaded.settings) !== JSON.stringify(expectedSettings) || reloaded.id !== 'mutagen-production-source') throw new Error('reload lost recipe/media identity')
   if (errors.length) throw new Error('Browser errors: ' + errors.join('\n'))
-  const { captures, recording, ...report } = result
+  // The captures were already written as images; they stay out of the JSON report.
+  const { recording, ...report } = result
+  delete report.captures
   await writeFile(path.join(outputDir, 'report.json'), JSON.stringify({ ...report, recordingBytes: recording.size, liveOutputMeanError: parity, disposedRenderers, reload: reloaded, scope: 'Headless Chromium component harness; synthetic media/semantic context; no authenticated cloud or Electron-native cast' }, null, 2))
   console.log(JSON.stringify({ outputDir, profiles: report.profiles, soak: report.soak, liveOutputMeanError: parity, disposedRenderers, recordingBytes: recording.size }, null, 2))
 } finally { await browser.close() }

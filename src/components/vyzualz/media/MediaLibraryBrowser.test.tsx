@@ -780,8 +780,8 @@ describe('MediaLibraryBrowser manager: folder groups', () => {
     const group = container?.querySelector<HTMLElement>('section[aria-label="Collections"]')
     const header = group?.querySelector<HTMLButtonElement>('.drc-header')
     expect(header?.getAttribute('aria-expanded')).toBe('true')
-    const input = group?.querySelector<HTMLInputElement>('[aria-label="New collection name"]')!
-    const button = group?.querySelector<HTMLButtonElement>('[aria-label="Create collection"]')!
+    const input = group!.querySelector<HTMLInputElement>('[aria-label="New collection name"]')!
+    const button = group!.querySelector<HTMLButtonElement>('[aria-label="Create collection"]')!
     expect(button.disabled).toBe(true)
     act(() => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input, 'Encore')
@@ -802,7 +802,7 @@ describe('MediaLibraryBrowser manager: folder groups', () => {
     await renderBrowser({ activeMediaId: null, onSelect: vi.fn(), context: 'manager', capabilities: MEDIA_MANAGER_CAPABILITIES })
     act(() => findButton('Collections')?.click())
     const group = container?.querySelector<HTMLElement>('section[aria-label="Collections"]')
-    const input = group?.querySelector<HTMLInputElement>('[aria-label="New collection name"]')!
+    const input = group!.querySelector<HTMLInputElement>('[aria-label="New collection name"]')!
     act(() => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input, 'Encore')
       input.dispatchEvent(new Event('input', { bubbles: true }))

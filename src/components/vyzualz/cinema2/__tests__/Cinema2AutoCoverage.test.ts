@@ -66,6 +66,13 @@ describe('the coverage drives move the controls they cover', () => {
   })
 })
 
+// The six user-model presets share one template: twelve Audio Mapping slots whose own settings configure the mapping rather than a visual property
+// (so there is nothing for Auto Performance to drive), plus the template's counts.
+const USER_MODEL_LEFT = [
+  ...Array.from({ length: 12 }, () => ['Attack', 'Mapping Intensity', 'Maximum (fraction of target range)', 'Minimum (fraction of target range)', 'Release', 'Smoothing'].map(label => `${label} (unbound)`)).flat(),
+  'Segments (structural)', 'Segments (structural)', 'Slice Count (structural)',
+].sort()
+
 describe('what Auto Performance does not move, and why', () => {
   it('names every numeric control left out: counts, seeds, the controls that set the strength of the choreography, and the module changes still to make', () => {
     const left: Record<string, string[]> = {}
@@ -81,7 +88,7 @@ describe('what Auto Performance does not move, and why', () => {
       ...(userFacing.some(d=>slugOf(d.manifest.id)==='arc-angel') ? {'arc-angel':['Flash Accents (exempt)','Model Scale (exempt)','Music Reactivity (exempt)']} : {}),
       'atl-hoe': ['City Atmosphere (exempt)', 'Flicker (authority)'],
       blockshift: ['Block Size (exempt)', 'Depth (exempt)', 'Rotation Range (exempt)', 'Spread (exempt)'],
-      canopy: ['Column Spacing (exempt)', 'Columns (structural)', 'Length Variation (exempt)', 'Rod Length (exempt)', 'Row Spacing (exempt)', 'Rows (structural)'],
+      canopy: ['Length Variation (exempt)', 'Rod Length (exempt)'],
       'ancient-machine': ['Music Reactivity (authority)'],
       cathedral: ['Music Reactivity (authority)'],
       constellation: ['Element Count (structural)', 'Music Reactivity (authority)'],
@@ -106,6 +113,19 @@ describe('what Auto Performance does not move, and why', () => {
       sixfold: ['Music Reactivity (authority)'],
       starters: ['Music Reactivity (authority)'],
       submerge: ['Camera Motion (authority)', 'Glyph Scale (exempt)', 'Line Spacing (exempt)', 'Tracking (exempt)'],
+      allstar: ['Camera Impact (authority)', 'Frame Thickness (exempt)', 'Geometric Separation (exempt)', 'Geometry Layers (exempt)', 'Geometry Thickness (exempt)', 'Music Reactivity (exempt)', 'Structural Detail (exempt)', 'Surface Roughness (exempt)', 'Tunnel Depth (exempt)', 'Tunnel Width (exempt)'],
+      echoform: ['Camera Movement (authority)', 'Echo Count (structural)', 'Orbit Count (structural)'],
+      everywhere: ['Camera Roll (authority)', 'Drop Impact (authority)'],
+      fracture: ['Crack Width (exempt)', 'Debris Density (exempt)', 'Media Brightness (exempt)', 'Media Opacity (exempt)', 'Media Rotation (exempt)', 'Media Scale (exempt)', 'Media X Offset (exempt)', 'Media Y Offset (exempt)', 'Music Reactivity (exempt)', 'Reassembly Time (exempt)', 'Seed (structural)', 'Shard Count (structural)', 'Shard Thickness (exempt)', 'Transition Duration (exempt)'],
+      hypnotize: ['Music Reactivity (authority)'],
+      livewire: ['Camera Amount (unbound)'],
+      purity: ['Camera Impact (authority)', 'Frame Thickness (exempt)', 'Music Reactivity (exempt)', 'Tunnel Depth (exempt)', 'Tunnel Width (exempt)'],
+      'user-model-dust': USER_MODEL_LEFT,
+      'user-model-form': USER_MODEL_LEFT,
+      'user-model-hologram': USER_MODEL_LEFT,
+      'user-model-shatter': USER_MODEL_LEFT,
+      'user-model-slices': USER_MODEL_LEFT,
+      'user-model-voxel': USER_MODEL_LEFT,
     })
   })
 

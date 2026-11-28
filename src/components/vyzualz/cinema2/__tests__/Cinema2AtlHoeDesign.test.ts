@@ -159,7 +159,8 @@ describe('ATL HOE Design tab', () => {
     ]))
 
     expect(labels()).toEqual({
-      'master-controls': ['Auto Performance', 'Master Intensity', 'BPM Sync', 'Camera Movement', 'Music Reactivity', 'Camera Impacts', 'Kick Reactivity', 'Transient Reaction', 'Drop Reaction'],
+      // BPM Sync and Auto Performance take the final positions in the standard Master Controls group (docs/user-guide.md).
+      'master-controls': ['Master Intensity', 'Camera Movement', 'Music Reactivity', 'Camera Impacts', 'Kick Reactivity', 'Transient Reaction', 'Drop Reaction', 'BPM Sync', 'Auto Performance'],
       design: ['Pattern', 'Pattern Change'],
       effects: ['Flicker', 'City Atmosphere'],
       palette: ['Sign Color', 'Letter Color', 'Architecture Color'],

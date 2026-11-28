@@ -1,4 +1,4 @@
-/* global document, Image, window, requestAnimationFrame */
+/* global document, Image, window */
 import { chromium } from 'playwright'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'

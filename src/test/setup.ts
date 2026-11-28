@@ -10,7 +10,14 @@
  * console.warn that fires in every renderer test where the Node environment
  * cannot supply a real GL context.
  */
-import { vi, beforeAll, afterAll } from 'vitest'
+import { vi, beforeAll, afterAll, beforeEach } from 'vitest'
+import { setAutoPerformanceUserDefault } from '../lib/autoPerformanceDefault'
+
+// ── App-wide Auto Performance default ────────────────────────────────────────
+// The visual store publishes the user's System Settings Auto Performance default as soon as it is imported, and that default then decides
+// every preset's Auto Performance toggle. A test that only imports the store would otherwise run each preset with Auto Performance off.
+// Every test starts with no user setting (each preset keeps its authored default); a test about the setting sets it itself.
+beforeEach(() => setAutoPerformanceUserDefault(null))
 
 // ── In-memory localStorage ────────────────────────────────────────────────────
 

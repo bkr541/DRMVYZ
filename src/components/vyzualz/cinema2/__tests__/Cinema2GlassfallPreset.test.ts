@@ -6,6 +6,7 @@ import { validateCinema2PresetAuthoringConventions } from '../presets/Cinema2Pre
 import { CINEMA2_AFTERHOURS_TRIGGER_OPTIONS } from '../presets/Cinema2AfterhoursPreset'
 import { glassfallParameterId as pid } from '../presets/Cinema2GlassfallPhase2Definition'
 import { Cinema2ParameterState } from '../parameters/Cinema2ParameterState'
+import { getCinema2AutoPerformanceUserDefault, setCinema2AutoPerformanceUserDefault } from '../parameters/Cinema2AutoPerformanceDefault'
 import { GLASSFALL_CHOREOGRAPHY_ENABLED_ID } from '../presets/Cinema2GlassfallChoreography'
 describe('GLASSFALL final production wiring', () => {
   it.each([false, true])('restores saved settings containing the legacy choreography value %s', legacy => {
@@ -16,9 +17,16 @@ describe('GLASSFALL final production wiring', () => {
     saved.values[GLASSFALL_CHOREOGRAPHY_ENABLED_ID] = legacy
     saved.values[pid('autoPerformance')] = true
     saved.values[pid('intensity')] = .63
-    expect(state.restore(saved).ok).toBe(true)
-    expect(state.getValue(pid('intensity'))).toBe(.63)
-    expect(state.getValue(pid('autoPerformance'))).toBe(true)
+    // With no System Settings Auto Performance default, the saved toggle is restored (with one, the user's default wins whenever a preset loads).
+    const systemDefault = getCinema2AutoPerformanceUserDefault()
+    try {
+      setCinema2AutoPerformanceUserDefault(null)
+      expect(state.restore(saved).ok).toBe(true)
+      expect(state.getValue(pid('intensity'))).toBe(.63)
+      expect(state.getValue(pid('autoPerformance'))).toBe(true)
+    } finally {
+      setCinema2AutoPerformanceUserDefault(systemDefault)
+    }
   })
   it('gives Auto Performance sole ownership of choreography, Director routes and temporary patterns', () => {
     expect(manifest.parameters!.find(p => p.id === GLASSFALL_CHOREOGRAPHY_ENABLED_ID)?.exposure).toBe('hidden')

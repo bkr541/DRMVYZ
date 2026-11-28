@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* global document, screen, devicePixelRatio, window */
 import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
 import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
@@ -19,7 +20,7 @@ const coverage=inventoryCoverage(keys,smoke||args.includes('--presets'))
 const dir=join(root,'artifacts/cinema2-performance');await mkdir(dir,{recursive:true});const out=await mkdtemp(join(dir,'run-'))
 const hash=b=>createHash('sha256').update(b).digest('hex')
 const fixtureHash=hash(await Promise.all(['src/test/support/TrippyBroMusicFixture.ts','src/test/browser/Cinema2QualityReviewHarness.ts','src/test/browser/Cinema2ReleaseMediaFixture.ts'].map(p=>readFile(join(root,p)))).then(b=>Buffer.concat(b)))
-let revision=opt('revision');if(!revision)try{const dirty=execFileSync('git',['status','--porcelain'],{cwd:root,encoding:'utf8'});if(!dirty.trim())revision=execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim()}catch{}
+let revision=opt('revision');if(!revision)try{const dirty=execFileSync('git',['status','--porcelain'],{cwd:root,encoding:'utf8'});if(!dirty.trim())revision=execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim()}catch{/* not a git checkout: leave the revision unset */}
 const report={schemaVersion:1,revision,fixtureHash,...coverage,environment:{platform:os.platform(),osRelease:os.release(),arch:os.arch(),cpu:os.cpus()[0]?.model,refreshHz:opt('refresh-hz')?duration('refresh-hz',60,1,1000):null,driver:opt('driver'),display:opt('display'),fixtureHash,capture:'none during sampling',config:settings,dpr:1,headless:!args.includes('--headed'),allowSoftware:args.includes('--allow-software')},scenarios:{},lifecycle:[],gates:{browserTechnical:'not-run',hardwareTiming:'not-run',electronPreview:'not-run',electronFullscreen:'not-run',casting:'not-run',externalCasting:'not-run',performanceComparison:'not-run',humanVisual:'pending'},errors:[],blockers:[]}
 const imageExerciseComplete=r=>r.sourceExercise==='executed'&&!!r.transport
 const save=()=>writeFile(join(out,'manifest.json'),JSON.stringify(report,null,2)+'\n')

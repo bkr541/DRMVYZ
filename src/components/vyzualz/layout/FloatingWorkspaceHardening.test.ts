@@ -12,8 +12,9 @@ import showViewSource from '../showManager/ShowManagerView.tsx?raw'
 const scope = "[data-workspace-layout='floating'][data-app-workspace='showManager']"
 
 describe('Phase 09 floating workspace hardening', () => {
-  it('keeps all five workspaces opted into the same app-frame contract', () => {
-    expect(APP_VIEWS).toHaveLength(5)
+  it('keeps every workspace opted into the same app-frame contract', () => {
+    // React, Performance Manager, Preset Manager, Show Manager, Lyric Manager, Media Manager and the Admin Console.
+    expect(APP_VIEWS).toHaveLength(7)
     expect(APP_VIEWS.every(view => FLOATING_APP_VIEWS[view])).toBe(true)
   })
 
@@ -29,11 +30,12 @@ describe('Phase 09 floating workspace hardening', () => {
 
   it('keeps each performance dock in its own second grid row, never in the old fixed viewport dock', () => {
     const workspaces = [
-      { css: reactCss, source: reactViewSource, route: 'react', shell: '.rv-shell--floating' },
-      { css: showCss, source: showViewSource, route: 'showManager', shell: '.sm-root' },
+      // Performance Manager runs inside the React shell, so the React rule names both workspaces.
+      { css: reactCss, source: reactViewSource, route: 'react', shell: '.rv-shell--floating', scope: "[data-workspace-layout='floating']:is([data-app-workspace='react'], [data-app-workspace='performanceManager'])" },
+      { css: showCss, source: showViewSource, route: 'showManager', shell: '.sm-root', scope: "[data-workspace-layout='floating'][data-app-workspace='showManager']" },
     ] as const
-    for (const { css, source, route, shell } of workspaces) {
-      const selector = `[data-workspace-layout='floating'][data-app-workspace='${route}'] ${shell}`
+    for (const { css, source, route, shell, scope } of workspaces) {
+      const selector = `${scope} ${shell}`
       const start = css.indexOf(`${selector} {`)
       expect(start, `${route} shell must have its own layout rule`).toBeGreaterThanOrEqual(0)
       const shellRules = css.slice(start).match(/\{([^}]*)\}/)?.[1] ?? ''

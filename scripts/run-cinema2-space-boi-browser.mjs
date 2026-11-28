@@ -1,3 +1,4 @@
+/* global document */
 import assert from 'node:assert/strict'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { chromium } from '@playwright/test'
@@ -108,7 +109,7 @@ try {
     await api('timing', { bpm: 120, sourcePresent: false }); await api('restart'); await ready()
 
     // Audio reactivity: different musical information moves different parts of the picture, each with its own live value.
-    await pose('stargazing', .4, { reactivity: 1 }); await api('music', quiet); await advance(.5); const baseline = await pixels(), saved = (await snapshot()).parameters.persistentValues
+    await pose('stargazing', .4, { reactivity: 1 }); await api('music', quiet); await advance(.5); const saved = (await snapshot()).parameters.persistentValues
     const before = (await snapshot()).live
     for (const [name, options, property, region] of [['bass', { bass: 1 }, 'rippleMotion', 'water'], ['highs', { high: 1 }, 'starShimmer', 'sky'], ['vocals', { vocal: 1 }, 'headMotion', 'figure']]) {
       await api('music', { ...quiet, ...options }); await advance(.6); const live = (await snapshot()).live; assert(live[property] > before[property] + .02, `${name} raises ${property} (${live[property]} vs ${before[property]})`)

@@ -1,3 +1,4 @@
+/* global openDecksReview */
 // Run against Vite: verifies the production audio-intelligence club reveal.
 import assert from 'node:assert/strict'
 import {chromium} from '@playwright/test'

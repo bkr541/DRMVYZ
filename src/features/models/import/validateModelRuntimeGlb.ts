@@ -23,7 +23,7 @@ export function validateModelRuntimeGlb(buffer: ArrayBuffer, profile: { imported
   let triangles = 0
   for (const mesh of json.meshes ?? []) for (const primitive of mesh.primitives) {
     const accessor = json.accessors?.[primitive.indices ?? primitive.attributes?.POSITION ?? -1]
-    if ((primitive.mode ?? 4) !== 4 || !accessor || !Number.isInteger(accessor.count) || accessor.count < 3) reject('Only bounded triangle meshes are supported.')
+    if ((primitive.mode ?? 4) !== 4 || !accessor || !Number.isInteger(accessor.count) || accessor.count < 3) return reject('Only bounded triangle meshes are supported.')
     triangles += accessor.count / 3
   }
   if (!triangles || triangles > MODEL_MAX_TRIANGLES) reject('Model exceeds the triangle budget or has no mesh.')

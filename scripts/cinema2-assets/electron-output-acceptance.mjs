@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* global document */
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
 import { resolve, join } from 'node:path'
 import os from 'node:os'

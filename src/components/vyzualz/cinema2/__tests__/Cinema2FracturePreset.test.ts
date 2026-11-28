@@ -4,6 +4,7 @@ import { FractureScene, type FractureLook } from '../modules/fracture/FractureSc
 import type { Cinema2ThreeLibrary } from '../modules/three/Cinema2ThreeLibrary'
 import type { Cinema2ManagedMediaResource } from '../media/Cinema2MediaSlotRuntime'
 import { CINEMA2_FRACTURE_PRESET_MANIFEST as manifest } from '../presets/Cinema2FracturePreset'
+import { CINEMA2_QUALITY_MODE_PARAMETER_ID } from '../parameters/Cinema2PerformanceParameters'
 import { compileCinema2NativePreset } from '../presets/Cinema2PresetCompiler'
 import { validateCinema2PresetAuthoringConventions } from '../presets/Cinema2PresetAuthoring'
 import { withCinema2AutoCoverage } from '../presets/Cinema2AutoCoverage'
@@ -21,7 +22,8 @@ describe('FRACTURE native preset',()=>{
       expect(validateCinema2PresetAuthoringConventions({role:'reference',manifest:m}).diagnostics).toEqual([])
       const result=compileCinema2NativePreset(m);expect(result.diagnostics).toEqual([]);expect(result.ok).toBe(true)
     }
-    expect(new Set(manifest.parameters!.map(p=>p.designParentGroup))).toEqual(new Set(['master-controls','design','effects','palette']))
+    // Every preset control sits in one of the four Design parents; the shared engine-level Quality / Performance control lives in Advanced.
+    expect(new Set(manifest.parameters!.filter(p=>p.id!==CINEMA2_QUALITY_MODE_PARAMETER_ID).map(p=>p.designParentGroup))).toEqual(new Set(['master-controls','design','effects','palette']))
     for(const [name,value] of Object.entries({'sphere-expansion':.75,'orbital-motion':.45,'shard-vibration':.6,'debris-density':.5,'cluster-reconstruction':.7,'fracture-lighting':.65}))expect(parameter(name).defaultValue).toBe(value)
     expect(parameter('pattern').options).toEqual(FRACTURE_PATTERNS)
     expect(parameter('trigger').options).toEqual(CINEMA2_AFTERHOURS_TRIGGER_OPTIONS)
@@ -37,7 +39,7 @@ describe('FRACTURE native preset',()=>{
       expect(shards.reduce((sum,s)=>sum+polygonArea(s.polygon),0)).toBeCloseTo(36,7)
       for(const shard of shards){expect(shard.route).toBeGreaterThanOrEqual(0);expect(polygonArea(shard.polygon)).toBeGreaterThan(.01);expect(polygonArea(insetPolygon(shard,.16))).toBeGreaterThan(0);for(const id of shard.neighbors)expect(shards[id]!.neighbors).toContain(shard.id);for(const p of shard.polygon){expect(Math.abs(p.x)).toBeLessThanOrEqual(4+1e-8);expect(Math.abs(p.y)).toBeLessThanOrEqual(2.25+1e-8)}}
     }
-  })
+  },30_000) // 315 tessellations (every count from 16 to 120, three seeds): close to the 5 s default on its own.
   it('produces six distinct bounded shard programs and exact idle targets',()=>{
     const shards=tessellate(48,17);const signatures=FRACTURE_PATTERNS.map(({value})=>JSON.stringify(shards.map(s=>shardPose(s,{...motion,pattern:value}))))
     expect(new Set(signatures).size).toBe(6)

@@ -14,7 +14,7 @@ let log='',browser
 server.stdout.on('data',v=>log+=v);server.stderr.on('data',v=>log+=v)
 const delta=(a,b)=>{assert.equal(a.length,b.length);let sum=0;for(let i=0;i<a.length;i++)sum+=Math.abs(a[i]-b[i]);return sum/a.length}
 try{
- let ready=false;for(let i=0;i<150;i++){if(server.exitCode!==null)throw Error(log);try{if((await fetch(url)).ok){ready=true;break}}catch{}await new Promise(r=>setTimeout(r,100))}assert(ready,log)
+ let ready=false;for(let i=0;i<150;i++){if(server.exitCode!==null)throw Error(log);try{if((await fetch(url)).ok){ready=true;break}}catch{/* server not up yet */}await new Promise(r=>setTimeout(r,100))}assert(ready,log)
  browser=await chromium.launch({headless:true,args:['--enable-webgl','--ignore-gpu-blocklist'],...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH?{executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH}:{})})
  const requested=process.env.CINEMA2_ARTIFACT_PRESET
  if(requested)assert(Object.hasOwn(patterns,requested),`Unknown artifact preset: ${requested}`)

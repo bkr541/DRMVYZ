@@ -10,7 +10,8 @@ function harness() {
   ipc.send = channel => sent.push(channel)
   let native
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../rekordbox/preloadRekordboxBridge.cjs'), 'utf8'), {
-    process: { platform: 'darwin' },
+    // A packaged app launch: no extra Electron arguments (the dev-server-only review-notes flag is absent).
+    process: { platform: 'darwin', argv: [] },
     require: name => {
       assert.equal(name, 'electron')
       return { ipcRenderer: ipc, webUtils: {}, contextBridge: { exposeInMainWorld(_name, value) { native = value } } }

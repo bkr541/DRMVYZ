@@ -6,6 +6,8 @@ import { modelFxColor, modelFxNumber } from './Cinema2ModelCinematicMaterials'
 
 export function createCinema2Helix(T: Cinema2ThreeLibrary['THREE'], radius: number, turns: number, segments: number, thickness: number): Three.TubeGeometry {
   class Helix extends T.Curve<Three.Vector3> {
+    // three.js declares Curve's constructor protected; a subclass must expose its own to be constructed here.
+    constructor() { super() }
     getPoint(t: number, target = new T.Vector3()): Three.Vector3 {
       const angle = t * turns * Math.PI * 2
       return target.set(Math.cos(angle) * radius, (t - .5) * radius * 2.8, Math.sin(angle) * radius)

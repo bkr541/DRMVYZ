@@ -419,9 +419,10 @@ function Colossus() {
 
 function Spectrum() {
   return <Scene id="drmvyz.cinema2.spectrum">
-    <g opacity=".55"><ellipse cx="140" cy="32" rx="108" ry="23"/><ellipse cx="140" cy="38" rx="101" ry="21"/><ellipse cx="140" cy="123" rx="104" ry="25"/><ellipse cx="140" cy="123" rx="79" ry="19"/><ellipse cx="140" cy="123" rx="55" ry="13"/></g>
     <g>{Array.from({length:8},(_,i)=>{const x=35+i*26,y=30+Math.abs(i-3.5)*5;return <path key={i} d={`M${x} ${y}l23 ${i<4?-4:4}v61l-23 4z`} fill="currentColor" fillOpacity=".12"/>})}</g>
     <g><ellipse cx="140" cy="121" rx="30" ry="9" fill="currentColor" fillOpacity=".16"/><path d="M110 121v5c0 12 60 12 60 0v-5"/></g>
+    <g opacity=".55"><ellipse cx="140" cy="123" rx="104" ry="25"/><ellipse cx="140" cy="123" rx="79" ry="19"/><ellipse cx="140" cy="123" rx="55" ry="13"/></g>
+    <g opacity=".55"><ellipse cx="140" cy="32" rx="108" ry="23"/><ellipse cx="140" cy="38" rx="101" ry="21"/></g>
   </Scene>
 }
 

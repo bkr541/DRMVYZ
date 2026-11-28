@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { CINEMA2_QUALITY_MODE_PARAMETER_ID } from '../parameters/Cinema2PerformanceParameters'
 import * as THREE from 'three'
 import { Cinema2ModuleRuntime } from '../modules/Cinema2ModuleRuntime'
 import { Cinema2ModuleRegistry } from '../modules/Cinema2ModuleRegistry'
@@ -27,7 +28,8 @@ describe('SPECTRUM native arena',()=>{
       expect(validateCinema2PresetAuthoringConventions({role:'reference',manifest:m}).diagnostics).toEqual([])
       const result=compileCinema2NativePreset(m);expect(result.diagnostics).toEqual([]);expect(result.ok).toBe(true)
     }
-    expect(new Set(manifest.parameters!.map(p=>p.designParentGroup))).toEqual(new Set(['master-controls','design','effects','palette']))
+    // Every preset control sits in one of the four Design parents; the shared engine-level Quality / Performance control lives in Advanced.
+    expect(new Set(manifest.parameters!.filter(p=>p.id!==CINEMA2_QUALITY_MODE_PARAMETER_ID).map(p=>p.designParentGroup))).toEqual(new Set(['master-controls','design','effects','palette']))
     expect(parameter('pattern').options).toEqual(SPECTRUM_PATTERNS)
     expect(parameter('trigger').options).toEqual(CINEMA2_AFTERHOURS_TRIGGER_OPTIONS)
     expect(parameter('pool-trigger').options).toEqual(CANVAS_POOL_AUTOMATION_TRIGGER_OPTIONS)

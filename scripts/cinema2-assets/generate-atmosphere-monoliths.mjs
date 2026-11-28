@@ -333,7 +333,7 @@ function buildCrystalFrame({ rings }) {
 }
 
 /** Fractures inside the crystal: a few meandering main cracks and short branches per accent colour, thin tapered tubes that stay inside the glass. */
-function buildCrystalCracks({ rings }, colourName, seedKey, mainCount) {
+function buildCrystalCracks(_shape, colourName, seedKey, mainCount) {
   const bottom = FLOOR_Y + 0.05, top = FLOOR_Y + CRYSTAL.height * 0.9
   const radiusAt = y => {
     const f = Math.min(1, Math.max(0, (y - (FLOOR_Y - CRYSTAL.sink)) / (CRYSTAL.height + CRYSTAL.sink)))

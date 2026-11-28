@@ -284,7 +284,7 @@ describe('Everywhere', () => {
   })
 
   it('uses the shared camera, bounded dolly travel and all twelve authored camera profiles',()=>{
-    const camera=manifest.cameras?.[0]!
+    const camera=manifest.cameras![0]!
     expect(camera.transform?.position).toEqual([0,0,14])
     expect(camera.controls?.motionEnabled?.$ref).toBe('everywhere-camera-motion')
     expect(camera.controls?.positionOffset?.$ref).toBe('everywhere-camera-distance')

@@ -187,6 +187,7 @@ const offsetShapes: Record<NavIconDestination, { plane: string; line: string; ma
   lyrics: { plane: `${rr(5, 3, 8, 12, 4)}${circle(19.5, 21, 2.6)}`, line: `${rr(5, 3, 8, 12, 4)}M3 11a6 6 0 0 0 12 0M9 17v4`, mark: 'M17 6h6M17 10h4M22 21v-6l3 1' },
   media: { plane: `${rr(3, 3, 14, 12, 2.5)}${rr(9, 11, 14, 12, 2.5)}`, line: `${rr(3, 3, 14, 12, 2.5)}${rr(9, 11, 14, 12, 2.5)}`, mark: 'M5.5 12l3-3.5 2 2.2M13.5 15v5l4-2.5Z' },
   notifications: { plane: `${bell(.78)}${rr(15, 3, 8, 5, 2.5)}`, line: `${bell(.78)}${rr(15, 3, 8, 5, 2.5)}`, mark: `${clapper(.78)}M17.5 5.5h3` },
+  react: { plane: rr(3.5, 5, 25, 18, 3), line: `${rr(3.5, 5, 25, 18, 3)}M16 23v4M10.5 27h11`, mark: 'M7 14h2.5l1.7-3.5 2.1 7 1.7-3.5h1.5' },
 }
 const offset: Draw = Object.fromEntries((Object.keys(offsetShapes) as NavIconDestination[]).map(kind => [kind, () => {
   const { plane, line, mark } = offsetShapes[kind]

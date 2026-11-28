@@ -44,9 +44,10 @@ describe.each(kinds)('%s model preview declaration', kind => {
     const snapshot = new Cinema2ParameterState(compiled.plan.parameters).getSnapshot()
     const controls = createCinema2DesignParentGroupModel(compiled.plan, snapshot).flatMap(parent => [...parent.controls, ...parent.groups.flatMap(group => group.controls)])
     expect(find('model').exposure).toBe('primary')
-    expect(controls.some(control => control.definition.id === find('model').id)).toBe(true)
+    // The model picker belongs to the Source tab, so the Design projection leaves it out (docs/cinema2-sys-07-inspector.md).
+    expect(controls.some(control => control.definition.id === find('model').id)).toBe(false)
     expect(controls.find(control => control.definition.id === find('pattern').id)).toBeDefined()
-    expect(createCinema2InspectorModel(compiled.plan, snapshot, 'design').flatMap(section => section.groups.flatMap(group => group.controls)).some(control => control.definition.id === find('model').id)).toBe(true)
+    expect(createCinema2InspectorModel(compiled.plan, snapshot, 'design').flatMap(section => section.groups.flatMap(group => group.controls)).some(control => control.definition.id === find('model').id)).toBe(false)
     expect(find('bpmSync')).toMatchObject({ label: 'BPM Sync', type: 'boolean', designParentGroup: 'master-controls' })
     expect(find('pattern').options).toHaveLength(6); expect(find('patternChange')).toMatchObject({ type: 'boolean', defaultValue: false, designParentGroup: 'design' })
     expect(find('trigger').options).toEqual(CINEMA2_AFTERHOURS_TRIGGER_OPTIONS); expect(find('trigger').visibleWhen).toEqual([{ kind: 'parameter-equals', parameterId: find('patternChange').id, value: true }])
@@ -77,6 +78,8 @@ describe.each(kinds)('%s model preview declaration', kind => {
           if (typeof uniform?.value === 'number') values.push(uniform.value)
         })
       }
+      // The hologram's look is the shader mode on the projected surfaces (one per pattern), so it is read from the controller.
+      if (kind === 'hologram') values.push(...controller.inspect().hologramModes)
       hashes.add(JSON.stringify(values))
     }
     expect(hashes.size).toBe(6)

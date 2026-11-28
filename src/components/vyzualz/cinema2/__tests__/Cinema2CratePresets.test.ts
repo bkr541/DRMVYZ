@@ -10,12 +10,14 @@ import { createCinema2LegacyMaterialPlugin } from '../modules/three/Cinema2Legac
 import { layoutParallaxCipherGlyphs, PARALLAX_CIPHER_EYE, PARALLAX_CIPHER_TARGET, sampleParallaxCipherEye } from '../modules/crate/Cinema2ParallaxCipherLayout'
 import { CINEMA2_PARALLAX_CIPHER_TEXT_ID } from '../presets/Cinema2ParallaxCipherPreset'
 import type { Cinema2ThreeLibrary } from '../modules/three/Cinema2ThreeLibrary'
+import { cinema2NamespacedId, type Cinema2PresetId } from '../contracts/Cinema2NativePresetManifest'
 
 describe('Cinema 2.0 crate reference presets', () => {
   it('registers six references, preserving original assets across static and animated presets', () => {
     expect(CINEMA2_CRATE_PRESET_MANIFESTS).toHaveLength(6)
-    expect(cinema2NativePresetRegistry.get('drmvyz.cinema2.crate-glitch-array')).toBeNull()
-    expect(cinema2NativePresetRegistry.get('drmvyz.cinema2.crate-nested-pulse')).toBeNull()
+    // Retired ids are no longer part of the preset id union, which is the point of asserting they are gone.
+    expect(cinema2NativePresetRegistry.get(cinema2NamespacedId<Cinema2PresetId>('drmvyz.cinema2.crate-glitch-array'))).toBeNull()
+    expect(cinema2NativePresetRegistry.get(cinema2NamespacedId<Cinema2PresetId>('drmvyz.cinema2.crate-nested-pulse'))).toBeNull()
     for (const manifest of CINEMA2_CRATE_PRESET_MANIFESTS) {
       const registered = cinema2NativePresetRegistry.get(manifest.id)!
       expect(cinema2NativePresetRegistry.compile(manifest.id).ok).toBe(true)

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* global createImageBitmap, document */
 // Pixel-level regression: verifies six isolated Mainframe emitters with no audio.
 // Requires the normal dev dependencies (Vite + @playwright/test) and Chromium.
 import { existsSync } from 'node:fs'

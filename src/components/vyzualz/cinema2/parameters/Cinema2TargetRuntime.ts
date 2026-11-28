@@ -1,3 +1,4 @@
+import { snapCinema2ValueToStep } from './Cinema2ParameterSchema'
 import type {
   Cinema2CapabilityId,
   Cinema2ChoreographyActionId,
@@ -950,7 +951,7 @@ function clampStep(value: number, target: Readonly<Cinema2TargetHandle>): number
   if (target.max != null) next = Math.min(target.max, next)
   if (target.step != null && target.step > 0) {
     const origin = target.min ?? 0
-    next = origin + Math.round((next - origin) / target.step) * target.step
+    next = snapCinema2ValueToStep(next, origin, target.step)
     if (target.min != null) next = Math.max(target.min, next)
     if (target.max != null) next = Math.min(target.max, next)
   }

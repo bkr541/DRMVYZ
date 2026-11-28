@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { CINEMA2_QUALITY_MODE_PARAMETER_ID } from '../parameters/Cinema2PerformanceParameters'
 import { CINEMA2_OVERDRIVE_PRESET_ID, CINEMA2_OVERDRIVE_PRESET_MANIFEST as manifest } from '../presets/Cinema2OverdrivePreset'
 import { CINEMA2_AFTERHOURS_TRIGGER_OPTIONS } from '../presets/Cinema2AfterhoursPreset'
 import { compileCinema2NativePreset } from '../presets/Cinema2PresetCompiler'
@@ -19,7 +20,8 @@ describe('OVERDRIVE',()=>{
     expect(manifest.id).toBe(CINEMA2_OVERDRIVE_PRESET_ID)
     expect(validateCinema2PresetAuthoringConventions({role:'keeper',manifest}).diagnostics).toEqual([])
     for(const value of [manifest,withCinema2AutoCoverage(manifest)]){const result=compileCinema2NativePreset(value);expect(result.diagnostics).toEqual([]);expect(result.ok).toBe(true)}
-    expect(new Set(manifest.parameters!.map(p=>p.designParentGroup))).toEqual(new Set(['master-controls','design','effects','palette']))
+    // Every preset control sits in one of the four Design parents; the shared engine-level Quality / Performance control lives in Advanced.
+    expect(new Set(manifest.parameters!.filter(p=>p.id!==CINEMA2_QUALITY_MODE_PARAMETER_ID).map(p=>p.designParentGroup))).toEqual(new Set(['master-controls','design','effects','palette']))
     expect(parameter('pattern').options).toHaveLength(12)
     for(const name of ['radial-lighting','reactor-lighting','blackout-depth'])expect(parameter(name).designParentGroup).toBe('effects')
     expect(parameter('pattern-change')).toMatchObject({defaultValue:false,metadata:{moodPolicy:'patternChange'}})

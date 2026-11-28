@@ -48,7 +48,8 @@ const specs = process.env.DRMVYZ_CINEMA2_HUMN_SPECS
   : ['src/test/e2e/cinema2HumNVisualAcceptance.spec.ts']
 
 let server = null
-let status = 1
+// Set from the test run; a thrown error leaves the script before it is read.
+let status
 try {
   requireDependency(playwrightCli, 'Run npm ci before the Cinema 2.0 HUM:N browser suite.')
   requireDependency(viteCli, 'Run npm ci before the Cinema 2.0 HUM:N browser suite.')

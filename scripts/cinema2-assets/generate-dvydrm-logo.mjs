@@ -52,6 +52,8 @@ const SAMPLES_PER_CURVE = 3
  * kinks (the cut crystal a little less finely: its flat bands hide small kinks, and its extruded bevel multiplies every sample).
  */
 const CRYSTAL_SAMPLES_PER_CURVE = FACETED ? 4 : 16
+// Faceted (--faceted) cut profile: straight bands between the knots (distance fraction -> height fraction), plus a small mirror-symmetric jitter.
+const FACETS = { boundarySpacing: 0.03, interiorSpacing: 0.075, jitter: 0.0025, bands: [[0, 0], [0.3, 0.52], [0.72, 0.88], [1, 1]] }
 const CREASE_ANGLE = (38 * Math.PI) / 180
 
 /** The gold ring: extrusion depth (world units at 2 units wide) and bevel. */

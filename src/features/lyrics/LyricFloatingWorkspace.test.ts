@@ -9,6 +9,8 @@ const scope = "[data-workspace-layout='floating'][data-app-workspace='lyrics']"
 describe('Phase 07 Lyric Manager floating composition', () => {
   it('keeps Lyric Manager opted in alongside the other migrated workspaces', () => {
     expect(FLOATING_APP_VIEWS).toEqual({
+      admin: true,
+      performanceManager: true,
       react: true,
       presetManager: true,
       showManager: true,

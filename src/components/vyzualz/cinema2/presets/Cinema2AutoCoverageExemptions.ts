@@ -139,6 +139,7 @@ export const CINEMA2_AUTO_COVERAGE_EXEMPT: Readonly<Record<string, Readonly<Reco
   'atl-hoe': Object.freeze({ 'atl-hoe-city-atmosphere': MAPPED_BY_RULE }),
   'open-decks': Object.freeze({ 'open-decks-distance': NEVER_ZOOMS, 'open-decks-heading': NEVER_ZOOMS, 'open-decks-elevation': NEVER_ZOOMS }),
   canopy: Object.freeze({
-    'canopy-row-spacing': REBUILDS_STRUCTURE, 'canopy-column-spacing': REBUILDS_STRUCTURE, 'canopy-rod-length': REBUILDS_STRUCTURE, 'canopy-length-variation': REBUILDS_STRUCTURE,
+    // Rows, Columns and both spacings are hidden structure (not user controls), so they need no exemption.
+    'canopy-rod-length': REBUILDS_STRUCTURE, 'canopy-length-variation': REBUILDS_STRUCTURE,
   }),
 })

@@ -1,3 +1,4 @@
+/* global window */
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { mkdir,writeFile } from 'node:fs/promises'
@@ -10,7 +11,7 @@ const server=spawn(process.execPath,['node_modules/vite/bin/vite.js','--host','1
 let browser,log='';const report={captures:{},retirements:[],failures:{},errors:[],console:[],requests:[],renderer:null,environment:null};server.stdout.on('data',v=>log+=v);server.stderr.on('data',v=>log+=v)
 try{
   await mkdir(output,{recursive:true});let ready=false
-  for(let i=0;i<150;i++){if(server.exitCode!==null)throw Error(log);try{if((await fetch(url)).ok){ready=true;break}}catch{}await new Promise(r=>setTimeout(r,100))}assert(ready,log)
+  for(let i=0;i<150;i++){if(server.exitCode!==null)throw Error(log);try{if((await fetch(url)).ok){ready=true;break}}catch{/* server not up yet */}await new Promise(r=>setTimeout(r,100))}assert(ready,log)
   browser=await chromium.launch({headless:true,args:['--enable-webgl','--ignore-gpu-blocklist','--enable-unsafe-swiftshader'],...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH?{executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH}:{})})
   const page=await browser.newPage({viewport:{width:960,height:540},deviceScaleFactor:1})
   let injection=null

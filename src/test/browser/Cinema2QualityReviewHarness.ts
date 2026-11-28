@@ -147,7 +147,7 @@ const api = {
       const intervals: number[] = [], cpu: number[] = [], gpu: number[] = []
       const resources: ReturnType<typeof resourceEvidence>[] = []
       let first: number | null = null, previous: number | null = null, last = 0, measuredFrames = 0, skippedBoundaryQuery = false
-      let gpuCount = runtime.getSnapshot().performance.gpuTimingSampleCount ?? 0
+      let gpuCount = runtime.getSnapshot().performance?.gpuTimingSampleCount ?? 0
       let disjointStart = 0, nextResourceTime = 0, startSnapshot = runtime.getSnapshot()
       let finalSnapshot = startSnapshot
       let startVisualTime = runtime.getVisualElapsedTimeSec()
@@ -165,6 +165,7 @@ const api = {
             tick(now)
             const snapshot = runtime.getSnapshot(), timing = snapshot.performance
             if (snapshot.phase !== 'running') throw Error(`Runtime phase ${snapshot.phase}`)
+            if (!timing) throw Error('Running snapshot carried no performance timing')
             if (elapsed < warmupMs) {
               gpuCount = timing.gpuTimingSampleCount ?? 0
               requestAnimationFrame(sample); return
@@ -197,8 +198,8 @@ const api = {
       const gl = canvas.getContext('webgl2')
       const error = gl?.getError() ?? -1
       return { intervals, cpu, gpu, measuredFrames, elapsedMs: intervals.reduce((a,b)=>a+b,0), last,
-        gpuSupported: finalSnapshot.performance.gpuTimingSupported,
-        disjointCount: (finalSnapshot.performance.gpuTimingDisjointCount ?? 0) - disjointStart,
+        gpuSupported: finalSnapshot.performance?.gpuTimingSupported ?? false,
+        disjointCount: (finalSnapshot.performance?.gpuTimingDisjointCount ?? 0) - disjointStart,
         startSnapshot, finalSnapshot, initialSettings, startVisualTime, endVisualTime: runtime.getVisualElapsedTimeSec(), resources, glError: error, settings: runtime.serializeParameterState() }
     } finally { measuring = false }
   },

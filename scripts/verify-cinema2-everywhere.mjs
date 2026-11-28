@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* global window, document */
+/* global window */
 import assert from 'node:assert/strict'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'

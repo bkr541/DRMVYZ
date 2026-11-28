@@ -33,6 +33,28 @@ import type { Cinema2TransportFrameState } from '../modules/Cinema2ModuleContrac
 const SECOND_EFFECT_ID = cinema2StableId<Cinema2EffectId>('reference-secondary-blur')
 const UNKNOWN_EFFECT_TYPE_ID = cinema2StableId<Cinema2EffectTypeId>('missing-effect')
 
+/**
+ * The reference preset with only the given effects. Its choreography rules that drive an effect it no longer has are dropped too, so the trimmed
+ * manifest stays valid and each test checks only what it is about.
+ */
+function referenceWithEffects(effects: NonNullable<Cinema2NativePresetManifest['effects']>): Cinema2NativePresetManifest {
+  const ids = new Set(effects.map(effect => String(effect.id)))
+  const choreography = CINEMA2_REFERENCE_VISUAL_PRESET_MANIFEST.choreography
+  return {
+    ...CINEMA2_REFERENCE_VISUAL_PRESET_MANIFEST,
+    render: undefined,
+    output: undefined,
+    effects,
+    choreography: choreography && {
+      ...choreography,
+      rules: (choreography.rules ?? []).filter(rule => rule.actions.every(action => {
+        const target = (action as { target?: { kind?: string; ref?: { $ref?: string } } }).target
+        return target?.kind !== 'effect' || ids.has(String(target.ref?.$ref))
+      })),
+    },
+  }
+}
+
 function compileManifest(manifest: Cinema2NativePresetManifest = CINEMA2_REFERENCE_VISUAL_PRESET_MANIFEST) {
   const result = compileCinema2NativePreset(manifest, { availableCapabilities: ['render.webgl2', 'audio.features'] })
   expect(result.ok, JSON.stringify(result.diagnostics)).toBe(true)
@@ -138,11 +160,8 @@ describe('Cinema 2.0 effect registry and instance runtime', () => {
     const referenceEffect = CINEMA2_REFERENCE_VISUAL_PRESET_MANIFEST.effects?.[0]
     if (!referenceEffect) throw new Error('Reference effect is missing.')
     const manifest: Cinema2NativePresetManifest = {
-      ...CINEMA2_REFERENCE_VISUAL_PRESET_MANIFEST,
+      ...referenceWithEffects([{ ...referenceEffect, typeId: UNKNOWN_EFFECT_TYPE_ID }]),
       id: cinema2NamespacedId<Cinema2PresetId>('drmvyz.cinema2.reference-visual-unknown-effect'),
-      render: undefined,
-      output: undefined,
-      effects: [{ ...referenceEffect, typeId: UNKNOWN_EFFECT_TYPE_ID }],
     }
     const registry = new Cinema2PresetRegistry()
     const registration = registry.register(manifest)
@@ -358,23 +377,18 @@ describe('Cinema 2.0 effect registry and instance runtime', () => {
   it('preserves explicit authored ordering and scope independent of effect type', () => {
     const first = CINEMA2_REFERENCE_VISUAL_PRESET_MANIFEST.effects?.[0]
     if (!first) throw new Error('Reference effect is missing.')
-    const manifest: Cinema2NativePresetManifest = {
-      ...CINEMA2_REFERENCE_VISUAL_PRESET_MANIFEST,
-      render: undefined,
-      output: undefined,
-      effects: [
-        { ...first, order: 20 },
-        {
-          id: SECOND_EFFECT_ID,
-          typeId: CINEMA2_BLUR_EFFECT_TYPE_ID,
-          version: 1,
-          enabled: true,
-          order: 5,
-          scope: 'output',
-          parameters: { mix: 0.5, radius: 2 },
-        },
-      ],
-    }
+    const manifest = referenceWithEffects([
+      { ...first, order: 20 },
+      {
+        id: SECOND_EFFECT_ID,
+        typeId: CINEMA2_BLUR_EFFECT_TYPE_ID,
+        version: 1,
+        enabled: true,
+        order: 5,
+        scope: 'output',
+        parameters: { mix: 0.5, radius: 2 },
+      },
+    ])
     const { runtime } = createRuntime(manifest)
     expect(runtime.getOrderedEffectIds('output')).toEqual([SECOND_EFFECT_ID, first.id])
     runtime.dispose()
@@ -383,12 +397,7 @@ describe('Cinema 2.0 effect registry and instance runtime', () => {
   it('inherits quality gates and avoids creating GPU resources when the active quality is outside the authored range', () => {
     const first = CINEMA2_REFERENCE_VISUAL_PRESET_MANIFEST.effects?.[0]
     if (!first) throw new Error('Reference effect is missing.')
-    const manifest: Cinema2NativePresetManifest = {
-      ...CINEMA2_REFERENCE_VISUAL_PRESET_MANIFEST,
-      render: undefined,
-      output: undefined,
-      effects: [{ ...first, quality: { min: 'high' } }],
-    }
+    const manifest = referenceWithEffects([{ ...first, quality: { min: 'high' } }])
     const { gl, runtime } = createRuntime(manifest, 'medium')
     expect(runtime.execute(first.id, executionContext())).toBe('bypassed')
     expect(gl.__calls.createdPrograms).toBe(0)

@@ -24,6 +24,8 @@ export default defineConfig({
     minWorkers: 1,
     maxWorkers: 4,
     include: ['src/**/*.test.ts'],
+    // Tests read stylesheets as text (`?raw`) to check CSS contracts; without this Vitest hands them an empty string.
+    css: { include: [/\.css\?raw$/] },
     exclude: [
       '**/node_modules/**',
       'src/test/e2e/**',

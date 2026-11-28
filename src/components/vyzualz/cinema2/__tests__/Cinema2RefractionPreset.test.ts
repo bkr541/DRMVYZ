@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { CINEMA2_QUALITY_MODE_PARAMETER_ID } from '../parameters/Cinema2PerformanceParameters'
 import * as THREE from 'three'
 import { RefractionScene, type RefractionLook } from '../modules/refraction/RefractionScene'
 import type { Cinema2ThreeLibrary } from '../modules/three/Cinema2ThreeLibrary'
@@ -21,7 +22,8 @@ describe('REFRACTION native preset',()=>{
       expect(validateCinema2PresetAuthoringConventions({role:'reference',manifest:m}).diagnostics).toEqual([])
       const result=compileCinema2NativePreset(m);expect(result.diagnostics).toEqual([]);expect(result.ok).toBe(true)
     }
-    expect(new Set(manifest.parameters!.map(p=>p.designParentGroup))).toEqual(new Set(['master-controls','design','effects','palette']))
+    // Every preset control sits in one of the four Design parents; the shared engine-level Quality / Performance control lives in Advanced.
+    expect(new Set(manifest.parameters!.filter(p=>p.id!==CINEMA2_QUALITY_MODE_PARAMETER_ID).map(p=>p.designParentGroup))).toEqual(new Set(['master-controls','design','effects','palette']))
     expect(parameter('pattern').options).toEqual(REFRACTION_PATTERNS)
     expect(parameter('trigger').options).toEqual(CINEMA2_AFTERHOURS_TRIGGER_OPTIONS)
     expect(parameter('pool-trigger').options).toEqual(CANVAS_POOL_AUTOMATION_TRIGGER_OPTIONS)

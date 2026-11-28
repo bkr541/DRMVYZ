@@ -3,7 +3,8 @@ import reactCss from '../../../styles/reactView.css?raw'
 import reactViewSource from '../react/ReactView.tsx?raw'
 import dockSource from '../shared/VyzualzAudioDock.tsx?raw'
 
-const scope = "[data-workspace-layout='floating'][data-app-workspace='react']"
+// Performance Manager runs inside the React shell, so these rules name both workspaces.
+const scope = "[data-workspace-layout='floating']:is([data-app-workspace='react'], [data-app-workspace='performanceManager'])"
 const phase04 = reactCss.slice(reactCss.indexOf('/* Phase 04 — The original audio dock'))
 
 function declarations(selector: string): string {
@@ -25,7 +26,7 @@ describe('Phase 04 React audio dock layout contract', () => {
   })
 
   it('places the workspace and dock in true grid rows with no viewport coordinate shim', () => {
-    const shell = reactCss.match(/\[data-workspace-layout='floating'\]\[data-app-workspace='react'\] \.rv-shell--floating \{([^}]*)\}/)?.[1] ?? ''
+    const shell = reactCss.match(/\[data-workspace-layout='floating'\]:is\(\[data-app-workspace='react'\], \[data-app-workspace='performanceManager'\]\) \.rv-shell--floating \{([^}]*)\}/)?.[1] ?? ''
     expect(shell).toMatch(/display:\s*grid;/)
     expect(shell).toMatch(/grid-template-rows:\s*minmax\(0, 1fr\) var\(--rv-react-dock-height\);/)
     expect(shell).toMatch(/gap:\s*var\(--fw-region-gap\);/)

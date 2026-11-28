@@ -6,6 +6,7 @@ import { createCinemaMockWebGL } from '../../../../test/support/CinemaWebGLTestU
 import { afterhoursWorldDefinition } from '../../react/renderers/cinematic/worlds/AfterhoursWorld'
 import { Cinema2AudioIntelligenceBridge } from '../audio/Cinema2AudioIntelligenceBridge'
 import { Cinema2ParameterState } from '../parameters/Cinema2ParameterState'
+import { getCinema2AutoPerformanceUserDefault, setCinema2AutoPerformanceUserDefault } from '../parameters/Cinema2AutoPerformanceDefault'
 import { Cinema2FinalValueResolver } from '../parameters/Cinema2TargetRuntime'
 import { createCinema2DesignParentGroupModel, createCinema2InspectorModel } from '../parameters/Cinema2InspectorModel'
 import {
@@ -303,7 +304,7 @@ describe('Cinema 2.0 Afterhours 2.0 production preset', () => {
     }
 
     expect(parents.map(parent => parent.label)).toEqual(['Master Controls', 'Design', 'Effects', 'Palette'])
-    expect(labelsFor('Master Controls')).toEqual(['Auto Performance', 'Master Intensity', 'BPM Sync'])
+    expect(labelsFor('Master Controls')).toEqual(['Master Intensity', 'BPM Sync', 'Auto Performance'])
     expect(parents.find(parent => parent.label === 'Design')?.groups.map(group => group.label)).toEqual(['Rig', 'Pattern', 'Motion'])
     expect(labelsFor('Design')).toEqual([
       'Side Lasers',
@@ -391,11 +392,24 @@ describe('Cinema 2.0 Afterhours 2.0 production preset', () => {
     expect(state.setPersistentValue(CINEMA2_AFTERHOURS_AUTO_PERFORMANCE_ID, true)).toMatchObject({ ok: true })
     expect(JSON.parse(state.serialize()).presetId).toBe(CINEMA2_AFTERHOURS_PRESET_ID)
 
+    // The System Settings Auto Performance default (published when the visual store loads) decides the toggle whenever a preset loads.
+    // With no System Settings value the saved toggle is restored; with one, the user's default wins over the saved value.
+    const systemDefault = getCinema2AutoPerformanceUserDefault()
     const restored = new Cinema2ParameterState(plan.parameters)
-    expect(restored.restore(state.serialize())).toMatchObject({ ok: true })
-    expect(restored.getValue(CINEMA2_AFTERHOURS_PATTERN_ID)).toBe('crossCanopy')
-    expect(restored.getValue(CINEMA2_AFTERHOURS_BEAM_COUNT_ID)).toBe(12)
-    expect(restored.getValue(CINEMA2_AFTERHOURS_AUTO_PERFORMANCE_ID)).toBe(true)
+    try {
+      setCinema2AutoPerformanceUserDefault(null)
+      expect(restored.restore(state.serialize())).toMatchObject({ ok: true })
+      expect(restored.getValue(CINEMA2_AFTERHOURS_PATTERN_ID)).toBe('crossCanopy')
+      expect(restored.getValue(CINEMA2_AFTERHOURS_BEAM_COUNT_ID)).toBe(12)
+      expect(restored.getValue(CINEMA2_AFTERHOURS_AUTO_PERFORMANCE_ID)).toBe(true)
+      setCinema2AutoPerformanceUserDefault(false)
+      const followingUser = new Cinema2ParameterState(plan.parameters)
+      expect(followingUser.restore(state.serialize())).toMatchObject({ ok: true })
+      expect(followingUser.getValue(CINEMA2_AFTERHOURS_PATTERN_ID)).toBe('crossCanopy')
+      expect(followingUser.getValue(CINEMA2_AFTERHOURS_AUTO_PERFORMANCE_ID)).toBe(false)
+    } finally {
+      setCinema2AutoPerformanceUserDefault(systemDefault)
+    }
 
     const resolver = new Cinema2FinalValueResolver(plan.targets, {
       resolveBaseValue: target => target.parameterId == null ? target.authoredBaseValue : restored.getValue(target.parameterId),

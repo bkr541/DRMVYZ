@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* global document, window */
 import { mkdir, mkdtemp, readFile, writeFile, rename, unlink } from 'node:fs/promises'
 import { join, resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
