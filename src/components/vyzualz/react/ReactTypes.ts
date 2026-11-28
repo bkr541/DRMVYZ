@@ -1,3 +1,4 @@
+import { DEFAULT_CANVAS_SINGULARITY_SETTINGS, type CanvasSingularitySettings } from './renderers/singularity/SingularitySettings'
 import { DEFAULT_SOUND_DRAWING_SCOPE_STATE } from '../../../audio/scope/scopeTypes'
 import type { SoundDrawingScopeState } from '../../../audio/scope/scopeTypes'
 import { createCinematicWorldConfig } from './CinematicWorldConfig'
@@ -241,10 +242,11 @@ export type CanvasPresetId =
   | 'canvas-terminal'
   | 'canvas-fluidity'
   | 'canvas-morph'
+  | 'canvas-singularity'
   | 'canvas-divinity'
   | 'canvas-vhs'
 
-export type CanvasPresetRendererKind = 'standard' | 'particleAura' | 'fragmentCollage' | 'laserImageFx' | 'cutbank' | 'shiftgrid' | 'imageMutation' | 'dataBleed' | 'phaseDrag' | 'cellular' | 'terminal' | 'fluidity' | 'morph' | 'divinity' | 'vhs'
+export type CanvasPresetRendererKind = 'standard' | 'particleAura' | 'fragmentCollage' | 'laserImageFx' | 'cutbank' | 'shiftgrid' | 'imageMutation' | 'dataBleed' | 'phaseDrag' | 'cellular' | 'terminal' | 'fluidity' | 'morph' | 'singularity' | 'divinity' | 'vhs'
 export type CanvasPresetColorMode = 'original' | 'palette' | 'audioReactive'
 export type CanvasParticleQuality = 'low' | 'balanced' | 'high'
 export type CanvasLaserImageEffect =
@@ -434,6 +436,7 @@ export interface CanvasPresetSettings {
   terminal: CanvasTerminalSettings
   fluidity: CanvasFluiditySettings
   morph: CanvasMorphSettings
+  singularity: CanvasSingularitySettings
   divinity: CanvasDivinitySettings
   vhs: CanvasVhsSettings
   /** SHIFTGRID's dedicated durable preferences (schema v11). Runtime grid/source state is never persisted here. */
@@ -620,6 +623,7 @@ export const DEFAULT_CANVAS_PRESET_SETTINGS: CanvasPresetSettings = {
   terminal: DEFAULT_CANVAS_TERMINAL_SETTINGS,
   fluidity: DEFAULT_CANVAS_FLUIDITY_SETTINGS,
   morph: DEFAULT_CANVAS_MORPH_SETTINGS,
+  singularity: DEFAULT_CANVAS_SINGULARITY_SETTINGS,
   divinity: DEFAULT_CANVAS_DIVINITY_SETTINGS,
   vhs: DEFAULT_CANVAS_VHS_SETTINGS,
   shiftgrid: DEFAULT_CANVAS_SHIFTGRID_SETTINGS,
@@ -1096,6 +1100,15 @@ export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
     accent: '#00d8e5',
     rendererKind: 'morph',
     settings: { ...DEFAULT_CANVAS_PRESET_SETTINGS, drySourceMix: 0, sourceVisibility: 0, intensity: 0, morph: DEFAULT_CANVAS_MORPH_SETTINGS },
+    controls: [],
+  },
+  {
+    id: 'canvas-singularity',
+    name: 'Singularity',
+    description: 'Emissive media dissolves into a cinematic vortex of geometric fragments, particles and digital interference.',
+    accent: '#36c8dd',
+    rendererKind: 'singularity',
+    settings: { ...DEFAULT_CANVAS_PRESET_SETTINGS, drySourceMix: 0, sourceVisibility: 0, intensity: 0, singularity: DEFAULT_CANVAS_SINGULARITY_SETTINGS },
     controls: [],
   },
   {

@@ -11420,6 +11420,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-canvas-terminal-layer,
 .rv-canvas-fluidity-layer,
 .rv-canvas-morph-layer,
+.rv-canvas-singularity-layer,
 .rv-canvas-divinity-layer,
 .rv-canvas-vhs-layer {
   position: absolute;
@@ -11439,6 +11440,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-canvas-terminal-layer[data-ready='true'],
 .rv-canvas-fluidity-layer[data-ready='true'],
 .rv-canvas-morph-layer[data-ready='true'],
+.rv-canvas-singularity-layer[data-ready='true'],
 .rv-canvas-divinity-layer[data-ready='true'],
 .rv-canvas-vhs-layer[data-ready='true'] {
   visibility: visible;

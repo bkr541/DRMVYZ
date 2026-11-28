@@ -1,3 +1,4 @@
+import { normalizeCanvasSingularitySettings } from '../components/vyzualz/react/renderers/singularity/SingularitySettings'
 import { migrateCinema2LegacyPoolSelection, reconcileCinema2PoolReferences } from '../components/vyzualz/cinema2/runtime/Cinema2WorkspacePersistence'
 import { isNativePadDestination, activateNativePadDestination } from '../components/vyzualz/react/performancePadDestinations'
 import { blockTextSceneNavigation, requestTextSceneNavigation } from '../features/cinema2Text/textSceneNavigation'
@@ -4922,6 +4923,7 @@ export function normalizeCanvasPresetSettings(value: unknown): CanvasPresetSetti
     terminal: normalizeCanvasTerminalSettings(source.terminal),
     fluidity: normalizeCanvasFluiditySettings(source.fluidity),
     morph: normalizeCanvasMorphSettings(source.morph),
+    singularity: normalizeCanvasSingularitySettings(source.singularity),
     divinity: normalizeCanvasDivinitySettings(source.divinity),
     vhs: normalizeCanvasVhsSettings(source.vhs),
     shiftgrid: normalizeCanvasShiftgridSettings(source.shiftgrid),
@@ -8505,6 +8507,7 @@ export const useReactStore = create<ReactStoreState>()(
         return {
           ...repaired,
           ...(manualSelection && state.selectedCanvasPresetId === 'canvas-morph' ? { canvasPresetSettings: { ...state.canvasPresetSettings, morph: { ...state.canvasPresetSettings.morph, sourceMode: 'single' as const } } } : {}),
+          ...(manualSelection && state.selectedCanvasPresetId === 'canvas-singularity' ? { canvasPresetSettings: { ...state.canvasPresetSettings, singularity: { ...state.canvasPresetSettings.singularity, sourceMode: 'single' as const } } } : {}),
           canvasOrchestrationSettings,
           ...(manualSelection ? { selectedCanvasLayerId: null } : {}),
         }

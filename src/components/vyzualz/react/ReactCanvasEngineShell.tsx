@@ -1,3 +1,6 @@
+import { CanvasSingularityLayer } from './renderers/singularity/CanvasSingularityLayer'
+import { SingularityControls } from './renderers/singularity/SingularityControls'
+import { SINGULARITY_DEFAULT_SOURCE, resolveSingularityPoolItem } from './renderers/singularity/SingularitySource'
 import { measurePerformanceSurface, performanceRenderDpr } from './output/performanceOutputGeometry'
 import { resolveCanvasResolution, type CanvasResolution } from './rendering/canvasResolution'
 import { recordPerformanceEvent } from '../../../lib/performanceTelemetry'
@@ -375,6 +378,8 @@ function CanvasMediaLibrary({ compact = false }: { compact?: boolean }) {
   const activeCanvasMediaId = useReactStore(s => s.activeCanvasMediaId)
   const selectCanvasMediaItem = useReactStore(s => s.selectCanvasMediaItem)
   const morphSelected = useReactStore(s => s.selectedCanvasPresetId === 'canvas-morph')
+  const singularitySelected = useReactStore(s => s.selectedCanvasPresetId === 'canvas-singularity')
+  const singularitySettings = useReactStore(s => s.canvasPresetSettings.singularity)
   const morphSettings = useReactStore(s => s.canvasPresetSettings.morph)
   const setMorphSettings = useReactStore(s => s.setCanvasPresetSettings)
   const [pastingMorph, setPastingMorph] = useState(false)
@@ -542,8 +547,13 @@ function CanvasMediaLibrary({ compact = false }: { compact?: boolean }) {
         })}>{pastingMorph ? 'Importing…' : 'Paste Image'}</button>
         <button type="button" className="rv-ctrl-toggle" onClick={() => setMorphSettings({ morph: { ...morphSettings, sourceMode: 'default' } })}>Clear Source</button>
       </div></>}
+      {singularitySelected && <>
+        <CanvasSelectRow label="SINGULARITY Source" value={singularitySettings.sourceMode} options={[{ value: 'single', label: 'Active Media' }, { value: 'pool', label: 'Media Pool' }, { value: 'default', label: 'Default Visual' }]} onChange={sourceMode => setMorphSettings({ singularity: { ...singularitySettings, sourceMode: sourceMode as typeof singularitySettings.sourceMode } })} />
+        {singularitySettings.sourceMode === 'pool' && <CanvasSelectRow label="Media Pool" value={singularitySettings.poolId ?? ''} options={[{ value: '', label: 'Active Pool' }, ...orchestration.mediaPools.map(pool => ({ value: pool.id, label: pool.name }))]} onChange={poolId => setMorphSettings({ singularity: { ...singularitySettings, poolId: poolId || null } })} />}
+        <div className="rv-ctrl-action-row"><button type="button" className="rv-ctrl-toggle" onClick={() => setMorphSettings({ singularity: { ...singularitySettings, sourceMode: 'default' } })}>Clear Source</button></div>
+      </>}
       <MediaLibraryBrowser
-        activeMediaId={morphSelected && morphSettings.sourceMode !== 'single' ? null : activeCanvasMediaId}
+        activeMediaId={(singularitySelected && singularitySettings.sourceMode !== 'single') || morphSelected && morphSettings.sourceMode !== 'single' ? null : activeCanvasMediaId}
         onCardActionRequest={openMediaActions}
         context="canvas"
         title="Media Library"
@@ -1647,13 +1657,33 @@ export function CanvasEngineSurface({
   const morphOwnsSource = selectedCanvasPresetId === 'canvas-morph' && !runtimeCanvasShow && orchestrationSettings.renderMode === 'single' && !morphHasEffects
   const morphPool = orchestrationSettings.mediaPools.find(pool => pool.id === (canvasPresetSettings.morph.poolId ?? orchestrationSettings.activeMediaPoolId))
   const morphSourceMode = canvasPresetSettings.morph.sourceMode
+  const singularityOwnsSource = selectedCanvasPresetId === 'canvas-singularity' && !runtimeCanvasShow && orchestrationSettings.renderMode === 'single' && !morphHasEffects
+  const singularityPool = orchestrationSettings.mediaPools.find(pool => pool.id === (canvasPresetSettings.singularity.poolId ?? orchestrationSettings.activeMediaPoolId))
+  const singularitySourceMode = canvasPresetSettings.singularity.sourceMode
+  const [singularityPoolBlock, setSingularityPoolBlock] = useState(0)
+  useEffect(() => {
+    if (!singularityOwnsSource || singularitySourceMode !== 'pool') { setSingularityPoolBlock(0); return }
+    if (singularityPool?.mediaIds.length) void useMediaStore.getState().ensureMediaSigned(singularityPool.mediaIds, 'visible')
+    const tick = () => {
+      const context = particlePerformanceContextRef.current
+      if (reactivityActive && context?.capabilities.beatGrid && context.confidence.grid > .15) setSingularityPoolBlock(Math.max(0, context.performanceFourBarBlockIndex))
+    }
+    tick()
+    const timer = window.setInterval(tick, 100)
+    return () => window.clearInterval(timer)
+  }, [singularityOwnsSource, singularitySourceMode, singularityPool, reactivityActive, activeAudioTrackId])
   const activeItem = useMemo(() => {
     const selected = mediaItems.find(item => item.id === activeCanvasMediaId) ?? null
+    if (singularityOwnsSource) {
+      if (singularitySourceMode === 'default') return SINGULARITY_DEFAULT_SOURCE
+      if (singularitySourceMode === 'pool') return resolveSingularityPoolItem(singularityPool?.mediaIds ?? [], mediaItems, singularityPoolBlock) ?? SINGULARITY_DEFAULT_SOURCE
+      return selected ?? SINGULARITY_DEFAULT_SOURCE
+    }
     if (!morphOwnsSource) return selected
     if (morphSourceMode === 'default') return MORPH_DEFAULT_SOURCE
     if (morphSourceMode === 'pool') return resolveMorphPoolItem(morphPool?.mediaIds ?? [], mediaItems, morphPoolBlock) ?? MORPH_DEFAULT_SOURCE
     return selected ?? MORPH_DEFAULT_SOURCE
-  }, [activeCanvasMediaId, mediaItems, morphOwnsSource, morphSourceMode, morphPool, morphPoolBlock])
+  }, [activeCanvasMediaId, mediaItems, morphOwnsSource, morphSourceMode, morphPool, morphPoolBlock, singularityOwnsSource, singularitySourceMode, singularityPool, singularityPoolBlock])
   useEffect(() => {
     if (!morphOwnsSource || morphSourceMode !== 'pool') { setMorphPoolBlock(0); return }
     if (morphPool?.mediaIds.length) void useMediaStore.getState().ensureMediaSigned(morphPool.mediaIds, 'visible')
@@ -1692,10 +1722,11 @@ export function CanvasEngineSurface({
   const cellularSelected = rendererKind === 'cellular'
   const terminalSelected = rendererKind === 'terminal'
   const morphSelected = rendererKind === 'morph'
+  const singularitySelected = rendererKind === 'singularity'
   const fluiditySelected = rendererKind === 'fluidity'
   const divinitySelected = rendererKind === 'divinity'
   const vhsSelected = rendererKind === 'vhs'
-  const directImageSelected = mutagenSelected || dataBleedSelected || phaseDragSelected || cellularSelected || terminalSelected || morphSelected || fluiditySelected || divinitySelected || vhsSelected
+  const directImageSelected = mutagenSelected || dataBleedSelected || phaseDragSelected || cellularSelected || terminalSelected || morphSelected || singularitySelected || fluiditySelected || divinitySelected || vhsSelected
   const directImageSourceKey = `${rendererKind}:${fracturesSourceKey}`
   const cutbankActive = rendererKind === 'cutbank'
   const shiftgridDirectActive = canRenderShiftgridDirectPreset(rendererKind, runtimeCanvasShow != null)
@@ -1719,10 +1750,11 @@ export function CanvasEngineSurface({
   const cellularActive = directImageActive && cellularSelected
   const terminalActive = directImageActive && terminalSelected
   const morphActive = directImageActive && morphSelected
+  const singularityActive = directImageActive && singularitySelected
   const fluidityActive = directImageActive && fluiditySelected
   const divinityActive = directImageActive && divinitySelected
   const vhsActive = directImageActive && vhsSelected
-  const directImageReconstructed = directImageActive && (vhsSelected
+  const directImageReconstructed = directImageActive && !singularitySelected && (vhsSelected
     ? isVhsClean(canvasPresetSettings.vhs)
     : divinitySelected
     ? isDivinityClean(canvasPresetSettings.divinity)
@@ -2184,7 +2216,7 @@ export function CanvasEngineSurface({
       effectsContext.clearRect(0, 0, cssWidth, cssHeight)
 
       const source = particleSourceRef.current
-      const heldTemporalFrame = (dataBleedActive || phaseDragActive || cellularActive || terminalActive || morphActive || fluidityActive || divinityActive || vhsActive) && !directImageReconstructed && directImageOutputCanvasRef.current
+      const heldTemporalFrame = (dataBleedActive || phaseDragActive || cellularActive || terminalActive || morphActive || singularityActive || fluidityActive || divinityActive || vhsActive) && !directImageReconstructed && directImageOutputCanvasRef.current
       if (!activeItem || !source || (!heldTemporalFrame && !isCanvasParticleSourceReady(source)) || (directImageSelected && !directImageSourceReady)) {
         if (directImageSelected) captureContext.clearRect(0, 0, targetWidth, targetHeight)
         return
@@ -2363,7 +2395,7 @@ export function CanvasEngineSurface({
       window.cancelAnimationFrame(frameId)
       onLiveFps?.(0)
     }
-  }, [dataBleedActive, phaseDragActive, cellularActive, terminalActive, morphActive, fluidityActive, divinityActive, vhsActive, directImageSelected, directImageOwnerPending, directImageSourceReady, directImageActive, directImageReconstructed, activeItem, analyser, canvasPresetSettings, effectPassActive, effectiveBackgroundMode, cutbankActive, fragmentCollageActive, isPaused, isPlaying, laserImageFxActive, liveInputAnalysisOnly, onLiveFps, orchestrationRenderable, particleReconstructionActive, particleSourceRef, reactivityActive, shiftgridDirectActive])
+  }, [dataBleedActive, phaseDragActive, cellularActive, terminalActive, morphActive, singularityActive, fluidityActive, divinityActive, vhsActive, directImageSelected, directImageOwnerPending, directImageSourceReady, directImageActive, directImageReconstructed, activeItem, analyser, canvasPresetSettings, effectPassActive, effectiveBackgroundMode, cutbankActive, fragmentCollageActive, isPaused, isPlaying, laserImageFxActive, liveInputAnalysisOnly, onLiveFps, orchestrationRenderable, particleReconstructionActive, particleSourceRef, reactivityActive, shiftgridDirectActive])
 
   useEffect(() => {
     setMediaLoadError(EMPTY_CANVAS_MEDIA_LOAD_STATE)
@@ -2983,6 +3015,17 @@ export function CanvasEngineSurface({
             activeItem={activeItem} sourceRef={particleSourceRef}
             outputAlpha={directImageReconstructed ? 0 : directImageSourceAlpha}
             settings={canvasPresetSettings.morph} fitMode={settings.fitMode}
+            sourceTransform={{ scale: settings.scale, positionX: settings.positionX, positionY: settings.positionY, rotation: settings.rotation }}
+            performanceContextRef={particlePerformanceContextRef} trackIdentity={activeAudioTrackId ?? null}
+            audioActive={reactivityActive} getAudioTime={getAudioTime} isPlaying={isPlaying} isPaused={isPaused}
+            onCanvasReady={handleDirectImageCanvasReady} onStatusChange={setDirectImageRendererNotice}
+          />
+        )}
+        {singularityActive && (
+          <CanvasSingularityLayer
+            activeItem={activeItem} sourceRef={particleSourceRef}
+            outputAlpha={directImageReconstructed ? 0 : directImageSourceAlpha}
+            settings={canvasPresetSettings.singularity} fitMode={settings.fitMode}
             sourceTransform={{ scale: settings.scale, positionX: settings.positionX, positionY: settings.positionY, rotation: settings.rotation }}
             performanceContextRef={particlePerformanceContextRef} trackIdentity={activeAudioTrackId ?? null}
             audioActive={reactivityActive} getAudioTime={getAudioTime} isPlaying={isPlaying} isPaused={isPaused}
@@ -4872,6 +4915,7 @@ function CanvasPresetControls() {
   if (selectedPreset.rendererKind === 'vhs') return <VhsControls />
   if (selectedPreset.rendererKind === 'divinity') return <DivinityControls />
   if (selectedPreset.rendererKind === 'morph') return <MorphControls />
+  if (selectedPreset.rendererKind === 'singularity') return <SingularityControls />
   if (selectedPreset.rendererKind === 'fluidity') return <FluidityControls />
   if (selectedPreset.rendererKind === 'terminal') return <TerminalControls />
   if (selectedPreset.rendererKind === 'cellular') return <CellularControls />
@@ -5032,6 +5076,7 @@ function CanvasPanelFooterActions({ showReset }: { showReset: boolean }) {
     && selectedPreset.rendererKind !== 'cellular'
     && selectedPreset.rendererKind !== 'terminal'
     && selectedPreset.rendererKind !== 'morph'
+    && selectedPreset.rendererKind !== 'singularity'
     && selectedPreset.rendererKind !== 'fluidity'
     && selectedPreset.rendererKind !== 'divinity'
     && selectedPreset.rendererKind !== 'vhs'

@@ -15,6 +15,8 @@ import { getCinema2EchoformShaderProgramSources } from '../../components/vyzualz
 
 import { MORPH_VERTEX, MORPH_FRAGMENT, MORPH_BLUR, MORPH_COMPOSITE } from '../../components/vyzualz/react/renderers/morph/MorphShaders'
 
+import * as SingularityShaders from '../../components/vyzualz/react/renderers/singularity/SingularityShaders'
+
 const systemChromium = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
 
 test.use({
@@ -49,6 +51,14 @@ test('all registered Shader scenes compile and link in WebGL2', async ({ page })
     ...[MORPH_FRAGMENT, MORPH_BLUR, MORPH_COMPOSITE].map((fragSrc, index) => ({
       sceneId: 'canvas-morph', sceneName: 'CANVAS Morph', label: ['transform', 'bloom', 'composite'][index], vertSrc: MORPH_VERTEX, fragSrc,
     })),
+    ...[
+      [SingularityShaders.SINGULARITY_QUAD, SingularityShaders.SINGULARITY_ATMOSPHERE],
+      [SingularityShaders.SINGULARITY_FRAGMENTS_VERTEX, SingularityShaders.SINGULARITY_FRAGMENTS_PIXEL],
+      [SingularityShaders.SINGULARITY_QUAD, SingularityShaders.SINGULARITY_MEDIA],
+      [SingularityShaders.SINGULARITY_PARTICLES_VERTEX, SingularityShaders.SINGULARITY_PARTICLES_PIXEL],
+      [SingularityShaders.SINGULARITY_QUAD, SingularityShaders.SINGULARITY_BLUR],
+      [SingularityShaders.SINGULARITY_QUAD, SingularityShaders.SINGULARITY_COMPOSITE],
+    ].map(([vertSrc, fragSrc], index) => ({ sceneId: 'canvas-singularity', sceneName: 'CANVAS Singularity', label: ['atmosphere', 'fragments', 'media', 'particles', 'bloom', 'composite'][index], vertSrc, fragSrc })),
     ...getLaserDmxWebGLShaderProgramSources().map(program => ({
       sceneId: 'laser-dmx-webgl',
       sceneName: 'LaserDMX Show Director WebGL',

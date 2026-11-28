@@ -652,3 +652,11 @@ steady-playback allocations, eight-pattern/strength/arrangement/fallback PNGs,
 a contact sheet, a WebM, reload persistence and live-versus-published pixel parity.
 This Chromium component harness is not an authenticated cloud-library, native
 Electron cast-device, or multi-hour GPU endurance certification.
+
+### SINGULARITY (`canvas-singularity`)
+
+SINGULARITY uses the standard direct WebGL2 media lifecycle and one GPU context for procedural atmospheric flow, three perspective fragment zones, a source image plane, source-sampled particles, local digital interference and selective two-pass bloom. The original source remains readable between effect accents; particles are derived from the actual source texture and respect transparency. Opaque media retains its image bounds. No external video/model or additional engine is needed.
+
+Design exposes Form & Environment, Motion & Physics, Material & Effects and Audio & Choreography. The ten routines (Origin, Gravity, Event Horizon, Signal Lost, Supernova, Undertow, Resonance, Corruption, Polarity, Rebirth) use separate dissolution/force/interference envelopes and spatial motion. Pattern Change and Auto Performance are mutually exclusive; shared qualified events and section confidence govern performance. Pauses freeze procedural time, and seeks clear transient state.
+
+Source supports Active Media, Default Visual, and named or active Media Pools. Available pool entries advance on the qualified performance four-bar block; the outgoing and incoming source use dissolution envelopes around the boundary. The normal decoder and ownership rules retain precedence for authored layer effects and active Shows. Output uses the existing direct-renderer publication/fallback path. Low/balanced/high budgets are bounded, with auto limiting output edge for larger viewports. These are budgets, not a guarantee of a particular GPU frame rate.
