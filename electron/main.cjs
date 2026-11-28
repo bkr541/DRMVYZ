@@ -27,6 +27,8 @@ const { redactUrlForLog } = require('../native/diagnostics/redactUrl.cjs')
 const { installSystemMetricsBridge } = require('../native/system/systemMetricsBridge.cjs')
 const { installCameraAccessBridge, readCameraAccessStatus } = require('../native/system/cameraAccessBridge.cjs')
 const { createRendererRecovery } = require('../native/system/rendererRecovery.cjs')
+const { buildContentSecurityPolicy } = require('../native/security/contentSecurityPolicy.cjs')
+const { createTrustedIpcMain } = require('../native/security/trustedIpc.cjs')
 
 const DEV_SERVER_URL = process.env.DRMVYZ_VITE_DEV_SERVER_URL || 'http://127.0.0.1:5173'
 const forceBuiltRenderer = process.argv.includes('--production')
@@ -87,14 +89,23 @@ function registerAppProtocol() {
 
     try {
       const response = await net.fetch(pathToFileURL(resolved).toString())
-      if (response.ok) return response
+      if (response.ok) return resolved.endsWith('.html') ? withContentSecurityPolicy(response) : response
     } catch {
       // Fall through to the SPA fallback below.
     }
 
     // Single-page app: unknown paths fall back to index.html rather than 404ing.
-    return net.fetch(pathToFileURL(path.join(DIST_DIR, 'index.html')).toString())
+    return withContentSecurityPolicy(await net.fetch(pathToFileURL(path.join(DIST_DIR, 'index.html')).toString()))
   })
+}
+
+// Every app page carries the Content Security Policy as a header too (the build also writes it into index.html), which is the only way to
+// forbid other pages from framing the app (see native/security/contentSecurityPolicy.cjs).
+const APP_CONTENT_SECURITY_POLICY = buildContentSecurityPolicy({ delivery: 'header' })
+function withContentSecurityPolicy(response) {
+  const headers = new Headers(response.headers)
+  headers.set('Content-Security-Policy', APP_CONTENT_SECURITY_POLICY)
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers })
 }
 
 function isTrustedAppUrl(value) {
@@ -195,7 +206,9 @@ function createMainWindow() {
         webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true },
       } }
     }
-    const popupConfig = frameName === 'drmvyz-layout-lab'
+    // The app's named windows open blank (the app renders into them) or on the app itself; nothing else may open in one.
+    const popupUrlTrusted = url === '' || url === 'about:blank' || isTrustedAppUrl(url)
+    const popupConfig = !popupUrlTrusted ? null : frameName === 'drmvyz-layout-lab'
       ? { title: `${BRAND_NAME} — Layout Lab`, backgroundColor: '#060d10' }
       : frameName === 'drmvyz-lyric-manager-layout'
         ? { title: `${BRAND_NAME} — Lyric Manager Layout`, backgroundColor: '#060d10' }
@@ -272,11 +285,13 @@ if (!app.requestSingleInstanceLock()) {
     log.scope('system:app').info(`app ready — v${app.getVersion()} electron ${process.versions.electron} ${process.platform}/${process.arch} devServer=${useDevServer}`)
     if (!useDevServer) registerAppProtocol()
     configureSessionSecurity()
-    installRekordboxUsbBridge({ ipcMain, dialog, BrowserWindow, app, log })
-    installOutputCastBridge({ app, BrowserWindow, ipcMain, screen, shell, clipboard, dialog, isTrustedAppUrl })
-    installDiagnosticsBridge({ ipcMain, log, app })
-    installSystemMetricsBridge({ app, ipcMain, log })
-    installCameraAccessBridge({ ipcMain, shell, systemPreferences, log })
+    // Every native bridge receives the checked ipcMain: a request is served only from the app's own page (native/security/trustedIpc.cjs).
+    const trustedIpcMain = createTrustedIpcMain({ ipcMain, isTrustedAppUrl, log })
+    installRekordboxUsbBridge({ ipcMain: trustedIpcMain, dialog, BrowserWindow, app, log })
+    installOutputCastBridge({ app, BrowserWindow, ipcMain: trustedIpcMain, screen, shell, clipboard, dialog, isTrustedAppUrl })
+    installDiagnosticsBridge({ ipcMain: trustedIpcMain, log, app })
+    installSystemMetricsBridge({ app, ipcMain: trustedIpcMain, log })
+    installCameraAccessBridge({ ipcMain: trustedIpcMain, shell, systemPreferences, log })
     if (useDevServer) {
       ipcMain.handle('drmvyz:review-notes:capture', async event => {
         if (event.sender !== mainWindow?.webContents || !event.senderFrame || event.senderFrame !== event.sender.mainFrame

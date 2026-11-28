@@ -1,4 +1,5 @@
 'use strict'
+const { isTrustedIpcSender } = require('../security/trustedIpc.cjs')
 
 const crypto = require('node:crypto')
 const dgram = require('node:dgram')
@@ -894,10 +895,8 @@ function installOutputCastBridge({
     }
   }
 
-  const isTrustedSender = event => {
-    const url = event.senderFrame?.url || event.sender.getURL()
-    return isTrustedAppUrl(url)
-  }
+  // The shared check (native/security/trustedIpc.cjs): the app's own page, never an embedded frame or a navigated-away page.
+  const isTrustedSender = event => isTrustedIpcSender(event, isTrustedAppUrl)
 
   // Narrow, write-only clipboard action: the renderer can copy a valid pairing
   // code even when Chromium's clipboard permission is unavailable.
