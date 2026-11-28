@@ -37,6 +37,7 @@ describe('Option E React header readouts', () => {
   it.each(['preset-manager', 'show-manager', 'lyric-manager', 'media-manager'] as const)('uses the same four readouts in %s', async page => {
     await act(async () => root.render(<VyzualzHeaderActions page={page} />))
     expect([...container.querySelectorAll('.rv-header-status .vz-header-readout-label')].map(el => el.textContent)).toEqual(['LOAD / SAVE', 'RENDER / FPS', 'QUALITY / CPU', 'HEALTH'])
+    expect([...container.querySelectorAll('.vz-health-system-label')].map(el => el.textContent)).toEqual(['Cast', 'Audio', 'GFX'])
     expect(container.querySelector('[data-performance-metric="fps"]')?.textContent).toBe('—')
     expect(container.querySelector('.vz-header-activity')).toBeNull()
   })
@@ -59,20 +60,22 @@ describe('Option E React header readouts', () => {
     expect(container.querySelector('.vz-header-notifications')).toBeNull()
     expect(container.querySelectorAll('.vz-header-readout')).toHaveLength(4)
   })
-  it('uses distinct health symbols and icon-only system identifiers for all five live states', async () => {
+  it('uses named health indicators and distinct status symbols for all five live states', async () => {
     await render()
     const health = container.querySelector<HTMLButtonElement>('[data-health-readout]')!
     const chip = (system: string) => health.querySelector(`[data-health-system="${system}"]`)!
     expect(['cast', 'audio', 'graphics'].map(system => chip(system).getAttribute('data-health'))).toEqual(['idle', 'ok', 'ok'])
     expect(health.querySelector('.vz-header-readout-label')?.textContent).toBe('HEALTH')
-    expect([...health.querySelectorAll('.vz-health-system-icon')].map(el => el.getAttribute('data-app-icon'))).toEqual(['cast', 'waveform', 'monitor'])
-    expect(health.querySelector('.vz-health-system-label')).toBeNull()
+    expect([...health.querySelectorAll('.vz-health-system-label')].map(el => el.textContent)).toEqual(['Cast', 'Audio', 'GFX'])
+    expect(health.querySelector('.vz-health-system-icon, [data-app-icon]')).toBeNull()
+    expect(health.querySelectorAll('svg')).toHaveLength(3)
     expect(health.querySelectorAll('.vz-health-status-icon')).toHaveLength(3)
     expect(health.querySelector('.vz-header-readout-primary, .vz-header-readout-led')).toBeNull()
     const shapes = new Set<string>()
     for (const state of ['idle', 'ok', 'degraded', 'healing', 'failed'] as const) {
       await act(async () => useHealthStore.getState().setHealth('audio', state, `Audio ${state}`))
       expect(chip('audio').getAttribute('data-health')).toBe(state)
+      expect(chip('audio').querySelector('.vz-health-system-label')?.textContent).toBe('Audio')
       const icon = chip('audio').querySelector('svg')!
       expect(icon.getAttribute('data-health')).toBe(state)
       shapes.add(icon.innerHTML)

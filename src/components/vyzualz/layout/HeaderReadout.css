@@ -71,7 +71,7 @@
 }
 
 /* HEALTH keeps the neighboring readouts' caption, divider and 37px rhythm. Its
-   system names are secondary labels; the larger, semantic symbols are the values. */
+   system names use the shared primary readout typography; the semantic symbols carry state. */
 .vz-header-readout.vz-health-trigger {
   appearance: none;
   border: 0;
@@ -87,10 +87,11 @@
 .vz-health-trigger:hover .vz-header-readout-label,
 .vz-health-trigger[aria-expanded='true'] .vz-header-readout-label { color: #90909c; }
 .vz-health-trigger:focus-visible { outline: 1px solid var(--az-cyan, #66c2c6); outline-offset: -2px; }
-.vz-header-readout-values.vz-health-chips { display: flex; align-items: center; gap: 5px; min-width: 0; min-height: 1.25em; }
+.vz-header-readout-values.vz-health-chips { display: flex; align-items: center; gap: 4px; min-width: 0; min-height: 1.25em; }
 .vz-health-chip { display: inline-flex; align-items: center; gap: 3px; flex: none; }
-.vz-health-chip .vz-health-system-icon { display: block; width: 13px; height: 13px; flex: 0 0 13px; color: #fcfbff; }
-.vz-health-chip[data-health='idle'] .vz-health-system-icon { color: #90909c; }
+.vz-health-chip + .vz-health-chip { border-left: 1px solid #ffffff13; padding-left: 4px; }
+.vz-health-chip .vz-health-system-label { color: #fcfbff; white-space: nowrap; }
+.vz-health-chip[data-health='idle'] .vz-health-system-label { color: #90909c; }
 .vz-health-status-icon { display: block; width: 12px; height: 12px; flex: 0 0 12px; }
 .vz-health-status-icon[data-health='idle'], .vz-health-diagnostic[data-health='idle'] .vz-health-state-text { color: #777984; }
 .vz-health-status-icon[data-health='ok'], .vz-health-diagnostic[data-health='ok'] .vz-health-state-text { color: #a0cbb7; }
