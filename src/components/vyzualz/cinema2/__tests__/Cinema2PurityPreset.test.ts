@@ -8,14 +8,20 @@ import { validateCinema2PresetAuthoringConventions } from '../presets/Cinema2Pre
 import { withCinema2AutoCoverage } from '../presets/Cinema2AutoCoverage'
 import { CINEMA2_AUTO_COVERAGE_EXEMPT } from '../presets/Cinema2AutoCoverageExemptions'
 import { PURITY_PATTERNS, PuritySelection, type PuritySelectionInput } from '../modules/purity/Cinema2PurityPatterns'
-import { PurityGeometry, PURITY_MAX_INSTANCES, type PurityVisualState } from '../modules/purity/Cinema2PurityRenderer'
-import { PurityFlight } from '../modules/purity/Cinema2PurityFlight'
+import { PurityGeometry, PURITY_MAX_INSTANCES, PURITY_INSTANCE_STRIDE, type PurityVisualState } from '../modules/purity/Cinema2PurityRenderer'
+import { PURITY_ROUTE, PURITY_ZONES, purityZoneAt } from '../modules/purity/Cinema2PurityMaze'
+import { purityBars } from '../modules/purity/Cinema2PurityArchitecture'
+import { Cinema2CameraRuntime } from '../spatial/Cinema2CameraRuntime'
+import { Cinema2ParameterState } from '../parameters/Cinema2ParameterState'
+import { Cinema2FinalValueResolver } from '../parameters/Cinema2TargetRuntime'
+import { Cinema2SpatialRuntime } from '../spatial/Cinema2SpatialRuntime'
+import type { Cinema2ParameterId } from '../contracts/Cinema2NativePresetManifest'
 import { CINEMA2_AFTERHOURS_TRIGGER_IDS } from '../modules/Cinema2AfterhoursNativeModule'
 
 const defaults=manifest.modules![0]!.parameters!
 const state:PurityVisualState={number:name=>Number(defaults[name]??0),enabled:name=>defaults[name]!==false,pattern:'ignition',previous:'ignition',transition:1,travel:.4,chase:.9,wave:.5,segments:22,motion:.75,flash:0,silence:0}
 const base:PuritySelectionInput={authored:'ignition',editRevision:0,enabled:true,trigger:'beat',event:null,auto:false,buildEvent:null,dropEvent:null,timeSec:0,beats:0,playing:true,reset:false}
-const values=(g:PurityGeometry)=>g.data.slice(0,g.count*12)
+const values=(g:PurityGeometry)=>g.data.slice(0,g.count*PURITY_INSTANCE_STRIDE)
 
 describe('PURITY native review preset',()=>{
   it('registers and compiles native and full catalog-covered manifests',()=>{
@@ -49,59 +55,61 @@ describe('PURITY native review preset',()=>{
       expect(g.pattern).toBe(PURITY_PATTERNS.indexOf(pattern))
     }
   })
-  it('changes geometry with travel and musical phase; disabled emitters are absent; transient flashes respect permission',()=>{
+  it('keeps stationary geometry, modulates light phase, respects emitter and flash permissions',()=>{
     const g=new PurityGeometry();g.update(state);const before=values(g)
-    g.update({...state,travel:1.3,wave:1.2});expect(values(g)).not.toEqual(before)
+    g.update({...state,travel:1.3});expect(values(g)).toEqual(before)
+    g.update({...state,wave:1.2});expect(values(g)).not.toEqual(before)
     g.update({...state,enabled:name=>!['perimeterLighting','recessedFixtures'].includes(name)})
-    for(let i=0;i<g.count;i++)expect(g.data[i*12+7]).toBeLessThan(2)
+    for(let i=0;i<g.count;i++)expect(g.data[i*PURITY_INSTANCE_STRIDE+7]).toBeLessThan(2)
     const number=(name:string)=>['snareAccent','dropAccent','kickAccent'].includes(name)?1:state.number(name)
     g.update({...state,number,flash:0});const off=values(g)
     g.update({...state,number,flash:1});expect(values(g)).not.toEqual(off)
     g.update({...state,number,flash:0});expect(values(g)).toEqual(off)
   })
-  it('keeps all surviving bay positions and lighting identities continuous across recycling',()=>{
-    const g=new PurityGeometry(), epsilon=.0001
-    for(const segments of [10,16,22])for(const depth of [.75,1,1.5])for(const thick of [.08,.32]){
-      const spacing=3.5*depth
-      const number=(key:string)=>key==='tunnelDepth'?depth:key==='frameThickness'?thick:state.number(key)
-      for(const cycle of [1,2,12]){
-        g.update({...state,number,segments,travel:cycle*spacing-epsilon})
-        const before=values(g), stride=before.length/(segments+2)
-        expect(Number.isInteger(stride/12)).toBe(true)
-        g.update({...state,number,segments,travel:cycle*spacing+epsilon})
-        const after=values(g)
-        expect(after.length).toBe(before.length)
-        // Every survivor shifts by exactly the traveled distance, preserving
-        // its pattern identity, diagonal direction and illumination phase.
-        for(let i=0;i<after.length-stride;i++){
-          const expected=before[i+stride]!+(i%12===2?2*epsilon:0)
-          expect(Math.abs(after[i]!-expected)).toBeLessThan(.00003)
+  it('defines eight distinct architectural silhouettes and eighteen stable patterns',()=>{
+    expect(PURITY_PATTERNS).toHaveLength(18)
+    expect(new Set(PURITY_ZONES.map(zone=>JSON.stringify(purityBars(zone,0)))).size).toBe(8)
+    expect(manifest.cameras![0]!.rig).toMatchObject({kind:'fly',loop:true,points:PURITY_ROUTE})
+  })
+  it('traverses all eight zones without crossing a housing, holds on lockoff and resumes without resetting the path',()=>{
+    const compiled=compileCinema2NativePreset(manifest,{availableCapabilities:manifest.capabilities!.map(c=>c.id)})
+    if(!compiled.ok)throw new Error(JSON.stringify(compiled.diagnostics))
+    const plan=compiled.plan, parameters=new Cinema2ParameterState(plan.parameters)
+    const resolver=new Cinema2FinalValueResolver(plan.targets,{resolveBaseValue:t=>t.parameterId==null?t.authoredBaseValue:parameters.getValue(t.parameterId)})
+    const spatial=new Cinema2SpatialRuntime(plan.scene,plan.targets.targets,resolver)
+    const camera=new Cinema2CameraRuntime(plan,parameters,resolver,spatial)
+    const set=(id:string,value:string|number)=>expect(parameters.setPersistentValue(`purity-${id}` as Cinema2ParameterId,value).ok).toBe(true)
+    set('traversal-mode','run');set('travel-speed',2);set('motion-amount',1);set('head-bob',1);set('camera-sway',.5)
+    let time=0
+    const tick=()=>{time+=.05;return camera.update({frameId:Math.round(time*20)+1,timestampMs:time*1000,deltaTimeSec:.05,elapsedTimeSec:time,viewport:{width:1280,height:720,dpr:1},contextGeneration:1,audio:null,director:null})}
+    const g=new PurityGeometry()
+    for(const layout of ['mixed','angular','geometric','minimal']){
+      // Supply every bay for collision checks by updating against the current camera when needed.
+      camera.reset();let previous:readonly number[]|null=null;const zones=new Set<number>()
+      for(let i=0;i<1200;i++){
+        const c=tick(),[x,y,z]=c.position;zones.add(purityZoneAt(x,z))
+        if(previous)expect(Math.hypot(x-previous[0]!,y-previous[1]!,z-previous[2]!)).toBeLessThan(.5)
+        previous=c.position
+        // Geometry is static; refresh the conservative distance culling only every second.
+        if(i%20===0)g.update({...state,layout,cameraPosition:c.position,number:k=>k==='tunnelWidth'?2.8:k==='tunnelDepth'?.75:k==='frameThickness'?.32:state.number(k)})
+        for(let j=0;j<g.count;j++){
+          const a=j*PURITY_INSTANCE_STRIDE,d=g.data;if(d[a+7]!>=2)continue
+          const dx=x-d[a]!,dy=y-d[a+1]!,dz=z-d[a+2]!,yaw=d[a+12]!,roll=d[a+3]!
+          const rx=Math.cos(yaw)*dx-Math.sin(yaw)*dz,rz=Math.sin(yaw)*dx+Math.cos(yaw)*dz
+          const lx=Math.cos(roll)*rx+Math.sin(roll)*dy,ly=-Math.sin(roll)*rx+Math.cos(roll)*dy
+          if(Math.abs(lx)<d[a+4]!/2+.15&&Math.abs(ly)<d[a+5]!/2+.15&&Math.abs(rz)<d[a+6]!/2+.15)throw new Error(`Camera collision in ${layout}, frame ${i}, housing ${j}`)
         }
-        for(let i=0;i<stride;i+=12)expect(before[i+2]!-before[i+6]!/2).toBeGreaterThan(.8)
-        for(let i=after.length-stride;i<after.length;i+=12)expect(after[i+2]!+after[i+6]!/2).toBeLessThan(g.farFadeEnd)
       }
+      expect(zones.size).toBe(8)
     }
-  })
-  it('eases forward velocity through build and drop, holds on pause/lockoff and resets deterministically',()=>{
-    const flight=new PurityFlight(), dt=1/60
-    let previous=0
-    const run=(speed:number, frames:number)=>{
-      for(let i=0;i<frames;i++){
-        flight.advance(dt,2*dt,speed,true)
-        expect(flight.travel).toBeGreaterThanOrEqual(previous)
-        previous=flight.travel
-      }
-    }
-    run(.7,180);const cruise=flight.velocity
-    run(1.4,1);expect(flight.velocity).toBeGreaterThan(cruise);expect(flight.velocity).toBeLessThan(2.8)
-    run(1.4,180);const drop=flight.velocity
-    run(.7,1);expect(flight.velocity).toBeLessThan(drop);expect(flight.velocity).toBeGreaterThan(cruise)
-    const hold=flight.travel
-    flight.advance(dt,2*dt,1,false);expect(flight.travel).toBe(hold);expect(flight.velocity).toBe(0)
-    flight.advance(dt,2*dt,0,true);expect(flight.travel).toBe(hold)
-    flight.reset();expect(flight.travel).toBe(0);expect(flight.velocity).toBe(0)
-    const first=flight.advance(dt,2*dt,.7,true);flight.reset();expect(flight.advance(dt,2*dt,.7,true)).toBe(first)
-  })
+    const before=tick();set('motion-safety','lockoff');const held=tick();expect(held.pathDistance).toBe(before.pathDistance);expect(held.pathVelocity).toBe(0)
+    expect(tick().pathDistance).toBe(held.pathDistance)
+    set('motion-safety','full');expect(tick().pathDistance!).toBeGreaterThanOrEqual(held.pathDistance!)
+    set('traversal-mode','walk');const walk=tick();expect(walk.pathDistance!).toBeGreaterThanOrEqual(held.pathDistance!)
+    set('travel-speed',0);const stopped=tick();expect(tick().pathDistance).toBe(stopped.pathDistance)
+    camera.reset();expect(tick().pathDistance).toBe(0)
+    camera.dispose();spatial.dispose()
+  },15000)
   it('deduplicates all eleven event IDs, preserves manual pattern change, and resets to authored pattern',()=>{
     for(const trigger of CINEMA2_AFTERHOURS_TRIGGER_IDS){
       const select=new PuritySelection();select.update({...base,trigger})

@@ -123,9 +123,12 @@ export const CINEMA2_AUTO_COVERAGE_EXEMPT: Readonly<Record<string, Readonly<Reco
     'allstar-reactivity': 'User-owned strength of the shared choreography, not an automation target.',
   }),
   purity: Object.freeze({
-    'purity-tunnel-width': 'Changing the physical corridor width during a recycled segment pass breaks fixed architectural framing.',
-    'purity-tunnel-depth': 'Changing segment spacing changes the recycling period and causes a discontinuous spatial jump.',
+    'purity-tunnel-width': 'Physical corridor widths must preserve route clearance.',
+    'purity-tunnel-depth': 'Stationary installation spacing is a structural layout control.',
     'purity-frame-thickness': 'Fixed architectural rib dimensions are authored geometry.',
+    'purity-acceleration': 'User-owned gait response and comfort.',
+    'purity-corner-anticipation': 'User-owned navigation comfort.',
+    'purity-head-bob': 'User-owned motion comfort.',
     'purity-reactivity': 'User-owned strength of the shared choreography, not an automation target.',
   }),
   blockshift: Object.freeze({

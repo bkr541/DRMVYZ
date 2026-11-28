@@ -49,6 +49,10 @@ export interface Cinema2CameraFrame {
   projectionMatrix: Cinema2Matrix4
   viewProjectionMatrix: Cinema2Matrix4
   corrected: boolean
+  /** Grounded POV path distance/velocity, in world units. */
+  pathDistance?: number
+  pathVelocity?: number
+  pathLoopLength?: number
 }
 
 export interface Cinema2CameraRuntimeSnapshot {
@@ -258,7 +262,7 @@ export class Cinema2CameraRuntime {
     const hardMotionOff = motionPermission === 0 || (motion?.idleMotion === false && frame.transport?.sourcePresent === false)
     const tempoState = motion?.tempo ? this.advanceTempo(camera, motion.tempo, frame, hardMotionOff) : null
     const authoredTimeSec = tempoState ? this.flightTimeSec : frame.elapsedTimeSec
-    const motionTimeSec = hardMotionOff ? 0 : authoredTimeSec * motionSafety.travelScale
+    const motionTimeSec = motion?.povTraversal ? authoredTimeSec : hardMotionOff ? 0 : authoredTimeSec * motionSafety.travelScale
     let pose = this.resolveBaseRig(camera, frame, motionTimeSec, framing?.target)
     pose = applyAuthoredTransition(camera, pose, hardMotionOff ? 0 : frame.elapsedTimeSec * motionSafety.travelScale)
     const safetyReference = clonePose(pose)
@@ -272,7 +276,18 @@ export class Cinema2CameraRuntime {
     const kickZoom = camera.controls?.kickZoom
       ? (readToggleControl(camera.controls, 'kickZoom', this.parameters) ? motionPermission : 0)
       : motionAmount
-    if (motion?.tempo && tempoState) pose = applyTempoSway(pose, motion.tempo, tempoState.beats, this.punchEnvelope, motionAmount, kickZoom)
+    if (motion?.tempo && tempoState && !motion.povTraversal) pose = applyTempoSway(pose, motion.tempo, tempoState.beats, this.punchEnvelope, motionAmount, kickZoom)
+    if (motion?.povTraversal && !hardMotionOff && camera.rig && (camera.rig.kind === 'path' || camera.rig.kind === 'fly')) {
+      const speed = positive(camera.rig.speed, 1)
+      const velocity = this.flightRate * speed
+      const phase = this.flightTimeSec * speed * Math.PI * 2 / .85
+      const gait = clamp(velocity / 2, 0, 1.6)
+      const bob = clamp(readNumberControl(camera.controls, 'headBob', this.parameters) ?? .25, 0, 1) * motionPermission * gait
+      const dx = pose.target[0] - pose.position[0], dz = pose.target[2] - pose.position[2], length = Math.max(.001, Math.hypot(dx,dz))
+      const side = Math.sin(phase * .5) * .10 * motionAmount * gait
+      const offset = freezeVec3([-dz / length * side, Math.sin(phase) * .075 * bob, dx / length * side])
+      pose = { ...pose, position: addVec3(pose.position, offset), target: addVec3(pose.target, freezeVec3([offset[0]*.65,offset[1]*.3,offset[2]*.65])), rollDegrees: pose.rollDegrees + Math.sin(phase*.5)*motionAmount*gait*.65, fovDegrees: pose.fovDegrees + clamp((velocity-1.5)*2.4,0,8) }
+    }
     if (motion?.orbit?.center) {
       const enabled = !hardMotionOff && (!camera.controls?.orbitMotionEnabled || readToggleControl(camera.controls, 'orbitMotionEnabled', this.parameters))
       const beat = tempoState?.beats ?? 0
@@ -361,6 +376,7 @@ export class Cinema2CameraRuntime {
       projectionMatrix,
       viewProjectionMatrix: multiplyCinema2Matrix4(projectionMatrix, viewMatrix),
       corrected: safe.corrected || finalSafety.corrected,
+      ...(motion?.povTraversal && camera.rig && (camera.rig.kind === 'path' || camera.rig.kind === 'fly') ? {pathDistance:this.flightTimeSec*positive(camera.rig.speed,1),pathVelocity:this.flightRate*positive(camera.rig.speed,1),pathLoopLength:this.splinePath?.totalLength} : {}),
     })
     this.frameCount += 1
     return this.currentFrame
@@ -403,6 +419,27 @@ export class Cinema2CameraRuntime {
     const speed = this.readControl(camera.controls, 'motionSpeed') ?? 1
     const beats = this.beatClock.update(speed > 0 ? frame : { ...frame, deltaTimeSec: 0 }, syncControl, referenceBpm).beats
 
+    if (camera.motion?.povTraversal) {
+      const safety = resolveMotionSafety(camera.controls,this.parameters)
+      const active = motionActive && frame.transport?.sourcePresent !== false && safety.travelScale > 0 && master > 0
+      const paceRef = camera.controls?.pathPace
+      const pace = paceRef ? this.parameters.getValue(paceRef.$ref as Cinema2ParameterId) : 'adaptive'
+      // Manual gait modes respect the saved speed; Adaptive uses the shared resolved mood drives.
+      const speedControl = pace === 'adaptive' ? speed : readNumberControl(camera.controls,'motionSpeed',this.parameters) ?? 1
+      const factor = pace === 'run' ? 3 : pace === 'jog' ? 1.95 : .95
+      const bpmRate = locked && frame.transport?.bpmSync !== false && tempo.flightSpeed !== false ? clamp(bpm! / referenceBpm, .65, 1.4) : 1
+      const target = clamp(speedControl * factor * bpmRate * master * safety.travelScale,0, 5.5 / positive(camera.rig && (camera.rig.kind==='path'||camera.rig.kind==='fly') ? camera.rig.speed : undefined,1))
+      if (!this.tempoInitialized) {this.tempoInitialized=true;this.flightTimeSec=0;this.flightRate=0}
+      else if (!active || speedControl <= 0) this.flightRate=0
+      else {
+        const acceleration=clamp(readNumberControl(camera.controls,'pathAcceleration',this.parameters)??.45,0,1)
+        const tau=(target>this.flightRate? .85:.95)-acceleration*.65
+        const blend=-Math.expm1(-frameDt/tau)
+        this.flightTimeSec+=Math.max(0,target*frameDt+(this.flightRate-target)*tau*blend)
+        this.flightRate+=(target-this.flightRate)*blend
+      }
+      return {beats,locked}
+    }
     if (!this.tempoInitialized) {
       this.tempoInitialized = true
       this.flightTimeSec = camera.controls?.motionEnabled || camera.controls?.motionSpeed ? 0 : Math.max(0, frame.elapsedTimeSec)
@@ -560,7 +597,7 @@ export class Cinema2CameraRuntime {
         : samplePath(rig.points, progress, authoredTarget, fovDegrees, rollDegrees)
       return {
         position: sampled.position,
-        target: sampled.target,
+        target: camera.motion?.povTraversal && spline ? sampleSplinePath(spline, (progress + (1.2 + 2.5 * clamp(readNumberControl(camera.controls,'cornerAnticipation',this.parameters)??.75,0,1))/spline.totalLength)%1, constantSpeed, 0).position : sampled.target,
         fovDegrees: sampled.fovDegrees,
         orthographicHeight,
         near,

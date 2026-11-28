@@ -1,98 +1,122 @@
 import { ShaderCompiler } from '../../../react/shaders/runtime/ShaderCompiler'
 import { ShaderProgram } from '../../../react/shaders/runtime/ShaderProgram'
 import { assertCinema2NoGlErrors } from '../../runtime/Cinema2GpuValidation'
+import { PURITY_EDGES, PURITY_FLOOR, PURITY_JUNCTION, PURITY_ROUTE, purityHalfWidth, purityWorld, purityRouteAddress } from './Cinema2PurityMaze'
+import { purityArchitecture, purityBars } from './Cinema2PurityArchitecture'
 import { PURITY_PATTERNS, type PurityPattern } from './Cinema2PurityPatterns'
 
 export const PURITY_MAX_INSTANCES = 2048
-const STRIDE = 12
+export const PURITY_INSTANCE_STRIDE = 20
+const STRIDE = PURITY_INSTANCE_STRIDE
 const clamp = (v:number,a=0,b=1) => Math.max(a,Math.min(b,v))
-const wrap = (v:number,p:number) => ((v%p)+p)%p
 export interface PurityVisualState {
   number(name:string):number; enabled(name:string):boolean;
   pattern:PurityPattern; previous:PurityPattern; transition:number;
   travel:number; chase:number; wave:number;
   segments:number; motion:number; flash:number; silence:number;
+  cameraPosition?:readonly [number,number,number]; layout?:string;
 }
-/** Bounded instanced solid housings and programmable luminous faces. A virtual floor is rendered by the shared depth-aware floor effect. */
+/** Stationary world-space architecture, instanced by the original PURITY renderer. */
 export class PurityGeometry {
   readonly data = new Float32Array(PURITY_MAX_INSTANCES*STRIDE)
   count=0
-  farFadeEnd=0; farFadeStart=0
+  farFadeEnd=66; farFadeStart=48
   pattern=0; previous=0; transition=1; chase=0; density=.65; contrast=.8; blackout=.75
-  private box(x:number,y:number,z:number,angle:number,w:number,h:number,d:number,role:number,light:number,spill:number,detail=0,group=0) {
+  routePosition=0; localization=.75
+  private box(x:number,y:number,z:number,angle:number,w:number,h:number,d:number,role:number,light:number,spill:number,detail=0,group=0,yaw=0) {
     if(this.count>=PURITY_MAX_INSTANCES) throw new Error('PURITY instance budget exceeded')
     const i=this.count++*STRIDE
-    const dta=this.data; dta[i]=x;dta[i+1]=y;dta[i+2]=z;dta[i+3]=angle;dta[i+4]=Math.max(.001,w);dta[i+5]=Math.max(.001,h);dta[i+6]=Math.max(.001,d);dta[i+7]=role;dta[i+8]=light;dta[i+9]=spill;dta[i+10]=detail;dta[i+11]=group
+    this.data.set([x,y,z,angle,Math.max(.001,w),Math.max(.001,h),Math.max(.001,d),role,light,spill,detail,group,yaw,0,0,0,0,0,0,0],i)
   }
-  private line(ax:number,ay:number,bx:number,by:number,z:number,width:number,role:number,light:number,group:number) {
-    this.box((ax+bx)*.5,(ay+by)*.5,z,Math.atan2(by-ay,bx-ax),Math.hypot(bx-ax,by-ay),width,width,role,light,0,0,group)
+  /** Each opaque surface samples its nearest local emitter, not a global ambient wash. */
+  private bindSpill(start:number,end:number){
+    const d=this.data
+    for(let i=start;i<end;i++){
+      const p=i*STRIDE;if(d[p+7]!>=2)continue
+      let best=Infinity, chosen=-1
+      for(let j=start;j<end;j++){
+        const q=j*STRIDE;if(d[q+7]!<2||d[q+8]!<=0)continue
+        const dist=(d[p]!-d[q]!)**2+(d[p+1]!-d[q+1]!)**2+(d[p+2]!-d[q+2]!)**2
+        if(dist<best){best=dist;chosen=q}
+      }
+      if(chosen<0)continue
+      d[p+13]=d[chosen]!;d[p+14]=d[chosen+1]!;d[p+15]=d[chosen+2]!
+      d[p+16]=d[chosen+8]!;d[p+17]=d[chosen+11]!;d[p+18]=d[chosen+10]!;d[p+19]=Math.max(d[chosen+4]!,d[chosen+5]!,d[chosen+6]!)*.5
+    }
   }
   update(s:PurityVisualState) {
     this.count=0
-    const n=s.number, W=n('tunnelWidth'), spacing=3.5*n('tunnelDepth'), thick=n('frameThickness'), detail=n('structuralDetail')
-    this.pattern=PURITY_PATTERNS.indexOf(s.pattern); this.previous=PURITY_PATTERNS.indexOf(s.previous)
-    const t=clamp(s.transition); this.transition=t*t*(3-2*t); this.chase=s.chase; this.density=n('fixtureDensity'); this.contrast=n('lightingContrast');this.blackout=n('blackoutDepth')
-    const base=n('intensity')*(1-.94*s.silence), rail=s.enabled('perimeterLighting')?n('perimeterIntensity'):0, face=s.enabled('recessedFixtures')?n('fixtureIntensity'):0
-    const hit=n('dropAccent')*n('dropStrength'), bass=n('bassPressure'), vocal=n('vocalPresence'), energy=n('overallEnergy')
-    const floor=-2.4, top=2.6
-    // Stable recycled world bays; housing stays dark while the addressable skin changes independently.
-    const segments=Math.min(22,Math.max(1,Math.floor(s.segments)))
-    const offset=wrap(s.travel,spacing), cycle=Math.floor(s.travel/spacing)
-    // A complete bay extends a spacing behind its gate. Keep two guard bays
-    // behind the camera (max camera z=.8, min spacing=2.625); the outgoing
-    // bay is entirely behind the eye when its slot is recycled. The new far
-    // bay starts beyond the fixed fade plane, including its front trim.
-    this.farFadeEnd=-1.2-(segments-1)*spacing+.7
-    this.farFadeStart=this.farFadeEnd+3*spacing
-    for(let j=-2;j<segments;j++) {
-      const z=-1.2-j*spacing+offset
-      const id=j+cycle
-      const phase=id*.43+s.chase
-      const halo=base*(.7+.19*energy+.13*n('subAmount'))
-      const spill=n('lightSpill')*halo*(.12+.16*n('midAmount')+.17*bass+.18*s.flash*hit)
-      // Industrial sidewalls and overhead slabs with recessed ribs; floor is shared SSR, not an opaque slab.
-      for(const sign of [-1,1]) {
-        this.box(sign*(W+.12),.1,z-spacing*.5,0,.24,5.1,spacing+.05,1,0,spill,detail)
-        this.box(sign*(W-.02),.1,z,0,thick*.65,5.1,.22,0,0,spill,detail)
-        this.box(sign*(W-.08),1.65,z-spacing*.5,0,.09,thick,spacing*.83,0,0,spill,detail)
+    const n=s.number,W=clamp(n('tunnelWidth'),2.8,5.5),spacing=3.5*clamp(n('tunnelDepth'),.75,1.5),thick=clamp(n('frameThickness'),.08,.32),detail=n('structuralDetail')
+    this.pattern=PURITY_PATTERNS.indexOf(s.pattern);this.previous=PURITY_PATTERNS.indexOf(s.previous)
+    const t=clamp(s.transition);this.transition=t*t*(3-2*t);this.chase=s.chase;this.density=n('fixtureDensity');this.contrast=n('lightingContrast');this.blackout=n('blackoutDepth');this.localization=clamp(n('lightLocalization'))
+    const camera=s.cameraPosition??PURITY_ROUTE[0]!.position
+    this.routePosition=purityRouteAddress(camera[0],camera[2])*16
+    const base=n('intensity')*(1-.94*s.silence),rail=s.enabled('perimeterLighting')?n('perimeterIntensity'):0,face=s.enabled('recessedFixtures')?n('fixtureIntensity'):0
+    const hit=n('dropAccent')*n('dropStrength'),bass=n('bassPressure'),energy=n('overallEnergy'),floor=PURITY_FLOOR
+    const halo=base*(.76+.2*energy+.15*n('subAmount')),spill=n('lightSpill')*(.7+.2*bass+.2*n('midAmount'))
+    const detailTier=s.segments>=16
+    // Every edge connects two fixed square junction rooms. Walls have actual
+    // openings at turns, so the camera never passes through a solid barrier.
+    for(let e=0;e<PURITY_EDGES.length;e++){
+      const edge=PURITY_EDGES[e]!, half=purityHalfWidth(W,edge.zone), height=edge.zone==='cathedral'?8.8:5.6, roof=floor+height
+      const begin=PURITY_JUNCTION,end=edge.length-PURITY_JUNCTION,len=end-begin
+      const bays=Math.max(1,Math.ceil(len/(spacing*(edge.zone==='obsidian'?1.6:1))))
+      const cell=len/bays
+      const worldBox=(x:number,y:number,z:number,roll:number,w:number,h:number,d:number,role:number,gain:number,group:number,phase=detail,yaw=edge.yaw)=>{
+        const p=purityWorld(edge,x,y,z);this.box(...p,roll,w,h,d,role,gain,spill,phase,group,yaw)
       }
-      this.box(0,top+.14,z-spacing*.5,0,W*2+.2,.26,spacing+.04,1,0,spill,detail)
-      this.box(0,top-.025,z,0,W*2,thick*.75,.26,0,0,spill,detail)
-      // Center portal and two smaller flanking portals. The central passage remains open at every width.
-      for(let g=-1;g<=1;g++) {
-        const center=g*W*.72, half=W*(g===0?.44:.13), height=g===0?4.72:2.62
-        const column=Math.min(thick*(g===0?3.2:2.15),W*(g===0?.15:.13)), beamDepth=thick*3.4, y=floor+height*.5, roof=floor+height
-        const group=id*3+g+1
-        const accent=s.flash*(.21*n('kickAccent')+.19*n('beatAccent')+.23*n('snareAccent')*(g===0?.3:1)+.36*hit)
-        const recruitment=1-.14*vocal*(g===0?0:1)+.12*n('buildAmount')+.09*n('directorIntensity')
-        const gain=halo*face*recruitment*(.86+.13*n('lowMidAmount')+.13*n('highsAmount')+.08*n('airAmount')+.1*n('fluxAmount')+accent)
-        const trim=halo*rail*(.52+s.flash*(.11*n('downbeatAccent')+.1*n('directorImpact'))+accent)
-        const localPhase=phase+g*.91+.16*n('sectionAccent')+.18*n('variation')
-        const part=(x:number,cy:number,w:number,h:number)=>{
-          // Physical metal surround, front inset, and narrower recessed perimeter rails on two vertical sides.
-          this.box(x,cy,z,0,w,h,beamDepth,0,0,spill,detail,group)
-          if(s.enabled('recessedFixtures')) {
-            this.box(x,cy,z+beamDepth*.5+.012,0,w*.87,h*.94,.023,3,gain,spill,localPhase,group)
-            if(h>w) for(const k of [-1,1]) this.box(x+k*(w*.5+.012),cy,z,0,.023,h*.94,beamDepth*.88,3,gain*.85,spill,localPhase,group)
-          }
-          if(s.enabled('perimeterLighting')) {
-            const r=Math.max(.012,thick*.13)
-            for(const k of [-1,1]){
-              this.box(x+k*w*.46,cy,z+beamDepth*.5+.03,0,r,h*.94,.035,2,trim,spill,localPhase,group)
-              this.box(x,cy+k*h*.47,z+beamDepth*.5+.03,0,w*.92,r,.035,2,trim,spill,localPhase,group)
-            }
-          }
+      for(let j=0;j<bays;j++){
+        const mid=begin+(j+.5)*cell
+        const center=purityWorld(edge,0,floor+height*.5,mid)
+        if(Math.hypot(center[0]-camera[0],center[1]-camera[1],center[2]-camera[2])>this.farFadeEnd+Math.hypot(half+.6,height*.5+.6,cell*.5+.6))continue
+        const start=this.count,group=e*16+(mid/edge.length)*16,phase=group*.43+s.chase
+        for(const side of [-1,1]){
+          worldBox(side*(half+.12),floor+height*.5,mid,0,.24,height,cell+.003,1,0,group)
+          if(detailTier){worldBox(side*(half-.045),floor+height*.5,mid-cell*.5+.05,0,.12,height,.16,0,0,group);worldBox(side*(half-.055),floor+.45,mid,0,.10,.10,cell*.94,0,0,group)}
         }
-        part(center-half,y,column,height)
-        part(center+half,y,column,height)
-        part(center,roof,half*2+column,column)
+        worldBox(0,roof+.12,mid,0,half*2+.24,.24,cell+.003,1,0,group)
+        if(detailTier)worldBox(0,roof-.06,mid-cell*.5+.07,0,half*2,.15,.19,0,0,group)
+        const variant=purityArchitecture(edge.zone,s.layout??'mixed',e)
+        const bars=purityBars(variant,j)
+        for(let b=0;b<bars.length;b++){
+          const [ax,ay,bx,by,depth]=bars[b]!,x1=ax*half,x2=bx*half,y1=floor+ay*height,y2=floor+by*height
+          const w=Math.hypot(x2-x1,y2-y1),rot=Math.atan2(y2-y1,x2-x1),x=(x1+x2)*.5,y=(y1+y2)*.5
+          const g=group+(b%3)*.17,accent=s.flash*(.20*n('kickAccent')+.14*n('beatAccent')+.20*n('snareAccent')*(b%2)+.36*hit)
+          const gain=halo*(.82+.13*n('lowMidAmount')+.12*n('highsAmount')+.08*n('airAmount')+.1*n('fluxAmount')+.13*n('buildAmount')+.1*n('directorIntensity')-.12*n('vocalPresence')+accent)
+          const width=thick*(variant==='threshold'?2.15:1.15),d=depth?Math.min(depth,cell*.65):thick*2.0
+          const role=b%3===1?4:3
+          worldBox(x,y,mid,rot,w,width,d,0,0,g)
+          // Light both faces so the installation reads from either direction.
+          if(face>0)worldBox(x,y,mid,rot,w*.97,width*.65,d+.035,role,gain*face,g,phase+n('variation')*.18+n('sectionAccent')*.16)
+          if(rail>0)worldBox(x-Math.sin(rot)*width*.46,y+Math.cos(rot)*width*.46,mid,rot,w*.98,Math.max(.018,thick*.17),d+.055,2,halo*rail*(.75+accent+.13*n('phraseAccent')+.1*n('downbeatAccent')+.1*n('directorImpact')),g,phase)
+        }
+        // Longitudinal wall accents create parallax and guide the next turn.
+        if(rail>0&&variant!=='obsidian')for(const side of [-1,1])worldBox(side*(half-.15),floor+.28,mid,0,.045,.045,cell*.78,4,halo*rail*(.46+.14*n('depthWave')*Math.sin(s.wave+group)),group,phase)
+        this.bindSpill(start,this.count)
       }
-      // Angled peripheral bars provide the first reference's alternating diagonal/X vocabulary.
-      if(s.enabled('perimeterLighting')) for(const sign of [-1,1]) {
-        const direction=id%2===0?1:-1, x=sign*(W-.32), wobble=s.motion*n('depthWave')*.20*Math.sin(s.wave-id*.8)
-        this.line(x-sign*.43,floor+.12,x+sign*direction*.24,top-.21,z-spacing*.48,thick*.35,4,halo*rail*(.55+.17*n('phraseAccent')+.14*n('bassPressure')),id*3+1)
-        this.line(x-sign*.45+wobble,top-.16,x+sign*.14,floor+.35,z-spacing*.7,thick*.23,4,halo*rail*.65,id*3+2)
+      // Junction walls: leave each connected corridor mouth open, close the
+      // other two sides, and fill the shoulders of each opening.
+      const start=this.count, incoming=PURITY_EDGES[(e+PURITY_EDGES.length-1)%PURITY_EDGES.length]!, J=PURITY_JUNCTION
+      const junctionHeight=Math.max(height,incoming.zone==='cathedral'?8.8:5.6),junctionRoof=floor+junctionHeight
+      const cornerBox=(x:number,y:number,z:number,w:number,h:number,d:number,role:number,gain:number,group:number,yaw=0)=>this.box(edge.x+x,y,edge.z+z,0,w,h,d,role,gain,spill,detail,group,yaw)
+      const group=e*16-1
+      for(const [dx,dz] of [[1,0],[-1,0],[0,1],[0,-1]] as const){
+        const mouth=dx===edge.dx&&dz===edge.dz?half:dx===-incoming.dx&&dz===-incoming.dz?purityHalfWidth(W,incoming.zone):0
+        const yaw=Math.atan2(-dx,-dz), lateral=[-dz,dx] as const
+        const panel=(offset:number,width:number,h:number,y:number)=>cornerBox(dx*J+lateral[0]*offset,y,dz*J+lateral[1]*offset,width,h,.24,1,0,group,yaw)
+        if(mouth===0)panel(0,J*2,junctionHeight,floor+junctionHeight*.5)
+        else for(const sign of [-1,1])panel(sign*(J+mouth)*.5,J-mouth,junctionHeight,floor+junctionHeight*.5)
+        const openingHeight=dx===edge.dx&&dz===edge.dz?height:incoming.zone==='cathedral'?8.8:5.6
+        if(mouth>0&&junctionHeight>openingHeight)panel(0,mouth*2,junctionHeight-openingHeight,floor+(junctionHeight+openingHeight)*.5)
+        if(rail>0){
+          // Narrow strips along the junction wall, framing rather than blocking the exit.
+          const at=mouth>0?mouth+.12:J*.60
+          for(const sign of [-1,1])cornerBox(dx*(J-.16)+lateral[0]*sign*at,floor+junctionHeight*.5,dz*(J-.16)+lateral[1]*sign*at,.055,junctionHeight*.89,.055,4,halo*rail*.83,group,yaw)
+        }
       }
+      cornerBox(0,junctionRoof+.12,0,J*2,.24,J*2,1,0,group)
+      if(rail>0)for(const side of [-1,1])cornerBox(side*J*.56,junctionRoof-.10,0,.085,.085,J*1.7,2,halo*rail*.9,group)
+      this.bindSpill(start,this.count)
     }
   }
 }
@@ -104,18 +128,22 @@ layout(location=2) in vec2 a_uv;
 layout(location=3) in vec4 i_pose;
 layout(location=4) in vec4 i_size;
 layout(location=5) in vec4 i_light;
+layout(location=6) in vec4 i_orientation;
+layout(location=7) in vec4 i_spill;
 uniform mat4 u_viewProjection;
-out vec3 v_world; out vec3 v_normal; out vec2 v_uv; flat out vec4 v_light; flat out float v_role;
-void main(){float c=cos(i_pose.w),s=sin(i_pose.w);mat2 r=mat2(c,s,-s,c);vec3 local=a_position*i_size.xyz;v_world=i_pose.xyz+vec3(r*local.xy,local.z);v_normal=vec3(r*a_normal.xy,a_normal.z);v_uv=a_uv;v_light=i_light;v_role=i_size.w;gl_Position=u_viewProjection*vec4(v_world,1.0);}`
+out vec3 v_world; out vec3 v_normal; out vec2 v_uv; flat out vec4 v_light; flat out float v_role; flat out vec4 v_spill; flat out vec3 v_source;
+vec3 yawRotate(vec3 p,float a){float c=cos(a),s=sin(a);return vec3(c*p.x+s*p.z,p.y,-s*p.x+c*p.z);}
+void main(){float c=cos(i_pose.w),s=sin(i_pose.w);mat2 r=mat2(c,s,-s,c);vec3 local=a_position*i_size.xyz;v_world=i_pose.xyz+yawRotate(vec3(r*local.xy,local.z),i_orientation.x);v_normal=yawRotate(vec3(r*a_normal.xy,a_normal.z),i_orientation.x);v_uv=a_uv;v_light=i_light;v_role=i_size.w;v_spill=i_spill;v_source=i_orientation.yzw;gl_Position=u_viewProjection*vec4(v_world,1.0);}`
 const FRAG=`#version 300 es
 precision highp float;
-in vec3 v_world; in vec3 v_normal; in vec2 v_uv; flat in vec4 v_light; flat in float v_role;
+in vec3 v_world; in vec3 v_normal; in vec2 v_uv; flat in vec4 v_light; flat in float v_role; flat in vec4 v_spill; flat in vec3 v_source;
 uniform vec3 u_cameraPosition,u_metal,u_panel,u_perimeter,u_geometry,u_accent,u_background;
 uniform float u_farFadeStart,u_farFadeEnd;
 uniform float u_roughness,u_reflections,u_falloff,u_visibility;
-uniform float u_pattern,u_previous,u_transition,u_chase,u_density,u_contrast,u_blackout;
+uniform float u_pattern,u_previous,u_transition,u_chase,u_density,u_contrast,u_blackout,u_routePosition,u_localization;
 float hash21(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 float stripe(float x,float duty){float aa=clamp(fwidth(x)*.5,.012,.3);float f=abs(fract(x)-.5);return mix(1.-smoothstep(max(0.,duty*.5-aa),duty*.5+aa,f),duty,smoothstep(.15,.5,aa));}
+float sq(float x){return x*x;}
 float mask(float mode,vec2 uv,float phase,float group){
   float cols=floor(mix(3.,15.,u_density)), rows=floor(mix(6.,28.,u_density));
   float x=uv.x,y=uv.y;
@@ -134,21 +162,20 @@ float mask(float mode,vec2 uv,float phase,float group){
   if(mode<8.5) return smoothstep(.0,.7,.5+.5*cos(groupPhase-u_chase)); // relay: spatial selection
   if(mode<9.5) return (1.-smoothstep(.07,.16,abs(x-.5)))*(.55+.45*step(.5,cos(groupPhase))); // spine
   if(mode<10.5) return max(stripe((x+y)*cols-u_chase,.13),stripe((x-y)*cols+u_chase,.13)); // crosswire
-  return (1.-u_blackout)*.12 + border*.08 + .85*smoothstep(.82,1.,.5+.5*cos(u_chase*.45-groupPhase)); // eclipse
+  if(mode<11.5)return (1.-u_blackout)*.12 + border*.08 + .85*smoothstep(.82,1.,.5+.5*cos(u_chase*.45-groupPhase)); // eclipse
+  float relative=mod(group-u_routePosition+64.,128.)-64.;
+  if(mode<12.5)return .09+.91*exp(-sq((relative-mod(u_chase*2.,20.))/5.)); // guidance
+  if(mode<13.5)return .08+.92*exp(-sq((mod(relative-u_chase*4.+16.,32.)-16.)/3.)); // pursuit
+  if(mode<14.5)return max(stripe((x+y)*cols+u_chase,.20),stripe((x-y)*cols-u_chase+group*.5,.20))*step(.1,cos(groupPhase+u_chase*2.)); // interlock
+  if(mode<15.5)return .08+.92*step(mod(group,16.),mod(u_chase*2.,16.)); // domino
+  if(mode<16.5)return .1+.9*exp(-sq((mod(abs(relative)+u_chase*3.,24.)-12.)/3.)); // convergence
+  return .06+.94*exp(-max(0.,mod(u_routePosition-group+128.,128.))*.20)*(.5+.5*cos(u_chase*.8+groupPhase)); // afterimage
 }
 float lightMask(float mode){
-  if(v_role<2.5) { // perimeter trim tracks face choreography without erasing the physical outline
-    if(mode>10.5)return .06+(1.-u_blackout)*.4;
-    if(mode>8.5&&mode<9.5)return .12;
-    if(mode>7.5&&mode<8.5)return mask(mode,v_uv,v_light.z,v_light.w);
-    return mode>4.5&&mode<5.5?1.:.42;
-  }
-  if(v_role>3.5){ // diagonal beams are primary only in CROSSWIRE; other patterns retain restrained spatial cues
-    if(mode>9.5&&mode<10.5)return 1.;
-    if(mode>10.5)return .04+(1.-u_blackout)*.2;
-    return .24+ .18*sin(v_light.w*.6-u_chase);
-  }
-  return mask(mode,v_uv,v_light.z,v_light.w);
+  float m=mask(mode,v_uv,v_light.z,v_light.w);
+  if(v_role<2.5){if(mode>10.5&&mode<11.5)return .04+(1.-u_blackout)*.22;return m*.82+.09;}
+  if(v_role>3.5&&mode>9.5&&mode<10.5)return 1.;
+  return m;
 }
 out vec4 outColor;
 void main(){
@@ -156,14 +183,13 @@ void main(){
   float depth=length(v_world-u_cameraPosition),fade=exp(-depth*u_falloff*.034);
   float edge=1.-smoothstep(.0,.10,min(min(v_uv.x,1.-v_uv.x),min(v_uv.y,1.-v_uv.y)));
   vec3 tint=v_role<2.?mix(u_metal,u_panel,step(.5,v_role)):v_role<2.5?u_perimeter:v_role<3.5?u_geometry:u_accent;
-  // All surfaces, including dormant housings, fade by world depth rather
-  // than recycled slot index. No new geometry contributes color at birth.
-  if(v_world.z<=u_farFadeEnd) discard;
-  float farWeight=smoothstep(u_farFadeEnd,u_farFadeStart,v_world.z);
+  // Fade relative to the same world camera used by floor reflections.
+  if(depth>=u_farFadeEnd)discard;
+  float farWeight=1.-smoothstep(u_farFadeStart,u_farFadeEnd,depth);
   if(v_role>1.5){
     float m=mix(lightMask(u_previous),lightMask(u_pattern),u_transition);
     float lit=mix(m*.55+.25,m,u_contrast);
-    if(u_pattern>10.5 && u_previous>10.5)lit=m;
+    if(u_pattern>10.5 && u_pattern<11.5 && u_previous>10.5 && u_previous<11.5)lit=m;
     vec3 dormant=u_metal*.10*u_visibility;
     outColor=vec4(mix(u_background,(dormant+tint*v_light.x*lit*(2.6+.7*(1.-edge)))*fade,farWeight),1.);return;
   }
@@ -173,8 +199,13 @@ void main(){
   float grain=fract(sin(dot(floor(v_uv*vec2(180.,240.)),vec2(12.9898,78.233)))*43758.5453);
   float material=mix(1.,groove*(.87+.23*grain),v_light.z*.65);
   float spec=pow(max(dot(reflect(-normalize(vec3(.2,.3,1.)),N),V),0.),mix(60.,5.,u_roughness));
-  vec3 spill=u_perimeter*v_light.y*(.25+.45*diffuse);
-  vec3 reflected=mix(u_perimeter,u_geometry,.13)*v_light.y*u_reflections*(spec*.8+fresnel*.35+edge*.28);
+  float lampDistance=length(v_source-v_world);
+  float radius=mix(4.0,1.65,u_localization)+v_spill.w*.34;
+  float local=exp(-pow(lampDistance/max(radius,.1),2.));
+  float active=mix(mask(u_previous,vec2(.43,.57),v_spill.z,v_spill.y),mask(u_pattern,vec2(.43,.57),v_spill.z,v_spill.y),u_transition);
+  float illumination=v_light.y*v_spill.x*local*(.08+.92*active);
+  vec3 spill=u_perimeter*illumination*(.27+.60*diffuse);
+  vec3 reflected=mix(u_perimeter,u_geometry,.13)*illumination*u_reflections*(spec*.8+fresnel*.35+edge*.28);
   vec3 color=tint*material*(diffuse+edge*.24)+spill+reflected;
   outColor=vec4(mix(u_background,color*fade*u_visibility,farWeight),1.);
 }`
@@ -191,7 +222,7 @@ export class Cinema2PurityRenderer {
   private readonly matrix=new Float32Array(16)
   private disposed=false
   constructor(private readonly gl:WebGL2RenderingContext){
-    const result=ShaderProgram.create(gl,new ShaderCompiler(gl),{label:'Cinema2/PURITY/World',vertSrc:VERT,fragSrc:FRAG,requiredUniforms:['u_viewProjection','u_cameraPosition','u_metal','u_panel','u_perimeter','u_geometry','u_accent','u_roughness','u_reflections','u_falloff','u_visibility','u_pattern','u_previous','u_transition','u_chase','u_density','u_contrast','u_blackout','u_background','u_farFadeStart','u_farFadeEnd']})
+    const result=ShaderProgram.create(gl,new ShaderCompiler(gl),{label:'Cinema2/PURITY/World',vertSrc:VERT,fragSrc:FRAG,requiredUniforms:['u_viewProjection','u_cameraPosition','u_metal','u_panel','u_perimeter','u_geometry','u_accent','u_roughness','u_reflections','u_falloff','u_visibility','u_pattern','u_previous','u_transition','u_chase','u_density','u_contrast','u_blackout','u_background','u_farFadeStart','u_farFadeEnd','u_routePosition','u_localization']})
     if(!result.program)throw new Error(`PURITY shader: ${result.error.log}`)
     this.program=result.program
     const vao=gl.createVertexArray();if(!vao){this.program.dispose();throw new Error('PURITY VAO allocation failed')};this.vao=vao
@@ -203,7 +234,7 @@ export class Cinema2PurityRenderer {
     for(let a=0;a<3;a++){gl.enableVertexAttribArray(a);gl.vertexAttribPointer(a,a===2?2:3,gl.FLOAT,false,32,a*12)}
     alloc(gl.ELEMENT_ARRAY_BUFFER,box.indices,gl.STATIC_DRAW)
     this.instances=alloc(gl.ARRAY_BUFFER,PURITY_MAX_INSTANCES*STRIDE*4,gl.DYNAMIC_DRAW)
-    for(let a=0;a<3;a++){gl.enableVertexAttribArray(a+3);gl.vertexAttribPointer(a+3,4,gl.FLOAT,false,STRIDE*4,a*16);gl.vertexAttribDivisor(a+3,1)}
+    for(let a=0;a<5;a++){gl.enableVertexAttribArray(a+3);gl.vertexAttribPointer(a+3,4,gl.FLOAT,false,STRIDE*4,a*16);gl.vertexAttribDivisor(a+3,1)}
     gl.bindVertexArray(null);gl.bindBuffer(gl.ARRAY_BUFFER,null);assertCinema2NoGlErrors(gl,'PURITY setup')
     } catch(error) { gl.bindVertexArray(null);gl.bindBuffer(gl.ARRAY_BUFFER,null);for(const b of this.buffers)gl.deleteBuffer(b);gl.deleteVertexArray(vao);this.program.dispose();throw error }
   }
@@ -211,7 +242,7 @@ export class Cinema2PurityRenderer {
   draw(s:PurityDrawState){if(this.disposed)return;const {gl,program}=this;program.activate();this.matrix.set(s.viewProjection);program.setMat4('u_viewProjection',this.matrix);program.setVec3('u_cameraPosition',...s.cameraPosition)
     const names=['u_metal','u_panel','u_perimeter','u_geometry','u_accent'];for(let i=0;i<names.length;i++){const c=s.colors[i]!;program.setVec3(names[i]!,c[0],c[1],c[2])}
     program.setFloat('u_roughness',s.roughness);program.setFloat('u_reflections',s.reflections);program.setFloat('u_falloff',s.falloff);program.setFloat('u_visibility',s.visibility)
-    const g=s.geometry; program.setVec3('u_background',s.background[0],s.background[1],s.background[2]);program.setFloat('u_farFadeStart',g.farFadeStart);program.setFloat('u_farFadeEnd',g.farFadeEnd); for(const [name,value] of [['u_pattern',g.pattern],['u_previous',g.previous],['u_transition',g.transition],['u_chase',g.chase],['u_density',g.density],['u_contrast',g.contrast],['u_blackout',g.blackout]] as const)program.setFloat(name,value)
+    const g=s.geometry; program.setVec3('u_background',s.background[0],s.background[1],s.background[2]);program.setFloat('u_farFadeStart',g.farFadeStart);program.setFloat('u_farFadeEnd',g.farFadeEnd); for(const [name,value] of [['u_pattern',g.pattern],['u_previous',g.previous],['u_transition',g.transition],['u_chase',g.chase],['u_density',g.density],['u_contrast',g.contrast],['u_blackout',g.blackout],['u_routePosition',g.routePosition],['u_localization',g.localization]] as const)program.setFloat(name,value)
     gl.bindVertexArray(this.vao);gl.bindBuffer(gl.ARRAY_BUFFER,this.instances);gl.bufferSubData(gl.ARRAY_BUFFER,0,s.geometry.data,0,s.geometry.count*STRIDE)
     gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);gl.depthMask(true);gl.disable(gl.BLEND);gl.disable(gl.CULL_FACE);gl.colorMask(true,true,true,true)
     gl.drawElementsInstanced(gl.TRIANGLES,36,gl.UNSIGNED_SHORT,0,s.geometry.count);gl.bindVertexArray(null);gl.bindBuffer(gl.ARRAY_BUFFER,null);assertCinema2NoGlErrors(gl,'PURITY draw')

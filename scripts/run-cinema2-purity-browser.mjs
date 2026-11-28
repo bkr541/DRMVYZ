@@ -12,7 +12,7 @@ const output=path.resolve('artifacts/cinema2-purity/acceptance')
 const server=spawn(process.execPath,['node_modules/vite/bin/vite.js','--host','127.0.0.1','--port',String(port),'--strictPort'],{stdio:['ignore','pipe','pipe']})
 let log='',browser
 server.stdout.on('data',v=>log+=v);server.stderr.on('data',v=>log+=v)
-const patterns=['ignition','monolith','strata','pillar','matrix','wireframe','fracture','cascade','relay','spine','crosswire','eclipse']
+const patterns=['ignition','monolith','strata','pillar','matrix','wireframe','fracture','cascade','relay','spine','crosswire','eclipse','guidance','pursuit','interlock','domino','convergence','afterimage']
 const change=(a,b)=>{assert.equal(a.length,b.length);let sum=0;for(let i=0;i<a.length;i++)sum+=Math.abs(a[i]-b[i]);return sum/a.length}
 try {
   await mkdir(output,{recursive:true});let ready=false
@@ -28,7 +28,7 @@ try {
   const captures=[]
   for(const pattern of patterns){await api('set',{pattern});const raw=await capture(pattern);assert(raw.some(v=>v>15),`${pattern} rendered no geometry`);captures.push(raw)}
   for(let i=0;i<captures.length;i++)for(let j=0;j<i;j++)assert(change(captures[i],captures[j])>.03,`${patterns[i]} and ${patterns[j]} must differ`)
-  const controls=[['intensity',0,2],['tunnel-width',2.8,5.5],['tunnel-depth',.75,1.5],['frame-thickness',.08,.32],['structural-detail',0,1],['surface-roughness',.12,.85],['perimeter-lighting',false,true],['recessed-fixtures',false,true],['perimeter-intensity',0,2],['fixture-intensity',0,2],['fixture-density',.1,1,'matrix'],['lighting-contrast',0,1,'matrix'],['blackout-depth',0,1,'eclipse'],['bloom',0,2],['bloom-spread',.05,.8],['flares',0,1],['light-spill',0,1],['reflections',0,1],['atmosphere',0,.12],['depth-falloff',0,1],['atmospheric-texture',0,.5],['finish',0,1],['contrast',.8,1.5],['saturation',0,1.5],['vignette',0,.8],['fov',50,85]]
+  const controls=[['intensity',0,2],['tunnel-width',2.8,5.5],['tunnel-depth',.75,1.5],['frame-thickness',.08,.32],['structural-detail',0,1],['surface-roughness',.12,.85],['perimeter-lighting',false,true],['recessed-fixtures',false,true],['perimeter-intensity',0,2],['fixture-intensity',0,2],['fixture-density',.1,1,'matrix'],['lighting-contrast',0,1,'matrix'],['blackout-depth',0,1,'eclipse'],['bloom',0,2],['bloom-spread',.05,.8],['flares',0,1],['light-spill',0,1],['light-localization',0,1],['maze-layout','mixed','angular'],['reflections',0,1],['atmosphere',0,.12],['depth-falloff',0,1],['atmospheric-texture',0,.5],['finish',0,1],['contrast',.8,1.5],['saturation',0,1.5],['vignette',0,.8],['fov',50,85]]
   for(const [key,lo,hi,pattern='monolith'] of controls){await api('reset');await api('set',{'auto-performance':false,'motion-safety':'lockoff','camera-motion':false,pattern,[key]:lo});const a=await capture();await api('set',{[key]:hi});const delta=change(a,await capture());report.push({control:key,delta});assert(delta>.001,`${key} must affect final pixels`)}
   for(const key of ['background','metal','panel','perimeter','panel-light','accent','atmosphere-color']){await api('reset');await api('set',{'auto-performance':false,'motion-safety':'lockoff','camera-motion':false,pattern:'matrix'});const a=await capture();await api('set',{[key]:[.05,1,.12,1]});const delta=change(a,await capture());report.push({color:key,delta});assert(delta>.001,`${key} must affect final pixels`)}
   // The runtime intentionally freezes animation when the host has no active audio. Supply deterministic active playback for timing tests.
@@ -41,22 +41,22 @@ try {
   await api('set',{'bpm-sync':false});assert.equal(inspect(await api('status')).beatLocked,false)
   const pauseTravel=inspect(await api('status')).travel;await api('advance',.5,{paused:true});assert.equal(inspect(await api('status')).travel,pauseTravel)
   await api('advance',.1,{paused:false});await api('music',{energy:.5,timeSec:2});assert(inspect(await api('status')).travel<.1,'Seek must reset runtime travel')
-  // Multi-wrap flight on the actual production path, including drop, pause,
+  // Traverse a real corner on the production path, including drop, pause,
   // motion safety and a subsequent seek. Store timed frames and diagnostics.
-  await api('reset');await api('set',{'auto-performance':false,'camera-motion':false,'pattern-change':false,pattern:'monolith','travel-speed':2,'motion-amount':1,'tunnel-depth':.75})
+  await api('reset');await api('set',{'auto-performance':false,'camera-motion':false,'pattern-change':false,pattern:'monolith','travel-speed':2,'traversal-mode':'run','motion-amount':1,'tunnel-depth':.75})
   await api('music',{energy:.35,bass:.2,timeSec:20,bpm:180})
   const flight=[];let last=inspect(await api('status'))
-  const firstCycle=last.travelCycle
-  for(let i=0;i<24;i++){
+  const zones=new Set([last.zone])
+  for(let i=0;i<44;i++){
     if(i===8)await api('music',{energy:.95,bass:.9,event:'drop',eventId:80,bpm:180})
-    await api('advance',.125)
+    await api('advance',.25)
     const current=inspect(await api('status'))
     assert(current.travel>=last.travel,'Flight must never reverse during playback')
     assert(current.travelVelocity>=0&&Number.isFinite(current.travelVelocity),'Invalid flight velocity')
     flight.push({frame:i,travel:current.travel,velocity:current.travelVelocity,cycle:current.travelCycle})
-    await capture(`flight-${String(i).padStart(2,'0')}`);last=current
+    zones.add(current.zone);if(i%4===0)await capture(`flight-${String(i).padStart(2,'0')}`);last=current
   }
-  assert(last.travelCycle>=firstCycle+3,'Flight must cover multiple recycling boundaries')
+  assert(zones.size>=2,'World camera must traverse at least one maze corner')
   const paused=inspect(await api('advance',.25,{paused:true}));assert.equal(paused.travel,last.travel);assert.equal(paused.travelVelocity,0)
   await api('set',{'motion-safety':'lockoff'});await api('advance',.25);assert.equal(inspect(await api('status')).travel,paused.travel)
   await api('set',{'motion-safety':'full'});await api('music',{energy:.3,timeSec:2,bpm:120});assert(inspect(await api('status')).travel<.1)

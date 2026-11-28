@@ -1,7 +1,7 @@
 import { Cinema2MainframePatternController } from '../mainframe/Cinema2MainframePatternController'
 import type { Cinema2AfterhoursTriggerId } from '../Cinema2AfterhoursNativeModule'
 
-export const PURITY_PATTERNS = ['ignition','monolith','strata','pillar','matrix','wireframe','fracture','cascade','relay','spine','crosswire','eclipse'] as const
+export const PURITY_PATTERNS = ['ignition','monolith','strata','pillar','matrix','wireframe','fracture','cascade','relay','spine','crosswire','eclipse','guidance','pursuit','interlock','domino','convergence','afterimage'] as const
 export type PurityPattern = typeof PURITY_PATTERNS[number]
 export const PURITY_LABELS = PURITY_PATTERNS.map(value => value.toUpperCase())
 

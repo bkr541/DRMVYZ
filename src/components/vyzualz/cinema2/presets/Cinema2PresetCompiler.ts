@@ -892,6 +892,7 @@ function validateCameraMotion(
   if (motion.idleMotion != null && typeof motion.idleMotion !== 'boolean') invalid('idleMotion must be boolean.', '.idleMotion')
   if (motion.constantSpeed != null && typeof motion.constantSpeed !== 'boolean') invalid('Motion constantSpeed must be boolean.', '.constantSpeed')
   const isPath = camera.rig?.kind === 'path' || camera.rig?.kind === 'fly'
+  if (motion.povTraversal != null && (typeof motion.povTraversal !== 'boolean' || (motion.povTraversal && (!isPath || motion.interpolation !== 'spline' || !motion.tempo || !camera.rig || !('loop' in camera.rig) || !camera.rig.loop || camera.rig.repeatOffset || camera.rig.durationSeconds != null)))) invalid('POV traversal requires a closed, speed-based spline with tempo.', '.povTraversal')
   if ((motion.interpolation != null || motion.constantSpeed != null) && !isPath) invalid('interpolation/constantSpeed require a path or fly rig.', '.interpolation')
   const nonNegative = (value: unknown, subPath: string, max = Number.POSITIVE_INFINITY) => {
     if (value != null && (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > max)) invalid(`Value must be a finite number between 0 and ${max}.`, subPath)
@@ -972,6 +973,10 @@ function validateCameraControls(
     ['orbitMotionEnabled', ['boolean']],
     ['orbitMotionSpeed', ['float', 'integer']],
     ['motionSpeed', ['float', 'integer']],
+    ['pathPace', ['enum']],
+    ['pathAcceleration', ['float']],
+    ['headBob', ['float']],
+    ['cornerAnticipation', ['float']],
     ['masterMotionAmount', ['float', 'integer']],
     ['motionSafety', ['enum']],
     ['tempoSync', ['boolean', 'float', 'integer']],
@@ -996,6 +1001,8 @@ function validateCameraControls(
     if (name === 'pathProgress' && camera.rig?.kind !== 'path' && camera.rig?.kind !== 'fly') {
       diagnostics.push(error('CINEMA2_PRESET_CAMERA_CONTROLS_INVALID', 'pathProgress requires a path or fly rig.', controlPath))
     }
+    if (['pathPace','pathAcceleration','headBob','cornerAnticipation'].includes(name) && !camera.motion?.povTraversal) diagnostics.push(error('CINEMA2_PRESET_CAMERA_CONTROLS_INVALID', `${name} requires motion.povTraversal.`, controlPath))
+    if (name === 'pathPace' && parameter?.options?.some(option => !['walk','jog','run','adaptive'].includes(String(option.value)))) diagnostics.push(error('CINEMA2_PRESET_CAMERA_CONTROLS_INVALID', 'Invalid POV pace option.', controlPath))
     if (name === 'kickZoom' && camera.motion?.tempo == null) {
       diagnostics.push(error('CINEMA2_PRESET_CAMERA_CONTROLS_INVALID', 'kickZoom requires the camera to author `motion.tempo`.', controlPath))
     }

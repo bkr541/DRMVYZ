@@ -397,6 +397,8 @@ export interface Cinema2CameraTempoManifest {
 }
 
 export interface Cinema2CameraMotionManifest {
+  /** Opt-in grounded spline travel: independent gait accents and eased distance integration. */
+  povTraversal?: boolean
   /** Opt-in ambient movement with no source loaded; explicit false returns to the authored home without a source. Omitted preserves legacy behavior. */
   idleMotion?: boolean
   /** Ease from the last safe pose across playback seeks/track swaps, while resetting musical clocks. */
@@ -438,6 +440,11 @@ export interface Cinema2CameraControlBindingsManifest {
   motionEnabled?: Cinema2ParameterRef
   /** Multiplies the integrated tempo-aware motion clock without jumping its phase. Requires motion.tempo. */
   motionSpeed?: Cinema2ParameterRef
+  /** Grounded POV controls, valid only for motion.povTraversal. */
+  pathPace?: Cinema2ParameterRef
+  pathAcceleration?: Cinema2ParameterRef
+  headBob?: Cinema2ParameterRef
+  cornerAnticipation?: Cinema2ParameterRef
   /** Optional master movement gain in addition to this camera's motionAmount. Requires motion. */
   masterMotionAmount?: Cinema2ParameterRef
   /** Starts/stops additive orbit progression. Requires motion.orbit. */
