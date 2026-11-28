@@ -10,14 +10,14 @@ import { createCinema2UserModelPreset, cinema2UserModelPreviewParameterId } from
 import { Cinema2ParameterState } from '../parameters/Cinema2ParameterState'
 import { createCinema2DesignParentGroupModel, createCinema2InspectorModel } from '../parameters/Cinema2InspectorModel'
 import { CINEMA2_AFTERHOURS_TRIGGER_OPTIONS } from '../presets/Cinema2AfterhoursPreset'
-import { CINEMA2_USER_MODEL_PREVIEWS, type Cinema2UserModelPreviewKind } from './Cinema2UserModelPreviewPatterns'
+import { CINEMA2_SELECTABLE_USER_MODEL_PREVIEWS, CINEMA2_USER_MODEL_PREVIEWS } from './Cinema2UserModelPreviewPatterns'
 import { Cinema2UserModelPreviewEffects } from './Cinema2UserModelPreviewEffects'
 import type { Cinema2ThreeLibrary } from '../modules/three/Cinema2ThreeLibrary'
 import type { Cinema2ModuleFrameReadContext, Cinema2ModuleUpdateContext } from '../modules/Cinema2ModuleContracts'
 import { Cinema2AudioIntelligenceBridge } from '../audio/Cinema2AudioIntelligenceBridge'
 import { ifritMusicFixture } from '../../../../test/support/IfritMusicFixture'
 import { activateCinema2Workspace, createEmptyCinema2WorkspaceDocument, parseCinema2WorkspaceDocument } from '../runtime/Cinema2WorkspacePersistence'
-const kinds = Object.keys(CINEMA2_USER_MODEL_PREVIEWS) as Cinema2UserModelPreviewKind[]
+const kinds = CINEMA2_SELECTABLE_USER_MODEL_PREVIEWS
 const library = { THREE, wideLines: { LineSegments2, LineSegmentsGeometry, LineMaterial } } as unknown as Cinema2ThreeLibrary
 function root() {
   const group = new THREE.Group(), front = new THREE.MeshPhysicalMaterial({ color: '#abcdef' }), side = new THREE.MeshPhysicalMaterial({ color: '#ddaa11' }); front.name = 'front'; side.name = 'side'
@@ -118,16 +118,61 @@ describe('shared pattern authority and musical event reuse', () => {
   })
 })
 
-it('projects a simple fixed Form preview and persists retained model and appearance values', () => {
-  const kind = 'form', manifest = createCinema2UserModelPreset(kind), compiled = cinema2NativePresetRegistry.compile(manifest.id)
+it('projects a simple fixed Shatter preview and persists retained model and appearance values', () => {
+  const kind = 'shatter', manifest = createCinema2UserModelPreset(kind), compiled = cinema2NativePresetRegistry.compile(manifest.id)
   if (!compiled.ok) throw new Error('Preview did not compile')
   const state = new Cinema2ParameterState(compiled.plan.parameters), id = (key: string) => cinema2UserModelPreviewParameterId(kind, key)
   const groups = () => createCinema2DesignParentGroupModel(compiled.plan, state.getSnapshot()).flatMap(parent => parent.groups.map(group => group.label))
-  expect(groups()).not.toContain('Shatter'); expect(groups()).not.toContain('Audio Modulation')
+  expect(groups()).not.toContain('Voxel'); expect(groups()).not.toContain('Audio Modulation')
   expect(state.setPersistentValue(id('representation'), 'shatter').ok).toBe(false)
   const savedValues = { model: 'user-model:c0000000-0000-4000-8000-000000000001:3', cinematicBloom: .7, modelScale: .8, autoPerformance: true }
   for (const [key, value] of Object.entries(savedValues)) expect(state.setPersistentValue(id(key), value).ok, key).toBe(true)
   const restored = new Cinema2ParameterState(compiled.plan.parameters)
   expect(restored.restore(state.serialize()).ok).toBe(true)
   for (const [key, value] of Object.entries(savedValues)) expect(restored.getValue(id(key)), key).toEqual(value)
+})
+
+
+it('ships exactly four model previews; retired Form and Voxel are no longer selectable or registered', () => {
+  const ids = cinema2NativePresetRegistry.list().filter(manifest => manifest.id.startsWith('drmvyz.cinema2.user-model-')).map(manifest => manifest.id)
+  expect(ids).toEqual(CINEMA2_SELECTABLE_USER_MODEL_PREVIEWS.map(kind => createCinema2UserModelPreset(kind).id).sort())
+  for (const kind of ['form', 'voxel'] as const) expect(cinema2NativePresetRegistry.get(createCinema2UserModelPreset(kind).id)).toBeNull()
+})
+
+// Exercise every remaining arrangement through its full cycle on the shared musical clock.
+describe.each(CINEMA2_SELECTABLE_USER_MODEL_PREVIEWS)('%s intact-model choreography', kind => {
+  it.each(CINEMA2_USER_MODEL_PREVIEWS[kind])('reveals, transforms and restores the real model in %s', pattern => {
+    const scene = root(), original = scene.children[0] as THREE.Mesh
+    const controller = new Cinema2UserModelPreviewEffects(library, kind)
+    controller.attach(scene, true)
+    const source = scene.getObjectByName('UserModelPreviewSource')!
+    const values = { pattern, effectPose: 'logo-cycle', movement: .35, speed: 1, opacity: kind === 'hologram' ? .65 : 1, reactivity: 0 }
+    const step = (beat: number) => {
+      controller.update(context(values, 2 + beat / 2), { timing: { beats: beat, bpm: 120, source: 'analyzed-beat-grid', confirmedGrid: true }, motionBeats: beat })
+      controller.beforeDraw('high')
+    }
+    step(0)
+    expect(source.visible).toBe(true); expect(source.children[0]).toBe(original); expect(controller.inspect().logoAmount).toBe(0)
+    for (let beat = .5; beat <= 8; beat += .5) step(beat)
+    expect(controller.inspect().logoAmount).toBeCloseTo(1)
+    if (kind !== 'hologram') expect(source.visible).toBe(false)
+    expect(controller.logoOrbitRadians()).toBeGreaterThan(.1)
+    for (let beat = 8.5; beat <= 14; beat += .5) step(beat)
+    expect(controller.inspect().logoAmount).toBe(0); expect(source.visible).toBe(true)
+    expect(controller.logoOrbitRadians()).toBeGreaterThan(0)
+    for (let beat = 14.5; beat <= 16; beat += .5) step(beat)
+    expect(controller.logoOrbitRadians()).toBeCloseTo(0); expect(controller.inspect().logoAmount).toBe(0)
+    expect((source.children[0] as THREE.Mesh).geometry).toBe(original.geometry)
+    controller.dispose()
+  })
+})
+
+it('does not restart the logo cycle on each beat-driven Pattern Change', () => {
+  const controller = new Cinema2UserModelPreviewEffects(library, 'shatter')
+  const values = { effectPose: 'logo-cycle', pattern: 'Radial Burst', patternChange: true, trigger: 'beat' }
+  for (let beat = 0; beat <= 16; beat += .5) {
+    controller.update(context(values, 2 + beat / 2, 'beat', Math.floor(beat) + 1), { timing: { beats: beat, bpm: 120, source: 'analyzed-beat-grid', confirmedGrid: true }, motionBeats: beat })
+    if (beat === 8) expect(controller.inspect().logoAmount).toBeCloseTo(1)
+  }
+  expect(controller.inspect().logoAmount).toBe(0); controller.dispose()
 })

@@ -121,6 +121,8 @@ export interface Cinema2ThreeSceneOptions {
     detach?(root: ThreeNamespace.Object3D): void
     /** `camera` is the final world camera for this draw (after the rig, the user controls and the safety clamp). */
     beforeDraw?(quality: Cinema2RenderQualityLevel, camera?: Readonly<{ position: readonly [number, number, number] }>): void
+    /** Optional preset-local orbit around the already resolved camera target, in radians. */
+    cameraOrbitRadians?(): number
     dispose?(): void
   }>
   panels?: readonly Cinema2ThreePanelSpec[]
@@ -624,6 +626,15 @@ export class Cinema2ThreeSceneBridge {
       if (this.options.modelController?.afterVisibility) this.options.modelController.beforeDraw?.(lighting.quality, camera)
       this.place(exec, spinRadians, placement?.scale ?? 1, placement?.view ?? null)
       applyCinema2CameraFrame(this.camera, camera)
+      const orbit = this.options.modelController?.cameraOrbitRadians?.() ?? 0
+      if (Number.isFinite(orbit) && Math.abs(orbit) > .00001) {
+        const T = this.library.THREE, [x, y, z] = camera.target
+        // Rotate the complete camera world transform about the model target, preserving projection and roll.
+        const transform = new T.Matrix4().makeTranslation(x, y, z)
+          .multiply(new T.Matrix4().makeRotationY(orbit)).multiply(new T.Matrix4().makeTranslation(-x, -y, -z))
+        this.camera.matrixWorld.premultiply(transform)
+        this.camera.matrixWorldInverse.copy(this.camera.matrixWorld).invert()
+      }
       if (this.particleFields.length > 0) {
         const scale = (exec.height * this.camera.projectionMatrix.elements[5]!) / 2
         const glowColor = this.glowUniforms.uCinema2GlowStrength.value > 0 ? this.glowUniforms.uCinema2GlowColor.value : null

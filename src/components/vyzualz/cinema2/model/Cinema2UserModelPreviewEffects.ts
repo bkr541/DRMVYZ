@@ -1,3 +1,4 @@
+import { CINEMA2_LOGO_CYCLE_BEATS, cinema2UserModelLogoCycle } from './Cinema2UserModelLogoCycle'
 import { Cinema2PatternControlResolver } from '../conductor/Cinema2PatternControls'
 import type * as Three from 'three'
 import type { Cinema2RenderQualityLevel } from '../contracts/Cinema2NativePresetManifest'
@@ -107,6 +108,14 @@ export class Cinema2UserModelPreviewEffects {
   private fallbackMotionBeats = 0
   private cycleStartBeat: number | null = null
   private lastStagePattern: string | null = null
+  private logoCycle = false
+  private logoBeat = 0
+  private lastLogoMotionBeat: number | null = null
+  private lastLogoDrop: string | null = null
+  private logoAmount = 0
+  private logoOrbit = 0
+  logoOrbitRadians(): number { return this.logoOrbit }
+  logoEffectAmount(): number { return this.logoCycle ? this.logoAmount : 1 }
   private sliceSpread = 0
   private dustCycle = cinema2DustCycle(0)
   private readonly dummy: Three.Object3D
@@ -187,6 +196,27 @@ export class Cinema2UserModelPreviewEffects {
       this.sliceSpread = 1
       this.dustCycle = { ...this.dustCycle, dissolve: 1, spread: 1 }
     }
+    this.logoCycle = parameters.get('effectPose') === 'logo-cycle' && this.kind !== 'form' && this.kind !== 'voxel'
+    if (this.logoCycle) {
+      const stopped = resolveCinema2MainframePlaybackState(frame, audio) === 'stopped' && !playing
+      if (reset || stopped || this.lastLogoMotionBeat === null) { this.logoBeat = 0; this.lastLogoDrop = null }
+      else if (playing && moving) this.logoBeat += clamp(motionBeats - this.lastLogoMotionBeat, 0, timing.bpm / 60 * .75) * speed
+      this.lastLogoMotionBeat = motionBeats
+      if (!moving) this.logoBeat = 0
+      // A fresh canonical drop can launch a new attack from the solid pose. Never restart on ordinary pattern triggers.
+      if (playing && moving && dropEventId && dropEventId !== this.lastLogoDrop) {
+        this.lastLogoDrop = dropEventId
+        const current = cinema2UserModelLogoCycle(this.logoBeat)
+        if (current.phase < .125) this.logoBeat += (.125 - current.phase) * CINEMA2_LOGO_CYCLE_BEATS
+      }
+      const reveal = cinema2UserModelLogoCycle(this.logoBeat)
+      // Musical energy can accent the effect but cannot erase the solid/reassembly endpoints.
+      const accent = 1 + reaction * .25 + buildCharge * .12 * number('reactivity', .6)
+      this.sliceSpread = clamp(reveal.amount * accent)
+      this.dustCycle = { ...cinema2DustCycle(reveal.phase * CINEMA2_LOGO_CYCLE_BEATS), phase: reveal.phase, dissolve: reveal.dissolve, spread: clamp(reveal.particleSpread * accent) }
+      this.logoAmount = this.kind === 'dust' ? reveal.dissolve : reveal.amount
+      this.logoOrbit = reveal.orbitRadians * clamp(movement / .35, 0, 1.5)
+    } else { this.logoAmount = 0; this.logoOrbit = 0; this.lastLogoMotionBeat = null; this.lastLogoDrop = null }
     this.shardImpulse = number('shardImpulse', 0)
     this.dustImpulse = number('dustImpulse', 0)
     this.dustSparkle = number('dustSparkle', 0)
@@ -229,6 +259,11 @@ export class Cinema2UserModelPreviewEffects {
       this.dustCycle = { ...this.dustCycle, dissolve: clamp(Math.max(this.dustCycle.dissolve, this.dustImpulse * .65) * reassembly), spread: clamp(Math.max(this.dustCycle.spread, this.dustImpulse * .55) * reassembly) }
     }
     if (this.kind === 'hologram') this.sliceSpread = Math.max(this.sliceSpread, this.holoFlash * .35)
+    if (this.logoCycle) {
+      this.shardImpulse = this.kind === 'shatter' ? this.logoAmount * reaction * .65 : 0
+      this.holoFlash = this.kind === 'hologram' ? this.logoAmount * reaction : 0
+      this.dustSparkle = this.kind === 'dust' ? this.logoAmount * reaction : 0
+    }
     this.manualPose = manualPose
     this.hologramLines = number('hologramLines', 1, .25, 2)
     this.controls = { tintModel: this.kind === 'form' && parameters.get('formMaterial') === 'original' ? false : parameters.get('tintModel') === true || this.kind === 'form' && parameters.get('formMaterial') === 'palette', modelYaw: number('modelYaw', 0, -180, 180) * Math.PI / 180, modelScale: number('modelScale', 1, .5, 1.2), pattern: names.indexOf(onStage), phase: motionBeats * Math.PI * 0.25 * number('speed', 1, 0, 3) * (number('movement', .35, 0, .8) > 0 ? 1 : 0), movement: number('movement', 0.35, 0, 0.8), intensity: number('intensity', 0.8, 0, 2), opacity: number('opacity', 1, 0.1, 1) * (this.kind === 'hologram' ? 1 - number('hologramTransparency', 0, 0, .9) : 1), emission: number('emission', 0.2, 0, 2) + (this.kind === 'hologram' ? number('hologramGlow', 0, 0, 2) : 0), reaction, primary: color('primary', this.controls.primary), secondary: color('secondary', this.controls.secondary), accent: color('accent', this.controls.accent) }
@@ -247,7 +282,7 @@ export class Cinema2UserModelPreviewEffects {
     root.traverse(object => { if ((object as Three.Mesh).isMesh) meshes.push(object as Three.Mesh) })
     const { center, size, extent } = prepared
     const dustUniforms = createCinema2DustUniforms(extent)
-    const pivot = new T.Group(), source = new T.Group(); pivot.name = 'UserModelPreview'; pivot.position.copy(center); source.position.copy(center).multiplyScalar(-1)
+    const pivot = new T.Group(), source = new T.Group(); pivot.name = 'UserModelPreview'; source.name = 'UserModelPreviewSource'; pivot.position.copy(center); source.position.copy(center).multiplyScalar(-1)
     for (const child of [...root.children]) source.add(child)
     pivot.add(source); root.add(pivot)
     const geometries = new Set<Three.BufferGeometry>(), materials = new Set<Three.Material>(), originals: Original[] = []
@@ -323,7 +358,7 @@ export class Cinema2UserModelPreviewEffects {
   setTransitionOpacity(opacity: number): void { this.transitionOpacity = clamp(opacity) }
   private transitionOpacity = 1
   beforeDraw(quality: Cinema2RenderQualityLevel = 'high'): void {
-    const T = this.library.THREE, c = { ...this.controls, opacity: this.controls.opacity * this.transitionOpacity }, p = c.pattern, phase = c.phase, m = c.movement, r = c.reaction
+    const T = this.library.THREE, c = { ...this.controls, opacity: (this.logoCycle ? 1 + (this.controls.opacity - 1) * this.logoAmount : this.controls.opacity) * this.transitionOpacity }, p = c.pattern, phase = c.phase, m = c.movement, r = c.reaction
     const assembly = this.musicalDirector ? this.transitionOpacity : 1
     const drawSpread = this.sliceSpread * assembly, drawDissolve = this.dustCycle.dissolve * assembly
     for (const a of this.attachments.values()) {
@@ -360,9 +395,9 @@ export class Cinema2UserModelPreviewEffects {
         if (c.tintModel) o.material.color.multiply(this.tint)
         if (o.material.name === 'Model Cut Face') o.material.color.copy(this.tint)
         o.material.color.multiplyScalar(c.intensity)
-        o.material.emissive.copy(o.emissive); o.material.emissiveIntensity = o.intensity + c.emission
+        o.material.emissive.copy(o.emissive); o.material.emissiveIntensity = o.intensity + c.emission * (this.logoCycle ? this.logoAmount : 1)
         o.material.opacity = o.opacity * c.opacity * (this.kind === 'voxel' && a.voxels ? 1 - (this.manualPose ? 1 : clamp(this.sliceSpread / .15)) : 1)
-        const transparent = this.kind === 'hologram' || o.transparent || o.material.opacity < 1; if (o.material.transparent !== transparent) o.material.needsUpdate = true; o.material.transparent = transparent; o.material.depthWrite = o.depthWrite && o.material.opacity >= 1 && !(this.kind === 'hologram' && this.sliceSpread > .00001)
+        const transparent = (this.kind === 'hologram' && (!this.logoCycle || this.logoAmount > .00001)) || o.transparent || o.material.opacity < 1; if (o.material.transparent !== transparent) o.material.needsUpdate = true; o.material.transparent = transparent; o.material.depthWrite = o.depthWrite && o.material.opacity >= 1 && !(this.kind === 'hologram' && this.sliceSpread > .00001)
       }
       for (const [material, rgb] of [[a.primary, c.primary], [a.secondary, c.secondary]] as const) { material.color.setRGB(rgb[0], rgb[1], rgb[2], T.SRGBColorSpace).multiplyScalar(c.intensity); material.emissive.copy(material.color); material.emissiveIntensity = c.emission + r * .25; material.opacity = c.opacity; if (material.transparent !== (c.opacity < 1)) material.needsUpdate = true; material.transparent = c.opacity < 1 }
       const accent = a.accent.material as Three.MeshBasicMaterial; accent.color.setRGB(c.accent[0], c.accent[1], c.accent[2], T.SRGBColorSpace).multiplyScalar(.7 + c.emission); accent.opacity = c.opacity; if (accent.transparent !== (c.opacity < 1)) accent.needsUpdate = true; accent.transparent = c.opacity < 1
@@ -470,5 +505,5 @@ export class Cinema2UserModelPreviewEffects {
       return messages
     })
   }
-  inspect() { return { ...this.patternPolicy.inspect(), transformSpread: this.sliceSpread, fragments: [...this.attachments.values()].flatMap(a => a.shatter ? [{ count: a.shatter.fragments.length, triangles: a.shatter.triangles, bytes: a.shatter.bytes }] : []), voxels: [...this.attachments.values()].flatMap(a => a.voxels ? [{ solid: a.voxels.solid, grids: [...a.voxels.grids].map(([quality, grid]) => ({ quality, count: grid.count })) }] : []), sliceSpread: this.kind === 'slices' ? this.sliceSpread : null, sliceGeometry: [...this.attachments.values()].flatMap(a => a.cutModel ? [{ layers: a.cutModel.meshes.length, triangles: a.cutModel.triangleCount, capTriangles: a.cutModel.capTriangles, openContours: a.cutModel.openContours, bytes: a.cutModel.byteLength }] : []), dustCycle: this.kind === 'dust' ? this.dustCycle : null, hologramModes: [...this.attachments.values()].flatMap(a => a.hologram ? [a.hologram.mode.value] : []), kind: this.kind, pattern: CINEMA2_USER_MODEL_PREVIEWS[this.kind][this.controls.pattern], phase: this.controls.phase, reaction: this.controls.reaction, attachmentCount: this.attachments.size, preparations: [...this.attachments.values()].map(a => ({ triangles: a.prepared.triangleCount, samples: a.prepared.samplePositions.length / 3, sections: a.prepared.sections.length, cpuBytes: a.prepared.byteLength, center: a.prepared.center.toArray(), size: a.prepared.size.toArray(), scaleToUnit: a.prepared.scaleToUnit })), limits: CINEMA2_USER_MODEL_PROXY_LIMITS } }
+  inspect() { return { ...this.patternPolicy.inspect(), transformSpread: this.sliceSpread, logoCycle: this.logoCycle, logoAmount: this.logoAmount, logoOrbitRadians: this.logoOrbit, fragments: [...this.attachments.values()].flatMap(a => a.shatter ? [{ count: a.shatter.fragments.length, triangles: a.shatter.triangles, bytes: a.shatter.bytes }] : []), voxels: [...this.attachments.values()].flatMap(a => a.voxels ? [{ solid: a.voxels.solid, grids: [...a.voxels.grids].map(([quality, grid]) => ({ quality, count: grid.count })) }] : []), sliceSpread: this.kind === 'slices' ? this.sliceSpread : null, sliceGeometry: [...this.attachments.values()].flatMap(a => a.cutModel ? [{ layers: a.cutModel.meshes.length, triangles: a.cutModel.triangleCount, capTriangles: a.cutModel.capTriangles, openContours: a.cutModel.openContours, bytes: a.cutModel.byteLength }] : []), dustCycle: this.kind === 'dust' ? this.dustCycle : null, hologramModes: [...this.attachments.values()].flatMap(a => a.hologram ? [a.hologram.mode.value] : []), kind: this.kind, pattern: CINEMA2_USER_MODEL_PREVIEWS[this.kind][this.controls.pattern], phase: this.controls.phase, reaction: this.controls.reaction, attachmentCount: this.attachments.size, preparations: [...this.attachments.values()].map(a => ({ triangles: a.prepared.triangleCount, samples: a.prepared.samplePositions.length / 3, sections: a.prepared.sections.length, cpuBytes: a.prepared.byteLength, center: a.prepared.center.toArray(), size: a.prepared.size.toArray(), scaleToUnit: a.prepared.scaleToUnit })), limits: CINEMA2_USER_MODEL_PROXY_LIMITS } }
 }

@@ -3,14 +3,14 @@ import { cinema2StableId, type Cinema2NativePresetManifest, type Cinema2Paramete
 import { createCinema2ModelAudioParameters } from '../model/Cinema2ModelAudioChoreography'
 import { createCinema2ModelCinematicParameters } from '../presets/Cinema2ModelCinematicAuthoring'
 import { modelAudioConsumerParameterIds } from '../model/Cinema2ModelAudioParameterContract'
-import { CINEMA2_USER_MODEL_PREVIEWS, type Cinema2UserModelPreviewKind } from '../model/Cinema2UserModelPreviewPatterns'
+import { CINEMA2_SELECTABLE_USER_MODEL_PREVIEWS } from '../model/Cinema2UserModelPreviewPatterns'
 import { CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS } from '../presets/Cinema2FirstPartyPresetCatalog'
 import { validateCinema2PresetAuthoringConventions } from '../presets/Cinema2PresetAuthoring'
 import { compileCinema2NativePreset } from '../presets/Cinema2PresetCompiler'
 import { cinema2NativePresetRegistry } from '../presets/Cinema2PresetRegistry'
 import { createCinema2UserModelPreset, cinema2UserModelPreviewParameterId } from '../presets/Cinema2UserModelPresetFactory'
 
-const kinds = Object.keys(CINEMA2_USER_MODEL_PREVIEWS) as Cinema2UserModelPreviewKind[]
+const kinds = CINEMA2_SELECTABLE_USER_MODEL_PREVIEWS
 const check = (manifest: Readonly<Cinema2NativePresetManifest>) => validateCinema2PresetAuthoringConventions({ role: 'reference', manifest })
 const invalid = 'CINEMA2_PRESET_RUNTIME_PARAMETER_CONSUMER_INVALID'
 const unconsumed = 'CINEMA2_PRESET_AUTHORING_CONTROL_UNCONSUMED'

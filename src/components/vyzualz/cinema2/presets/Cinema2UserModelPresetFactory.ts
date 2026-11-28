@@ -9,10 +9,10 @@ import { CINEMA2_QUALITY_MODE_PARAMETER } from '../parameters/Cinema2Performance
 import { CINEMA2_AFTERHOURS_TRIGGER_OPTIONS } from './Cinema2AfterhoursPreset'
 export const CINEMA2_USER_MODEL_PREVIEW_DESCRIPTIONS = {
   form: 'Original saved PBR materials under neutral studio reflections, with six bounded whole-model choreographies.',
-  shatter: 'Actual capped model fragments remain visible while separating and rotating; bounded geometric partitioning, not rigid-body simulation.',
-  dust: 'Model-derived particles remain visible with six native particle choreographies.',
-  hologram: 'Thick structural edges, directional scan bands, rim light and contour echoes project across the actual model surfaces.',
-  slices: 'Actual model surfaces clipped into material-preserving oriented sections with closed cut-face caps, six separated-section choreographies.',
+  shatter: 'The intact model fractures into moving geometry and reassembles to the original logo.',
+  dust: 'The original model dissolves into moving particles, gathers and reforms.',
+  hologram: 'The original model transitions into a holographic projection and resolves back to its original surfaces.',
+  slices: 'The intact model separates into material-preserving sections and returns to its original geometry.',
   voxel: 'Mesh-intersecting voxel grids fill closed models; open models use an explicitly diagnosed surface shell.',
 } as const
 export function cinema2UserModelPreviewParameterId(kind: Cinema2UserModelPreviewKind, property: string): Cinema2ParameterId { return cinema2StableId<Cinema2ParameterId>(`user-model-${kind}-${property.replace(/[A-Z]/g, letter => '-' + letter.toLowerCase())}`) }
@@ -85,7 +85,7 @@ export function createCinema2UserModelPreset(kind: Cinema2UserModelPreviewKind):
   const manifest: Cinema2NativePresetManifest = {
     schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID, schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
     id: cinema2NamespacedId<Cinema2PresetId>(`drmvyz.cinema2.${prefix}`), revision: 1,
-    metadata: { name: `3D ${kind.toUpperCase()} (Preview)`, description: `Reference preview: ${CINEMA2_USER_MODEL_PREVIEW_DESCRIPTIONS[kind]} Select a user model in Source to inspect this representation.`, tags: ['reference', 'preview', 'user-model', '3d', kind] },
+    metadata: { name: `3D ${kind.toUpperCase()} (Preview)`, description: `Reference preview: ${CINEMA2_USER_MODEL_PREVIEW_DESCRIPTIONS[kind]} Select a user model in Source; each pattern reveals, transforms and restores the model with musical timing.`, tags: ['reference', 'preview', 'user-model', '3d', kind] },
     capabilities: [{ id: 'render.webgl2', requirement: 'required', purpose: 'The shared Three.js world render path.' }, { id: 'render.depth', requirement: 'required', purpose: 'Depth-tested model effects.' }, { id: 'scene.3d', requirement: 'required', purpose: 'Model placement in the shared Scene Graph.' }, { id: 'camera.world', requirement: 'required', purpose: 'Neutral stage framing.' }, { id: 'lighting', requirement: 'required', purpose: 'PBR model lighting.' }],
     ...base.authored,
     cameras: base.authored.cameras?.map(camera => ({ ...camera, fovDegrees: 38, transform: { position: [0, 1.45, 5.8] as [number, number, number] }, rig: { kind: 'orbit' as const, radius: Math.hypot(.35, 5.8), azimuthDegrees: 0, elevationDegrees: Math.atan2(.35, 5.8) * 180 / Math.PI, angularVelocityDegreesPerSecond: 0 }, controls: { orbitRadius: cinema2Ref(id('cameraZoom')) } })),
@@ -97,7 +97,7 @@ export function createCinema2UserModelPreset(kind: Cinema2UserModelPreviewKind):
     ] },
     environment: { ...base.authored.environment!, fog: { mode: 'exponential', color: [0,0,0,1], density: 0 }, controls: { backgroundColor: cinema2Ref(id('background')) } },
     parameters,
-    modules: [{ id: moduleId, typeId: CINEMA2_THREE_SCENE_MODULE_TYPE_ID, version: 1, parameters: { ...moduleParameters, userModel: 'default-model', effectPose: 'representation', emission: kind === 'dust' || kind === 'hologram' ? .45 : 0, opacity: kind === 'hologram' ? .65 : 1 }, parameterBindings: { ...bindings, userModel: cinema2Ref(id('model')) }, config: { ...base.moduleConfig, environment: CINEMA2_STUDIO_NEUTRAL_ENVIRONMENT_ASSET_ID, userModel: { ...base.moduleConfig.userModel, neutralFloor: false }, userModelPreview: kind, hdr: true } }],
+    modules: [{ id: moduleId, typeId: CINEMA2_THREE_SCENE_MODULE_TYPE_ID, version: 1, parameters: { ...moduleParameters, userModel: 'default-model', effectPose: 'logo-cycle', emission: kind === 'dust' || kind === 'hologram' ? .45 : 0, opacity: kind === 'hologram' ? .65 : 1 }, parameterBindings: { ...bindings, userModel: cinema2Ref(id('model')) }, config: { ...base.moduleConfig, environment: CINEMA2_STUDIO_NEUTRAL_ENVIRONMENT_ASSET_ID, userModel: { ...base.moduleConfig.userModel, neutralFloor: false }, userModelPreview: kind, hdr: true } }],
     ...createCinema2ModelCinematicGraph(prefix, id, base.root, true),
   }
   // Standard shared Auto Performance policy; the six native pattern engines own the visual choreography.

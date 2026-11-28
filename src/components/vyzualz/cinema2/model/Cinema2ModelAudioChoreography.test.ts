@@ -12,7 +12,7 @@ import { CINEMA2_NATIVE_PRESET_SCHEMA_ID, CINEMA2_NATIVE_PRESET_SCHEMA_VERSION, 
 import type { Cinema2ModuleFrameReadContext } from '../modules/Cinema2ModuleContracts'
 import { ifritMusicFixture, type IfritFixtureOptions } from '../../../../test/support/IfritMusicFixture'
 import { createCinema2ModelAudioParameters, MODEL_AUDIO_TARGETS, MODEL_AUDIO_SLOT_COUNT } from './Cinema2ModelAudioChoreography'
-import { CINEMA2_USER_MODEL_PREVIEWS, type Cinema2UserModelPreviewKind } from './Cinema2UserModelPreviewPatterns'
+import { CINEMA2_SELECTABLE_USER_MODEL_PREVIEWS, CINEMA2_USER_MODEL_PREVIEWS, type Cinema2UserModelPreviewKind } from './Cinema2UserModelPreviewPatterns'
 
 function harness(kind: Cinema2UserModelPreviewKind = 'form', productionPlan?: Readonly<Cinema2CompiledPresetPlan>) {
   const id = (key: string) => `user-model-${kind}-${key.replace(/[A-Z]/g, c => '-' + c.toLowerCase())}` as Cinema2ParameterId
@@ -77,7 +77,7 @@ it('persists a triggered destination and reassembles on a fresh canonical event 
   h.frame({ event: 'beat', eventId: 78 }, .2); assert.equal(h.value('representation'), 'default')
 })
 
-for (const kind of Object.keys(CINEMA2_USER_MODEL_PREVIEWS) as Cinema2UserModelPreviewKind[]) {
+for (const kind of CINEMA2_SELECTABLE_USER_MODEL_PREVIEWS) {
   it(`does not install the legacy audio mapping matrix for the registered ${kind} preview`, () => {
     const compiled = cinema2NativePresetRegistry.compile(createCinema2UserModelPreset(kind).id)
     if (!compiled.ok) throw new Error(JSON.stringify(compiled.diagnostics))

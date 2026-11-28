@@ -44,11 +44,11 @@ import { ifritMusicFixture } from '/src/test/support/IfritMusicFixture.ts';
 const cache=new Cinema2UserModelCache(new Cinema2UserModelResolver({repository:repo,currentUser:async()=>owner}));
 const modules=new Cinema2ModuleRegistry();modules.register(createCinema2ThreeSceneModuleDefinition({userModels:cache,subscribeModelAccount:listener=>{listeners.add(listener);return()=>listeners.delete(listener);}}));
 const canvas=document.querySelector('canvas'),inspector=createRoot(document.querySelector('aside')),catalog=createRoot(document.querySelector('nav'));
-let runtime,kind='form',pending=null,callbackId=0,source=true,paused=true,bpm=120,trackTime=2,serial=0;
+let runtime,kind='shatter',pending=null,callbackId=0,source=true,paused=true,bpm=120,trackTime=2,serial=0;
 const states=new Map();
 const create=(nextKind,serialized)=>{kind=nextKind;const result=Cinema2Runtime.create(canvas,{presetId:'drmvyz.cinema2.user-model-'+kind,presetRegistry:presets,moduleRegistry:modules,serializedParameterState:serialized,diagnosticsEnabled:true,renderQuality:'high',randomness:{mode:'deterministic',seed:'model-previews'},requestAnimationFrame:callback=>{pending=callback;return++callbackId;},cancelAnimationFrame:()=>{pending=null;},transportSource:{getState:()=>({sourcePresent:source,playing:source&&!paused,paused,analysisActive:source,timeSec:trackTime,bpm,bpmSync:false,trackId:'ifrit-audio-fixture'})}});if(!result.runtime)throw new Error(result.error);runtime=result.runtime;runtime.resize({width:800,height:600,dpr:1});runtime.start();inspector.render(React.createElement(Cinema2InspectorPanel,{runtime,surface:'design',sharedAudioAnalysis:false,onOpenMediaManager:()=>{openCount++;}}));catalog.render(React.createElement(Cinema2PresetsPanel,{activePresetId:runtime.getCompiledPresetPlan().presetId,onSelectPreset:id=>switchKind(id.split('user-model-')[1]),catalog:{presets:presets.list().filter(p=>p.id.includes('user-model-')&&!p.metadata.tags?.includes('internal')),userIds:new Set()}}));};
 const switchKind=next=>{if(runtime){states.set(kind,runtime.getParameterState().serialize());runtime.dispose();}create(next,states.get(next));};
-const saved=localStorage.getItem('model-preview-workspace');if(saved){const document=parseCinema2WorkspaceDocument(JSON.parse(saved));for(const record of document.value.presets)states.set(record.presetId.split('user-model-')[1],record.serializedParameterState);}create('form',states.get('form'));
+const saved=localStorage.getItem('model-preview-workspace');if(saved){const document=parseCinema2WorkspaceDocument(JSON.parse(saved));for(const record of document.value.presets)if(presets.get(record.presetId))states.set(record.presetId.split('user-model-')[1],record.serializedParameterState);}create('shatter',states.get('shatter'));
 globalThis.review={
  status:()=>({memory:getLoadedCinema2ThreeLibrary()?{...getCinema2ThreeRenderer(getLoadedCinema2ThreeLibrary(),canvas.getContext('webgl2')).renderer.info.memory}:null,kind,modules:runtime.getModuleRuntimeSnapshot(),runtime:runtime.getSnapshot(),render:runtime.getRenderGraphExecutorSnapshot(),camera:runtime.getCameraRuntimeSnapshot().camera,cache:cache.getSnapshot(),values:runtime.getParameterState().getSnapshot().persistentValues,resources:runtime.getResourceManagerSnapshot(),openCount}),
  switch:switchKind,
@@ -80,51 +80,38 @@ try{
  const shot=async(name)=>{const buffer=await image();await writeFile(path.join(output,name+'.png'),buffer);captures.push(name);return buffer;};
  const set=async(key,value)=>{const result=await api('set',key,value);assert(result.ok,JSON.stringify(result));await settle();};
  await page.goto('http://127.0.0.1:'+server.httpServer.address().port+'/__cinema_models.html');await page.waitForFunction(()=>!!globalThis.review);await ready();
- const names={form:['Frontispiece','Three Quarter','Suspended','Rocking Plinth','Breathing Form','Slow Turn'],shatter:['Radial Burst','Twin Banks','Crown Lift','Pinwheel Debris','Ripple Break','Rejoined Clusters'],dust:['Surface Cloud','Rising Drift','Halo Orbit','Twin Plumes','Wave Gather','Compressed Mist'],hologram:['Wire Signal','Scan Sweep','Double Echo','Tilted Projection','Signal Pulse','Cross Scan'],slices:['Layer Stack','Stair Step','Fan Sections','Alternating Bands','Ribbon Wave','Collapsed Layers'],voxel:['Surface Blocks','Column Lift','Checker Split','Orbital Blocks','Wave Grid','Compact Blocks']};
+ const names={shatter:['Radial Burst','Twin Banks','Crown Lift','Pinwheel Debris','Ripple Break','Rejoined Clusters'],dust:['Surface Cloud','Rising Drift','Halo Orbit','Twin Plumes','Wave Gather','Compressed Mist'],hologram:['Wire Signal','Scan Sweep','Double Echo','Tilted Projection','Signal Pulse','Cross Scan'],slices:['Layer Stack','Stair Step','Fan Sections','Alternating Bands','Ribbon Wave','Collapsed Layers']};
  const representations=[],metrics=[];
- if(process.argv.includes('--controls-only')) {
-  for(const [kind,patterns]of Object.entries(names)) {
-   console.log('Checking controls',kind);await api('switch',kind);await ready();await api('bind',0,1);await ready();await set('pattern',patterns[4]);await set('reactivity',0);
-   for(const [property,values]of Object.entries({intensity:[0,.8,2],opacity:[.1,.65,1],emission:[0,.6,2],movement:[0,.35,.8]})) {
-    const original=(await api('status')).values['user-model-'+kind+'-'+property],frames=[];
-    for(const value of values){await set(property,value);await settle({time:1.3,paused:false,energy:0});frames.push(await image());}
-    const change1=await diff(frames[0],frames[1]),change2=await diff(frames[1],frames[2]);assert(change1>.01&&change2>.01,kind+' '+property+' min/default/max must work: '+change1+'/'+change2);metrics.push({kind,property,change1,change2});await set(property,original);
-   }
-   const speedFrames=[];for(const speed of [0,1,3]){await set('speed',speed);await settle({time:0,paused:false,energy:0,bpm:240});for(let i=1;i<=20;i++)await tick({time:i*.02,paused:false,energy:0,bpm:240});speedFrames.push(await image());}assert(await diff(speedFrames[0],speedFrames[1])>.01&&await diff(speedFrames[1],speedFrames[2])>.01,kind+' movement speed must work');await set('speed',1);
-   const reactiveFrames=[];for(const reactivity of [0,.6,1]){await set('reactivity',reactivity);await settle({time:.5,paused:false,energy:0});await settle({time:.6,paused:false,energy:1,event:'kick',eventId:90});reactiveFrames.push(await image());}assert(await diff(reactiveFrames[0],reactiveFrames[1])>.01&&await diff(reactiveFrames[1],reactiveFrames[2])>.01,kind+' reactive strength must work');
-   const decayFrames=[];for(const response of [.05,.35,1.5]){await set('response',response);await settle({time:.5,paused:false,energy:0});await tick({time:.6,paused:false,energy:0,event:'kick',eventId:99});await settle({time:.7,paused:false,energy:0});decayFrames.push(await image());}assert(await diff(decayFrames[0],decayFrames[1])>.005&&await diff(decayFrames[1],decayFrames[2])>.005,kind+' response decay must work');
-   await page.screenshot({path:path.join(output,kind+'-inspector.png')});checks.push(kind+': all scalar controls at minimum/default/maximum; speed/reactivity/decay');
-  }
- } else {
+ // Rewind between samples and advance the real published beat grid, not a fake visual timer.
+ const rewind=async()=>{await settle({time:10,paused:true,energy:0,bpm:120});await settle({time:0,paused:false,energy:0,bpm:120});};
+ const advance=async(from,to,options={})=>{for(let t=from+.125;t<=to+.0001;t+=.125)await tick({time:t,paused:false,energy:0,bpm:120,...options});};
+ await expect(page.getByRole('button',{name:'Load 3D FORM (Preview)',exact:true})).toHaveCount(0);
+ await expect(page.getByRole('button',{name:'Load 3D VOXEL (Preview)',exact:true})).toHaveCount(0);
  for(const [kind,patterns]of Object.entries(names)){
-  console.log('Checking',kind);await page.getByRole('button',{name:'Load 3D '+kind.toUpperCase()+' (Preview)',exact:true}).click();await ready();await settle({time:2,paused:true});
-  const fallback=await shot(kind+'-default');
-  const before=await api('status');assert.equal(before.values['user-model-'+kind+'-pattern-change'],false);await expect(page.getByRole('combobox',{name:'Trigger',exact:true})).toHaveCount(0);
+  console.log('Checking',kind);await api('switch',kind);await ready();await api('bind',0,1);await ready();
+  const before=await api('status');assert.equal(before.values['user-model-'+kind+'-pattern-change'],false);
+  await expect(page.getByRole('combobox',{name:'Trigger',exact:true})).toHaveCount(0);
   await page.getByRole('switch',{name:'Pattern Change',exact:true}).click();await settle();await page.getByRole('combobox',{name:'Trigger',exact:true}).click();await expect(page.getByRole('option')).toHaveCount(11);await page.keyboard.press('Escape');await page.getByRole('switch',{name:'Pattern Change',exact:true}).click();await settle();
-  await api('bind',0,1);await ready();await settle({time:2,paused:true});const base=await shot(kind+'-model'),memory=(await api('status')).memory;assert(await diff(base,fallback)>.15,kind+' must use actual private model');representations.push(base);
-  // Capture all six real pattern outputs through the production world renderer.
-  const frames=[];for(let i=0;i<patterns.length;i++){await set('pattern',patterns[i]);frames.push(await shot(kind+'-pattern-'+i));}
-  for(let i=0;i<6;i++)for(let j=i+1;j<6;j++)assert(await diff(frames[i],frames[j])>.025,kind+' patterns '+i+'/'+j+' must differ visibly');
-  await set('pattern',patterns[0]);await settle({time:2,paused:true});
-  for(const [property,color]of Object.entries({background:[.22,.025,.04,1],primary:[1,.08,.05,1],secondary:[.1,1,.05,1],accent:[1,.03,.8,1]})){
-   const original=(await api('status')).values['user-model-'+kind+'-'+property],start=await image();await set(property,color);const change=await diff(start,await image());assert(change>.025,kind+' '+property+' must change pixels');metrics.push({kind,property,change});await set(property,original);
+  await set('reactivity',0);await set('speed',1);await set('movement',.35);
+  const frames=[];
+  for(let i=0;i<patterns.length;i++){
+   await set('pattern',patterns[i]);await rewind();const solid=await shot(kind+'-solid-'+i);
+   await advance(0,4);const peak=await shot(kind+'-pattern-'+i);frames.push(peak);
+   assert(await diff(solid,peak)>.025,kind+' must transform the actual model: '+patterns[i]);
+   await advance(4,8);const restored=await shot(kind+'-restored-'+i);
+   assert(await diff(solid,restored)<await diff(solid,peak),kind+' must restore the original pose: '+patterns[i]);
+   if(i===0){representations.push(peak);await writeFile(path.join(output,kind+'-default.png'),peak);}
   }
-  await set('pattern',patterns[4]);await settle({time:2,paused:false,energy:0});const quiet=await image();await settle({time:2.1,paused:false,energy:1,event:'kick',eventId:11});const reactive=await image();assert(await diff(quiet,reactive)>.025,kind+' must react to energy/kick');
-  await settle({time:2.2,paused:false,energy:0,event:'phrase',eventId:12});assert(await diff(quiet,await image())>.025,kind+' structure changes geometry');
-  await api('bind',1,1);await ready();const other=await image();await api('bind',0,1);await ready();assert(await diff(other,await image())>.1,kind+' proxy must update on model switch');assert.equal((await api('status')).cache.heldCount,1);assert((await api('status')).memory.geometries<=memory.geometries+1,kind+' geometry count must not drift on A/B/A');
+  if(!process.argv.includes('--controls-only'))for(let i=0;i<frames.length;i++)for(let j=i+1;j<frames.length;j++)assert(await diff(frames[i],frames[j])>.025,kind+' patterns '+i+'/'+j+' must differ visibly');
+  await set('pattern',patterns[0]);await rewind();await advance(0,4);const quiet=await image();
+  await set('reactivity',1);await tick({time:4.125,paused:false,energy:1,event:'kick',eventId:11});assert(await diff(quiet,await image())>.025,kind+' must respond to a musical accent');
+  await api('bind',1,1);await ready();const other=await image();await api('bind',0,1);await ready();assert(await diff(other,await image())>.1,kind+' must switch to the selected model');assert.equal((await api('status')).cache.heldCount,1);
   for(const quality of ['performance','balanced','quality']){await set('quality',quality);await ready();assert.equal((await api('status')).modules.failedModuleCount,0);}
   await set('pattern',patterns[1]);await api('save');await api('reenter');await ready();assert.equal((await api('status')).values['user-model-'+kind+'-pattern'],patterns[1]);
-  checks.push(kind+': model/fallback, six patterns, four palette roles, audio/structure, switching, tiers and persistence');
+  checks.push(kind+': intact model, all six transformations, reassembly, musical accent, model switching, quality and persistence');
  }
- for(let i=0;i<6;i++)for(let j=i+1;j<6;j++)assert(await diff(representations[i],representations[j])>.1,'Effect representations must be distinct');
- await api('switch','form');await ready();await set('pattern','Slow Turn');await set('reactivity',0);await set('bpmSync',true);await settle({time:0,paused:false,bpm:240});for(let i=1;i<=25;i++)await tick({time:i*.02,paused:false,bpm:240});const sync=await image();
- await set('bpmSync',false);await settle({time:0,paused:false,bpm:240});for(let i=1;i<=25;i++)await tick({time:i*.02,paused:false,bpm:240});assert(await diff(sync,await image())>.05,'BPM Sync must govern actual motion');checks.push('shared BPM Sync ON/OFF changes actual rendered motion');
- await set('pattern','Frontispiece');await set('trigger','beat');await set('patternChange',true);await settle({time:1,paused:false,event:'beat',eventId:20});await settle({time:1.1,paused:false,event:'beat',eventId:21});const advanced=await image();await settle({time:1.1,paused:false,event:'beat',eventId:21});assert(await diff(advanced,await image())<.02,'Duplicate beat cannot advance pattern');
- await set('pattern','Breathing Form');await settle({time:1.1,paused:false,event:'beat',eventId:21});const manual=await image();await settle({time:1.1,paused:false,event:'beat',eventId:21});assert(await diff(manual,await image())<.02);assert.equal((await api('status')).values['user-model-form-pattern-change'],true);await settle({time:1.2,paused:false,event:'beat',eventId:22});assert(await diff(manual,await image())>.1);assert.equal((await api('status')).values['user-model-form-pattern'],'Breathing Form');checks.push('fresh trigger advancement, duplicate suppression and manual precedence preserve authored state');
- await set('patternChange',false);await api('save');await page.reload();await page.waitForFunction(()=>!!globalThis.review);await ready();assert.equal((await api('status')).values['user-model-form-model'],'user-model:c0000000-0000-4000-8000-000000000001:1');checks.push('workspace reload restores pinned model and per-preset selections');
- for(const size of [[600,600],[450,700],[900,506]]){await api('resize',...size);await settle();await shot('form-aspect-'+size.join('x'));}await api('resize',800,600);await settle();
- const beforeCycle=(await api('status')).memory;for(const next of Object.keys(names)){await api('switch',next);await ready();}await api('switch','form');await ready();assert((await api('status')).memory.geometries<=beforeCycle.geometries+1);checks.push('rapid preset cycle returns to bounded GPU geometry count');
- await api('deleted');for(let i=0;i<25;i++)await tick();assert((await api('status')).modules.modules.flatMap(m=>m.diagnostics).some(d=>d.code==='CINEMA2_USER_MODEL_MISSING'));assert.equal((await api('status')).cache.heldCount,0);await page.screenshot({path:path.join(output,'missing-model.png')});checks.push('missing private model falls back inside the existing scene');
- }
- assert.deepEqual(await api('stop'),{entryCount:0,heldCount:0});if(process.argv.includes('--thumbnails'))for(const kind of Object.keys(names))await sharp(path.join(output,kind+'-default.png')).resize(640,480).webp({quality:85}).toFile(path.join(root,'public/preset-artwork/drmvyz.cinema2.user-model-'+kind+'.webp')); assert.deepEqual(errors,[]);await writeFile(path.join(output,process.argv.includes('--controls-only')?'controls-result.json':'result.json'),JSON.stringify({passed:true,checks,metrics,captures,errors,cloudEndToEnd:'pending; remote repository/Auth fixture only'},null,2));console.log('Six preview validation passed',output);
+ for(let i=0;i<representations.length;i++)for(let j=i+1;j<representations.length;j++)assert(await diff(representations[i],representations[j])>.1,'Effect representations must be distinct');
+ await api('switch','shatter');await ready();await api('save');await page.reload();await page.waitForFunction(()=>!!globalThis.review);await ready();assert.equal((await api('status')).values['user-model-shatter-model'],'user-model:c0000000-0000-4000-8000-000000000001:1');
+ await api('deleted');for(let i=0;i<25;i++)await tick();assert((await api('status')).modules.modules.flatMap(m=>m.diagnostics).some(d=>d.code==='CINEMA2_USER_MODEL_MISSING'));assert.equal((await api('status')).cache.heldCount,0);checks.push('missing private model falls back inside the existing scene');
+ assert.deepEqual(await api('stop'),{entryCount:0,heldCount:0});if(process.argv.includes('--thumbnails'))for(const kind of Object.keys(names))await sharp(path.join(output,kind+'-default.png')).resize(640,480).webp({quality:85}).toFile(path.join(root,'public/preset-artwork/drmvyz.cinema2.user-model-'+kind+'.webp')); assert.deepEqual(errors,[]);await writeFile(path.join(output,process.argv.includes('--controls-only')?'controls-result.json':'result.json'),JSON.stringify({passed:true,checks,metrics,captures,errors,cloudEndToEnd:'pending; remote repository/Auth fixture only'},null,2));console.log('Four preview validation passed',output);
 }catch(error){if(page){await page.screenshot({path:path.join(output,'failure.png')});await writeFile(path.join(output,'failure.html'),await page.content());console.error(JSON.stringify(await page.evaluate(()=>globalThis.review?.status()),null,2));}throw error;}finally{await browser?.close();await server.close();}

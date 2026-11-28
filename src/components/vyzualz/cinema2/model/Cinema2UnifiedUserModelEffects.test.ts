@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { Cinema2ThreeLibrary } from '../modules/three/Cinema2ThreeLibrary'
 import type { Cinema2ModuleUpdateContext } from '../modules/Cinema2ModuleContracts'
 import { Cinema2UnifiedUserModelEffects } from './Cinema2UnifiedUserModelEffects'
-import { CINEMA2_USER_MODEL_PREVIEWS, type Cinema2UserModelPreviewKind } from './Cinema2UserModelPreviewPatterns'
+import { CINEMA2_SELECTABLE_USER_MODEL_PREVIEWS, CINEMA2_USER_MODEL_PREVIEWS, type Cinema2UserModelPreviewKind } from './Cinema2UserModelPreviewPatterns'
 import { createCinema2UserModelPreset, cinema2UserModelPreviewParameterId } from '../presets/Cinema2UserModelPresetFactory'
 import { cinema2NativePresetRegistry } from '../presets/Cinema2PresetRegistry'
 import { Cinema2ParameterState } from '../parameters/Cinema2ParameterState'
@@ -89,7 +89,7 @@ describe('unified private-model representations', () => {
     const malformed = new THREE.Group(), geometry = new THREE.BufferGeometry(); geometry.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 1, 1, 1], 3)); malformed.add(new THREE.Mesh(geometry, new THREE.MeshStandardMaterial()))
     controller.attach(malformed, true, [], identity); expect(() => draw(controller, 'voxel', 2)).not.toThrow(); expect(controller.inspect().activeRepresentation).toBe('form'); controller.dispose()
   })
-  it.each(modes)('restores historical %s preset state and round-trips unified controls', kind => {
+  it.each(CINEMA2_SELECTABLE_USER_MODEL_PREVIEWS)('restores historical %s preset state and round-trips unified controls', kind => {
     const preset = createCinema2UserModelPreset(kind), compiled = cinema2NativePresetRegistry.compile(preset.id)
     if (!compiled.ok) throw new Error('Compatibility preset failed to compile')
     const state = new Cinema2ParameterState(compiled.plan.parameters), id = (key: string) => cinema2UserModelPreviewParameterId(kind, key)
@@ -102,18 +102,23 @@ describe('unified private-model representations', () => {
 })
 
 // Production previews are locked to one effect even when obsolete mode overrides are supplied.
-it.each(modes)('keeps the %s effect visible while paused and rejects the old modulation architecture', kind => {
+it.each(CINEMA2_SELECTABLE_USER_MODEL_PREVIEWS)('keeps the %s original logo visible while paused and rejects the old modulation architecture', kind => {
   const manifest = createCinema2UserModelPreset(kind), find = (key: string) => manifest.parameters!.find(p => p.id === cinema2UserModelPreviewParameterId(kind, key))
   for (const key of ['representation', 'defaultRepresentation', 'audioMappingsEnabled', 'audioMap1Target', 'cinematicLook', 'effectPose']) expect(find(key)).toBeUndefined()
   expect(manifest.runtimeParameterConsumers).toBeUndefined()
   expect(manifest.parameters!.length).toBeLessThanOrEqual(25)
-  expect(manifest.modules![0].parameters?.effectPose).toBe('representation')
+  expect(manifest.modules![0].parameters?.effectPose).toBe('logo-cycle')
   const root = logo(), controller = new Cinema2UnifiedUserModelEffects(library, kind, true)
   controller.attach(root, true, [], identity)
-  draw(controller, kind === 'form' ? 'voxel' : 'form', 1, { effectPose: 'cycle', shatterSpread: 1, sliceSeparation: 1, voxelSeparation: 1 })
+  draw(controller, 'form', 1, { effectPose: 'cycle', shatterSpread: 1, sliceSeparation: 1, voxelSeparation: 1 })
   expect(controller.inspect().activeRepresentation).toBe(kind)
   expect(visibleGeometry(root)).toBeGreaterThan(0)
   expect(root.getObjectByName('CinematicModelStage')).toBeUndefined()
+  const original = root.getObjectByName('UnifiedModelSource')!.children[0] as THREE.Mesh
+  const restored = root.getObjectByName('UserModelPreviewSource')!
+  expect(restored.visible).toBe(true)
+  expect((restored.children[0] as THREE.Mesh).geometry).toBe(original.geometry)
+  expect(controller.inspect().logoAmount).toBe(0)
   controller.dispose()
 })
 it('changes actual derived fragment geometry and reassembles it without mutating the source', () => {

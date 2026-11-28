@@ -226,7 +226,7 @@ export class Cinema2UnifiedUserModelEffects {
   private parametersFor(mode: Cinema2UserModelPreviewKind, original: Cinema2ModuleParameterReadFacet): Cinema2ModuleParameterReadFacet {
     const nameFor = (name: string) => name === 'pattern' && mode !== this.defaultKind ? cinema2RepresentationPatternProperty(mode) : name
     return {
-      get: name => this.fixedPreview && name === 'effectPose' ? 'representation' : this.fixedPreview && ['shatterSpread', 'sliceSeparation', 'voxelSeparation'].includes(name) ? scalar(original.get(name), 1, .05, 1) : name === 'modelYaw' ? 0 : name === 'modelScale' ? 1 : original.get(nameFor(name)),
+      get: name => this.fixedPreview && name === 'effectPose' ? 'logo-cycle' : this.fixedPreview && ['shatterSpread', 'sliceSeparation', 'voxelSeparation'].includes(name) ? scalar(original.get(name), 1, .05, 1) : name === 'modelYaw' ? 0 : name === 'modelScale' ? 1 : original.get(nameFor(name)),
       getAuthored: name => original.getAuthored(nameFor(name)),
       resolve: name => original.resolve(nameFor(name)),
       getEditRevision: original.getEditRevision ? name => original.getEditRevision!(nameFor(name)) : undefined,
@@ -241,6 +241,8 @@ export class Cinema2UnifiedUserModelEffects {
     }
   }
 
+  /** Render-camera offset is scoped to the four fixed model previews. */
+  cameraOrbitRadians(): number { return this.fixedPreview ? this.attachment?.active?.effects.logoOrbitRadians() ?? 0 : 0 }
   beforeDraw(quality: Cinema2RenderQualityLevel = 'high'): void {
     const a = this.attachment, context = this.latest
     if (!a || !context) return
@@ -279,8 +281,10 @@ export class Cinema2UnifiedUserModelEffects {
         // GLTF unlit material slots do not participate in the PBR-only preview controls.
         // Fade those actual surfaces as well, without touching lease-owned materials.
         for (const { material, opacity, transparent, depthWrite } of resident.otherMaterials) {
-          material.opacity = opacity * gain * scalar(p.get('opacity'), 1, .1, 1) * (resident.kind === 'hologram' ? 1 - scalar(p.get('hologramTransparency'), 0, 0, .9) : 1)
-          const translucent = resident.kind === 'hologram' || transparent || material.opacity < 1
+          const amount = this.fixedPreview ? resident.effects.logoEffectAmount() : 1
+          const targetOpacity = scalar(p.get('opacity'), 1, .1, 1) * (resident.kind === 'hologram' ? 1 - scalar(p.get('hologramTransparency'), 0, 0, .9) : 1)
+          material.opacity = opacity * gain * (1 + (targetOpacity - 1) * amount)
+          const translucent = resident.kind === 'hologram' && amount > .00001 || transparent || material.opacity < 1
           if (material.transparent !== translucent) material.needsUpdate = true
           material.transparent = translucent; material.depthWrite = depthWrite && !translucent
         }

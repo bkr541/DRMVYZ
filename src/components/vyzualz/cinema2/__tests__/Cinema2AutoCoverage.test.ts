@@ -116,11 +116,9 @@ describe('what Auto Performance does not move, and why', () => {
       livewire: ['Camera Amount (unbound)'],
       purity: ['Camera Impact (authority)', 'Frame Thickness (exempt)', 'Music Reactivity (exempt)', 'Tunnel Depth (exempt)', 'Tunnel Width (exempt)'],
       'user-model-dust': [...USER_MODEL_LEFT, 'Particle Density (exempt)'].sort(),
-      'user-model-form': USER_MODEL_LEFT,
       'user-model-hologram': USER_MODEL_LEFT,
       'user-model-shatter': USER_MODEL_LEFT,
       'user-model-slices': [...USER_MODEL_LEFT, 'Slice Count (structural)'].sort(),
-      'user-model-voxel': USER_MODEL_LEFT,
     })
   })
 

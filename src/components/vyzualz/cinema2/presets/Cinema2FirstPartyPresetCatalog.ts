@@ -15,12 +15,10 @@ import { CINEMA2_CRATE_PRESET_MANIFESTS } from './Cinema2CratePresets'
 import { CINEMA2_CHAMBER_PRESET_MANIFEST } from './Cinema2ChamberPreset'
 import { CINEMA2_SPACE_BOI_PRESET_MANIFEST } from './Cinema2SpaceBoiPreset'
 import { CINEMA2_NEON_FOREST_PRESET_MANIFEST } from './Cinema2NeonForestPreset'
-import { CINEMA2_USER_MODEL_FORM_PRESET_MANIFEST } from './Cinema2UserModelFormPreset'
 import { CINEMA2_USER_MODEL_SHATTER_PRESET_MANIFEST } from './Cinema2UserModelShatterPreset'
 import { CINEMA2_USER_MODEL_DUST_PRESET_MANIFEST } from './Cinema2UserModelDustPreset'
 import { CINEMA2_USER_MODEL_HOLOGRAM_PRESET_MANIFEST } from './Cinema2UserModelHologramPreset'
 import { CINEMA2_USER_MODEL_SLICES_PRESET_MANIFEST } from './Cinema2UserModelSlicesPreset'
-import { CINEMA2_USER_MODEL_VOXEL_PRESET_MANIFEST } from './Cinema2UserModelVoxelPreset'
 import { CINEMA2_ORBITAL_PRESET_MANIFEST } from './Cinema2OrbitalPreset'
 import { CINEMA2_SIGNS_PRESET_MANIFEST } from './Cinema2SignsPreset'
 import { CINEMA2_PULSE_CUBED_PRESET_MANIFEST } from './Cinema2PulseCubedPreset'
@@ -101,12 +99,10 @@ const AUTHORED_PRESET_DECLARATIONS = Object.freeze([
   // Complete native implementation; human visual acceptance pending.
   defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_SPACE_BOI_PRESET_MANIFEST }),
   // Explicitly reference previews; not promoted to keeper.
-  defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_USER_MODEL_FORM_PRESET_MANIFEST }),
   defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_USER_MODEL_SHATTER_PRESET_MANIFEST }),
   defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_USER_MODEL_DUST_PRESET_MANIFEST }),
   defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_USER_MODEL_HOLOGRAM_PRESET_MANIFEST }),
   defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_USER_MODEL_SLICES_PRESET_MANIFEST }),
-  defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_USER_MODEL_VOXEL_PRESET_MANIFEST }),
   // Native text/environment implementation; musical review remains available in-app.
   defineCinema2FirstPartyPreset({ role: 'keeper', manifest: CINEMA2_SUBMERGE_PRESET_MANIFEST }),
   // Native production entry pending human visual acceptance.

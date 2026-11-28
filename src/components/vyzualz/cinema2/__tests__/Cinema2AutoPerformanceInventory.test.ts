@@ -20,7 +20,7 @@ const isAutoPerformance = (parameter: { id: string; label: string }) => /auto.?p
 /** Presets that gained the toggle with this work. Every other user-facing preset already had one, and keeps its own implementation. */
 const ADDED = [
   'electric-storm', 'reactor', 'threshold', 'go-to', 'reliquary', 'war-of-worlds', 'mainframe', 'backstreet',
-  'user-model-form', 'user-model-shatter', 'user-model-dust', 'user-model-hologram', 'user-model-slices', 'user-model-voxel',
+  'user-model-shatter', 'user-model-dust', 'user-model-hologram', 'user-model-slices',
 ] as const
 
 describe('Auto Performance across the Cinema 2.0 catalog', () => {

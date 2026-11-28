@@ -9,6 +9,8 @@ export const CINEMA2_USER_MODEL_PREVIEWS = {
   voxel: ['Surface Blocks', 'Column Lift', 'Checker Split', 'Orbital Blocks', 'Wave Grid', 'Compact Blocks'],
 } as const
 export type Cinema2UserModelPreviewKind = keyof typeof CINEMA2_USER_MODEL_PREVIEWS
+/** Only these model effects are shipped as selectable previews. Form and Voxel remain internal algorithms. */
+export const CINEMA2_SELECTABLE_USER_MODEL_PREVIEWS = ['shatter', 'dust', 'hologram', 'slices'] as const
 export const cinema2RepresentationPatternProperty = (mode: Cinema2UserModelPreviewKind) => `patternFor${mode[0].toUpperCase()}${mode.slice(1)}`
 export const CINEMA2_USER_MODEL_PROXY_LIMITS = {
   low: { shatter: 48, dust: 4096, slices: 14, voxel: 30000 },
